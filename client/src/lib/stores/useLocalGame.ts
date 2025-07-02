@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { GameState, PlayerState, HexCoordinate, TerrainType } from "@shared/types/game";
 import { gameReducer } from "@shared/logic/gameReducer";
 import { generateMap } from "../gameStorage";
+import { useGameState } from "./useGameState";
 
 type GamePhase = 'menu' | 'playerSetup' | 'handoff' | 'playing' | 'gameOver';
 
@@ -195,6 +196,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     };
 
     const newGameState = gameReducer(gameState, action);
+    
+    // Clear selected unit when turn changes
+    useGameState.getState().setSelectedUnit(null);
     
     set({ 
       gameState: newGameState,

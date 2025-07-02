@@ -198,16 +198,16 @@ function handleEndTurn(
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (currentPlayer.id !== payload.playerId) return state;
 
-  // Reset unit movement for current player
+  // Reset unit movement for the NEW CURRENT player (not the one ending turn)
+  const nextPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+  const nextPlayer = state.players[nextPlayerIndex];
+  const isNewTurn = nextPlayerIndex === 0;
+
   const updatedUnits = state.units.map((u: Unit) => 
-    u.playerId === currentPlayer.id 
+    u.playerId === nextPlayer.id 
       ? { ...u, remainingMovement: u.movement }
       : u
   );
-
-  // Move to next player
-  const nextPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
-  const isNewTurn = nextPlayerIndex === 0;
 
   return {
     ...state,

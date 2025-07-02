@@ -53,8 +53,19 @@ export default function GameCanvas() {
       {/* Grid */}
       <HexGrid map={gameState.map} />
       
-      {/* Units */}
-      {gameState.units.map((unit: any) => (
+      {/* Units - only show units in visible/explored areas */}
+      {gameState.units.filter((unit: any) => {
+        const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+        const unitTileKey = `${unit.coordinate.q},${unit.coordinate.r}`;
+        
+        // Show own units always, enemy units only if in visible area
+        if (unit.playerId === currentPlayer.id) {
+          return true;
+        }
+        
+        // Only show enemy units if they're in a visible tile
+        return currentPlayer.visibilityMask.includes(unitTileKey);
+      }).map((unit: any) => (
         <Unit
           key={unit.id}
           unit={unit}

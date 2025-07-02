@@ -111,8 +111,8 @@ export default function HexGrid({ map }: HexGridProps) {
         const isExplored = tile.exploredBy.includes(currentPlayer?.id || '');
         const isReachable = reachableTiles.includes(tileKey);
         
-        // Fog of war: only show explored tiles for current player
-        if (!isExplored && !isVisible) {
+        // Fog of war: only show tiles visible to current player
+        if (!isVisible && !isExplored) {
           return (
             <mesh
               key={tileKey}
@@ -120,7 +120,7 @@ export default function HexGrid({ map }: HexGridProps) {
               geometry={hexGeometry}
               rotation={[0, 0, 0]}
             >
-              <meshBasicMaterial color="#1a1a1a" transparent opacity={0.3} />
+              <meshBasicMaterial color="#0a0a0a" transparent opacity={0.2} />
             </mesh>
           );
         }
