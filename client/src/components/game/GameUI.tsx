@@ -113,7 +113,7 @@ export default function GameUI() {
       <CityPanel
         open={showCityPanel}
         onClose={() => setShowCityPanel(false)}
-        cityId={selectedCityId}
+        cityId={selectedCityId || undefined}
       />
     </div>
   );
