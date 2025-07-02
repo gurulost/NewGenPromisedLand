@@ -216,16 +216,44 @@ function handleCaptureCity(
       : city
   );
   
-  // Transfer or destroy structures in captured city (aggressive capture rule)
-  const updatedStructures = state.structures?.filter(structure => 
-    structure.cityId !== cityId
-  ) || [];
+  // Apply capture rules for structures based on game configuration
+  let updatedStructures = state.structures || [];
+  if (GAME_RULES.capture.destroyAllStructures) {
+    // Destroy all structures in captured city
+    updatedStructures = updatedStructures.filter(structure => 
+      structure.cityId !== cityId
+    );
+  } else if (GAME_RULES.capture.transferStructures) {
+    // Transfer structures to new owner
+    updatedStructures = updatedStructures.map(structure =>
+      structure.cityId === cityId
+        ? { ...structure, playerId }
+        : structure
+    );
+  }
+
+  // Apply capture rules for improvements
+  let updatedImprovements = state.improvements || [];
+  if (GAME_RULES.capture.destroyImprovements) {
+    // Destroy improvements near captured city
+    updatedImprovements = updatedImprovements.filter(improvement =>
+      improvement.cityId !== cityId
+    );
+  } else if (GAME_RULES.capture.transferImprovements) {
+    // Transfer improvements to new owner
+    updatedImprovements = updatedImprovements.map(improvement =>
+      improvement.cityId === cityId
+        ? { ...improvement, playerId }
+        : improvement
+    );
+  }
   
   return {
     ...state,
     players: updatedPlayers,
     cities: updatedCities,
-    structures: updatedStructures
+    structures: updatedStructures,
+    improvements: updatedImprovements
   };
 }
 
@@ -368,8 +396,7 @@ function handleMoveUnit(
   );
   
   console.log('Target tile:', targetTile);
-  const impassableTerrains = ['water', 'mountain']; // This could be moved to game rules
-  if (!targetTile || impassableTerrains.includes(targetTile.terrain)) {
+  if (!targetTile || GAME_RULES.terrain.impassableTypes.includes(targetTile.terrain)) {
     console.log('Target tile is not passable');
     return state;
   }
@@ -586,10 +613,9 @@ function handleEndTurn(
       
       // Add income from improvements
       const playerImprovements = state.improvements?.filter(imp => imp.playerId === player.id) || [];
-      const { IMPROVEMENT_DEFINITIONS } = require('../types/city');
       
       playerImprovements.forEach(improvement => {
-        const improvementDef = IMPROVEMENT_DEFINITIONS[improvement.type];
+        const improvementDef = IMPROVEMENT_DEFINITIONS[improvement.type as keyof typeof IMPROVEMENT_DEFINITIONS];
         if (improvementDef && improvement.built) {
           starIncome += improvementDef.starProduction;
         }
@@ -597,10 +623,9 @@ function handleEndTurn(
       
       // Add income from structures
       const playerStructures = state.structures?.filter(struct => struct.playerId === player.id) || [];
-      const { STRUCTURE_DEFINITIONS } = require('../types/city');
       
       playerStructures.forEach(structure => {
-        const structureDef = STRUCTURE_DEFINITIONS[structure.type];
+        const structureDef = STRUCTURE_DEFINITIONS[structure.type as keyof typeof STRUCTURE_DEFINITIONS];
         if (structureDef && structure.built) {
           starIncome += structureDef.effects.starProduction;
         }

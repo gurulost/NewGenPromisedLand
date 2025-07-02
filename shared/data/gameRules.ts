@@ -40,6 +40,22 @@ export interface GameRules {
     baseProduction: number;
   };
 
+  // City Capture Rules
+  capture: {
+    destroyAllStructures: boolean;
+    transferStructures: boolean;
+    destroyImprovements: boolean;
+    transferImprovements: boolean;
+  };
+
+  // Terrain Rules
+  terrain: {
+    impassableTypes: string[];
+    waterMovementCost: number;
+    mountainMovementCost: number;
+    plainMovementCost: number;
+  };
+
   // Turn Management
   turns: {
     maxTurnsPerGame: number;
@@ -77,6 +93,20 @@ export const GAME_RULES: GameRules = {
     maxPopulation: 1000,
     growthRate: 0.05, // 5% per turn
     baseProduction: 3,
+  },
+
+  capture: {
+    destroyAllStructures: true,  // Aggressive capture rule
+    transferStructures: false,
+    destroyImprovements: false,  // Keep improvements when capturing
+    transferImprovements: true,
+  },
+
+  terrain: {
+    impassableTypes: ['water', 'mountain'],
+    waterMovementCost: 99, // Effectively impassable
+    mountainMovementCost: 99, // Effectively impassable
+    plainMovementCost: 1,
   },
 
   turns: {

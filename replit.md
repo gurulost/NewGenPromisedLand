@@ -105,11 +105,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- July 02, 2025: **Critical Performance & Architecture Fixes**: Removed require() statements from handleEndTurn function (major performance fix), implemented data-driven capture mechanics and terrain rules, fixed React hooks error in TechPanel
+- July 02, 2025: **Data-Driven Game Rules**: Expanded gameRules.ts with configurable capture behavior (destroy/transfer structures/improvements), terrain passability rules, and movement cost system for easy game balance tweaking
 - July 02, 2025: **Complete Turn 2-4 Systems**: Implemented building improvement/structure systems with terrain validation, city capture mechanics, unit recruitment, and enhanced star income generation from cities/improvements
 - July 02, 2025: **City Management System**: Full-featured city panel with structure building, unit recruitment, and comprehensive validation including tech requirements, faction restrictions, and resource costs
 - July 02, 2025: **Building & Construction**: Terrain-validated improvement placement (farms on plains, mines on mountains), city structure construction with economic effects, and enhanced resource generation system
-- July 02, 2025: **Unit Recruitment & City Capture**: Complete unit recruitment from cities with stat requirements, faction restrictions, and city space limits; aggressive city capture mechanics with structure transfer
-- July 02, 2025: **Data-Driven Architecture**: Refactored from hardcoded logic to centralized game rules system with configurable victory thresholds, resource generation, and unit properties
 - July 02, 2025: **Tech Research System**: Complete working technology system with 9 techs, prerequisite validation, cost scaling, and responsive UI panel fixed from infinite re-render bug
 
 ## Changelog
