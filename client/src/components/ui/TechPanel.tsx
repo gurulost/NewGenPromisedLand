@@ -31,29 +31,35 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   };
   
   const handleResearchTech = (techId: string) => {
-    alert(`Click detected! Trying to research: ${techId}`);
-    console.log('Attempting to research tech:', techId);
-    console.log('Current player:', currentPlayer);
-    console.log('Player stars:', currentPlayer.stars);
-    
-    const tech = TECHNOLOGIES[techId];
-    const cost = calculateResearchCost(tech, researchedCount);
-    
-    console.log('Tech:', tech);
-    console.log('Cost:', cost);
-    console.log('Can afford:', currentPlayer.stars >= cost);
-    
-    if (currentPlayer.stars >= cost) {
-      console.log('Dispatching RESEARCH_TECH action');
-      dispatch({
-        type: 'RESEARCH_TECH',
-        payload: {
-          playerId: currentPlayer.id,
-          techId,
-        }
-      });
-    } else {
-      console.log('Cannot afford tech - need', cost - currentPlayer.stars, 'more stars');
+    try {
+      console.log('=== TechPanel: Research button clicked ===');
+      console.log('Tech ID:', techId);
+      console.log('Current player:', currentPlayer);
+      
+      const tech = TECHNOLOGIES[techId];
+      if (!tech) {
+        console.error('Tech not found:', techId);
+        return;
+      }
+      
+      const cost = calculateResearchCost(tech, researchedCount);
+      console.log('Tech cost:', cost, 'Player stars:', currentPlayer.stars);
+      
+      if (currentPlayer.stars >= cost) {
+        console.log('Dispatching RESEARCH_TECH action');
+        dispatch({
+          type: 'RESEARCH_TECH',
+          payload: {
+            playerId: currentPlayer.id,
+            techId,
+          }
+        });
+        console.log('Action dispatched successfully');
+      } else {
+        console.log('Cannot afford tech - need', cost - currentPlayer.stars, 'more stars');
+      }
+    } catch (error) {
+      console.error('Error in handleResearchTech:', error);
     }
   };
   
@@ -76,8 +82,15 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   };
   
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <Card className="w-[90%] h-[90%] max-w-4xl bg-white border-2">
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <Card className="w-[90%] h-[90%] max-w-4xl bg-white border-2" onClick={(e) => e.stopPropagation()}>
         <CardHeader className="border-b">
           <div className="flex justify-between items-center">
             <CardTitle className="flex items-center gap-2">
