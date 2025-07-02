@@ -4,7 +4,7 @@ import { Text } from "@react-three/drei";
 import { Unit as UnitType } from "@shared/types/unit";
 import { hexToPixel } from "@shared/utils/hex";
 import { getFaction } from "@shared/data/factions";
-import { getReachableTiles } from "@shared/logic/pathfinding";
+import { calculateReachableTiles, canSelectUnit } from "@shared/logic/unitLogic";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import * as THREE from "three";
@@ -35,19 +35,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
     if (isSelected && gameState) {
       console.log('Calculating reachable tiles for unit:', unit.id, 'Movement:', unit.remainingMovement);
       
-      const isPassable = (coord: any): boolean => {
-        const tile = gameState.map.tiles.find(t => 
-          t.coordinate.q === coord.q && t.coordinate.r === coord.r
-        );
-        return !!(tile && tile.terrain !== 'water' && tile.terrain !== 'mountain');
-      };
-      
-      const reachable = getReachableTiles(
-        unit.coordinate, 
-        unit.remainingMovement, 
-        isPassable
-      );
-      
+      const reachable = calculateReachableTiles(unit, gameState);
       const reachableKeys = reachable.map(coord => `${coord.q},${coord.r}`);
       console.log('Reachable tiles:', reachableKeys);
       setReachableTiles(reachableKeys);
@@ -83,9 +71,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   const handleClick = () => {
     console.log('Unit clicked:', unit.id, 'Current player:', gameState?.players[gameState.currentPlayerIndex]?.id, 'Unit player:', unit.playerId);
     
-    // Only allow selecting units that belong to the current player
-    const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
-    if (currentPlayer && unit.playerId === currentPlayer.id) {
+    if (gameState && canSelectUnit(unit, gameState)) {
       setSelectedUnit(unit);
     } else {
       console.log('Cannot select unit - not current player\'s turn');

@@ -3,6 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
+import { getVisibleUnits } from "@shared/logic/unitLogic";
 import HexGridInstanced from "./HexGridInstanced";
 import Unit from "./Unit";
 import * as THREE from "three";
@@ -53,29 +54,8 @@ export default function GameCanvas() {
       {/* Grid - Using Instanced Rendering for Performance */}
       <HexGridInstanced map={gameState.map} />
       
-      {/* Units - show own units always, enemy units only in current vision */}
-      {gameState.units.filter((unit: any) => {
-        const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-        
-        // Show own units always
-        if (unit.playerId === currentPlayer.id) {
-          return true;
-        }
-        
-        // Only show enemy units if they're in CURRENT vision range
-        const playerUnits = gameState.units.filter((u: any) => u.playerId === currentPlayer.id);
-        const isInCurrentVision = playerUnits.some((friendlyUnit: any) => {
-          const distance = Math.max(
-            Math.abs(unit.coordinate.q - friendlyUnit.coordinate.q),
-            Math.abs(unit.coordinate.r - friendlyUnit.coordinate.r),
-            Math.abs(unit.coordinate.s - friendlyUnit.coordinate.s)
-          );
-          
-          return distance <= 2; // 2-tile vision radius
-        });
-        
-        return isInCurrentVision;
-      }).map((unit: any) => (
+      {/* Units - using centralized vision system */}
+      {getVisibleUnits(gameState).map((unit: any) => (
         <Unit
           key={unit.id}
           unit={unit}

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 import { getUnitDefinition } from "@shared/data/units";
+import { getValidAttackTargets, canUnitAttackTarget } from "@shared/logic/unitLogic";
 import { hexDistance } from "@shared/utils/hex";
 import type { Unit } from "@shared/types/unit";
 import type { GameState } from "@shared/types/game";
@@ -15,29 +16,11 @@ interface CombatPanelProps {
 export default function CombatPanel({ selectedUnit, gameState, onAttackUnit }: CombatPanelProps) {
   const selectedUnitDef = getUnitDefinition(selectedUnit.type);
 
-  // Memoize expensive combat calculations
+  // Memoize expensive combat calculations using centralized logic
   const attackableEnemies = useMemo(() => {
     if (!selectedUnit) return [];
-    
-    // Get current player
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    
-    // Find enemy units within attack range and vision
-    return gameState.units.filter(unit => {
-      // Must be an enemy unit
-      if (unit.playerId === currentPlayer.id) return false;
-      
-      // Must be within attack range
-      const distance = hexDistance(selectedUnit.coordinate, unit.coordinate);
-      if (distance > (selectedUnitDef.baseStats.attackRange || 1)) return false;
-      
-      // Must be within vision (data-driven vision check)
-      const visionDistance = hexDistance(selectedUnit.coordinate, unit.coordinate);
-      if (visionDistance > (selectedUnitDef.baseStats.visionRadius || 2)) return false;
-      
-      return true;
-    });
-  }, [selectedUnit, gameState.units, selectedUnitDef]);
+    return getValidAttackTargets(selectedUnit, gameState);
+  }, [selectedUnit, gameState]);
 
   // Don't show combat panel if no enemies in range
   if (attackableEnemies.length === 0) return null;

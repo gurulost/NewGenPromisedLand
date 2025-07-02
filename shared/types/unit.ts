@@ -39,6 +39,8 @@ export const UnitSchema = z.object({
   abilities: z.array(z.string()).default([]),
   level: z.number().default(1),
   experience: z.number().default(0),
+  visionRadius: z.number().default(2),
+  attackRange: z.number().default(1),
 });
 
 export type Unit = z.infer<typeof UnitSchema>;
