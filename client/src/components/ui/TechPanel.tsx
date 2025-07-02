@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 import { Badge } from "./badge";
@@ -23,43 +23,27 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const availableTechs = getAvailableTechnologies(currentPlayer.researchedTechs);
   const researchedCount = currentPlayer.researchedTechs.length;
   
-  const categorizedTechs = {
+  const categorizedTechs = useMemo(() => ({
     economic: availableTechs.filter(tech => tech.category === 'economic'),
     military: availableTechs.filter(tech => tech.category === 'military'),
     religious: availableTechs.filter(tech => tech.category === 'religious'),
     exploration: availableTechs.filter(tech => tech.category === 'exploration'),
-  };
+  }), [availableTechs]);
   
   const handleResearchTech = (techId: string) => {
-    try {
-      console.log('=== TechPanel: Research button clicked ===');
-      console.log('Tech ID:', techId);
-      console.log('Current player:', currentPlayer);
-      
-      const tech = TECHNOLOGIES[techId];
-      if (!tech) {
-        console.error('Tech not found:', techId);
-        return;
-      }
-      
-      const cost = calculateResearchCost(tech, researchedCount);
-      console.log('Tech cost:', cost, 'Player stars:', currentPlayer.stars);
-      
-      if (currentPlayer.stars >= cost) {
-        console.log('Dispatching RESEARCH_TECH action');
-        dispatch({
-          type: 'RESEARCH_TECH',
-          payload: {
-            playerId: currentPlayer.id,
-            techId,
-          }
-        });
-        console.log('Action dispatched successfully');
-      } else {
-        console.log('Cannot afford tech - need', cost - currentPlayer.stars, 'more stars');
-      }
-    } catch (error) {
-      console.error('Error in handleResearchTech:', error);
+    const tech = TECHNOLOGIES[techId];
+    if (!tech) return;
+    
+    const cost = calculateResearchCost(tech, researchedCount);
+    
+    if (currentPlayer.stars >= cost) {
+      dispatch({
+        type: 'RESEARCH_TECH',
+        payload: {
+          playerId: currentPlayer.id,
+          techId,
+        }
+      });
     }
   };
   

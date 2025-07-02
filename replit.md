@@ -105,11 +105,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- July 02, 2025: **Data-Driven Architecture**: Refactored from hardcoded logic to centralized game rules system with configurable victory thresholds, resource generation, and unit properties
+- July 02, 2025: **Tech Research System**: Complete working technology system with 9 techs, prerequisite validation, cost scaling, and responsive UI panel fixed from infinite re-render bug
+- July 02, 2025: **Game Balance Configuration**: Centralized all "magic numbers" in gameRules.ts - victory conditions (Faith 90+, Territory 80%), resource rates (1+2/city stars, 2/city faith), research scaling (1.2x)
+- July 02, 2025: **Professional Code Quality**: Moved to data-driven modifiers, eliminated hardcoded values, added performance optimizations with useMemo, clean separation between rules and mechanics
 - July 02, 2025: **Core Tech Tree System**: Implemented comprehensive technology research with 9 technologies across 4 categories (economic/military/religious/exploration), prerequisite trees, and scaling costs based on research count
-- July 02, 2025: **Star Economy Foundation**: Added star currency system with 10 starting stars per player, tech research cost deduction, and visual star tracking in GameUI
-- July 02, 2025: **Research UI Panel**: Created full-featured tech panel with category tabs, prerequisite visualization, unlock previews, and research progress tracking
-- July 02, 2025: **Game State Expansion**: Extended PlayerState schema with stars, researchedTechs, citiesOwned, and currentResearch fields; added cities/improvements/structures to GameState
-- July 02, 2025: **Action System Upgrade**: Added RESEARCH_TECH, BUILD_IMPROVEMENT, BUILD_STRUCTURE, CAPTURE_CITY, and RECRUIT_UNIT actions with proper game reducer handling
 - July 02, 2025: **Performance-Optimized HexGrid**: Implemented memoized fog of war calculations using Set data structures for O(1) tile lookups, eliminating expensive render loop calculations
 
 ## Changelog
