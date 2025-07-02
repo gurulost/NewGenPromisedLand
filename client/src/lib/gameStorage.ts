@@ -26,10 +26,12 @@ export function generateMap(width: number, height: number, seed?: number): GameM
   const rng = new SeededRandom(seed);
   const tiles: Tile[] = [];
 
-  // Generate hexagonal grid
-  for (let q = 0; q < width; q++) {
-    const qOffset = Math.floor(q / 2);
-    for (let r = -qOffset; r < height - qOffset; r++) {
+  // Generate proper hexagonal grid with offset coordinates
+  const mapRadius = Math.min(width, height);
+  for (let q = -mapRadius; q <= mapRadius; q++) {
+    const r1 = Math.max(-mapRadius, -q - mapRadius);
+    const r2 = Math.min(mapRadius, -q + mapRadius);
+    for (let r = r1; r <= r2; r++) {
       const s = -q - r;
       
       // Generate terrain based on noise-like function

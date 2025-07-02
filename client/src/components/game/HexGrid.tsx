@@ -34,6 +34,7 @@ export default function HexGrid({ map }: HexGridProps) {
   // Create hex geometry
   const hexGeometry = useMemo(() => {
     const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.1, 6);
+    geometry.rotateY(Math.PI / 6); // Rotate to align flat-top hexagons
     return geometry;
   }, []);
 

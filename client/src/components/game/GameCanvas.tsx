@@ -18,11 +18,14 @@ export default function GameCanvas() {
     if (controlsRef.current) {
       controlsRef.current.enableDamping = true;
       controlsRef.current.dampingFactor = 0.05;
-      controlsRef.current.maxPolarAngle = Math.PI / 3; // Limit vertical rotation
-      controlsRef.current.minDistance = 5;
-      controlsRef.current.maxDistance = 20;
+      controlsRef.current.maxPolarAngle = Math.PI / 2.5; // Allow more vertical rotation
+      controlsRef.current.minDistance = 3;
+      controlsRef.current.maxDistance = 25;
+      // Position camera to see the hex grid better
+      camera.position.set(0, 12, 12);
+      camera.lookAt(0, 0, 0);
     }
-  }, []);
+  }, [camera]);
 
   useFrame(() => {
     if (controlsRef.current) {
