@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { GameState, PlayerState, HexCoordinate, TerrainType } from "@shared/types/game";
+import { GameState, PlayerState, TerrainType, HexCoordinate } from "@shared/types/game";
+import { hexDistance } from "@shared/utils/hex";
 import { gameReducer } from "@shared/logic/gameReducer";
 import { MapGenerator } from "@shared/utils/mapGenerator";
 import { useGameState } from "./useGameState";
@@ -55,19 +56,17 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     // Generate balanced map with strategic resource distribution
     const map = MapGenerator.generateBalancedMap(players.length, Date.now());
     
-    // Generate starting cities for each player
+    // Find city tiles from the generated map for player starting positions
+    const cityTiles = map.tiles.filter(tile => tile.hasCity);
+    
+    // Assign cities to players (first cities generated are best positioned for players)
     const cities = players.map((player, index) => {
-      // Find suitable starting positions spread across the map
-      const startRadius = Math.floor(map.width / 4);
-      const angle = (index / players.length) * 2 * Math.PI;
-      const q = Math.round(startRadius * Math.cos(angle));
-      const r = Math.round(startRadius * Math.sin(angle));
-      const s = -q - r;
+      const cityTile = cityTiles[index] || cityTiles[0]; // Fallback to first city if not enough
       
       return {
         id: `city-${player.id}`,
         name: `${player.name}'s Capital`,
-        coordinate: { q, r, s },
+        coordinate: cityTile.coordinate,
         ownerId: player.id,
         population: 1,
         starProduction: 2,
@@ -83,95 +82,75 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       citiesOwned: [cities[index].id],
     }));
     
-    // Mark starting tiles as explored
-    const exploredTiles = new Set([
-      '0,0', '1,0', '0,1', '-1,1', '-1,0', '0,-1', '1,-1', // Player 1 area
-      '2,-1', '1,-1', '2,0', '1,0', '3,-1', '2,-2', '3,-2'  // Player 2 area
-    ]);
-    
-    map.tiles = map.tiles.map(tile => {
-      const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      if (exploredTiles.has(tileKey)) {
-        const explorerId = tileKey.startsWith('0,') || tileKey.startsWith('1,') || tileKey.startsWith('-1,') ? players[0].id : players[1].id;
-        return {
-          ...tile,
-          exploredBy: [explorerId]
-        };
-      }
-      return tile;
-    });
-    
-    // Find suitable starting positions (not water or mountain)
-    const findValidSpawnPosition = (startQ: number, startR: number): HexCoordinate => {
-      const candidates = [
-        { q: startQ, r: startR, s: -startQ - startR },
-        { q: startQ + 1, r: startR, s: -startQ - startR - 1 },
-        { q: startQ, r: startR + 1, s: -startQ - startR - 1 },
-        { q: startQ - 1, r: startR + 1, s: -startQ - startR },
-        { q: startQ - 1, r: startR, s: -startQ - startR + 1 },
-        { q: startQ, r: startR - 1, s: -startQ - startR + 1 },
-      ];
+    // Mark starting areas around player cities as explored
+    const exploreAreaAroundCity = (cityCoord: HexCoordinate, playerId: string): void => {
+      const exploreRadius = 2;
       
-      for (const coord of candidates) {
-        const tile = map.tiles.find(t => 
-          t.coordinate.q === coord.q && t.coordinate.r === coord.r
-        );
-        if (tile && tile.terrain !== 'water' && tile.terrain !== 'mountain') {
-          return coord;
+      for (const tile of map.tiles) {
+        const distance = hexDistance(tile.coordinate, cityCoord);
+        if (distance <= exploreRadius) {
+          tile.exploredBy = [...(tile.exploredBy || []), playerId];
         }
       }
-      
-      // Fallback - force create a plains tile at this position
-      return { q: startQ, r: startR, s: -startQ - startR };
     };
-
-    const player1Start = findValidSpawnPosition(0, 0);
-    const player2Start = findValidSpawnPosition(3, -2);
-
-    // Ensure spawn positions have valid terrain
-    map.tiles = map.tiles.map(tile => {
-      if ((tile.coordinate.q === player1Start.q && tile.coordinate.r === player1Start.r) ||
-          (tile.coordinate.q === player2Start.q && tile.coordinate.r === player2Start.r)) {
-        return { ...tile, terrain: 'plains' as TerrainType };
+    
+    // Explore areas around each player's starting city
+    cities.forEach((city, index) => {
+      if (index < players.length) {
+        exploreAreaAroundCity(city.coordinate, players[index].id);
       }
-      return tile;
     });
 
-    // Create some initial units for testing
-    const units: any[] = [
-      {
-        id: 'unit-1',
-        type: 'warrior',
-        playerId: players[0].id,
-        coordinate: player1Start,
-        hp: 25,
-        maxHp: 25,
-        attack: 6,
-        defense: 4,
-        movement: 3,
-        remainingMovement: 3,
-        status: 'active',
-        abilities: [],
-        level: 1,
-        experience: 0,
-      },
-      {
-        id: 'unit-2', 
-        type: 'missionary',
-        playerId: players[1].id,
-        coordinate: player2Start,
-        hp: 18,
-        maxHp: 18,
-        attack: 1,
-        defense: 2,
-        movement: 3,
-        remainingMovement: 3,
-        status: 'active',
-        abilities: [],
-        level: 1,
-        experience: 0,
-      }
-    ];
+    // Generate starting units for each player near their cities
+    const units: any[] = players.flatMap((player, index) => {
+      const city = cities[index];
+      if (!city) return [];
+      
+      // Find suitable spawn position near the city (not on the city tile itself)
+      const findUnitSpawnPosition = (cityCoord: HexCoordinate): HexCoordinate => {
+        const adjacentTiles = [
+          { q: cityCoord.q + 1, r: cityCoord.r, s: cityCoord.s - 1 },
+          { q: cityCoord.q + 1, r: cityCoord.r - 1, s: cityCoord.s },
+          { q: cityCoord.q, r: cityCoord.r - 1, s: cityCoord.s + 1 },
+          { q: cityCoord.q - 1, r: cityCoord.r, s: cityCoord.s + 1 },
+          { q: cityCoord.q - 1, r: cityCoord.r + 1, s: cityCoord.s },
+          { q: cityCoord.q, r: cityCoord.r + 1, s: cityCoord.s - 1 },
+        ];
+        
+        for (const coord of adjacentTiles) {
+          const tile = map.tiles.find(t => 
+            t.coordinate.q === coord.q && t.coordinate.r === coord.r
+          );
+          if (tile && tile.terrain !== 'water' && tile.terrain !== 'mountain' && !tile.hasCity) {
+            return coord;
+          }
+        }
+        
+        // Fallback to city coordinate if no adjacent suitable tile found
+        return cityCoord;
+      };
+      
+      const unitPosition = findUnitSpawnPosition(city.coordinate);
+      
+      return [
+        {
+          id: `unit-${player.id}-1`,
+          type: 'warrior',
+          playerId: player.id,
+          coordinate: unitPosition,
+          hp: 25,
+          maxHp: 25,
+          attack: 6,
+          defense: 4,
+          movement: 3,
+          remainingMovement: 3,
+          status: 'active',
+          abilities: [],
+          level: 1,
+          experience: 0,
+        }
+      ];
+    });
 
     // Set initial visibility for starting units - give vision radius around each unit
     const getVisionTiles = (centerQ: number, centerR: number, radius: number = 2) => {

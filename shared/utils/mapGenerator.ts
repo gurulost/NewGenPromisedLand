@@ -1,5 +1,6 @@
 import { createNoise2D } from 'simplex-noise';
-import type { GameMap, Tile, HexCoordinate, TerrainType } from '@shared/types/game';
+import type { GameMap, Tile, TerrainType, HexCoordinate } from '@shared/types/game';
+import { hexDistance } from './hex';
 
 export class SeededRandom {
   private seed: number;
@@ -29,6 +30,14 @@ interface MapGenerationConfig {
   playerCount: number;
   minResourceDistance?: number;
   maxResourcesPerPlayer?: number;
+}
+
+interface ResourceSpawnRate {
+  food: number;
+  wood: number;
+  stone: number;
+  gold: number;
+  empty: number;
 }
 
 export class MapGenerator {
@@ -70,11 +79,11 @@ export class MapGenerator {
       }
     }
 
-    // Generate strategic resource placement
-    this.placeResources(tiles, mapRadius);
-    
-    // Place cities on strategic locations
+    // Place cities first before resources
     this.placeCities(tiles, mapRadius);
+    
+    // Then place resources strategically around cities
+    this.placeResourcesStrategically(tiles);
 
     return {
       tiles,
@@ -123,71 +132,279 @@ export class MapGenerator {
     }
   }
 
-  private placeResources(tiles: Tile[], mapRadius: number): void {
-    const resourceTypes = ['gold', 'stone', 'wood', 'food'];
-    const maxResourcesPerType = Math.max(2, Math.floor(this.config.playerCount * 1.5));
+  /**
+   * Strategic resource placement using the 2-tile radius rule around cities
+   * Resources only spawn within 2 hex tiles of cities, with higher rates adjacent to cities
+   */
+  private placeResourcesStrategically(tiles: Tile[]): void {
+    // 1. Identify all city coordinates
+    const cityTiles = tiles.filter(tile => tile.hasCity);
+    if (cityTiles.length === 0) return; // No cities to place resources around
     
-    // Use secondary noise for resource placement
-    const resourceNoise = createNoise2D(() => this.rng.next());
+    const cityCoordinates = cityTiles.map(tile => tile.coordinate);
     
-    for (const resourceType of resourceTypes) {
-      let placedCount = 0;
-      const attempts = tiles.length;
+    // 2. Identify all spawnable tiles (within 2-tile radius of cities)
+    const spawnableTiles = tiles.filter(tile => {
+      if (tile.hasCity) return false; // Don't place on city tiles
       
-      for (let attempt = 0; attempt < attempts && placedCount < maxResourcesPerType; attempt++) {
-        const tile = tiles[Math.floor(this.rng.next() * tiles.length)];
-        
-        // Skip unsuitable terrain
-        if (tile.terrain === 'water' || tile.terrain === 'mountain') continue;
-        if (tile.resources.length > 0) continue; // One resource per tile
-        
-        const { q, r } = tile.coordinate;
-        const resourceValue = resourceNoise(q * 0.2, r * 0.2);
-        
-        // Higher chance for resources on good terrain
-        let resourceChance = 0.15;
-        if (tile.terrain === 'forest' && resourceType === 'wood') resourceChance = 0.4;
-        if (tile.terrain === 'plains' && resourceType === 'food') resourceChance = 0.3;
-        if (tile.terrain === 'desert' && resourceType === 'gold') resourceChance = 0.25;
-        
-        if (resourceValue > (0.5 - resourceChance)) {
-          tile.resources.push(resourceType);
-          placedCount++;
+      for (const cityCoord of cityCoordinates) {
+        if (hexDistance(tile.coordinate, cityCoord) <= 2) {
+          return true;
+        }
+      }
+      return false;
+    });
+    
+    // 3. Place resources using distance-based spawn tables
+    spawnableTiles.forEach(tile => {
+      const distanceToNearestCity = Math.min(
+        ...cityCoordinates.map(cityCoord => hexDistance(tile.coordinate, cityCoord))
+      );
+      
+      let spawnTable: ResourceSpawnRate;
+      if (distanceToNearestCity === 1) {
+        spawnTable = this.getInnerCitySpawnTable(); // Adjacent to city
+      } else {
+        spawnTable = this.getOuterCitySpawnTable(); // 2 tiles from city
+      }
+      
+      // Attempt to spawn a resource based on terrain and spawn table
+      const resourceToSpawn = this.getResourceFromTable(spawnTable, tile.terrain);
+      
+      if (resourceToSpawn) {
+        tile.resources.push(resourceToSpawn);
+      }
+    });
+  }
+  
+  /**
+   * Inner city spawn rates (adjacent to cities) - high resource concentration
+   */
+  private getInnerCitySpawnTable(): ResourceSpawnRate {
+    return {
+      food: 30,  // 30%
+      wood: 25,  // 25%
+      stone: 20, // 20%
+      gold: 15,  // 15%
+      empty: 10  // 10%
+    };
+  }
+  
+  /**
+   * Outer city spawn rates (2 tiles away) - lower concentration
+   */
+  private getOuterCitySpawnTable(): ResourceSpawnRate {
+    return {
+      food: 10,  // 10%
+      wood: 20,  // 20%
+      stone: 10, // 10%
+      gold: 5,   // 5%
+      empty: 55  // 55%
+    };
+  }
+  
+  /**
+   * Select resource from spawn table based on terrain requirements and random roll
+   */
+  private getResourceFromTable(spawnTable: ResourceSpawnRate, terrain: TerrainType): string | null {
+    const roll = this.rng.nextInt(1, 100); // 1-100 roll
+    let cumulative = 0;
+    
+    // Check each resource type in order
+    const resourceChecks = [
+      { 
+        type: 'food', 
+        rate: spawnTable.food, 
+        terrains: ['plains', 'forest'] 
+      },
+      { 
+        type: 'wood', 
+        rate: spawnTable.wood, 
+        terrains: ['forest'] 
+      },
+      { 
+        type: 'stone', 
+        rate: spawnTable.stone, 
+        terrains: ['mountain', 'desert'] 
+      },
+      { 
+        type: 'gold', 
+        rate: spawnTable.gold, 
+        terrains: ['mountain', 'desert'] 
+      }
+    ];
+    
+    for (const resource of resourceChecks) {
+      cumulative += resource.rate;
+      
+      // Check if we rolled for this resource AND terrain is suitable
+      if (roll <= cumulative && resource.terrains.includes(terrain)) {
+        return resource.type;
+      }
+    }
+    
+    // No resource spawned (empty)
+    return null;
+  }
+
+  /**
+   * Strategic city placement ensuring balanced distribution across map sectors
+   */
+  private placeCities(tiles: Tile[], mapRadius: number): void {
+    const targetCities = Math.max(3, Math.floor(this.config.playerCount * 1.5));
+    const placedCities: HexCoordinate[] = [];
+    
+    // Divide map into sectors based on player count for balanced distribution
+    const sectors = this.createMapSectors(mapRadius, this.config.playerCount);
+    
+    // Place one major city per sector first (for potential player spawns)
+    for (const sector of sectors) {
+      const cityLocation = this.findBestCityLocation(tiles, sector, placedCities, mapRadius);
+      if (cityLocation) {
+        const cityTile = tiles.find(t => 
+          t.coordinate.q === cityLocation.q && 
+          t.coordinate.r === cityLocation.r
+        );
+        if (cityTile) {
+          cityTile.hasCity = true;
+          placedCities.push(cityLocation);
         }
       }
     }
-  }
-
-  private placeCities(tiles: Tile[], mapRadius: number): void {
-    const maxCities = Math.max(3, Math.floor(this.config.playerCount * 2));
-    let placedCities = 0;
     
-    // Place cities on good terrain with some spacing
-    const cityAttempts = tiles.length;
-    const minCityDistance = 3;
-    
-    for (let attempt = 0; attempt < cityAttempts && placedCities < maxCities; attempt++) {
-      const tile = tiles[Math.floor(this.rng.next() * tiles.length)];
+    // Place additional neutral cities to reach target count
+    while (placedCities.length < targetCities) {
+      const cityLocation = this.findBestCityLocation(tiles, null, placedCities, mapRadius);
+      if (!cityLocation) break; // No more suitable locations
       
-      // Only place cities on suitable terrain
+      const cityTile = tiles.find(t => 
+        t.coordinate.q === cityLocation.q && 
+        t.coordinate.r === cityLocation.r
+      );
+      if (cityTile) {
+        cityTile.hasCity = true;
+        placedCities.push(cityLocation);
+      }
+    }
+  }
+  
+  /**
+   * Create balanced map sectors for player starting positions
+   */
+  private createMapSectors(mapRadius: number, playerCount: number): Array<{center: HexCoordinate, radius: number}> {
+    const sectors: Array<{center: HexCoordinate, radius: number}> = [];
+    const sectorRadius = Math.floor(mapRadius * 0.6); // Sectors in inner 60% of map
+    
+    for (let i = 0; i < playerCount; i++) {
+      const angle = (i / playerCount) * 2 * Math.PI;
+      const centerQ = Math.round(sectorRadius * Math.cos(angle));
+      const centerR = Math.round(sectorRadius * Math.sin(angle));
+      const centerS = -centerQ - centerR;
+      
+      sectors.push({
+        center: { q: centerQ, r: centerR, s: centerS },
+        radius: Math.floor(mapRadius / Math.max(2, playerCount - 1))
+      });
+    }
+    
+    return sectors;
+  }
+  
+  /**
+   * Find the best location for a city within a sector (or anywhere if no sector)
+   */
+  private findBestCityLocation(
+    tiles: Tile[], 
+    sector: {center: HexCoordinate, radius: number} | null,
+    existingCities: HexCoordinate[], 
+    mapRadius: number
+  ): HexCoordinate | null {
+    const candidates: Array<{coordinate: HexCoordinate, score: number}> = [];
+    const minCityDistance = 4; // Minimum distance between cities
+    
+    for (const tile of tiles) {
+      // Check if tile is in sector (if sector specified)
+      if (sector) {
+        const distanceFromSectorCenter = hexDistance(tile.coordinate, sector.center);
+        if (distanceFromSectorCenter > sector.radius) continue;
+      }
+      
+      // Only suitable terrain
       if (tile.terrain !== 'plains' && tile.terrain !== 'forest') continue;
       if (tile.hasCity) continue;
       
-      // Check distance from other cities
-      const tooClose = tiles.some(otherTile => {
-        if (!otherTile.hasCity) return false;
-        const distance = Math.sqrt(
-          Math.pow(tile.coordinate.q - otherTile.coordinate.q, 2) +
-          Math.pow(tile.coordinate.r - otherTile.coordinate.r, 2)
-        );
-        return distance < minCityDistance;
-      });
+      // Check minimum distance from existing cities
+      const tooClose = existingCities.some(cityCoord => 
+        hexDistance(tile.coordinate, cityCoord) < minCityDistance
+      );
+      if (tooClose) continue;
       
-      if (!tooClose) {
-        tile.hasCity = true;
-        placedCities++;
+      // Score based on terrain quality and resource potential nearby
+      let score = this.scoreCityLocation(tile, tiles, mapRadius);
+      
+      // Prefer locations closer to sector center (if sector specified)
+      if (sector) {
+        const distanceFromCenter = hexDistance(tile.coordinate, sector.center);
+        score += Math.max(0, (sector.radius - distanceFromCenter)) * 0.1;
+      }
+      
+      candidates.push({ coordinate: tile.coordinate, score });
+    }
+    
+    // Sort by score and pick the best location
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates.length > 0 ? candidates[0].coordinate : null;
+  }
+  
+  /**
+   * Score a potential city location based on surrounding terrain and strategic value
+   */
+  private scoreCityLocation(centerTile: Tile, allTiles: Tile[], mapRadius: number): number {
+    let score = 0;
+    
+    // Base score for terrain type
+    if (centerTile.terrain === 'plains') score += 10;
+    if (centerTile.terrain === 'forest') score += 8;
+    
+    // Analyze surrounding tiles (within 2 hex radius)
+    for (const tile of allTiles) {
+      const distance = hexDistance(centerTile.coordinate, tile.coordinate);
+      if (distance > 2) continue;
+      
+      // Prefer diverse, workable terrain nearby
+      switch (tile.terrain) {
+        case 'plains':
+          score += distance === 1 ? 3 : 1; // Adjacent plains very valuable
+          break;
+        case 'forest':
+          score += distance === 1 ? 2 : 1; // Good for wood/food
+          break;
+        case 'desert':
+          score += 0.5; // Can provide gold but harsh
+          break;
+        case 'mountain':
+          score += distance === 1 ? 0 : 1; // Not adjacent, but can provide stone
+          break;
+        case 'water':
+          score -= distance === 1 ? 2 : 0; // Adjacent water is problematic
+          break;
       }
     }
+    
+    // Distance from map edge (prefer not too close to edge)
+    const distanceFromCenter = Math.sqrt(
+      centerTile.coordinate.q ** 2 + centerTile.coordinate.r ** 2
+    );
+    const normalizedDistance = distanceFromCenter / mapRadius;
+    
+    // Optimal distance is 30-70% from center
+    if (normalizedDistance >= 0.3 && normalizedDistance <= 0.7) {
+      score += 5;
+    } else if (normalizedDistance > 0.8) {
+      score -= 3; // Too close to edge
+    }
+    
+    return score;
   }
 
   // Static convenience method

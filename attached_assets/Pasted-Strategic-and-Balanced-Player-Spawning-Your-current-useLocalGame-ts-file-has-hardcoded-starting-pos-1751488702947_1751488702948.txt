@@ -1,0 +1,67 @@
+Strategic and Balanced Player Spawning
+
+Your current useLocalGame.ts file has hardcoded starting positions for players. A more robust system would ensure fair and balanced starts, which is a key aspect of strategy games like Polytopia.
+Recommendation:
+Create a function within your MapGenerator to determine player starting locations. This function should:
+1. Divide the map: Conceptually divide the map into sectors based on the number of players.
+2. Find suitable locations: Within each sector, find the best starting tile based on criteria like:
+    * Not being on an undesirable tile (water, mountain).
+    * Having a certain number of useful resources nearby.
+    * Being a reasonable distance from other players.
+3. Place Starting Units and Cities: Once a starting tile is chosen, you can place the player's initial city and units there, as you currently do in useLocalGame.ts. 
+
+Advanced Resource Spawning
+Based on Polytopia's map generation, we are refining the resource placement logic. The goal is to create resource-rich zones around cities while leaving the rest of the map intentionally sparse, driving strategic conflict over settlements.
+1. Implement the "2-Tile Radius" Spawning Rule
+Modify the placeResources function in shared/utils/mapGenerator.ts. Before placing any resources, the function must first identify all valid "spawnable" tiles.
+A tile is considered spawnable only if it is within a 2-tile hex distance of any city or village on the map.
+Resources should never be placed on tiles outside of this 2-tile radius.
+This will be the primary filter for all subsequent resource logic.
+2. Implement "Inner City" vs. "Outer City" Spawn Rates
+We will now differentiate between tiles immediately adjacent to a city and those that are 2 tiles away.
+Inner City: Tiles at a distance of 1 from a city. These should have the highest concentration of valuable resources.
+Outer City: Tiles at a distance of 2 from a city. These should have a lower chance of spawning resources.Updated Code Implementation Guide
+
+This new logic will require a significant refactor of the placeResources function.
+
+Conceptual Code Snippet:
+
+TypeScript
+// In shared/utils/mapGenerator.ts
+
+private placeResources(tiles: Tile[], cities: City[]): void {
+    // 1. Identify all tiles within a 2-tile radius of any city
+    const allCityCoordinates = cities.map(c => c.coordinate);
+    const spawnableTiles = tiles.filter(tile => {
+        if (tile.hasCity) return false; // Don't place on city tile itself
+        
+        for (const cityCoord of allCityCoordinates) {
+            if (hexDistance(tile.coordinate, cityCoord) <= 2) {
+                return true;
+            }
+        }
+        return false;
+    });
+
+    // 2. Iterate through only the spawnable tiles
+    spawnableTiles.forEach(tile => {
+        const distanceToNearestCity = Math.min(
+            ...allCityCoordinates.map(cityCoord => hexDistance(tile.coordinate, cityCoord))
+        );
+
+        let spawnTable;
+        if (distanceToNearestCity === 1) {
+            spawnTable = this.getInnerCitySpawnTable(); // High resource rates
+        } else {
+            spawnTable = this.getOuterCitySpawnTable(); // Lower resource rates
+        }
+
+        // 3. Use the selected table to attempt to spawn a resource
+        const resourceToSpawn = this.getResourceFromTable(spawnTable, tile.terrain);
+
+        if (resourceToSpawn) {
+            tile.resources.push(resourceToSpawn);
+        }
+    });
+}
+This refined approach, directly inspired by the provided data, will create a much more balanced and strategically compelling map. It encourages players to expand and capture cities to secure their economy, which is a core loop of great strategy games.
