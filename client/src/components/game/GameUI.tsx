@@ -7,9 +7,11 @@ import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { getFaction } from "@shared/data/factions";
 import { getUnitDefinition } from "@shared/data/units";
+import { hexDistance } from "@shared/utils/hex";
+import type { Unit } from "@shared/types/unit";
 
 export default function GameUI() {
-  const { gameState, endTurn, useAbility } = useLocalGame();
+  const { gameState, endTurn, useAbility, attackUnit } = useLocalGame();
   const { selectedUnit, hoveredTile, setSelectedUnit } = useGameState();
   const [subscribeKeys, getKeys] = useKeyboardControls();
 
@@ -51,6 +53,29 @@ export default function GameUI() {
   const handleUseAbility = (abilityId: string) => {
     useAbility(currentPlayer.id, abilityId);
   };
+
+  // Get attackable enemies for selected unit
+  const getAttackableEnemies = (unit: Unit): Unit[] => {
+    if (!gameState || !unit) return [];
+    
+    return gameState.units.filter(enemyUnit => {
+      // Must be enemy unit
+      if (enemyUnit.playerId === unit.playerId) return false;
+      
+      // Must be within attack range (typically 1 hex)
+      const distance = hexDistance(unit.coordinate, enemyUnit.coordinate);
+      return distance <= 1; // Most units have attack range of 1
+    });
+  };
+
+  const handleAttackUnit = (targetUnit: Unit) => {
+    if (!selectedUnit) return;
+    attackUnit(selectedUnit.id, targetUnit.id);
+  };
+
+  // Get selected unit's definition and attackable enemies
+  const selectedUnitDefinition = selectedUnit ? getUnitDefinition(selectedUnit.type) : null;
+  const attackableEnemies = selectedUnit ? getAttackableEnemies(selectedUnit) : [];
 
   return (
     <div className="absolute inset-0 pointer-events-none">
@@ -191,6 +216,47 @@ export default function GameUI() {
           </Button>
         </div>
       </div>
+
+      {/* Combat Panel - Bottom Right */}
+      {selectedUnit && attackableEnemies.length > 0 && (
+        <div className="absolute bottom-4 right-4 pointer-events-auto">
+          <Card className="bg-red-900/80 border-red-600 text-white w-64">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                ⚔️ Combat Options
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="text-sm text-gray-300 mb-3">
+                Select an enemy to attack:
+              </div>
+              {attackableEnemies.map((enemy) => {
+                const enemyDef = getUnitDefinition(enemy.type);
+                const damage = Math.max(1, selectedUnit.attack - enemy.defense);
+                
+                return (
+                  <Button
+                    key={enemy.id}
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-left justify-start bg-red-800/50 hover:bg-red-700/50 border-red-500"
+                    onClick={() => handleAttackUnit(enemy)}
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium text-white">
+                        {enemyDef.name}
+                      </div>
+                      <div className="text-xs text-red-200">
+                        HP: {enemy.hp}/{enemy.maxHp} | Damage: {damage}
+                      </div>
+                    </div>
+                  </Button>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Help Panel - Bottom Left - Mobile Responsive */}
       <div className="absolute bottom-2 left-2 md:bottom-4 md:left-4 pointer-events-auto">

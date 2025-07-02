@@ -19,6 +19,7 @@ interface LocalGameStore {
   }>) => void;
   endTurn: (playerId: string) => void;
   moveUnit: (unitId: string, targetCoordinate: any) => void;
+  attackUnit: (attackerId: string, targetId: string) => void;
   useAbility: (playerId: string, abilityId: string) => void;
   resetGame: () => void;
 }
@@ -220,6 +221,22 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
 
     const newGameState = gameReducer(gameState, action);
     console.log('Game state updated:', newGameState);
+    set({ gameState: newGameState });
+  },
+
+  attackUnit: (attackerId: string, targetId: string) => {
+    const { gameState } = get();
+    if (!gameState) return;
+
+    console.log('Unit attacking:', attackerId, 'target:', targetId);
+
+    const action = {
+      type: 'ATTACK_UNIT' as const,
+      payload: { attackerId, targetId }
+    };
+
+    const newGameState = gameReducer(gameState, action);
+    console.log('Combat result:', newGameState);
     set({ gameState: newGameState });
   },
   

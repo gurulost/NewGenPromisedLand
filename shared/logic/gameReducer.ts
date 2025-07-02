@@ -1,6 +1,7 @@
 import { GameState, GameAction, PlayerState } from "../types/game";
 import { Unit } from "../types/unit";
 import { hexDistance, hexNeighbors } from "../utils/hex";
+import { getUnitDefinition } from "../data/units";
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -133,13 +134,42 @@ function handleAttackUnit(
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (attacker.playerId !== currentPlayer.id) return state;
 
-  // Check if units are adjacent
+  // Check if units are adjacent (attack range)
   const distance = hexDistance(attacker.coordinate, target.coordinate);
-  if (distance > 1) return state;
+  if (distance > 1) return state; // Most units have range 1 for now
 
-  // Calculate damage
-  const damage = Math.max(1, attacker.attack - target.defense);
+  // Calculate damage with faction bonuses
+  let attackPower = attacker.attack;
+  let defensePower = target.defense;
+
+  // Apply faction-specific combat bonuses
+  const attackerPlayer = state.players.find(p => p.id === attacker.playerId);
+  const targetPlayer = state.players.find(p => p.id === target.playerId);
+
+  if (attackerPlayer?.factionId === 'NEPHITES') {
+    // Nephites gain +1 attack when fighting for Faith
+    if (attackerPlayer.stats.faith > 70) {
+      attackPower += 1;
+    }
+  }
+
+  if (attackerPlayer?.factionId === 'LAMANITES') {
+    // Lamanites deal +2 damage when Pride is high
+    if (attackerPlayer.stats.pride > 60) {
+      attackPower += 2;
+    }
+  }
+
+  if (targetPlayer?.factionId === 'ANTI_NEPHI_LEHIES') {
+    // Anti-Nephi-Lehies have +1 defense due to pacifism
+    defensePower += 1;
+  }
+
+  // Calculate final damage
+  const damage = Math.max(1, attackPower - defensePower);
   const newHp = Math.max(0, target.hp - damage);
+
+  console.log(`Combat: ${attacker.type} (${attackPower} attack) vs ${target.type} (${defensePower} defense) = ${damage} damage`);
 
   let updatedUnits = state.units.map((u: Unit) => 
     u.id === payload.targetId ? { ...u, hp: newHp } : u
@@ -253,8 +283,29 @@ function applyRameumptom(state: GameState, player: PlayerState): GameState {
             ...p, 
             stats: { 
               ...p.stats, 
-              pride: p.stats.pride - 50,
+              pride: Math.min(100, p.stats.pride + 30), // Boost Pride significantly
               internalDissent: Math.min(100, p.stats.internalDissent + 20)
+            }
+          }
+        : p
+    )
+  };
+}
+
+function applyCovenantOfPeace(state: GameState, player: PlayerState): GameState {
+  // Anti-Nephi-Lehies: Instead of combat, convert nearby enemy units
+  console.log('Covenant of Peace activated - nearby enemies may convert');
+  
+  return {
+    ...state,
+    players: state.players.map(p => 
+      p.id === player.id 
+        ? { 
+            ...p, 
+            stats: { 
+              ...p.stats, 
+              faith: Math.min(100, p.stats.faith + 10),
+              internalDissent: Math.max(0, p.stats.internalDissent - 15)
             }
           }
         : p
