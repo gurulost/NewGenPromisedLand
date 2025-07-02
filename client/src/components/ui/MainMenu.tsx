@@ -11,10 +11,10 @@ export default function MainMenu() {
       
       <Card className="relative z-10 w-96 bg-black/80 border-amber-600/50 text-white">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold text-amber-400 mb-2">
+          <CardTitle className="text-3xl font-cinzel font-bold text-amber-400 mb-2 tracking-wide leading-tight">
             Chronicles of the Promised Land
           </CardTitle>
-          <p className="text-gray-300 text-sm">
+          <p className="text-gray-300 text-sm font-body font-medium tracking-wide">
             A Book of Mormon Strategy Game
           </p>
         </CardHeader>

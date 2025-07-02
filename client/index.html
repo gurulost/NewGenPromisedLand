@@ -5,6 +5,11 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Chronicles of the Promised Land</title>
+    
+    <!-- Google Fonts: Ancient Stone & Scroll Font Pairing -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <style>
       :root {
         --faith-color: #4f46e5;
@@ -21,10 +26,30 @@
       body {
         margin: 0;
         padding: 0;
-        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-family: 'Source Sans 3', system-ui, -apple-system, sans-serif;
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         overflow: hidden;
         touch-action: none;
+      }
+      
+      /* Font hierarchy: Ancient Stone & Scroll theme */
+      h1, h2, h3, h4, h5, h6,
+      .font-cinzel,
+      .title,
+      .header,
+      .faction-name,
+      .panel-title {
+        font-family: 'Cinzel', serif;
+        font-weight: 600;
+        letter-spacing: 0.025em;
+      }
+      
+      .font-body,
+      .ui-text,
+      p, span, div:not(.title):not(.header),
+      button:not(.title-button),
+      input, select, textarea {
+        font-family: 'Source Sans 3', sans-serif;
       }
       
       #root {

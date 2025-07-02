@@ -105,6 +105,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- July 02, 2025: **Ancient Typography System**: Implemented "Ancient Stone & Scroll" font pairing with Cinzel (headers/titles) and Source Sans 3 (body/UI) for authentic historical feel while maintaining perfect readability across all game components
 - July 02, 2025: **Enhanced Game Storage System**: Implemented LZ-String compression for save files (60-80% size reduction), added game index management for listing saves, improved validation flow with decompression support, and explicit deletion with del() function
 - July 02, 2025: **UI Architecture Refactoring**: Decomposed 400+ line GameUI mega-component into focused components (PlayerHUD, SelectedUnitPanel, CombatPanel, AbilitiesPanel) with memoized performance optimizations for combat calculations
 - July 02, 2025: **Critical Performance & Architecture Fixes**: Removed require() statements from handleEndTurn function (major performance fix), implemented data-driven capture mechanics and terrain rules, fixed React hooks error in TechPanel

@@ -79,7 +79,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
       <Card className="w-[90%] h-[90%] max-w-4xl bg-white border-2" onClick={(e) => e.stopPropagation()}>
         <CardHeader className="border-b">
           <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 font-cinzel text-xl font-semibold tracking-wide">
               <Book className="w-5 h-5" />
               Technology Research
             </CardTitle>

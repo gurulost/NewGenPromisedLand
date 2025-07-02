@@ -25,7 +25,7 @@ export default function PlayerHUD({
       {/* Current Player Info */}
       <Card className="w-64 bg-black/80 border-white/20">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-white">
+          <CardTitle className="flex items-center gap-2 text-white font-cinzel text-lg font-semibold tracking-wide">
             <div 
               className="w-4 h-4 rounded-full border-2" 
               style={{ backgroundColor: faction.color }}
@@ -47,8 +47,8 @@ export default function PlayerHUD({
           {/* Faith Progress */}
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-blue-300">Faith</span>
-              <span className="text-white">{player.stats.faith}/100</span>
+              <span className="text-blue-300 font-cinzel font-medium">Faith</span>
+              <span className="text-white font-body font-medium">{player.stats.faith}/100</span>
             </div>
             <Progress value={player.stats.faith} className="h-2" />
           </div>
@@ -56,8 +56,8 @@ export default function PlayerHUD({
           {/* Pride Progress */}
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-purple-300">Pride</span>
-              <span className="text-white">{player.stats.pride}/100</span>
+              <span className="text-purple-300 font-cinzel font-medium">Pride</span>
+              <span className="text-white font-body font-medium">{player.stats.pride}/100</span>
             </div>
             <Progress value={player.stats.pride} className="h-2" />
           </div>
@@ -65,8 +65,8 @@ export default function PlayerHUD({
           {/* Internal Dissent Progress */}
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-red-300">Dissent</span>
-              <span className="text-white">{player.stats.internalDissent}/100</span>
+              <span className="text-red-300 font-cinzel font-medium">Dissent</span>
+              <span className="text-white font-body font-medium">{player.stats.internalDissent}/100</span>
             </div>
             <Progress value={player.stats.internalDissent} className="h-2" />
           </div>
