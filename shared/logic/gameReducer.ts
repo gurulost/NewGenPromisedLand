@@ -6,6 +6,8 @@ import { getActiveModifiers, getUnitModifiers, GameModifier } from "../data/modi
 import { TECHNOLOGIES, calculateResearchCost } from "../data/technologies";
 import { GAME_RULES, GameRuleHelpers } from "../data/gameRules";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "../types/city";
+import { ABILITIES, AbilityDefinition } from "../data/abilities";
+import { getFaction } from "../data/factions";
 
 // Tech Research Handler
 function handleResearchTech(
@@ -365,6 +367,21 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'RECRUIT_UNIT':
       return handleRecruitUnit(state, action.payload);
     
+    case 'ESTABLISH_TRADE_ROUTE':
+      return handleEstablishTradeRoute(state, action.payload);
+    
+    case 'DECLARE_WAR':
+      return handleDeclareWar(state, action.payload);
+    
+    case 'FORM_ALLIANCE':
+      return handleFormAlliance(state, action.payload);
+    
+    case 'CONVERT_CITY':
+      return handleConvertCity(state, action.payload);
+    
+    case 'UPGRADE_UNIT':
+      return handleUpgradeUnit(state, action.payload);
+    
     default:
       return state;
   }
@@ -569,10 +586,22 @@ function handleAttackUnit(
 
 function handleUseAbility(
   state: GameState,
-  payload: { playerId: string; abilityId: string; target?: any }
+  payload: { playerId: string; abilityId: string; target?: any; unitId?: string; targetCoordinate?: any; targetUnitId?: string }
 ): GameState {
   const player = state.players.find(p => p.id === payload.playerId);
   if (!player) return state;
+
+  const ability = ABILITIES[payload.abilityId];
+  if (!ability) return state;
+
+  // Check resource requirements
+  if (ability.requirements) {
+    if (ability.requirements.faith && player.stats.faith < ability.requirements.faith) return state;
+    if (ability.requirements.pride && player.stats.pride < ability.requirements.pride) return state;
+    if (ability.requirements.dissent && player.stats.internalDissent < ability.requirements.dissent) return state;
+  }
+
+  console.log(`Player ${player.name} using ability: ${ability.name}`);
 
   // Implement specific ability effects
   switch (payload.abilityId) {
@@ -580,8 +609,47 @@ function handleUseAbility(
       return applyTitleOfLiberty(state, player);
     case 'RAMEUMPTOM':
       return applyRameumptom(state, player);
-    // Add other abilities...
+    case 'COVENANT_OF_PEACE':
+      return applyCovenantOfPeace(state, player);
+    
+    // Nephite faction abilities
+    case 'nephite_righteous_charge':
+      return applyRighteousCharge(state, payload);
+    case 'nephite_faith_healing':
+      return applyFaithHealing(state, payload);
+    
+    // Lamanite faction abilities  
+    case 'lamanite_guerrilla_tactics':
+      return applyGuerrillaTactics(state, payload);
+    case 'lamanite_ancestral_rage':
+      return applyAncestralRage(state, payload);
+    
+    // Zoramite faction abilities
+    case 'zoramite_convert_enemy':
+      return applyConvertEnemy(state, payload);
+    case 'zoramite_pride_boost':
+      return applyPrideBoost(state, payload);
+    
+    // Jaredite faction abilities
+    case 'jaredite_tower_vision':
+      return applyTowerVision(state, payload);
+    case 'jaredite_ancient_knowledge':
+      return applyAncientKnowledge(state, payload);
+    
+    // Anti-Nephi-Lehi faction abilities
+    case 'anti_nephi_lehi_pacify':
+      return applyPacify(state, payload);
+    case 'anti_nephi_lehi_conversion':
+      return applyConversion(state, payload);
+    
+    // Mulekite faction abilities
+    case 'mulekite_trade_network':
+      return applyTradeNetwork(state, payload);
+    case 'mulekite_maritime_expansion':
+      return applyMaritimeExpansion(state, payload);
+    
     default:
+      console.warn(`Ability ${payload.abilityId} not implemented yet`);
       return state;
   }
 }
@@ -787,6 +855,546 @@ function applyCovenantOfPeace(state: GameState, player: PlayerState): GameState 
             }
           }
         : p
+    )
+  };
+}
+
+// Nephite Faction Abilities
+function applyRighteousCharge(state: GameState, payload: any): GameState {
+  const unit = state.units.find(u => u.id === payload.unitId);
+  if (!unit || !payload.targetUnitId) return state;
+
+  const target = state.units.find(u => u.id === payload.targetUnitId);
+  if (!target || target.playerId === unit.playerId) return state;
+
+  // Righteous Charge: Gain significant attack bonus when charging at enemy
+  const distance = hexDistance(unit.coordinate, target.coordinate);
+  if (distance <= 2) {
+    return {
+      ...state,
+      units: state.units.map(u => 
+        u.id === unit.id 
+          ? { ...u, attack: u.attack + 4, remainingMovement: Math.max(0, u.remainingMovement - 1) }
+          : u
+      )
+    };
+  }
+  return state;
+}
+
+function applyFaithHealing(state: GameState, payload: any): GameState {
+  const unit = state.units.find(u => u.id === payload.unitId);
+  if (!unit) return state;
+
+  const player = state.players.find(p => p.id === unit.playerId);
+  if (!player || player.stats.faith < 10) return state;
+
+  // Faith Healing: Restore HP to nearby friendly units
+  const healRadius = 2;
+  const nearbyAllies = state.units.filter(u => {
+    if (u.playerId !== unit.playerId) return false;
+    const distance = hexDistance(unit.coordinate, u.coordinate);
+    return distance <= healRadius;
+  });
+
+  const healAmount = 3;
+  return {
+    ...state,
+    units: state.units.map(u => {
+      if (nearbyAllies.some(ally => ally.id === u.id)) {
+        const unitDef = getUnitDefinition(u.type);
+        return { ...u, hp: Math.min(unitDef.baseStats.hp, u.hp + healAmount) };
+      }
+      return u;
+    }),
+    players: state.players.map(p =>
+      p.id === player.id
+        ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - 10) } }
+        : p
+    )
+  };
+}
+
+// Lamanite Faction Abilities
+function applyGuerrillaTactics(state: GameState, payload: any): GameState {
+  const unit = state.units.find(u => u.id === payload.unitId);
+  if (!unit) return state;
+
+  // Guerrilla Tactics: Hide in forest/jungle terrain for defense bonus
+  const unitTile = state.map.tiles.find(tile => 
+    tile.coordinate.q === unit.coordinate.q && 
+    tile.coordinate.r === unit.coordinate.r
+  );
+  
+  if (unitTile && (unitTile.terrain === 'forest' || unitTile.terrain === 'jungle')) {
+    return {
+      ...state,
+      units: state.units.map(u => 
+        u.id === unit.id 
+          ? { ...u, defense: u.defense + 3, status: 'hidden' as const }
+          : u
+      )
+    };
+  }
+  return state;
+}
+
+function applyAncestralRage(state: GameState, payload: any): GameState {
+  const player = state.players.find(p => p.id === payload.playerId);
+  if (!player || player.stats.pride < 15) return state;
+
+  // Ancestral Rage: All units gain attack bonus for several turns
+  return {
+    ...state,
+    units: state.units.map(u => 
+      u.playerId === player.id 
+        ? { ...u, attack: u.attack + 2 }
+        : u
+    ),
+    players: state.players.map(p =>
+      p.id === player.id
+        ? { ...p, stats: { ...p.stats, pride: Math.max(0, p.stats.pride - 15) } }
+        : p
+    )
+  };
+}
+
+// Zoramite Faction Abilities
+function applyConvertEnemy(state: GameState, payload: any): GameState {
+  const unit = state.units.find(u => u.id === payload.unitId);
+  if (!unit || !payload.targetUnitId) return state;
+
+  const target = state.units.find(u => u.id === payload.targetUnitId);
+  if (!target || target.playerId === unit.playerId) return state;
+
+  const player = state.players.find(p => p.id === unit.playerId);
+  if (!player || player.stats.pride < 20) return state;
+
+  // Convert Enemy: Turn enemy unit to your faction
+  const distance = hexDistance(unit.coordinate, target.coordinate);
+  if (distance <= 2) {
+    return {
+      ...state,
+      units: state.units.map(u => 
+        u.id === payload.targetUnitId 
+          ? { ...u, playerId: unit.playerId }
+          : u
+      ),
+      players: state.players.map(p =>
+        p.id === player.id
+          ? { ...p, stats: { ...p.stats, pride: Math.max(0, p.stats.pride - 20) } }
+          : p
+      )
+    };
+  }
+  return state;
+}
+
+function applyPrideBoost(state: GameState, payload: any): GameState {
+  const player = state.players.find(p => p.id === payload.playerId);
+  if (!player) return state;
+
+  // Pride Boost: Gain pride from nearby structures/cities
+  const playerCities = state.cities?.filter(city => 
+    player.citiesOwned.includes(city.id)
+  ) || [];
+
+  const prideGain = playerCities.length * 3;
+  return {
+    ...state,
+    players: state.players.map(p =>
+      p.id === player.id
+        ? { ...p, stats: { ...p.stats, pride: Math.min(100, p.stats.pride + prideGain) } }
+        : p
+    )
+  };
+}
+
+// Jaredite Faction Abilities
+function applyTowerVision(state: GameState, payload: any): GameState {
+  if (!payload.targetCoordinate) return state;
+
+  const player = state.players.find(p => p.id === payload.playerId);
+  if (!player || player.stats.faith < 15) return state;
+
+  // Tower Vision: Reveal large area of the map
+  const revealRadius = 5;
+  const tilesToReveal: string[] = [];
+  
+  for (let q = payload.targetCoordinate.q - revealRadius; q <= payload.targetCoordinate.q + revealRadius; q++) {
+    for (let r = payload.targetCoordinate.r - revealRadius; r <= payload.targetCoordinate.r + revealRadius; r++) {
+      const s = -q - r;
+      const distance = Math.max(
+        Math.abs(q - payload.targetCoordinate.q),
+        Math.abs(r - payload.targetCoordinate.r),
+        Math.abs(s - payload.targetCoordinate.s)
+      );
+      
+      if (distance <= revealRadius) {
+        tilesToReveal.push(`${q},${r}`);
+      }
+    }
+  }
+
+  return {
+    ...state,
+    map: {
+      ...state.map,
+      tiles: state.map.tiles.map(tile => {
+        const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
+        if (tilesToReveal.includes(tileKey) && !tile.exploredBy.includes(player.id)) {
+          return {
+            ...tile,
+            exploredBy: [...tile.exploredBy, player.id]
+          };
+        }
+        return tile;
+      })
+    },
+    players: state.players.map(p =>
+      p.id === player.id
+        ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - 15) } }
+        : p
+    )
+  };
+}
+
+function applyAncientKnowledge(state: GameState, payload: any): GameState {
+  const player = state.players.find(p => p.id === payload.playerId);
+  if (!player) return state;
+
+  // Ancient Knowledge: Gain research progress or unlock random tech
+  const availableTechs = Object.keys(TECHNOLOGIES).filter(techId => 
+    !player.researchedTechs.includes(techId)
+  );
+
+  if (availableTechs.length > 0) {
+    const randomTech = availableTechs[Math.floor(Math.random() * availableTechs.length)];
+    return {
+      ...state,
+      players: state.players.map(p =>
+        p.id === player.id
+          ? { 
+              ...p, 
+              researchedTechs: [...p.researchedTechs, randomTech],
+              stats: { ...p.stats, faith: Math.max(0, p.stats.faith - 25) }
+            }
+          : p
+      )
+    };
+  }
+  return state;
+}
+
+// Anti-Nephi-Lehi Faction Abilities
+function applyPacify(state: GameState, payload: any): GameState {
+  const unit = state.units.find(u => u.id === payload.unitId);
+  if (!unit) return state;
+
+  // Pacify: Reduce attack of nearby enemy units
+  const pacifyRadius = 3;
+  const nearbyEnemies = state.units.filter(u => {
+    if (u.playerId === unit.playerId) return false;
+    const distance = hexDistance(unit.coordinate, u.coordinate);
+    return distance <= pacifyRadius;
+  });
+
+  return {
+    ...state,
+    units: state.units.map(u => {
+      if (nearbyEnemies.some(enemy => enemy.id === u.id)) {
+        return { ...u, attack: Math.max(1, u.attack - 3) };
+      }
+      return u;
+    })
+  };
+}
+
+function applyConversion(state: GameState, payload: any): GameState {
+  const player = state.players.find(p => p.id === payload.playerId);
+  if (!player) return state;
+
+  // Conversion: Increase faith, reduce internal dissent
+  return {
+    ...state,
+    players: state.players.map(p =>
+      p.id === player.id
+        ? { 
+            ...p, 
+            stats: { 
+              ...p.stats, 
+              faith: Math.min(100, p.stats.faith + 10),
+              internalDissent: Math.max(0, p.stats.internalDissent - 15)
+            }
+          }
+        : p
+    )
+  };
+}
+
+// Mulekite Faction Abilities
+function applyTradeNetwork(state: GameState, payload: any): GameState {
+  const unit = state.units.find(u => u.id === payload.unitId);
+  if (!unit) return state;
+
+  // Trade Network: Gain stars from nearby cities
+  const tradeRadius = 4;
+  const nearbyCities = state.cities?.filter(city => {
+    const distance = hexDistance(unit.coordinate, city.coordinate);
+    return distance <= tradeRadius;
+  }) || [];
+
+  const starGain = nearbyCities.length * 3;
+  const player = state.players.find(p => p.id === unit.playerId);
+  if (!player) return state;
+
+  return {
+    ...state,
+    players: state.players.map(p =>
+      p.id === player.id
+        ? { ...p, stars: p.stars + starGain }
+        : p
+    )
+  };
+}
+
+function applyMaritimeExpansion(state: GameState, payload: any): GameState {
+  const player = state.players.find(p => p.id === payload.playerId);
+  if (!player) return state;
+
+  // Maritime Expansion: Reveal coastlines and gain movement bonus for water units
+  return {
+    ...state,
+    map: {
+      ...state.map,
+      tiles: state.map.tiles.map(tile => {
+        if ((tile.terrain === 'water') && 
+            !tile.exploredBy.includes(player.id)) {
+          return {
+            ...tile,
+            exploredBy: [...tile.exploredBy, player.id]
+          };
+        }
+        return tile;
+      })
+    },
+    units: state.units.map(u => 
+      u.playerId === player.id && u.type === 'scout' // Scouts can act as naval units
+        ? { ...u, movement: u.movement + 1, remainingMovement: u.remainingMovement + 1 }
+        : u
+    )
+  };
+}
+
+// Advanced Diplomacy and Trade Mechanics
+function handleEstablishTradeRoute(
+  state: GameState,
+  payload: { playerId: string; fromCityId: string; toCityId: string }
+): GameState {
+  const { playerId, fromCityId, toCityId } = payload;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+
+  const fromCity = state.cities?.find(city => city.id === fromCityId);
+  const toCity = state.cities?.find(city => city.id === toCityId);
+  
+  if (!fromCity || !toCity) return state;
+  if (!player.citiesOwned.includes(fromCityId)) return state;
+
+  // Establish trade route between cities
+  const distance = hexDistance(fromCity.coordinate, toCity.coordinate);
+  const tradeValue = Math.max(1, Math.floor(10 - distance / 2));
+
+  return {
+    ...state,
+    players: state.players.map(p =>
+      p.id === playerId
+        ? { ...p, stars: p.stars + tradeValue }
+        : p
+    )
+  };
+}
+
+function handleDeclareWar(
+  state: GameState,
+  payload: { playerId: string; targetPlayerId: string }
+): GameState {
+  const { playerId, targetPlayerId } = payload;
+  
+  const player = state.players.find(p => p.id === playerId);
+  const targetPlayer = state.players.find(p => p.id === targetPlayerId);
+  
+  if (!player || !targetPlayer) return state;
+  if (playerId === targetPlayerId) return state;
+
+  console.log(`${player.name} declares war on ${targetPlayer.name}!`);
+
+  // Declaring war increases pride but also internal dissent
+  return {
+    ...state,
+    players: state.players.map(p => {
+      if (p.id === playerId) {
+        return {
+          ...p,
+          stats: {
+            ...p.stats,
+            pride: Math.min(100, p.stats.pride + 15),
+            internalDissent: Math.min(100, p.stats.internalDissent + 5)
+          }
+        };
+      }
+      return p;
+    })
+  };
+}
+
+function handleFormAlliance(
+  state: GameState,
+  payload: { playerId: string; allyPlayerId: string }
+): GameState {
+  const { playerId, allyPlayerId } = payload;
+  
+  const player = state.players.find(p => p.id === playerId);
+  const ally = state.players.find(p => p.id === allyPlayerId);
+  
+  if (!player || !ally) return state;
+  if (playerId === allyPlayerId) return state;
+
+  console.log(`${player.name} forms alliance with ${ally.name}!`);
+
+  // Forming alliances boosts faith and reduces internal dissent
+  return {
+    ...state,
+    players: state.players.map(p => {
+      if (p.id === playerId || p.id === allyPlayerId) {
+        return {
+          ...p,
+          stats: {
+            ...p.stats,
+            faith: Math.min(100, p.stats.faith + 10),
+            internalDissent: Math.max(0, p.stats.internalDissent - 10)
+          }
+        };
+      }
+      return p;
+    })
+  };
+}
+
+function handleConvertCity(
+  state: GameState,
+  payload: { playerId: string; cityId: string; conversionType: 'faith' | 'pride' | 'peace' }
+): GameState {
+  const { playerId, cityId, conversionType } = payload;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+
+  const city = state.cities?.find(c => c.id === cityId);
+  if (!city) return state;
+
+  // Check if player has a unit near the city
+  const playerUnits = state.units.filter(unit => unit.playerId === playerId);
+  const canConvert = playerUnits.some(unit => {
+    const distance = hexDistance(unit.coordinate, city.coordinate);
+    return distance <= 2 && unit.type === 'missionary';
+  });
+
+  if (!canConvert) return state;
+
+  let resourceCost = 0;
+  let statChanges = {};
+
+  switch (conversionType) {
+    case 'faith':
+      resourceCost = 20;
+      if (player.stats.faith < resourceCost) return state;
+      statChanges = { faith: player.stats.faith - resourceCost };
+      break;
+    case 'pride':
+      resourceCost = 15;
+      if (player.stats.pride < resourceCost) return state;
+      statChanges = { pride: player.stats.pride - resourceCost };
+      break;
+    case 'peace':
+      resourceCost = 10;
+      statChanges = { 
+        faith: Math.min(100, player.stats.faith + 5),
+        internalDissent: Math.max(0, player.stats.internalDissent - 10)
+      };
+      break;
+  }
+
+  // Convert city to player's control
+  const currentOwner = state.players.find(p => p.citiesOwned.includes(cityId));
+  
+  return {
+    ...state,
+    players: state.players.map(p => {
+      if (p.id === playerId) {
+        return {
+          ...p,
+          citiesOwned: [...p.citiesOwned, cityId],
+          stats: { ...p.stats, ...statChanges }
+        };
+      } else if (currentOwner && p.id === currentOwner.id) {
+        return {
+          ...p,
+          citiesOwned: p.citiesOwned.filter(id => id !== cityId)
+        };
+      }
+      return p;
+    })
+  };
+}
+
+function handleUpgradeUnit(
+  state: GameState,
+  payload: { playerId: string; unitId: string; upgradeType: 'attack' | 'defense' | 'movement' | 'vision' }
+): GameState {
+  const { playerId, unitId, upgradeType } = payload;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+
+  // Check upgrade costs
+  const upgradeCost = 15;
+  if (player.stars < upgradeCost) return state;
+
+  let unitUpgrades = {};
+  switch (upgradeType) {
+    case 'attack':
+      unitUpgrades = { attack: unit.attack + 2 };
+      break;
+    case 'defense':
+      unitUpgrades = { defense: unit.defense + 2 };
+      break;
+    case 'movement':
+      unitUpgrades = { 
+        movement: unit.movement + 1,
+        remainingMovement: unit.remainingMovement + 1
+      };
+      break;
+    case 'vision':
+      unitUpgrades = { visionRadius: unit.visionRadius + 1 };
+      break;
+  }
+
+  return {
+    ...state,
+    players: state.players.map(p =>
+      p.id === playerId
+        ? { ...p, stars: p.stars - upgradeCost }
+        : p
+    ),
+    units: state.units.map(u =>
+      u.id === unitId
+        ? { ...u, ...unitUpgrades }
+        : u
     )
   };
 }

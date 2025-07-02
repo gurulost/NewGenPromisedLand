@@ -105,6 +105,8 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- July 02, 2025: **Advanced GameReducer Expansion**: Implemented sophisticated faction-specific abilities (12 unique abilities across 6 factions), diplomacy mechanics (war declarations, alliances, trade routes), city conversion systems, and unit upgrade mechanics - transforming the gameReducer into a comprehensive strategy game engine
+- July 02, 2025: **Comprehensive Performance Optimizations**: Added React memoization throughout UI components (PlayerHUD, SelectedUnitPanel, CombatPanel) with pre-calculated stats, optimized combat data processing, and maintained existing HexGridInstanced fog-of-war optimizations for maximum responsiveness
 - July 02, 2025: **Code Cleanup & Type Safety**: Removed redundant HexGrid.tsx file (old non-performant implementation), resolved circular dependency issues with dedicated coordinates.ts file, completed strengthened Zod schemas eliminating all z.any() types
 - July 02, 2025: **Tier 1 Critical Performance & Architecture Fixes**: Completed transition to instanced rendering (massive performance gain from hundreds to single draw call), eradicated hardcoded game rules with data-driven terrain/movement/vision systems, and verified city capture uses configurable GAME_RULES.capture settings
 - July 02, 2025: **Ancient Typography System**: Implemented "Ancient Stone & Scroll" font pairing with Cinzel (headers/titles) and Source Sans 3 (body/UI) for authentic historical feel while maintaining perfect readability across all game components
