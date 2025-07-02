@@ -3,6 +3,77 @@ import { Unit } from "../types/unit";
 import { hexDistance, hexNeighbors } from "../utils/hex";
 import { getUnitDefinition } from "../data/units";
 import { getActiveModifiers, getUnitModifiers, GameModifier } from "../data/modifiers";
+import { TECHNOLOGIES, calculateResearchCost } from "../data/technologies";
+
+// Tech Research Handler
+function handleResearchTech(
+  state: GameState,
+  payload: { playerId: string; techId: string }
+): GameState {
+  const { playerId, techId } = payload;
+  
+  const tech = TECHNOLOGIES[techId];
+  if (!tech) return state;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+  
+  const cost = calculateResearchCost(tech, player.researchedTechs.length);
+  
+  // Check if player can afford and prerequisites are met
+  if (player.stars < cost) return state;
+  if (!tech.prerequisites.every(prereq => player.researchedTechs.includes(prereq))) return state;
+  if (player.researchedTechs.includes(techId)) return state;
+  
+  return {
+    ...state,
+    players: state.players.map(p =>
+      p.id === playerId
+        ? {
+            ...p,
+            stars: p.stars - cost,
+            researchedTechs: [...p.researchedTechs, techId],
+          }
+        : p
+    ),
+  };
+}
+
+// Build Improvement Handler
+function handleBuildImprovement(
+  state: GameState,
+  payload: { playerId: string; coordinate: any; improvementType: string; cityId: string }
+): GameState {
+  console.log('Building improvement:', payload.improvementType, 'at', payload.coordinate);
+  return state;
+}
+
+// Build Structure Handler
+function handleBuildStructure(
+  state: GameState,
+  payload: { playerId: string; cityId: string; structureType: string }
+): GameState {
+  console.log('Building structure:', payload.structureType, 'in city', payload.cityId);
+  return state;
+}
+
+// Capture City Handler
+function handleCaptureCity(
+  state: GameState,
+  payload: { playerId: string; cityId: string }
+): GameState {
+  console.log('Capturing city:', payload.cityId, 'by player', payload.playerId);
+  return state;
+}
+
+// Recruit Unit Handler
+function handleRecruitUnit(
+  state: GameState,
+  payload: { playerId: string; cityId: string; unitType: string }
+): GameState {
+  console.log('Recruiting unit:', payload.unitType, 'from city', payload.cityId);
+  return state;
+}
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -20,6 +91,21 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     
     case 'BUILD_UNIT':
       return handleBuildUnit(state, action.payload);
+    
+    case 'RESEARCH_TECH':
+      return handleResearchTech(state, action.payload);
+    
+    case 'BUILD_IMPROVEMENT':
+      return handleBuildImprovement(state, action.payload);
+    
+    case 'BUILD_STRUCTURE':
+      return handleBuildStructure(state, action.payload);
+    
+    case 'CAPTURE_CITY':
+      return handleCaptureCity(state, action.payload);
+    
+    case 'RECRUIT_UNIT':
+      return handleRecruitUnit(state, action.payload);
     
     default:
       return state;

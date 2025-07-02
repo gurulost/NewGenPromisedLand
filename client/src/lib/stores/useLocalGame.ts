@@ -21,6 +21,7 @@ interface LocalGameStore {
   moveUnit: (unitId: string, targetCoordinate: any) => void;
   attackUnit: (attackerId: string, targetId: string) => void;
   useAbility: (playerId: string, abilityId: string) => void;
+  dispatch: (action: any) => void;
   resetGame: () => void;
 }
 
@@ -44,10 +45,43 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       visibilityMask: [],
       isEliminated: false,
       turnOrder: setup.turnOrder,
+      stars: 10, // Starting currency
+      researchedTechs: [], // No starting technologies
+      researchProgress: 0,
+      citiesOwned: [],
+      currentResearch: undefined,
     }));
 
     // Generate balanced map with strategic resource distribution
     const map = MapGenerator.generateBalancedMap(players.length, Date.now());
+    
+    // Generate starting cities for each player
+    const cities = players.map((player, index) => {
+      // Find suitable starting positions spread across the map
+      const startRadius = Math.floor(map.width / 4);
+      const angle = (index / players.length) * 2 * Math.PI;
+      const q = Math.round(startRadius * Math.cos(angle));
+      const r = Math.round(startRadius * Math.sin(angle));
+      const s = -q - r;
+      
+      return {
+        id: `city-${player.id}`,
+        name: `${player.name}'s Capital`,
+        coordinate: { q, r, s },
+        ownerId: player.id,
+        population: 1,
+        starProduction: 2,
+        improvements: [],
+        structures: [],
+        level: 1,
+      };
+    });
+    
+    // Update player city ownership
+    const playersWithCities = players.map((player, index) => ({
+      ...player,
+      citiesOwned: [cities[index].id],
+    }));
     
     // Mark starting tiles as explored
     const exploredTiles = new Set([
@@ -154,7 +188,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       return tiles;
     };
 
-    const updatedPlayers = players.map((player, index) => {
+    const updatedPlayers = playersWithCities.map((player, index) => {
       const playerUnits = units.filter(unit => unit.playerId === player.id);
       const allVisibleTiles: string[] = [];
       
@@ -178,6 +212,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       phase: 'playing',
       map,
       units,
+      cities,
+      improvements: [],
+      structures: [],
       lastAction: undefined,
       winner: undefined,
     };
@@ -249,6 +286,14 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       payload: { playerId, abilityId }
     };
 
+    const newGameState = gameReducer(gameState, action);
+    set({ gameState: newGameState });
+  },
+  
+  dispatch: (action) => {
+    const { gameState } = get();
+    if (!gameState) return;
+    
     const newGameState = gameReducer(gameState, action);
     set({ gameState: newGameState });
   },

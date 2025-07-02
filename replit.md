@@ -105,12 +105,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-- July 02, 2025: **Performance-Optimized Pathfinding**: Replaced O(n log n) array sorting with O(log n) priority queue and O(1) Map lookups for massive performance gains in unit movement
-- July 02, 2025: **Strategic Fog of War**: Implemented three-tier visibility system (unexplored/explored/current vision) where enemy units only visible in current 2-tile vision range
-- July 02, 2025: **Advanced Combat System**: Added faction-specific combat bonuses, attack damage calculations, and combat UI with enemy targeting
-- July 02, 2025: **Faction Abilities**: Implemented Title of Liberty, Rameumptom, and Covenant of Peace abilities with stat modifications
-- July 02, 2025: **Enhanced Map Generation**: Perlin noise terrain generation with strategic resource placement and balanced city distribution
-- July 02, 2025: **Architectural Improvements**: Separated map generation, added Zod validation for save/load, and comprehensive vision utilities
+- July 02, 2025: **Core Tech Tree System**: Implemented comprehensive technology research with 9 technologies across 4 categories (economic/military/religious/exploration), prerequisite trees, and scaling costs based on research count
+- July 02, 2025: **Star Economy Foundation**: Added star currency system with 10 starting stars per player, tech research cost deduction, and visual star tracking in GameUI
+- July 02, 2025: **Research UI Panel**: Created full-featured tech panel with category tabs, prerequisite visualization, unlock previews, and research progress tracking
+- July 02, 2025: **Game State Expansion**: Extended PlayerState schema with stars, researchedTechs, citiesOwned, and currentResearch fields; added cities/improvements/structures to GameState
+- July 02, 2025: **Action System Upgrade**: Added RESEARCH_TECH, BUILD_IMPROVEMENT, BUILD_STRUCTURE, CAPTURE_CITY, and RECRUIT_UNIT actions with proper game reducer handling
+- July 02, 2025: **Performance-Optimized HexGrid**: Implemented memoized fog of war calculations using Set data structures for O(1) tile lookups, eliminating expensive render loop calculations
 
 ## Changelog
 

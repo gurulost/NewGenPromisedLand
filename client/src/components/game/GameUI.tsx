@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useKeyboardControls } from "@react-three/drei";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -8,12 +8,15 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { getFaction } from "@shared/data/factions";
 import { getUnitDefinition } from "@shared/data/units";
 import { hexDistance } from "@shared/utils/hex";
+import { Book, Star } from "lucide-react";
+import TechPanel from "../ui/TechPanel";
 import type { Unit } from "@shared/types/unit";
 
 export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit } = useLocalGame();
   const { selectedUnit, hoveredTile, setSelectedUnit } = useGameState();
   const [subscribeKeys, getKeys] = useKeyboardControls();
+  const [showTechPanel, setShowTechPanel] = useState(false);
 
   if (!gameState) return null;
 
@@ -107,6 +110,23 @@ export default function GameUI() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
+            {/* Stars and Research */}
+            <div className="flex items-center justify-between mb-3 p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-yellow-500" />
+                <span className="font-semibold">{currentPlayer.stars} Stars</span>
+              </div>
+              <Button 
+                onClick={() => setShowTechPanel(true)}
+                variant="outline"
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 border-blue-500 text-white"
+              >
+                <Book className="w-4 h-4 mr-1" />
+                Research
+              </Button>
+            </div>
+            
             <div className="flex items-center gap-2">
               <span className="text-sm">Faith:</span>
               <Progress 
@@ -312,6 +332,12 @@ export default function GameUI() {
           </Card>
         </div>
       )}
+      
+      {/* Tech Panel */}
+      <TechPanel 
+        open={showTechPanel} 
+        onClose={() => setShowTechPanel(false)} 
+      />
     </div>
   );
 }

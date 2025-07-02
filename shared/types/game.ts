@@ -60,6 +60,11 @@ export const PlayerStateSchema = z.object({
   visibilityMask: z.array(z.string()).default([]),
   isEliminated: z.boolean().default(false),
   turnOrder: z.number(),
+  stars: z.number().default(10), // Currency for building/recruiting
+  researchedTechs: z.array(z.string()).default([]),
+  currentResearch: z.string().optional(), // Tech being researched
+  researchProgress: z.number().default(0), // Progress toward current tech
+  citiesOwned: z.array(z.string()).default([]), // City IDs owned by player
 });
 
 export type PlayerState = z.infer<typeof PlayerStateSchema>;
@@ -73,6 +78,9 @@ export const GameStateSchema = z.object({
   phase: z.enum(['setup', 'playing', 'ended']),
   map: GameMapSchema,
   units: z.array(z.any()), // Will be properly typed in unit.ts
+  cities: z.array(z.any()).default([]), // Cities on the map
+  improvements: z.array(z.any()).default([]), // Built improvements
+  structures: z.array(z.any()).default([]), // Built structures
   lastAction: z.any().optional(),
   winner: z.string().optional(),
 });
@@ -115,6 +123,45 @@ export const GameActionSchema = z.discriminatedUnion('type', [
       unitType: z.string(),
       coordinate: HexCoordinateSchema,
       playerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('RESEARCH_TECH'),
+    payload: z.object({
+      playerId: z.string(),
+      techId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('BUILD_IMPROVEMENT'),
+    payload: z.object({
+      playerId: z.string(),
+      coordinate: HexCoordinateSchema,
+      improvementType: z.string(),
+      cityId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('BUILD_STRUCTURE'),
+    payload: z.object({
+      playerId: z.string(),
+      cityId: z.string(),
+      structureType: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('CAPTURE_CITY'),
+    payload: z.object({
+      playerId: z.string(),
+      cityId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('RECRUIT_UNIT'),
+    payload: z.object({
+      playerId: z.string(),
+      cityId: z.string(),
+      unitType: z.string(),
     }),
   }),
 ]);
