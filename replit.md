@@ -105,12 +105,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-- July 02, 2025: Fixed fog of war system - players now only see their own explored areas and enemy units in visible tiles
-- July 02, 2025: Implemented proper turn-based movement system with unit ownership validation
-- July 02, 2025: Added adaptive map generation that scales with player count (2 players: 4x4, 4 players: 5x5, 6 players: 6x6)
-- July 02, 2025: Enhanced terrain generation algorithm with strategic distribution (center more accessible, edges more challenging)
-- July 02, 2025: Added mobile responsiveness for iPad touch controls with responsive UI elements
-- July 02, 2025: Improved exploration system allowing movement into fog of war with 2-tile vision radius
+- July 02, 2025: **Performance-Optimized Pathfinding**: Replaced O(n log n) array sorting with O(log n) priority queue and O(1) Map lookups for massive performance gains in unit movement
+- July 02, 2025: **Strategic Fog of War**: Implemented three-tier visibility system (unexplored/explored/current vision) where enemy units only visible in current 2-tile vision range
+- July 02, 2025: **Advanced Combat System**: Added faction-specific combat bonuses, attack damage calculations, and combat UI with enemy targeting
+- July 02, 2025: **Faction Abilities**: Implemented Title of Liberty, Rameumptom, and Covenant of Peace abilities with stat modifications
+- July 02, 2025: **Enhanced Map Generation**: Perlin noise terrain generation with strategic resource placement and balanced city distribution
+- July 02, 2025: **Architectural Improvements**: Separated map generation, added Zod validation for save/load, and comprehensive vision utilities
 
 ## Changelog
 
