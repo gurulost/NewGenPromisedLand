@@ -27,6 +27,8 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   // Get player and faction info
   const player = gameState?.players.find(p => p.id === unit.playerId);
   const faction = player ? getFaction(player.factionId as any) : null;
+  const currentPlayer = gameState?.players[gameState?.currentPlayerIndex || 0];
+  const isCurrentPlayerUnit = currentPlayer?.id === unit.playerId;
   
   // Calculate reachable tiles when this unit is selected
   useEffect(() => {
@@ -80,7 +82,14 @@ export default function Unit({ unit, isSelected }: UnitProps) {
 
   const handleClick = () => {
     console.log('Unit clicked:', unit.id, 'Current player:', gameState?.players[gameState.currentPlayerIndex]?.id, 'Unit player:', unit.playerId);
-    setSelectedUnit(unit);
+    
+    // Only allow selecting units that belong to the current player
+    const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+    if (currentPlayer && unit.playerId === currentPlayer.id) {
+      setSelectedUnit(unit);
+    } else {
+      console.log('Cannot select unit - not current player\'s turn');
+    }
   };
 
   // Health bar color
@@ -101,8 +110,8 @@ export default function Unit({ unit, isSelected }: UnitProps) {
       >
         <meshLambertMaterial 
           color={faction?.color || '#888888'}
-          transparent={unit.status === 'exhausted'}
-          opacity={unit.status === 'exhausted' ? 0.7 : 1}
+          transparent={unit.status === 'exhausted' || !isCurrentPlayerUnit}
+          opacity={unit.status === 'exhausted' ? 0.7 : !isCurrentPlayerUnit ? 0.4 : 1}
         />
       </mesh>
 

@@ -199,9 +199,10 @@ export default function GameUI() {
             <CardTitle className="text-sm">Controls</CardTitle>
           </CardHeader>
           <CardContent className="text-xs space-y-1">
-            <div>• Click units to select them</div>
+            <div>• Click your units to select them (bright units)</div>
             <div>• Click blue tiles to move selected unit</div>
-            <div>• Press T to end turn</div>
+            <div>• Units can move multiple times per turn</div>
+            <div>• Press T to end turn and switch players</div>
             <div>• Press Escape to deselect unit</div>
             <div>• Drag to pan camera, scroll to zoom</div>
           </CardContent>
