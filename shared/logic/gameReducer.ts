@@ -5,6 +5,7 @@ import { getUnitDefinition } from "../data/units";
 import { getActiveModifiers, getUnitModifiers, GameModifier } from "../data/modifiers";
 import { TECHNOLOGIES, calculateResearchCost } from "../data/technologies";
 import { GAME_RULES, GameRuleHelpers } from "../data/gameRules";
+import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "../types/city";
 
 // Tech Research Handler
 function handleResearchTech(
@@ -47,8 +48,6 @@ function handleBuildImprovement(
 ): GameState {
   const { playerId, coordinate, improvementType, cityId } = payload;
   
-  // Import improvement definitions
-  const { IMPROVEMENT_DEFINITIONS } = require('../types/city');
   const improvementDef = IMPROVEMENT_DEFINITIONS[improvementType as keyof typeof IMPROVEMENT_DEFINITIONS];
   if (!improvementDef) return state;
   
@@ -108,8 +107,6 @@ function handleBuildStructure(
 ): GameState {
   const { playerId, cityId, structureType } = payload;
   
-  // Import structure definitions
-  const { STRUCTURE_DEFINITIONS } = require('../types/city');
   const structureDef = STRUCTURE_DEFINITIONS[structureType as keyof typeof STRUCTURE_DEFINITIONS];
   if (!structureDef) return state;
   
