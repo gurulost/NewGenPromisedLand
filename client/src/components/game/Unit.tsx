@@ -31,6 +31,8 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   // Calculate reachable tiles when this unit is selected
   useEffect(() => {
     if (isSelected && gameState) {
+      console.log('Calculating reachable tiles for unit:', unit.id, 'Movement:', unit.remainingMovement);
+      
       const isPassable = (coord: any): boolean => {
         const tile = gameState.map.tiles.find(t => 
           t.coordinate.q === coord.q && t.coordinate.r === coord.r
@@ -45,6 +47,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
       );
       
       const reachableKeys = reachable.map(coord => `${coord.q},${coord.r}`);
+      console.log('Reachable tiles:', reachableKeys);
       setReachableTiles(reachableKeys);
     } else if (!isSelected) {
       setReachableTiles([]);
@@ -76,6 +79,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   }, [unit.type]);
 
   const handleClick = () => {
+    console.log('Unit clicked:', unit.id, 'Current player:', gameState?.players[gameState.currentPlayerIndex]?.id, 'Unit player:', unit.playerId);
     setSelectedUnit(unit);
   };
 
