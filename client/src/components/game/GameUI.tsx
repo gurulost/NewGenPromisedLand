@@ -54,7 +54,7 @@ export default function GameUI() {
     useAbility(currentPlayer.id, abilityId);
   };
 
-  // Get attackable enemies for selected unit
+  // Get attackable enemies for selected unit (only currently visible enemies)
   const getAttackableEnemies = (unit: Unit): Unit[] => {
     if (!gameState || !unit) return [];
     
@@ -63,8 +63,23 @@ export default function GameUI() {
       if (enemyUnit.playerId === unit.playerId) return false;
       
       // Must be within attack range (typically 1 hex)
-      const distance = hexDistance(unit.coordinate, enemyUnit.coordinate);
-      return distance <= 1; // Most units have attack range of 1
+      const attackDistance = hexDistance(unit.coordinate, enemyUnit.coordinate);
+      if (attackDistance > 1) return false;
+      
+      // Enemy must be currently visible (within vision range of any friendly unit)
+      const isCurrentlyVisible = gameState.units.some(friendlyUnit => {
+        if (friendlyUnit.playerId !== unit.playerId) return false;
+        
+        const visionDistance = Math.max(
+          Math.abs(enemyUnit.coordinate.q - friendlyUnit.coordinate.q),
+          Math.abs(enemyUnit.coordinate.r - friendlyUnit.coordinate.r),
+          Math.abs(enemyUnit.coordinate.s - friendlyUnit.coordinate.s)
+        );
+        
+        return visionDistance <= 2; // 2-tile vision radius
+      });
+      
+      return isCurrentlyVisible;
     });
   };
 

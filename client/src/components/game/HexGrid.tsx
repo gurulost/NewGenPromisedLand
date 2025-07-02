@@ -111,8 +111,22 @@ export default function HexGrid({ map }: HexGridProps) {
         const isExplored = tile.exploredBy.includes(currentPlayer?.id || '');
         const isReachable = reachableTiles.includes(tileKey);
         
-        // Fog of war: only show tiles visible to current player
-        if (!isVisible && !isExplored) {
+        // Calculate current vision status for strategic fog of war
+        const playerUnits = gameState?.units.filter(unit => unit.playerId === currentPlayer?.id) || [];
+        const isInCurrentVision = playerUnits.some(unit => {
+          const distance = Math.max(
+            Math.abs(tile.coordinate.q - unit.coordinate.q),
+            Math.abs(tile.coordinate.r - unit.coordinate.r),
+            Math.abs(tile.coordinate.s - unit.coordinate.s)
+          );
+          return distance <= 2; // 2-tile vision radius
+        });
+        
+        // Three fog of war states:
+        // 1. Unexplored: Completely dark
+        // 2. Explored but not in current vision: Dimmed
+        // 3. In current vision: Fully visible
+        if (!isExplored && !isInCurrentVision) {
           return (
             <mesh
               key={tileKey}
@@ -120,7 +134,7 @@ export default function HexGrid({ map }: HexGridProps) {
               geometry={hexGeometry}
               rotation={[0, 0, 0]}
             >
-              <meshBasicMaterial color="#0a0a0a" transparent opacity={0.2} />
+              <meshBasicMaterial color="#0a0a0a" transparent opacity={0.1} />
             </mesh>
           );
         }
@@ -135,20 +149,43 @@ export default function HexGrid({ map }: HexGridProps) {
             onPointerEnter={() => handleTileHover(tile)}
             onPointerLeave={() => setHoveredTile(null)}
           >
-            {tile.terrain === 'water' || tile.terrain === 'mountain' ? (
-              <meshLambertMaterial 
-                color={getTerrainColor(tile.terrain)}
-                transparent={!isVisible}
-                opacity={isVisible ? 1 : 0.7}
-              />
-            ) : (
-              <meshLambertMaterial 
-                map={getTerrainTexture(tile.terrain)}
-                color={getTerrainColor(tile.terrain)}
-                transparent={!isVisible}
-                opacity={isVisible ? 1 : 0.7}
-              />
-            )}
+            {(() => {
+              // Determine tile visibility state for material properties
+              let opacity = 1.0;
+              let darkening = 1.0;
+              
+              if (isInCurrentVision) {
+                // Fully visible - normal appearance
+                opacity = 1.0;
+                darkening = 1.0;
+              } else if (isExplored) {
+                // Explored but not in current vision - dimmed but visible
+                opacity = 0.8;
+                darkening = 0.5;
+              } else {
+                // Should not reach here due to earlier return
+                opacity = 0.3;
+                darkening = 0.2;
+              }
+              
+              const baseColor = getTerrainColor(tile.terrain);
+              const darkenedColor = `rgb(${Math.floor(parseInt(baseColor.slice(1, 3), 16) * darkening)}, ${Math.floor(parseInt(baseColor.slice(3, 5), 16) * darkening)}, ${Math.floor(parseInt(baseColor.slice(5, 7), 16) * darkening)})`;
+              
+              return tile.terrain === 'water' || tile.terrain === 'mountain' ? (
+                <meshLambertMaterial 
+                  color={darkenedColor}
+                  transparent={opacity < 1}
+                  opacity={opacity}
+                />
+              ) : (
+                <meshLambertMaterial 
+                  map={getTerrainTexture(tile.terrain)}
+                  color={darkenedColor}
+                  transparent={opacity < 1}
+                  opacity={opacity}
+                />
+              );
+            })()}
             
             {/* Movement highlight overlay */}
             {isReachable && selectedUnit && (
