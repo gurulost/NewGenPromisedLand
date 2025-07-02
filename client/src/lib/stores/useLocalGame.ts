@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { GameState, PlayerState } from "@shared/types/game";
+import { GameState, PlayerState, HexCoordinate, TerrainType } from "@shared/types/game";
 import { gameReducer } from "@shared/logic/gameReducer";
 import { generateMap } from "../gameStorage";
 
@@ -64,13 +64,49 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       return tile;
     });
     
+    // Find suitable starting positions (not water or mountain)
+    const findValidSpawnPosition = (startQ: number, startR: number): HexCoordinate => {
+      const candidates = [
+        { q: startQ, r: startR, s: -startQ - startR },
+        { q: startQ + 1, r: startR, s: -startQ - startR - 1 },
+        { q: startQ, r: startR + 1, s: -startQ - startR - 1 },
+        { q: startQ - 1, r: startR + 1, s: -startQ - startR },
+        { q: startQ - 1, r: startR, s: -startQ - startR + 1 },
+        { q: startQ, r: startR - 1, s: -startQ - startR + 1 },
+      ];
+      
+      for (const coord of candidates) {
+        const tile = map.tiles.find(t => 
+          t.coordinate.q === coord.q && t.coordinate.r === coord.r
+        );
+        if (tile && tile.terrain !== 'water' && tile.terrain !== 'mountain') {
+          return coord;
+        }
+      }
+      
+      // Fallback - force create a plains tile at this position
+      return { q: startQ, r: startR, s: -startQ - startR };
+    };
+
+    const player1Start = findValidSpawnPosition(0, 0);
+    const player2Start = findValidSpawnPosition(3, -2);
+
+    // Ensure spawn positions have valid terrain
+    map.tiles = map.tiles.map(tile => {
+      if ((tile.coordinate.q === player1Start.q && tile.coordinate.r === player1Start.r) ||
+          (tile.coordinate.q === player2Start.q && tile.coordinate.r === player2Start.r)) {
+        return { ...tile, terrain: 'plains' as TerrainType };
+      }
+      return tile;
+    });
+
     // Create some initial units for testing
     const units: any[] = [
       {
         id: 'unit-1',
         type: 'warrior',
         playerId: players[0].id,
-        coordinate: { q: 0, r: 0, s: 0 },
+        coordinate: player1Start,
         hp: 25,
         maxHp: 25,
         attack: 6,
@@ -86,7 +122,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
         id: 'unit-2', 
         type: 'missionary',
         playerId: players[1].id,
-        coordinate: { q: 2, r: -1, s: -1 },
+        coordinate: player2Start,
         hp: 18,
         maxHp: 18,
         attack: 1,
@@ -170,12 +206,15 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     const { gameState } = get();
     if (!gameState) return;
 
+    console.log('Moving unit:', unitId, 'to:', targetCoordinate);
+
     const action = {
       type: 'MOVE_UNIT' as const,
       payload: { unitId, targetCoordinate }
     };
 
     const newGameState = gameReducer(gameState, action);
+    console.log('Game state updated:', newGameState);
     set({ gameState: newGameState });
   },
   

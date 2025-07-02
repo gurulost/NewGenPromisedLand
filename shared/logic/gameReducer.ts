@@ -29,14 +29,24 @@ function handleMoveUnit(
   payload: { unitId: string; targetCoordinate: any }
 ): GameState {
   const unit = state.units.find((u: Unit) => u.id === payload.unitId);
-  if (!unit) return state;
+  if (!unit) {
+    console.log('Unit not found:', payload.unitId);
+    return state;
+  }
 
   const currentPlayer = state.players[state.currentPlayerIndex];
-  if (unit.playerId !== currentPlayer.id) return state;
+  if (unit.playerId !== currentPlayer.id) {
+    console.log('Unit does not belong to current player');
+    return state;
+  }
 
   // Check if movement is valid
   const distance = hexDistance(unit.coordinate, payload.targetCoordinate);
-  if (distance > unit.remainingMovement) return state;
+  console.log('Movement distance:', distance, 'Remaining movement:', unit.remainingMovement);
+  if (distance > unit.remainingMovement) {
+    console.log('Not enough movement');
+    return state;
+  }
 
   // Check if target tile is passable
   const targetTile = state.map.tiles.find(tile => 
@@ -44,7 +54,11 @@ function handleMoveUnit(
     tile.coordinate.r === payload.targetCoordinate.r
   );
   
-  if (!targetTile || targetTile.terrain === 'water') return state;
+  console.log('Target tile:', targetTile);
+  if (!targetTile || targetTile.terrain === 'water' || targetTile.terrain === 'mountain') {
+    console.log('Target tile is not passable');
+    return state;
+  }
 
   // Update unit position and movement
   const updatedUnits = state.units.map((u: Unit) => 
