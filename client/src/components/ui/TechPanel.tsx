@@ -17,11 +17,10 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const { gameState, dispatch } = useLocalGame();
   const [selectedCategory, setSelectedCategory] = useState<Technology['category']>('economic');
   
-  if (!open || !gameState) return null;
-  
-  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  const availableTechs = getAvailableTechnologies(currentPlayer.researchedTechs);
-  const researchedCount = currentPlayer.researchedTechs.length;
+  // Always call hooks before any early returns
+  const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+  const availableTechs = currentPlayer ? getAvailableTechnologies(currentPlayer.researchedTechs) : [];
+  const researchedCount = currentPlayer?.researchedTechs.length || 0;
   
   const categorizedTechs = useMemo(() => ({
     economic: availableTechs.filter(tech => tech.category === 'economic'),
@@ -29,6 +28,9 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     religious: availableTechs.filter(tech => tech.category === 'religious'),
     exploration: availableTechs.filter(tech => tech.category === 'exploration'),
   }), [availableTechs]);
+  
+  // Early return after all hooks are called
+  if (!open || !gameState || !currentPlayer) return null;
   
   const handleResearchTech = (techId: string) => {
     const tech = TECHNOLOGIES[techId];
