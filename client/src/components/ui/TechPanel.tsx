@@ -31,6 +31,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   };
   
   const handleResearchTech = (techId: string) => {
+    alert(`Click detected! Trying to research: ${techId}`);
     console.log('Attempting to research tech:', techId);
     console.log('Current player:', currentPlayer);
     console.log('Player stars:', currentPlayer.stars);
