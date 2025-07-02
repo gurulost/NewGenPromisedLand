@@ -54,8 +54,8 @@ export default function GameUI() {
 
   return (
     <div className="absolute inset-0 pointer-events-none">
-      {/* Top HUD - Player Info */}
-      <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-auto">
+      {/* Top HUD - Player Info - Mobile Responsive */}
+      <div className="absolute top-2 left-2 right-2 md:top-4 md:left-4 md:right-4 flex justify-between items-start pointer-events-auto">
         <Card className="bg-black/80 border-gray-600 text-white">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
@@ -180,31 +180,31 @@ export default function GameUI() {
         </div>
       )}
 
-      {/* Bottom Center - Actions */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 pointer-events-auto">
+      {/* Bottom Center - Actions - Mobile Responsive */}
+      <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 md:bottom-4 pointer-events-auto">
         <div className="flex gap-2">
           <Button
             onClick={handleEndTurn}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 md:px-6 text-sm md:text-base"
           >
             End Turn (T)
           </Button>
         </div>
       </div>
 
-      {/* Help Panel - Bottom Left */}
-      <div className="absolute bottom-4 left-4 pointer-events-auto">
-        <Card className="bg-black/80 border-gray-600 text-white w-64">
-          <CardHeader>
-            <CardTitle className="text-sm">Controls</CardTitle>
+      {/* Help Panel - Bottom Left - Mobile Responsive */}
+      <div className="absolute bottom-2 left-2 md:bottom-4 md:left-4 pointer-events-auto">
+        <Card className="bg-black/80 border-gray-600 text-white w-52 md:w-64">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs md:text-sm">Controls</CardTitle>
           </CardHeader>
           <CardContent className="text-xs space-y-1">
-            <div>• Click your units to select them (bright units)</div>
-            <div>• Click blue tiles to move selected unit</div>
+            <div>• Tap your units to select them (bright units)</div>
+            <div>• Tap blue tiles to move selected unit</div>
             <div>• Units can move multiple times per turn</div>
             <div>• Press T to end turn and switch players</div>
             <div>• Press Escape to deselect unit</div>
-            <div>• Drag to pan camera, scroll to zoom</div>
+            <div>• Pinch/drag to pan and zoom camera</div>
           </CardContent>
         </Card>
       </div>

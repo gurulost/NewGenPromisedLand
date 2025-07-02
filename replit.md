@@ -103,7 +103,15 @@ The application follows a modern full-stack architecture with clear separation b
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+- July 02, 2025: Fixed fog of war system - players now only see their own explored areas and enemy units in visible tiles
+- July 02, 2025: Implemented proper turn-based movement system with unit ownership validation
+- July 02, 2025: Added adaptive map generation that scales with player count (2 players: 4x4, 4 players: 5x5, 6 players: 6x6)
+- July 02, 2025: Enhanced terrain generation algorithm with strategic distribution (center more accessible, edges more challenging)
+- July 02, 2025: Added mobile responsiveness for iPad touch controls with responsive UI elements
+- July 02, 2025: Improved exploration system allowing movement into fog of war with 2-tile vision radius
+
 ## Changelog
 
-Changelog:
-- July 02, 2025. Initial setup
+- July 02, 2025: Initial setup

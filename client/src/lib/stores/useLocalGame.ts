@@ -45,7 +45,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       turnOrder: setup.turnOrder,
     }));
 
-    const map = generateMap(6, 6); // Generate smaller hex map for better visibility
+    // Scale map size based on player count for balanced gameplay
+    const baseSize = 4;
+    const mapSize = baseSize + Math.floor(players.length / 2); // 2 players: 4, 4 players: 5, 6 players: 6
+    const map = generateMap(mapSize, mapSize, Date.now()); // Use timestamp as seed for randomization
     
     // Mark starting tiles as explored
     const exploredTiles = new Set([

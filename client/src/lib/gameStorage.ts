@@ -34,19 +34,25 @@ export function generateMap(width: number, height: number, seed?: number): GameM
     for (let r = r1; r <= r2; r++) {
       const s = -q - r;
       
-      // Generate terrain based on noise-like function
+      // Generate terrain with strategic distribution
       let terrain: TerrainType = 'plains';
-      const noise = (q * 0.1 + r * 0.1 + rng.next() * 0.5);
+      const distanceFromCenter = Math.sqrt(q * q + r * r);
+      const noise = (q * 0.1 + r * 0.1 + rng.next() * 0.6);
       
-      if (noise < 0.2) {
+      // Center tends to be more accessible (plains/forest)
+      // Edges more likely to have obstacles (water/mountains)
+      const centerBias = Math.max(0, 1 - distanceFromCenter / mapRadius);
+      const adjustedNoise = noise + centerBias * 0.3;
+      
+      if (adjustedNoise < 0.15) {
         terrain = 'water';
-      } else if (noise < 0.35) {
+      } else if (adjustedNoise < 0.25) {
         terrain = 'swamp';
-      } else if (noise < 0.5) {
+      } else if (adjustedNoise < 0.5) {
         terrain = 'forest';
-      } else if (noise < 0.65) {
+      } else if (adjustedNoise < 0.75) {
         terrain = 'plains';
-      } else if (noise < 0.8) {
+      } else if (adjustedNoise < 0.9) {
         terrain = 'desert';
       } else {
         terrain = 'mountain';
