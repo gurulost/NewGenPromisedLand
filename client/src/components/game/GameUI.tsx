@@ -8,8 +8,9 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { getFaction } from "@shared/data/factions";
 import { getUnitDefinition } from "@shared/data/units";
 import { hexDistance } from "@shared/utils/hex";
-import { Book, Star } from "lucide-react";
+import { Book, Star, Building } from "lucide-react";
 import TechPanel from "../ui/TechPanel";
+import CityPanel from "../ui/CityPanel";
 import type { Unit } from "@shared/types/unit";
 
 export default function GameUI() {
@@ -17,6 +18,8 @@ export default function GameUI() {
   const { selectedUnit, hoveredTile, setSelectedUnit } = useGameState();
   const [subscribeKeys, getKeys] = useKeyboardControls();
   const [showTechPanel, setShowTechPanel] = useState(false);
+  const [showCityPanel, setShowCityPanel] = useState(false);
+  const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
 
   if (!gameState) return null;
 
@@ -110,21 +113,41 @@ export default function GameUI() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {/* Stars and Research */}
+            {/* Stars and Management */}
             <div className="flex items-center justify-between mb-3 p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
               <div className="flex items-center gap-2">
                 <Star className="w-4 h-4 text-yellow-500" />
                 <span className="font-semibold">{currentPlayer.stars} Stars</span>
               </div>
-              <Button 
-                onClick={() => setShowTechPanel(true)}
-                variant="outline"
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700 border-blue-500 text-white"
-              >
-                <Book className="w-4 h-4 mr-1" />
-                Research
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => setShowTechPanel(true)}
+                  variant="outline"
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 border-blue-500 text-white"
+                >
+                  <Book className="w-4 h-4 mr-1" />
+                  Research
+                </Button>
+                <Button 
+                  onClick={() => {
+                    const playerCity = gameState.cities?.find(city => 
+                      currentPlayer.citiesOwned.includes(city.id)
+                    );
+                    if (playerCity) {
+                      setSelectedCityId(playerCity.id);
+                      setShowCityPanel(true);
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 border-green-500 text-white"
+                  disabled={currentPlayer.citiesOwned.length === 0}
+                >
+                  <Building className="w-4 h-4 mr-1" />
+                  Cities
+                </Button>
+              </div>
             </div>
             
             <div className="flex items-center gap-2">
@@ -338,6 +361,15 @@ export default function GameUI() {
         open={showTechPanel} 
         onClose={() => setShowTechPanel(false)} 
       />
+      
+      {/* City Panel */}
+      {selectedCityId && (
+        <CityPanel 
+          open={showCityPanel} 
+          onClose={() => setShowCityPanel(false)}
+          cityId={selectedCityId}
+        />
+      )}
     </div>
   );
 }

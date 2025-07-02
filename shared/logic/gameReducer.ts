@@ -45,8 +45,60 @@ function handleBuildImprovement(
   state: GameState,
   payload: { playerId: string; coordinate: any; improvementType: string; cityId: string }
 ): GameState {
-  console.log('Building improvement:', payload.improvementType, 'at', payload.coordinate);
-  return state;
+  const { playerId, coordinate, improvementType, cityId } = payload;
+  
+  // Import improvement definitions
+  const { IMPROVEMENT_DEFINITIONS } = require('../types/city');
+  const improvementDef = IMPROVEMENT_DEFINITIONS[improvementType as keyof typeof IMPROVEMENT_DEFINITIONS];
+  if (!improvementDef) return state;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+  
+  // Check if player can afford the improvement
+  if (player.stars < improvementDef.cost) return state;
+  
+  // Check if player has required technology
+  if (!player.researchedTechs.includes(improvementDef.requiredTech)) return state;
+  
+  // Find the target tile
+  const targetTile = state.map.tiles.find(tile => 
+    tile.coordinate.q === coordinate.q &&
+    tile.coordinate.r === coordinate.r
+  );
+  if (!targetTile) return state;
+  
+  // Validate terrain compatibility
+  if (!improvementDef.validTerrain.includes(targetTile.terrain)) return state;
+  
+  // Check if tile is explored by player
+  if (!targetTile.exploredBy.includes(playerId)) return state;
+  
+  // Check if tile already has an improvement
+  const existingImprovement = state.improvements?.find(imp => 
+    imp.coordinate.q === coordinate.q && imp.coordinate.r === coordinate.r
+  );
+  if (existingImprovement) return state;
+  
+  // Create new improvement
+  const newImprovement = {
+    id: `${improvementType}_${coordinate.q}_${coordinate.r}_${Date.now()}`,
+    type: improvementType,
+    coordinate,
+    playerId,
+    built: true,
+    turnsRemaining: 0
+  };
+  
+  return {
+    ...state,
+    players: state.players.map(p =>
+      p.id === playerId
+        ? { ...p, stars: p.stars - improvementDef.cost }
+        : p
+    ),
+    improvements: [...(state.improvements || []), newImprovement]
+  };
 }
 
 // Build Structure Handler
@@ -54,8 +106,54 @@ function handleBuildStructure(
   state: GameState,
   payload: { playerId: string; cityId: string; structureType: string }
 ): GameState {
-  console.log('Building structure:', payload.structureType, 'in city', payload.cityId);
-  return state;
+  const { playerId, cityId, structureType } = payload;
+  
+  // Import structure definitions
+  const { STRUCTURE_DEFINITIONS } = require('../types/city');
+  const structureDef = STRUCTURE_DEFINITIONS[structureType as keyof typeof STRUCTURE_DEFINITIONS];
+  if (!structureDef) return state;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+  
+  // Check if player can afford the structure
+  if (player.stars < structureDef.cost) return state;
+  
+  // Check if player has required technology
+  if (!player.researchedTechs.includes(structureDef.requiredTech)) return state;
+  
+  // Find the target city
+  const targetCity = state.cities?.find(city => city.id === cityId);
+  if (!targetCity) return state;
+  
+  // Check if player owns the city
+  if (!player.citiesOwned.includes(cityId)) return state;
+  
+  // Check if city already has this structure type
+  const existingStructure = state.structures?.find(structure => 
+    structure.cityId === cityId && structure.type === structureType
+  );
+  if (existingStructure) return state;
+  
+  // Create new structure
+  const newStructure = {
+    id: `${structureType}_${cityId}_${Date.now()}`,
+    type: structureType,
+    cityId,
+    playerId,
+    built: true,
+    turnsRemaining: 0
+  };
+  
+  return {
+    ...state,
+    players: state.players.map(p =>
+      p.id === playerId
+        ? { ...p, stars: p.stars - structureDef.cost }
+        : p
+    ),
+    structures: [...(state.structures || []), newStructure]
+  };
 }
 
 // Capture City Handler
@@ -63,8 +161,75 @@ function handleCaptureCity(
   state: GameState,
   payload: { playerId: string; cityId: string }
 ): GameState {
-  console.log('Capturing city:', payload.cityId, 'by player', payload.playerId);
-  return state;
+  const { playerId, cityId } = payload;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+  
+  // Find the target city
+  const targetCity = state.cities?.find(city => city.id === cityId);
+  if (!targetCity) return state;
+  
+  // Check if city is already owned by this player
+  if (player.citiesOwned.includes(cityId)) return state;
+  
+  // Find city tile to verify player can reach it
+  const cityTile = state.map.tiles.find(tile => 
+    tile.coordinate.q === targetCity.coordinate.q &&
+    tile.coordinate.r === targetCity.coordinate.r &&
+    tile.hasCity
+  );
+  if (!cityTile) return state;
+  
+  // Check if player has a unit adjacent to or on the city tile
+  const playerUnits = state.units.filter(unit => unit.playerId === playerId);
+  const canCapture = playerUnits.some(unit => {
+    const distance = Math.max(
+      Math.abs(unit.coordinate.q - targetCity.coordinate.q),
+      Math.abs(unit.coordinate.r - targetCity.coordinate.r),
+      Math.abs(unit.coordinate.s - targetCity.coordinate.s)
+    );
+    return distance <= 1; // Adjacent or on the tile
+  });
+  
+  if (!canCapture) return state;
+  
+  // Remove city from previous owner and add to new owner
+  const updatedPlayers = state.players.map(p => {
+    if (p.citiesOwned.includes(cityId)) {
+      // Remove from previous owner
+      return {
+        ...p,
+        citiesOwned: p.citiesOwned.filter(id => id !== cityId)
+      };
+    } else if (p.id === playerId) {
+      // Add to new owner
+      return {
+        ...p,
+        citiesOwned: [...p.citiesOwned, cityId]
+      };
+    }
+    return p;
+  });
+  
+  // Update city ownership
+  const updatedCities = state.cities?.map(city =>
+    city.id === cityId
+      ? { ...city, playerId }
+      : city
+  );
+  
+  // Transfer or destroy structures in captured city (aggressive capture rule)
+  const updatedStructures = state.structures?.filter(structure => 
+    structure.cityId !== cityId
+  ) || [];
+  
+  return {
+    ...state,
+    players: updatedPlayers,
+    cities: updatedCities,
+    structures: updatedStructures
+  };
 }
 
 // Recruit Unit Handler
@@ -72,8 +237,70 @@ function handleRecruitUnit(
   state: GameState,
   payload: { playerId: string; cityId: string; unitType: string }
 ): GameState {
-  console.log('Recruiting unit:', payload.unitType, 'from city', payload.cityId);
-  return state;
+  const { playerId, cityId, unitType } = payload;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+  
+  // Get unit definition and validate
+  const unitDef = getUnitDefinition(unitType as any);
+  if (!unitDef) return state;
+  
+  // Check if player can afford the unit
+  if (player.stars < unitDef.cost) return state;
+  
+  // Find the target city
+  const targetCity = state.cities?.find(city => city.id === cityId);
+  if (!targetCity) return state;
+  
+  // Check if player owns the city
+  if (!player.citiesOwned.includes(cityId)) return state;
+  
+  // Check unit requirements (faith, pride, etc.)
+  if (unitDef.requirements) {
+    if (unitDef.requirements.faith && player.stats.faith < unitDef.requirements.faith) return state;
+    if (unitDef.requirements.pride && player.stats.pride < unitDef.requirements.pride) return state;
+    if (unitDef.requirements.dissent && player.stats.internalDissent < unitDef.requirements.dissent) return state;
+  }
+  
+  // Check faction restrictions
+  const playerFaction = state.players.find(p => p.id === playerId)?.factionId;
+  if (unitDef.factionSpecific.length > 0 && (!playerFaction || !unitDef.factionSpecific.includes(playerFaction))) {
+    return state;
+  }
+  
+  // Check if city has space for new units (max units rule)
+  const existingCityUnits = state.units.filter(unit => 
+    unit.coordinate.q === targetCity.coordinate.q &&
+    unit.coordinate.r === targetCity.coordinate.r
+  );
+  if (existingCityUnits.length >= GAME_RULES.units.maxUnitsPerCity) return state;
+  
+  // Create new unit
+  const newUnit = {
+    id: `${unitType}_${playerId}_${Date.now()}`,
+    type: unitType as any,
+    playerId,
+    coordinate: targetCity.coordinate,
+    hp: unitDef.baseStats.hp,
+    attack: unitDef.baseStats.attack,
+    defense: unitDef.baseStats.defense,
+    movement: unitDef.baseStats.movement,
+    remainingMovement: unitDef.baseStats.movement,
+    status: 'ready' as const,
+    level: 1,
+    experience: 0
+  };
+  
+  return {
+    ...state,
+    players: state.players.map(p =>
+      p.id === playerId
+        ? { ...p, stars: p.stars - unitDef.cost }
+        : p
+    ),
+    units: [...state.units, newUnit]
+  };
 }
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
@@ -353,10 +580,34 @@ function handleEndTurn(
         });
       });
 
-      // Resource generation from cities using centralized rules
+      // Resource generation from cities and improvements using centralized rules
       const playerCities = player.citiesOwned.length;
+      
+      // Calculate base income from cities
       const faithGeneration = GameRuleHelpers.calculateFaithGeneration(playerCities);
-      const starIncome = GameRuleHelpers.calculateStarIncome(playerCities);
+      let starIncome = GameRuleHelpers.calculateStarIncome(playerCities);
+      
+      // Add income from improvements
+      const playerImprovements = state.improvements?.filter(imp => imp.playerId === player.id) || [];
+      const { IMPROVEMENT_DEFINITIONS } = require('../types/city');
+      
+      playerImprovements.forEach(improvement => {
+        const improvementDef = IMPROVEMENT_DEFINITIONS[improvement.type];
+        if (improvementDef && improvement.built) {
+          starIncome += improvementDef.starProduction;
+        }
+      });
+      
+      // Add income from structures
+      const playerStructures = state.structures?.filter(struct => struct.playerId === player.id) || [];
+      const { STRUCTURE_DEFINITIONS } = require('../types/city');
+      
+      playerStructures.forEach(structure => {
+        const structureDef = STRUCTURE_DEFINITIONS[structure.type];
+        if (structureDef && structure.built) {
+          starIncome += structureDef.effects.starProduction;
+        }
+      });
       
       updatedStats.faith = Math.min(100, updatedStats.faith + faithGeneration);
       

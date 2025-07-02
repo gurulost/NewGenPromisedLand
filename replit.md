@@ -105,12 +105,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- July 02, 2025: **Complete Turn 2-4 Systems**: Implemented building improvement/structure systems with terrain validation, city capture mechanics, unit recruitment, and enhanced star income generation from cities/improvements
+- July 02, 2025: **City Management System**: Full-featured city panel with structure building, unit recruitment, and comprehensive validation including tech requirements, faction restrictions, and resource costs
+- July 02, 2025: **Building & Construction**: Terrain-validated improvement placement (farms on plains, mines on mountains), city structure construction with economic effects, and enhanced resource generation system
+- July 02, 2025: **Unit Recruitment & City Capture**: Complete unit recruitment from cities with stat requirements, faction restrictions, and city space limits; aggressive city capture mechanics with structure transfer
 - July 02, 2025: **Data-Driven Architecture**: Refactored from hardcoded logic to centralized game rules system with configurable victory thresholds, resource generation, and unit properties
 - July 02, 2025: **Tech Research System**: Complete working technology system with 9 techs, prerequisite validation, cost scaling, and responsive UI panel fixed from infinite re-render bug
-- July 02, 2025: **Game Balance Configuration**: Centralized all "magic numbers" in gameRules.ts - victory conditions (Faith 90+, Territory 80%), resource rates (1+2/city stars, 2/city faith), research scaling (1.2x)
-- July 02, 2025: **Professional Code Quality**: Moved to data-driven modifiers, eliminated hardcoded values, added performance optimizations with useMemo, clean separation between rules and mechanics
-- July 02, 2025: **Core Tech Tree System**: Implemented comprehensive technology research with 9 technologies across 4 categories (economic/military/religious/exploration), prerequisite trees, and scaling costs based on research count
-- July 02, 2025: **Performance-Optimized HexGrid**: Implemented memoized fog of war calculations using Set data structures for O(1) tile lookups, eliminating expensive render loop calculations
 
 ## Changelog
 
