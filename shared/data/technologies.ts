@@ -157,8 +157,9 @@ export function getAvailableTechnologies(researchedTechs: string[]): Technology[
  * Calculate research cost (can scale with number of techs researched)
  */
 export function calculateResearchCost(tech: Technology, researchedCount: number): number {
-  // Base cost increases by 20% for each tech already researched
-  return Math.floor(tech.cost * Math.pow(1.2, researchedCount));
+  // Import here to avoid circular dependency
+  const { GAME_RULES } = require('./gameRules');
+  return Math.floor(tech.cost * Math.pow(GAME_RULES.research.costScalingFactor, researchedCount));
 }
 
 /**

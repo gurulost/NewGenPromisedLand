@@ -52,6 +52,8 @@ export const UnitDefinitionSchema = z.object({
     attack: z.number(),
     defense: z.number(),
     movement: z.number(),
+    visionRadius: z.number().default(2),
+    attackRange: z.number().default(1),
   }),
   cost: z.number(),
   requirements: z.object({

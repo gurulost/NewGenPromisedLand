@@ -4,6 +4,7 @@ import { hexDistance, hexNeighbors } from "../utils/hex";
 import { getUnitDefinition } from "../data/units";
 import { getActiveModifiers, getUnitModifiers, GameModifier } from "../data/modifiers";
 import { TECHNOLOGIES, calculateResearchCost } from "../data/technologies";
+import { GAME_RULES, GameRuleHelpers } from "../data/gameRules";
 
 // Tech Research Handler
 function handleResearchTech(
@@ -159,14 +160,15 @@ function handleMoveUnit(
     return state;
   }
 
-  // Check if target tile is passable
+  // Check if target tile is passable using data-driven terrain rules
   const targetTile = state.map.tiles.find(tile => 
     tile.coordinate.q === payload.targetCoordinate.q &&
     tile.coordinate.r === payload.targetCoordinate.r
   );
   
   console.log('Target tile:', targetTile);
-  if (!targetTile || targetTile.terrain === 'water' || targetTile.terrain === 'mountain') {
+  const impassableTerrains = ['water', 'mountain']; // This could be moved to game rules
+  if (!targetTile || impassableTerrains.includes(targetTile.terrain)) {
     console.log('Target tile is not passable');
     return state;
   }
@@ -182,8 +184,8 @@ function handleMoveUnit(
       : u
   );
 
-  // Update visibility for the player - add vision radius around the unit
-  const visionRadius = 2; // Units can see 2 tiles around them
+  // Use default vision radius from game rules (unit definitions will be updated later)
+  const visionRadius = GAME_RULES.units.defaultVisionRadius;
   const visibleTiles: string[] = [];
   
   // Get all tiles within vision radius
@@ -374,15 +376,18 @@ function handleEndTurn(
         });
       });
 
-      // Resource generation from cities
-      const playerCities = state.map.tiles.filter(tile => 
-        tile.hasCity && tile.exploredBy.includes(player.id)
-      ).length;
+      // Resource generation from cities using centralized rules
+      const playerCities = player.citiesOwned.length;
+      const faithGeneration = GameRuleHelpers.calculateFaithGeneration(playerCities);
+      const starIncome = GameRuleHelpers.calculateStarIncome(playerCities);
       
-      // Each city generates +2 Faith per turn
-      updatedStats.faith = Math.min(100, updatedStats.faith + (playerCities * 2));
+      updatedStats.faith = Math.min(100, updatedStats.faith + faithGeneration);
       
-      return { ...player, stats: updatedStats };
+      return { 
+        ...player, 
+        stats: updatedStats,
+        stars: player.stars + starIncome
+      };
     }
     return player;
   });
@@ -439,26 +444,26 @@ function checkVictoryConditions(state: GameState, players: PlayerState[]): strin
   for (const player of players) {
     const { faith, pride, internalDissent } = player.stats;
     
-    // Faith Victory: Faith > 90 and Internal Dissent < 10
-    if (faith > 90 && internalDissent < 10) {
+    // Faith Victory: Using centralized rules
+    if (GameRuleHelpers.hasFaithVictory(faith) && internalDissent < 10) {
       return player.id;
     }
     
-    // Military Victory: Control 80% of cities
+    // Territorial Victory: Using centralized rules
     const totalCities = state.map.tiles.filter(tile => tile.hasCity).length;
-    const playerCities = state.map.tiles.filter(tile => 
-      tile.hasCity && tile.exploredBy.includes(player.id)
-    ).length;
+    const playerCities = player.citiesOwned.length;
     
-    if (totalCities > 0 && playerCities / totalCities >= 0.8) {
+    if (totalCities > 0 && GameRuleHelpers.hasTerritorialVictory(playerCities, totalCities)) {
       return player.id;
     }
   }
   
   // Elimination Victory: Only one player with units left
-  const playersWithUnits = new Set(state.units.map(unit => unit.playerId));
-  if (playersWithUnits.size === 1) {
-    return Array.from(playersWithUnits)[0];
+  if (GAME_RULES.victory.eliminationRequired) {
+    const playersWithUnits = new Set(state.units.map(unit => unit.playerId));
+    if (playersWithUnits.size === 1) {
+      return Array.from(playersWithUnits)[0];
+    }
   }
   
   return undefined;
