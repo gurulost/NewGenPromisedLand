@@ -21,20 +21,37 @@ export function isInCurrentVision(
 }
 
 /**
+ * Get vision radius for a specific unit (supports data-driven modifiers)
+ */
+export function getUnitVisionRadius(unit: Unit): number {
+  // Base vision radius
+  let visionRadius = 2;
+  
+  // Check for unit type modifiers (scouts, etc.)
+  if (unit.type === 'scout') {
+    visionRadius = 3; // Scouts see farther
+  }
+  
+  return visionRadius;
+}
+
+/**
  * Get all coordinates currently visible to a player's units
  */
 export function getCurrentVisionMask(
   units: Unit[],
   playerId: string,
-  visionRadius: number = 2
+  defaultVisionRadius: number = 2
 ): string[] {
   const visibleTiles: string[] = [];
   const playerUnits = units.filter(unit => unit.playerId === playerId);
   
   playerUnits.forEach(unit => {
+    const unitVisionRadius = getUnitVisionRadius(unit);
+    
     // Add all tiles within vision radius of this unit
-    for (let q = unit.coordinate.q - visionRadius; q <= unit.coordinate.q + visionRadius; q++) {
-      for (let r = unit.coordinate.r - visionRadius; r <= unit.coordinate.r + visionRadius; r++) {
+    for (let q = unit.coordinate.q - unitVisionRadius; q <= unit.coordinate.q + unitVisionRadius; q++) {
+      for (let r = unit.coordinate.r - unitVisionRadius; r <= unit.coordinate.r + unitVisionRadius; r++) {
         const s = -q - r;
         const distance = Math.max(
           Math.abs(q - unit.coordinate.q),
@@ -42,7 +59,7 @@ export function getCurrentVisionMask(
           Math.abs(s - unit.coordinate.s)
         );
         
-        if (distance <= visionRadius) {
+        if (distance <= unitVisionRadius) {
           visibleTiles.push(`${q},${r}`);
         }
       }

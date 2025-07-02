@@ -2,6 +2,7 @@ import { GameState, GameAction, PlayerState } from "../types/game";
 import { Unit } from "../types/unit";
 import { hexDistance, hexNeighbors } from "../utils/hex";
 import { getUnitDefinition } from "../data/units";
+import { getActiveModifiers, getUnitModifiers, GameModifier } from "../data/modifiers";
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -138,31 +139,37 @@ function handleAttackUnit(
   const distance = hexDistance(attacker.coordinate, target.coordinate);
   if (distance > 1) return state; // Most units have range 1 for now
 
-  // Calculate damage with faction bonuses
+  // Calculate damage using data-driven modifier system
   let attackPower = attacker.attack;
   let defensePower = target.defense;
 
-  // Apply faction-specific combat bonuses
   const attackerPlayer = state.players.find(p => p.id === attacker.playerId);
   const targetPlayer = state.players.find(p => p.id === target.playerId);
 
-  if (attackerPlayer?.factionId === 'NEPHITES') {
-    // Nephites gain +1 attack when fighting for Faith
-    if (attackerPlayer.stats.faith > 70) {
-      attackPower += 1;
-    }
+  // Apply attacker's combat modifiers
+  if (attackerPlayer) {
+    const attackModifiers = getActiveModifiers(attackerPlayer, 'on_attack');
+    attackModifiers.forEach(modifier => {
+      modifier.effect.forEach(effect => {
+        if (effect.stat === 'attack' && effect.target === 'self') {
+          attackPower += effect.value;
+          console.log(`Applied ${modifier.name}: +${effect.value} attack`);
+        }
+      });
+    });
   }
 
-  if (attackerPlayer?.factionId === 'LAMANITES') {
-    // Lamanites deal +2 damage when Pride is high
-    if (attackerPlayer.stats.pride > 60) {
-      attackPower += 2;
-    }
-  }
-
-  if (targetPlayer?.factionId === 'ANTI_NEPHI_LEHIES') {
-    // Anti-Nephi-Lehies have +1 defense due to pacifism
-    defensePower += 1;
+  // Apply target's defense modifiers
+  if (targetPlayer) {
+    const defenseModifiers = getActiveModifiers(targetPlayer, 'on_defend');
+    defenseModifiers.forEach(modifier => {
+      modifier.effect.forEach(effect => {
+        if (effect.stat === 'defense' && effect.target === 'self') {
+          defensePower += effect.value;
+          console.log(`Applied ${modifier.name}: +${effect.value} defense`);
+        }
+      });
+    });
   }
 
   // Calculate final damage
@@ -179,19 +186,32 @@ function handleAttackUnit(
   if (newHp <= 0) {
     updatedUnits = updatedUnits.filter((u: Unit) => u.id !== payload.targetId);
     
-    // Trigger faction abilities like Blood Feud
-    const targetPlayer = state.players.find(p => p.id === target.playerId);
-    if (targetPlayer?.factionId === 'LAMANITES') {
-      // Apply Blood Feud - nearby Lamanite units gain +2 attack
-      const neighbors = hexNeighbors(target.coordinate);
-      updatedUnits = updatedUnits.map((u: Unit) => {
-        if (u.playerId === target.playerId && 
-            neighbors.some(neighbor => 
-              neighbor.q === u.coordinate.q && neighbor.r === u.coordinate.r
-            )) {
-          return { ...u, attack: u.attack + 2 };
-        }
-        return u;
+    // Apply data-driven death modifiers
+    if (targetPlayer) {
+      const deathModifiers = getActiveModifiers(targetPlayer, 'on_death');
+      deathModifiers.forEach(modifier => {
+        modifier.effect.forEach(effect => {
+          if (effect.target === 'nearby' && effect.radius) {
+            // Find units within radius
+            const affectedUnits = updatedUnits.filter(unit => {
+              if (unit.playerId !== target.playerId) return false;
+              const distance = hexDistance(unit.coordinate, target.coordinate);
+              return distance <= effect.radius!;
+            });
+
+            // Apply effect to nearby units
+            affectedUnits.forEach(unit => {
+              const unitIndex = updatedUnits.findIndex(u => u.id === unit.id);
+              if (unitIndex !== -1) {
+                updatedUnits[unitIndex] = {
+                  ...updatedUnits[unitIndex],
+                  [effect.stat]: (updatedUnits[unitIndex][effect.stat as keyof Unit] as number) + effect.value
+                };
+                console.log(`Applied ${modifier.name} to ${unit.id}: +${effect.value} ${effect.stat}`);
+              }
+            });
+          }
+        });
       });
     }
   }
@@ -228,23 +248,111 @@ function handleEndTurn(
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (currentPlayer.id !== payload.playerId) return state;
 
-  // Reset unit movement for the NEW CURRENT player (not the one ending turn)
+  // Apply end-of-turn effects for current player
+  let updatedPlayers = state.players.map(player => {
+    if (player.id === currentPlayer.id) {
+      const endTurnModifiers = getActiveModifiers(player, 'on_turn_end');
+      let updatedStats = { ...player.stats };
+      
+      endTurnModifiers.forEach(modifier => {
+        modifier.effect.forEach(effect => {
+          if (effect.stat === 'pride' || effect.stat === 'faith' || effect.stat === 'internalDissent') {
+            updatedStats = {
+              ...updatedStats,
+              [effect.stat]: Math.max(0, Math.min(100, updatedStats[effect.stat as keyof typeof updatedStats] + effect.value))
+            };
+          }
+        });
+      });
+
+      // Resource generation from cities
+      const playerCities = state.map.tiles.filter(tile => 
+        tile.hasCity && tile.exploredBy.includes(player.id)
+      ).length;
+      
+      // Each city generates +2 Faith per turn
+      updatedStats.faith = Math.min(100, updatedStats.faith + (playerCities * 2));
+      
+      return { ...player, stats: updatedStats };
+    }
+    return player;
+  });
+
+  // Calculate next player and turn
   const nextPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
-  const nextPlayer = state.players[nextPlayerIndex];
+  const nextPlayer = updatedPlayers[nextPlayerIndex];
   const isNewTurn = nextPlayerIndex === 0;
 
+  // Apply start-of-turn effects for next player
+  updatedPlayers = updatedPlayers.map(player => {
+    if (player.id === nextPlayer.id) {
+      const startTurnModifiers = getActiveModifiers(player, 'on_turn_start');
+      let updatedStats = { ...player.stats };
+      
+      startTurnModifiers.forEach(modifier => {
+        modifier.effect.forEach(effect => {
+          if (effect.stat === 'pride' || effect.stat === 'faith' || effect.stat === 'internalDissent') {
+            updatedStats = {
+              ...updatedStats,
+              [effect.stat]: Math.max(0, Math.min(100, updatedStats[effect.stat as keyof typeof updatedStats] + effect.value))
+            };
+          }
+        });
+      });
+      
+      return { ...player, stats: updatedStats };
+    }
+    return player;
+  });
+
+  // Reset movement for next player's units
   const updatedUnits = state.units.map((u: Unit) => 
     u.playerId === nextPlayer.id 
       ? { ...u, remainingMovement: u.movement }
       : u
   );
 
+  // Check for victory conditions
+  const winner = checkVictoryConditions(state, updatedPlayers);
+
   return {
     ...state,
     units: updatedUnits,
+    players: updatedPlayers,
     currentPlayerIndex: nextPlayerIndex,
-    turn: isNewTurn ? state.turn + 1 : state.turn
+    turn: isNewTurn ? state.turn + 1 : state.turn,
+    winner
   };
+}
+
+function checkVictoryConditions(state: GameState, players: PlayerState[]): string | undefined {
+  // Check if any player has achieved dominance
+  for (const player of players) {
+    const { faith, pride, internalDissent } = player.stats;
+    
+    // Faith Victory: Faith > 90 and Internal Dissent < 10
+    if (faith > 90 && internalDissent < 10) {
+      return player.id;
+    }
+    
+    // Military Victory: Control 80% of cities
+    const totalCities = state.map.tiles.filter(tile => tile.hasCity).length;
+    const playerCities = state.map.tiles.filter(tile => 
+      tile.hasCity && tile.exploredBy.includes(player.id)
+    ).length;
+    
+    if (totalCities > 0 && playerCities / totalCities >= 0.8) {
+      return player.id;
+    }
+  }
+  
+  // Elimination Victory: Only one player with units left
+  const playersWithUnits = new Set(state.units.map(unit => unit.playerId));
+  if (playersWithUnits.size === 1) {
+    return Array.from(playersWithUnits)[0];
+  }
+  
+  return undefined;
 }
 
 function handleBuildUnit(
