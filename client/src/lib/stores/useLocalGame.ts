@@ -17,6 +17,7 @@ interface LocalGameStore {
     turnOrder: number;
   }>) => void;
   endTurn: (playerId: string) => void;
+  moveUnit: (unitId: string, targetCoordinate: any) => void;
   useAbility: (playerId: string, abilityId: string) => void;
   resetGame: () => void;
 }
@@ -149,6 +150,19 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       gameState: newGameState,
       gamePhase: 'handoff'
     });
+  },
+  
+  moveUnit: (unitId, targetCoordinate) => {
+    const { gameState } = get();
+    if (!gameState) return;
+
+    const action = {
+      type: 'MOVE_UNIT' as const,
+      payload: { unitId, targetCoordinate }
+    };
+
+    const newGameState = gameReducer(gameState, action);
+    set({ gameState: newGameState });
   },
   
   useAbility: (playerId, abilityId) => {

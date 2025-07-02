@@ -15,7 +15,7 @@ const HEX_SIZE = 1;
 
 export default function HexGrid({ map }: HexGridProps) {
   const { gameState } = useLocalGame();
-  const { setHoveredTile, selectedUnit } = useGameState();
+  const { setHoveredTile, selectedUnit, reachableTiles } = useGameState();
   const groupRef = useRef<THREE.Group>(null);
   
   // Load textures for different terrain types
@@ -76,7 +76,11 @@ export default function HexGrid({ map }: HexGridProps) {
     const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
     const isVisible = visibilityMask.includes(tileKey);
     
-    if (isVisible) {
+    if (isVisible && selectedUnit) {
+      // Try to move the selected unit to this tile
+      const { moveUnit } = useLocalGame.getState();
+      moveUnit(selectedUnit.id, tile.coordinate);
+    } else if (isVisible) {
       const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
       setHoveredTile({ x: pixelPos.x, z: pixelPos.z, tile });
     }
@@ -99,6 +103,7 @@ export default function HexGrid({ map }: HexGridProps) {
         const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
         const isVisible = visibilityMask.includes(tileKey);
         const isExplored = tile.exploredBy.includes(currentPlayer?.id || '');
+        const isReachable = reachableTiles.includes(tileKey);
         
         // Fog of war: only show explored tiles for current player
         if (!isExplored && !isVisible) {
@@ -137,6 +142,18 @@ export default function HexGrid({ map }: HexGridProps) {
                 transparent={!isVisible}
                 opacity={isVisible ? 1 : 0.7}
               />
+            )}
+            
+            {/* Movement highlight overlay */}
+            {isReachable && selectedUnit && (
+              <mesh position={[0, 0.01, 0]} rotation={[0, 0, 0]}>
+                <cylinderGeometry args={[HEX_SIZE * 0.9, HEX_SIZE * 0.9, 0.02, 6]} />
+                <meshBasicMaterial 
+                  color="#60a5fa" 
+                  transparent 
+                  opacity={0.4}
+                />
+              </mesh>
             )}
           </mesh>
         );

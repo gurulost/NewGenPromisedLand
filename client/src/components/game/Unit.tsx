@@ -1,9 +1,10 @@
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import { Unit as UnitType } from "@shared/types/unit";
 import { hexToPixel } from "@shared/utils/hex";
 import { getFaction } from "@shared/data/factions";
+import { getReachableTiles } from "@shared/logic/pathfinding";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import * as THREE from "three";
@@ -18,7 +19,7 @@ const HEX_SIZE = 1;
 
 export default function Unit({ unit, isSelected }: UnitProps) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const { setSelectedUnit } = useGameState();
+  const { setSelectedUnit, setReachableTiles } = useGameState();
   const { gameState } = useLocalGame();
   
   const pixelPos = hexToPixel(unit.coordinate, HEX_SIZE);
@@ -26,6 +27,29 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   // Get player and faction info
   const player = gameState?.players.find(p => p.id === unit.playerId);
   const faction = player ? getFaction(player.factionId as any) : null;
+  
+  // Calculate reachable tiles when this unit is selected
+  useEffect(() => {
+    if (isSelected && gameState) {
+      const isPassable = (coord: any): boolean => {
+        const tile = gameState.map.tiles.find(t => 
+          t.coordinate.q === coord.q && t.coordinate.r === coord.r
+        );
+        return !!(tile && tile.terrain !== 'water' && tile.terrain !== 'mountain');
+      };
+      
+      const reachable = getReachableTiles(
+        unit.coordinate, 
+        unit.remainingMovement, 
+        isPassable
+      );
+      
+      const reachableKeys = reachable.map(coord => `${coord.q},${coord.r}`);
+      setReachableTiles(reachableKeys);
+    } else if (!isSelected) {
+      setReachableTiles([]);
+    }
+  }, [isSelected, unit.coordinate, unit.remainingMovement, gameState, setReachableTiles]);
   
   // Animation for selected unit
   useFrame((state) => {
@@ -108,7 +132,6 @@ export default function Unit({ unit, isSelected }: UnitProps) {
         color="white"
         anchorX="center"
         anchorY="middle"
-        billboard
       >
         {unit.type.replace('_', ' ').toUpperCase()}
       </Text>
@@ -121,7 +144,6 @@ export default function Unit({ unit, isSelected }: UnitProps) {
           color="#60a5fa"
           anchorX="center"
           anchorY="middle"
-          billboard
         >
           Move: {unit.remainingMovement}
         </Text>

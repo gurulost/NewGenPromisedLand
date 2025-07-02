@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useKeyboardControls } from "@react-three/drei";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Progress } from "../ui/progress";
@@ -8,12 +10,39 @@ import { getUnitDefinition } from "@shared/data/units";
 
 export default function GameUI() {
   const { gameState, endTurn, useAbility } = useLocalGame();
-  const { selectedUnit, hoveredTile } = useGameState();
+  const { selectedUnit, hoveredTile, setSelectedUnit } = useGameState();
+  const [subscribeKeys, getKeys] = useKeyboardControls();
 
   if (!gameState) return null;
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const faction = getFaction(currentPlayer.factionId as any);
+
+  // Keyboard controls
+  useEffect(() => {
+    const unsubscribe = subscribeKeys(
+      (state) => state.endTurn,
+      (pressed) => {
+        if (pressed) {
+          handleEndTurn();
+        }
+      }
+    );
+    return unsubscribe;
+  }, [subscribeKeys]);
+
+  // Deselect unit with escape
+  useEffect(() => {
+    const unsubscribe = subscribeKeys(
+      (state) => state.cancel,
+      (pressed) => {
+        if (pressed && selectedUnit) {
+          setSelectedUnit(null);
+        }
+      }
+    );
+    return unsubscribe;
+  }, [subscribeKeys, selectedUnit, setSelectedUnit]);
 
   const handleEndTurn = () => {
     endTurn(currentPlayer.id);
@@ -99,8 +128,8 @@ export default function GameUI() {
                 className="w-full text-left justify-start"
                 onClick={() => handleUseAbility(ability.id)}
                 disabled={
-                  ability.requirements?.faith && currentPlayer.stats.faith < ability.requirements.faith ||
-                  ability.requirements?.pride && currentPlayer.stats.pride < ability.requirements.pride
+                  !!(ability.requirements?.faith && currentPlayer.stats.faith < ability.requirements.faith) ||
+                  !!(ability.requirements?.pride && currentPlayer.stats.pride < ability.requirements.pride)
                 }
               >
                 <div>
@@ -158,9 +187,25 @@ export default function GameUI() {
             onClick={handleEndTurn}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
           >
-            End Turn
+            End Turn (T)
           </Button>
         </div>
+      </div>
+
+      {/* Help Panel - Bottom Left */}
+      <div className="absolute bottom-4 left-4 pointer-events-auto">
+        <Card className="bg-black/80 border-gray-600 text-white w-64">
+          <CardHeader>
+            <CardTitle className="text-sm">Controls</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs space-y-1">
+            <div>• Click units to select them</div>
+            <div>• Click blue tiles to move selected unit</div>
+            <div>• Press T to end turn</div>
+            <div>• Press Escape to deselect unit</div>
+            <div>• Drag to pan camera, scroll to zoom</div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tile info (if hovering) */}
