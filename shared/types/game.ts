@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { HexCoordinateSchema } from "./coordinates";
+import { UnitSchema } from "./unit";
+import { CitySchema } from "./city";
+import { ImprovementSchema, StructureSchema } from "./city";
 
 // Core game stats
 export const GameStatsSchema = z.object({
@@ -9,14 +13,7 @@ export const GameStatsSchema = z.object({
 
 export type GameStats = z.infer<typeof GameStatsSchema>;
 
-// Hex coordinate system
-export const HexCoordinateSchema = z.object({
-  q: z.number(),
-  r: z.number(),
-  s: z.number(),
-});
-
-export type HexCoordinate = z.infer<typeof HexCoordinateSchema>;
+// Hex coordinate system (imported from coordinates.ts)
 
 // Terrain types
 export const TerrainTypeSchema = z.enum([
@@ -77,11 +74,16 @@ export const GameStateSchema = z.object({
   turn: z.number(),
   phase: z.enum(['setup', 'playing', 'ended']),
   map: GameMapSchema,
-  units: z.array(z.any()), // Will be properly typed in unit.ts
-  cities: z.array(z.any()).default([]), // Cities on the map
-  improvements: z.array(z.any()).default([]), // Built improvements
-  structures: z.array(z.any()).default([]), // Built structures
-  lastAction: z.any().optional(),
+  units: z.array(UnitSchema),
+  cities: z.array(CitySchema).default([]),
+  improvements: z.array(ImprovementSchema).default([]),
+  structures: z.array(StructureSchema).default([]),
+  lastAction: z.union([
+    z.object({ type: z.literal('MOVE_UNIT'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema }) }),
+    z.object({ type: z.literal('ATTACK_UNIT'), payload: z.object({ attackerId: z.string(), targetId: z.string() }) }),
+    z.object({ type: z.literal('END_TURN'), payload: z.object({ playerId: z.string() }) }),
+    z.object({ type: z.string(), payload: z.unknown() }) // Fallback for other actions
+  ]).optional(),
   winner: z.string().optional(),
 });
 
@@ -108,7 +110,12 @@ export const GameActionSchema = z.discriminatedUnion('type', [
     payload: z.object({
       playerId: z.string(),
       abilityId: z.string(),
-      target: z.any().optional(),
+      target: z.union([
+        HexCoordinateSchema,
+        z.string(), // Unit ID or City ID
+        z.object({ unitId: z.string() }),
+        z.object({ cityId: z.string() }),
+      ]).optional(),
     }),
   }),
   z.object({

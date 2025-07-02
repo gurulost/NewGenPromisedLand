@@ -131,7 +131,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                   <h3 className="font-semibold">City Information</h3>
                   <p>Population: {city.population}</p>
                   <p>Level: {city.level}</p>
-                  <p>Production: {city.production} per turn</p>
+                  <p>Production: {city.starProduction} per turn</p>
                 </div>
                 <div className="space-y-2">
                   <h3 className="font-semibold">Units in City</h3>
@@ -169,7 +169,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.values(STRUCTURE_DEFINITIONS).map(structure => {
                   const canAfford = canAffordStructure(structure.id);
-                  const hasStructure = cityStructures.find(s => s.type === structure.id);
+                  const hasStructure: boolean = cityStructures.some(s => s.type === structure.id);
                   
                   return (
                     <Card key={structure.id} className="p-4">

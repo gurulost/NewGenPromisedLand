@@ -110,11 +110,13 @@ export default function GameUI() {
       />
 
       {/* City Panel Modal */}
-      <CityPanel
-        open={showCityPanel}
-        onClose={() => setShowCityPanel(false)}
-        cityId={selectedCityId || undefined}
-      />
+      {selectedCityId && (
+        <CityPanel
+          open={showCityPanel}
+          onClose={() => setShowCityPanel(false)}
+          cityId={selectedCityId as string}
+        />
+      )}
     </div>
   );
 }

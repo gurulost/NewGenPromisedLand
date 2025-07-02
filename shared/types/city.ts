@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { HexCoordinateSchema } from "./game";
+import { HexCoordinateSchema } from "./coordinates";
 
 export const ImprovementTypeSchema = z.enum([
   'farm',

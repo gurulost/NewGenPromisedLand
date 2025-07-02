@@ -1,5 +1,5 @@
 import { GameState, GameAction, PlayerState } from "../types/game";
-import { Unit } from "../types/unit";
+import { Unit, UnitType } from "../types/unit";
 import { hexDistance, hexNeighbors } from "../utils/hex";
 import { getUnitDefinition } from "../data/units";
 import { getActiveModifiers, getUnitModifiers, GameModifier } from "../data/modifiers";
@@ -79,14 +79,15 @@ function handleBuildImprovement(
   );
   if (existingImprovement) return state;
   
-  // Create new improvement
+  // Create new improvement with proper typing
   const newImprovement = {
     id: `${improvementType}_${coordinate.q}_${coordinate.r}_${Date.now()}`,
-    type: improvementType,
+    type: improvementType as keyof typeof IMPROVEMENT_DEFINITIONS,
     coordinate,
-    playerId,
-    built: true,
-    turnsRemaining: 0
+    ownerId: playerId,
+    starProduction: improvementDef.starProduction,
+    cityId,
+    constructionTurns: 0 // Built immediately for now
   };
   
   return {
@@ -132,14 +133,14 @@ function handleBuildStructure(
   );
   if (existingStructure) return state;
   
-  // Create new structure
+  // Create new structure with proper typing
   const newStructure = {
     id: `${structureType}_${cityId}_${Date.now()}`,
-    type: structureType,
+    type: structureType as keyof typeof STRUCTURE_DEFINITIONS,
     cityId,
-    playerId,
-    built: true,
-    turnsRemaining: 0
+    ownerId: playerId,
+    constructionTurns: 0, // Built immediately for now
+    effects: structureDef.effects
   };
   
   return {
@@ -301,20 +302,24 @@ function handleRecruitUnit(
   );
   if (existingCityUnits.length >= GAME_RULES.units.maxUnitsPerCity) return state;
   
-  // Create new unit
+  // Create new unit with proper typing
   const newUnit = {
     id: `${unitType}_${playerId}_${Date.now()}`,
-    type: unitType as any,
+    type: unitType as UnitType,
     playerId,
     coordinate: targetCity.coordinate,
     hp: unitDef.baseStats.hp,
+    maxHp: unitDef.baseStats.hp,
     attack: unitDef.baseStats.attack,
     defense: unitDef.baseStats.defense,
     movement: unitDef.baseStats.movement,
     remainingMovement: unitDef.baseStats.movement,
-    status: 'ready' as const,
+    status: 'active' as const,
+    abilities: unitDef.abilities,
     level: 1,
-    experience: 0
+    experience: 0,
+    visionRadius: unitDef.baseStats.visionRadius,
+    attackRange: unitDef.baseStats.attackRange
   };
   
   return {
@@ -613,22 +618,22 @@ function handleEndTurn(
       let starIncome = GameRuleHelpers.calculateStarIncome(playerCities);
       
       // Add income from improvements
-      const playerImprovements = state.improvements?.filter(imp => imp.playerId === player.id) || [];
+      const playerImprovements = state.improvements?.filter(imp => imp.ownerId === player.id) || [];
       
       playerImprovements.forEach(improvement => {
         const improvementDef = IMPROVEMENT_DEFINITIONS[improvement.type as keyof typeof IMPROVEMENT_DEFINITIONS];
-        if (improvementDef && improvement.built) {
-          starIncome += improvementDef.starProduction;
+        if (improvementDef && improvement.constructionTurns === 0) {
+          starIncome += improvement.starProduction;
         }
       });
       
       // Add income from structures
-      const playerStructures = state.structures?.filter(struct => struct.playerId === player.id) || [];
+      const playerStructures = state.structures?.filter(struct => struct.ownerId === player.id) || [];
       
       playerStructures.forEach(structure => {
         const structureDef = STRUCTURE_DEFINITIONS[structure.type as keyof typeof STRUCTURE_DEFINITIONS];
-        if (structureDef && structure.built) {
-          starIncome += structureDef.effects.starProduction;
+        if (structureDef && structure.constructionTurns === 0) {
+          starIncome += structure.effects.starProduction;
         }
       });
       
