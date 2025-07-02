@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chronicles of the Promised Land</title>
+    <style>
+      :root {
+        --faith-color: #4f46e5;
+        --pride-color: #dc2626;
+        --dissent-color: #ea580c;
+        --nephite-color: #3b82f6;
+        --lamanite-color: #ef4444;
+        --mulekite-color: #10b981;
+        --anti-nephi-lehi-color: #f59e0b;
+        --zoramite-color: #8b5cf6;
+        --jaredite-color: #6b7280;
+      }
+      
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        overflow: hidden;
+        touch-action: none;
+      }
+      
+      #root {
+        width: 100vw;
+        height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+      }
+      
+      canvas {
+        touch-action: none;
+        user-select: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
