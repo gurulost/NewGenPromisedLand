@@ -4,7 +4,8 @@ import { Text } from "@react-three/drei";
 import { Unit as UnitType } from "@shared/types/unit";
 import { hexToPixel } from "@shared/utils/hex";
 import { getFaction } from "@shared/data/factions";
-import { calculateReachableTiles, canSelectUnit } from "@shared/logic/unitLogic";
+import { canSelectUnit, isPassableForUnit } from "@shared/logic/unitLogic";
+import { usePathfindingWorker } from "../../hooks/usePathfindingWorker";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import * as THREE from "three";
@@ -21,6 +22,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const { setSelectedUnit, setReachableTiles } = useGameState();
   const { gameState } = useLocalGame();
+  const { getReachableTiles: getReachableTilesWorker } = usePathfindingWorker();
   
   const pixelPos = hexToPixel(unit.coordinate, HEX_SIZE);
   
@@ -30,19 +32,37 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   const currentPlayer = gameState?.players[gameState?.currentPlayerIndex || 0];
   const isCurrentPlayerUnit = currentPlayer?.id === unit.playerId;
   
-  // Calculate reachable tiles when this unit is selected
+  // Calculate reachable tiles when this unit is selected (using web worker)
   useEffect(() => {
     if (isSelected && gameState) {
       console.log('Calculating reachable tiles for unit:', unit.id, 'Movement:', unit.remainingMovement);
       
-      const reachable = calculateReachableTiles(unit, gameState);
-      const reachableKeys = reachable.map(coord => `${coord.q},${coord.r}`);
-      console.log('Reachable tiles:', reachableKeys);
-      setReachableTiles(reachableKeys);
+      // Generate passable tiles list for the worker
+      const passableTiles = gameState.map.tiles
+        .filter(tile => isPassableForUnit(tile.coordinate, gameState, unit))
+        .map(tile => `${tile.coordinate.q},${tile.coordinate.r}`);
+      
+      // Use worker for pathfinding calculation
+      getReachableTilesWorker(
+        unit.coordinate,
+        unit.remainingMovement,
+        passableTiles,
+        (reachable, error) => {
+          if (error) {
+            console.error('Pathfinding worker error:', error);
+            setReachableTiles([]);
+            return;
+          }
+          
+          const reachableKeys = reachable.map(coord => `${coord.q},${coord.r}`);
+          console.log('Reachable tiles:', reachableKeys);
+          setReachableTiles(reachableKeys);
+        }
+      );
     } else if (!isSelected) {
       setReachableTiles([]);
     }
-  }, [isSelected, unit.coordinate, unit.remainingMovement, gameState, setReachableTiles]);
+  }, [isSelected, unit.coordinate, unit.remainingMovement, gameState, setReachableTiles, getReachableTilesWorker]);
   
   // Animation for selected unit
   useFrame((state) => {

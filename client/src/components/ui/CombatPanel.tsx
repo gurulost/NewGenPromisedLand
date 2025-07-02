@@ -17,13 +17,22 @@ export default function CombatPanel({ selectedUnit, gameState, onAttackUnit }: C
   const selectedUnitDef = getUnitDefinition(selectedUnit.type);
 
   // Memoize expensive combat calculations using centralized logic
-  const attackableEnemies = useMemo(() => {
+  const combatData = useMemo(() => {
     if (!selectedUnit) return [];
-    return getValidAttackTargets(selectedUnit, gameState);
+    
+    const attackableEnemies = getValidAttackTargets(selectedUnit, gameState);
+    
+    // Pre-calculate all expensive operations for each enemy
+    return attackableEnemies.map(enemy => ({
+      unit: enemy,
+      definition: getUnitDefinition(enemy.type),
+      distance: hexDistance(selectedUnit.coordinate, enemy.coordinate),
+      hpPercentage: (enemy.hp / getUnitDefinition(enemy.type).baseStats.hp) * 100
+    }));
   }, [selectedUnit, gameState]);
 
   // Don't show combat panel if no enemies in range
-  if (attackableEnemies.length === 0) return null;
+  if (combatData.length === 0) return null;
 
   return (
     <div className="absolute bottom-4 right-4 pointer-events-auto">
@@ -33,13 +42,12 @@ export default function CombatPanel({ selectedUnit, gameState, onAttackUnit }: C
         </CardHeader>
         <CardContent className="space-y-2">
           <div className="text-sm text-gray-300 mb-3">
-            Enemies in range: {attackableEnemies.length}
+            Enemies in range: {combatData.length}
           </div>
           
           <div className="space-y-2 max-h-32 overflow-y-auto">
-            {attackableEnemies.map(enemy => {
-              const enemyDef = getUnitDefinition(enemy.type);
-              const distance = hexDistance(selectedUnit.coordinate, enemy.coordinate);
+            {combatData.map(({ unit: enemy, definition: enemyDef, distance }) => {
+              // All expensive calculations are pre-computed in useMemo above
               
               return (
                 <Button

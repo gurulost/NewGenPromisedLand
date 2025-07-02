@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Progress } from "./progress";
 import { Button } from "./button";
@@ -20,6 +21,22 @@ export default function PlayerHUD({
   onShowCityPanel, 
   onEndTurn 
 }: PlayerHUDProps) {
+  // Memoize expensive stat calculations
+  const playerStats = useMemo(() => {
+    return {
+      faithPercentage: player.stats.faith,
+      pridePercentage: player.stats.pride,
+      dissentPercentage: player.stats.internalDissent,
+      cityCount: player.citiesOwned.length,
+      techCount: player.researchedTechs.length
+    };
+  }, [player.stats, player.citiesOwned.length, player.researchedTechs.length]);
+
+  // Memoize faction styling
+  const factionStyle = useMemo(() => ({
+    backgroundColor: faction.color
+  }), [faction.color]);
+
   return (
     <div className="absolute top-4 left-4 space-y-4 pointer-events-auto">
       {/* Current Player Info */}
@@ -28,7 +45,7 @@ export default function PlayerHUD({
           <CardTitle className="flex items-center gap-2 text-white font-cinzel text-lg font-semibold tracking-wide">
             <div 
               className="w-4 h-4 rounded-full border-2" 
-              style={{ backgroundColor: faction.color }}
+              style={factionStyle}
             />
             {player.name}
           </CardTitle>
