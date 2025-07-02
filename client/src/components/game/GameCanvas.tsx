@@ -3,7 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
-import HexGrid from "./HexGrid";
+import HexGridInstanced from "./HexGridInstanced";
 import Unit from "./Unit";
 import * as THREE from "three";
 
@@ -50,8 +50,8 @@ export default function GameCanvas() {
       {/* Fog for atmosphere */}
       <fog attach="fog" args={["#0f172a", 15, 35]} />
       
-      {/* Grid */}
-      <HexGrid map={gameState.map} />
+      {/* Grid - Using Instanced Rendering for Performance */}
+      <HexGridInstanced map={gameState.map} />
       
       {/* Units - show own units always, enemy units only in current vision */}
       {gameState.units.filter((unit: any) => {

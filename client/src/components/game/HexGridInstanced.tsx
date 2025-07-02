@@ -1,9 +1,10 @@
 import { useRef, useMemo, useEffect } from "react";
-import { useFrame, useLoader } from "@react-three/fiber";
+import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { TextureLoader } from "three";
 import * as THREE from "three";
 import { Tile, GameMap } from "@shared/types/game";
-import { hexToPixel } from "@shared/utils/hex";
+import { hexToPixel, pixelToHex } from "@shared/utils/hex";
+import { getUnitDefinition } from "@shared/data/units";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 
@@ -16,6 +17,7 @@ const HEX_SIZE = 1;
 export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const { gameState } = useLocalGame();
   const { setHoveredTile, selectedUnit, reachableTiles } = useGameState();
+  const { camera, raycaster, gl } = useThree();
   
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
@@ -55,7 +57,9 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     // Calculate currently visible tiles
     const playerUnits = gameState.units.filter(unit => unit.playerId === currentPlayer.id);
     playerUnits.forEach(unit => {
-      const visionRadius = unit.type === 'scout' ? 3 : 2;
+      // Use unit's actual vision radius from definition
+      const unitDef = getUnitDefinition(unit.type);
+      const visionRadius = unitDef.baseStats.visionRadius;
       
       for (let q = unit.coordinate.q - visionRadius; q <= unit.coordinate.q + visionRadius; q++) {
         for (let r = unit.coordinate.r - visionRadius; r <= unit.coordinate.r + visionRadius; r++) {
@@ -224,11 +228,66 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     
   }, [tileInstanceData]);
 
-  // Handle interactions (simplified for instanced rendering)
-  const handleClick = (event: THREE.Event) => {
-    // For instanced rendering, we'd need ray casting to determine which instance was clicked
-    // This is more complex but achievable with instanceId from intersection
-    console.log('Hex grid clicked', event);
+  // Handle interactions with proper raycasting for instanced rendering
+  const handleClick = (event: any) => {
+    if (!meshRef.current) return;
+    
+    // Get mouse position in normalized device coordinates
+    const mouse = new THREE.Vector2();
+    const rect = gl.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    // Update raycaster with camera and mouse position
+    raycaster.setFromCamera(mouse, camera);
+    
+    // Check for intersections with the instanced mesh
+    const intersects = raycaster.intersectObject(meshRef.current);
+    
+    if (intersects.length > 0) {
+      const intersection = intersects[0];
+      // instanceId tells us which tile was clicked
+      const instanceId = intersection.instanceId;
+      
+      if (instanceId !== undefined && instanceId < map.tiles.length) {
+        const clickedTile = map.tiles[instanceId];
+        console.log('Tile clicked:', clickedTile.coordinate);
+        // TODO: Implement tile selection logic here
+      }
+    }
+  };
+
+  const handlePointerMove = (event: any) => {
+    if (!meshRef.current) return;
+    
+    // Get mouse position in normalized device coordinates
+    const mouse = new THREE.Vector2();
+    const rect = gl.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    // Update raycaster with camera and mouse position
+    raycaster.setFromCamera(mouse, camera);
+    
+    // Check for intersections with the instanced mesh
+    const intersects = raycaster.intersectObject(meshRef.current);
+    
+    if (intersects.length > 0) {
+      const intersection = intersects[0];
+      const instanceId = intersection.instanceId;
+      
+      if (instanceId !== undefined && instanceId < map.tiles.length) {
+        const hoveredTile = map.tiles[instanceId];
+        const pixelPos = hexToPixel(hoveredTile.coordinate, HEX_SIZE);
+        setHoveredTile({
+          x: pixelPos.x,
+          z: pixelPos.z,
+          tile: hoveredTile
+        });
+      }
+    } else {
+      setHoveredTile(null);
+    }
   };
 
   return (
@@ -236,6 +295,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       ref={meshRef}
       args={[hexGeometry, shaderMaterial, map.tiles.length]}
       onClick={handleClick}
+      onPointerMove={handlePointerMove}
     />
   );
 }

@@ -50,10 +50,9 @@ export interface GameRules {
 
   // Terrain Rules
   terrain: {
+    movementCosts: Record<string, number>;
     impassableTypes: string[];
-    waterMovementCost: number;
-    mountainMovementCost: number;
-    plainMovementCost: number;
+    defenseBonus: Record<string, number>;
   };
 
   // Turn Management
@@ -103,10 +102,23 @@ export const GAME_RULES: GameRules = {
   },
 
   terrain: {
+    movementCosts: {
+      'plains': 1,
+      'forest': 2,
+      'mountain': 99, // Effectively impassable
+      'water': 99,    // Effectively impassable
+      'desert': 2,
+      'swamp': 3,
+    },
     impassableTypes: ['water', 'mountain'],
-    waterMovementCost: 99, // Effectively impassable
-    mountainMovementCost: 99, // Effectively impassable
-    plainMovementCost: 1,
+    defenseBonus: {
+      'plains': 0,
+      'forest': 1,
+      'mountain': 3,
+      'water': 0,
+      'desert': 0,
+      'swamp': 1,
+    },
   },
 
   turns: {
@@ -154,5 +166,26 @@ export const GameRuleHelpers = {
    */
   calculateResearchCost: (baseCost: number, researchedCount: number): number => {
     return Math.floor(baseCost * Math.pow(GAME_RULES.research.costScalingFactor, researchedCount));
+  },
+
+  /**
+   * Get movement cost for terrain type
+   */
+  getMovementCost: (terrain: string): number => {
+    return GAME_RULES.terrain.movementCosts[terrain] || 1;
+  },
+
+  /**
+   * Check if terrain is passable
+   */
+  isTerrainPassable: (terrain: string): boolean => {
+    return !GAME_RULES.terrain.impassableTypes.includes(terrain);
+  },
+
+  /**
+   * Get defense bonus for terrain
+   */
+  getDefenseBonus: (terrain: string): number => {
+    return GAME_RULES.terrain.defenseBonus[terrain] || 0;
   },
 };

@@ -105,6 +105,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- July 02, 2025: **Tier 1 Critical Performance & Architecture Fixes**: Completed transition to instanced rendering (massive performance gain from hundreds to single draw call), eradicated hardcoded game rules with data-driven terrain/movement/vision systems, and verified city capture uses configurable GAME_RULES.capture settings
 - July 02, 2025: **Ancient Typography System**: Implemented "Ancient Stone & Scroll" font pairing with Cinzel (headers/titles) and Source Sans 3 (body/UI) for authentic historical feel while maintaining perfect readability across all game components
 - July 02, 2025: **Enhanced Game Storage System**: Implemented LZ-String compression for save files (60-80% size reduction), added game index management for listing saves, improved validation flow with decompression support, and explicit deletion with del() function
 - July 02, 2025: **UI Architecture Refactoring**: Decomposed 400+ line GameUI mega-component into focused components (PlayerHUD, SelectedUnitPanel, CombatPanel, AbilitiesPanel) with memoized performance optimizations for combat calculations

@@ -412,8 +412,9 @@ function handleMoveUnit(
       : u
   );
 
-  // Use default vision radius from game rules (unit definitions will be updated later)
-  const visionRadius = GAME_RULES.units.defaultVisionRadius;
+  // Use unit's actual vision radius from definition
+  const unitDef = getUnitDefinition(unit.type);
+  const visionRadius = unitDef.baseStats.visionRadius;
   const visibleTiles: string[] = [];
   
   // Get all tiles within vision radius

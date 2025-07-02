@@ -1,0 +1,28 @@
+Tier 1: Critical Priorities (Stability & Performance)
+
+These are the most important issues to address immediately. They are foundational to creating a game that is stable, performant, and scalable.
+
+1. Complete the Transition to Instanced Rendering
+
+Problem: The HexGrid.tsx component, which renders an individual <mesh> for every tile, remains the single most significant performance bottleneck in the project. While a HexGridInstanced.tsx file exists, the main GameCanvas.tsx is still using the non-instanced version. This will not scale to larger maps or perform well on mobile devices.
+
+Solution (Highest Priority):
+
+Finish HexGridInstanced.tsx: The current instanced mesh needs to have its interaction logic completed. This involves using raycasting to determine which instance (i.e., which tile) the user clicks on. The raycaster.intersectObject() method returns an instanceId that you can use to identify the specific tile from your map data.
+
+Replace in GameCanvas.tsx: Once the instanced grid is fully functional, replace <HexGrid map={gameState.map} /> with <HexGridInstanced map={gameState.map} /> in GameCanvas.tsx.
+
+This is the #1 technical priority. The performance gain from reducing hundreds of draw calls to one is non-negotiable for a polished game.
+
+2. Eradicate All Hardcoded Game Rules
+
+Problem: You've made excellent progress moving stats into data files, but key game rules are still hardcoded directly in the gameReducer-5.ts logic. This makes the game difficult to balance and tweak.
+
+Solution:
+
+Movement Costs & Passability: In handleMoveUnit, the check for impassable terrain (['water', 'mountain']) should be removed. Instead, each terrain definition in your data files should have a movementCost property (e.g., plains: { movementCost: 1 }, mountain: { movementCost: 99 }). The pathfinding algorithm should then use these costs to calculate paths.
+
+Vision Radius: A unit's vision radius is still hardcoded in several places. This should be a data-driven property on the unit's definition in units.ts (e.g., baseStats: { visionRadius: 2 }).
+
+City Capture Logic: In handleCaptureCity, the rules for what happens to structures and improvements are hardcoded. These should be read directly from the GAME_RULES.capture object you've already created.
+
