@@ -171,6 +171,43 @@ export const GameActionSchema = z.discriminatedUnion('type', [
       unitType: z.string(),
     }),
   }),
+  z.object({
+    type: z.literal('ESTABLISH_TRADE_ROUTE'),
+    payload: z.object({
+      playerId: z.string(),
+      fromCityId: z.string(),
+      toCityId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('DECLARE_WAR'),
+    payload: z.object({
+      playerId: z.string(),
+      targetPlayerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('FORM_ALLIANCE'),
+    payload: z.object({
+      playerId: z.string(),
+      targetPlayerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('CONVERT_CITY'),
+    payload: z.object({
+      playerId: z.string(),
+      cityId: z.string(),
+      conversionType: z.enum(['faith', 'pride', 'peace']),
+    }),
+  }),
+  z.object({
+    type: z.literal('UPGRADE_UNIT'),
+    payload: z.object({
+      playerId: z.string(),
+      unitId: z.string(),
+    }),
+  }),
 ]);
 
 export type GameAction = z.infer<typeof GameActionSchema>;

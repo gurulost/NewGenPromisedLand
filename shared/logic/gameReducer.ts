@@ -874,7 +874,7 @@ function applyRighteousCharge(state: GameState, payload: any): GameState {
       ...state,
       units: state.units.map(u => 
         u.id === unit.id 
-          ? { ...u, attack: u.attack + 4, remainingMovement: Math.max(0, u.remainingMovement - 1) }
+          ? { ...u, attack: u.attack + GAME_RULES.abilities.attackBonuses.righteousCharge, remainingMovement: Math.max(0, u.remainingMovement - 1) }
           : u
       )
     };
@@ -887,17 +887,17 @@ function applyFaithHealing(state: GameState, payload: any): GameState {
   if (!unit) return state;
 
   const player = state.players.find(p => p.id === unit.playerId);
-  if (!player || player.stats.faith < 10) return state;
+  if (!player || player.stats.faith < GAME_RULES.abilities.resourceCosts.faithHealing) return state;
 
   // Faith Healing: Restore HP to nearby friendly units
-  const healRadius = 2;
+  const healRadius = GAME_RULES.abilities.healRadius;
   const nearbyAllies = state.units.filter(u => {
     if (u.playerId !== unit.playerId) return false;
     const distance = hexDistance(unit.coordinate, u.coordinate);
     return distance <= healRadius;
   });
 
-  const healAmount = 3;
+  const healAmount = GAME_RULES.units.healingAmount;
   return {
     ...state,
     units: state.units.map(u => {
@@ -909,7 +909,7 @@ function applyFaithHealing(state: GameState, payload: any): GameState {
     }),
     players: state.players.map(p =>
       p.id === player.id
-        ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - 10) } }
+        ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - GAME_RULES.abilities.resourceCosts.faithHealing) } }
         : p
     )
   };
@@ -926,12 +926,12 @@ function applyGuerrillaTactics(state: GameState, payload: any): GameState {
     tile.coordinate.r === unit.coordinate.r
   );
   
-  if (unitTile && (unitTile.terrain === 'forest' || unitTile.terrain === 'jungle')) {
+  if (unitTile && (unitTile.terrain === 'plains' || unitTile.terrain === 'swamp')) {
     return {
       ...state,
       units: state.units.map(u => 
         u.id === unit.id 
-          ? { ...u, defense: u.defense + 3, status: 'hidden' as const }
+          ? { ...u, defense: u.defense + GAME_RULES.abilities.attackBonuses.guerrillaBonus, status: 'active' as const }
           : u
       )
     };
@@ -948,7 +948,7 @@ function applyAncestralRage(state: GameState, payload: any): GameState {
     ...state,
     units: state.units.map(u => 
       u.playerId === player.id 
-        ? { ...u, attack: u.attack + 2 }
+        ? { ...u, attack: u.attack + GAME_RULES.abilities.attackBonuses.ancestralRage }
         : u
     ),
     players: state.players.map(p =>
@@ -972,7 +972,7 @@ function applyConvertEnemy(state: GameState, payload: any): GameState {
 
   // Convert Enemy: Turn enemy unit to your faction
   const distance = hexDistance(unit.coordinate, target.coordinate);
-  if (distance <= 2) {
+  if (distance <= GAME_RULES.abilities.conversionRadius) {
     return {
       ...state,
       units: state.units.map(u => 
@@ -1018,7 +1018,7 @@ function applyTowerVision(state: GameState, payload: any): GameState {
   if (!player || player.stats.faith < 15) return state;
 
   // Tower Vision: Reveal large area of the map
-  const revealRadius = 5;
+  const revealRadius = GAME_RULES.abilities.visionRevealRadius;
   const tilesToReveal: string[] = [];
   
   for (let q = payload.targetCoordinate.q - revealRadius; q <= payload.targetCoordinate.q + revealRadius; q++) {
@@ -1092,7 +1092,7 @@ function applyPacify(state: GameState, payload: any): GameState {
   if (!unit) return state;
 
   // Pacify: Reduce attack of nearby enemy units
-  const pacifyRadius = 3;
+  const pacifyRadius = GAME_RULES.abilities.pacifyRadius;
   const nearbyEnemies = state.units.filter(u => {
     if (u.playerId === unit.playerId) return false;
     const distance = hexDistance(unit.coordinate, u.coordinate);
@@ -1138,7 +1138,7 @@ function applyTradeNetwork(state: GameState, payload: any): GameState {
   if (!unit) return state;
 
   // Trade Network: Gain stars from nearby cities
-  const tradeRadius = 4;
+  const tradeRadius = GAME_RULES.abilities.tradeRadius;
   const nearbyCities = state.cities?.filter(city => {
     const distance = hexDistance(unit.coordinate, city.coordinate);
     return distance <= tradeRadius;
@@ -1298,7 +1298,7 @@ function handleConvertCity(
   const playerUnits = state.units.filter(unit => unit.playerId === playerId);
   const canConvert = playerUnits.some(unit => {
     const distance = hexDistance(unit.coordinate, city.coordinate);
-    return distance <= 2 && unit.type === 'missionary';
+    return distance <= GAME_RULES.abilities.conversionRadius && unit.type === 'missionary';
   });
 
   if (!canConvert) return state;
@@ -1362,7 +1362,7 @@ function handleUpgradeUnit(
   if (!unit || unit.playerId !== playerId) return state;
 
   // Check upgrade costs
-  const upgradeCost = 15;
+  const upgradeCost = GAME_RULES.units.upgradeBaseCost;
   if (player.stars < upgradeCost) return state;
 
   let unitUpgrades = {};

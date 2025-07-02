@@ -24,6 +24,9 @@ export interface GameRules {
     defaultVisionRadius: number;
     defaultMovementSpeed: number;
     maxUnitsPerCity: number;
+    healingAmount: number;
+    upgradeBaseCost: number;
+    maxAttackRange: number;
   };
 
   // Research System
@@ -60,6 +63,38 @@ export interface GameRules {
     maxTurnsPerGame: number;
     turnTimeLimit: number; // seconds, -1 for unlimited
   };
+
+  // Ability Configuration
+  abilities: {
+    defaultCooldown: number;
+    healRadius: number;
+    pacifyRadius: number;
+    tradeRadius: number;
+    conversionRadius: number;
+    visionRevealRadius: number;
+    attackBonuses: {
+      righteousCharge: number;
+      ancestralRage: number;
+      guerrillaBonus: number;
+    };
+    resourceCosts: {
+      faithHealing: number;
+      conversion: number;
+      towerVision: number;
+      ancientKnowledge: number;
+      prideBoost: number;
+      declareWar: number;
+      formAlliance: number;
+    };
+  };
+
+  // Combat Configuration
+  combat: {
+    defaultAttackRange: number;
+    damageReduction: number;
+    fortificationBonus: number;
+    terrainDefenseMultiplier: number;
+  };
 }
 
 export const GAME_RULES: GameRules = {
@@ -80,6 +115,9 @@ export const GAME_RULES: GameRules = {
     defaultVisionRadius: 2,
     defaultMovementSpeed: 3,
     maxUnitsPerCity: 4,
+    healingAmount: 3,
+    upgradeBaseCost: 15,
+    maxAttackRange: 1,
   },
 
   research: {
@@ -124,6 +162,36 @@ export const GAME_RULES: GameRules = {
   turns: {
     maxTurnsPerGame: 200,
     turnTimeLimit: -1, // Unlimited for turn-based
+  },
+
+  abilities: {
+    defaultCooldown: 5,
+    healRadius: 2,
+    pacifyRadius: 3,
+    tradeRadius: 4,
+    conversionRadius: 2,
+    visionRevealRadius: 5,
+    attackBonuses: {
+      righteousCharge: 4,
+      ancestralRage: 2,
+      guerrillaBonus: 3,
+    },
+    resourceCosts: {
+      faithHealing: 10,
+      conversion: 20,
+      towerVision: 15,
+      ancientKnowledge: 25,
+      prideBoost: 5,
+      declareWar: 15,
+      formAlliance: 10,
+    },
+  },
+
+  combat: {
+    defaultAttackRange: 1,
+    damageReduction: 1,
+    fortificationBonus: 2,
+    terrainDefenseMultiplier: 1.5,
   },
 };
 

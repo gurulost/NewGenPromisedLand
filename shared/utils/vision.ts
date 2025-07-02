@@ -1,4 +1,4 @@
-import type { HexCoordinate } from '../types/game';
+import type { HexCoordinate } from '../types/coordinates';
 import type { Unit } from '../types/unit';
 
 /**
@@ -21,18 +21,11 @@ export function isInCurrentVision(
 }
 
 /**
- * Get vision radius for a specific unit (supports data-driven modifiers)
+ * Get vision radius for a specific unit (fully data-driven)
  */
 export function getUnitVisionRadius(unit: Unit): number {
-  // Base vision radius
-  let visionRadius = 2;
-  
-  // Check for unit type modifiers (scouts, etc.)
-  if (unit.type === 'scout') {
-    visionRadius = 3; // Scouts see farther
-  }
-  
-  return visionRadius;
+  // Get vision radius from unit definition - no hardcoded values
+  return unit.visionRadius;
 }
 
 /**

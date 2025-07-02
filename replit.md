@@ -105,6 +105,8 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- July 02, 2025: **Complete Data-Driven Architecture**: Eradicated all hardcoded values throughout the codebase, replacing them with centralized GAME_RULES configuration including ability ranges, attack bonuses, resource costs, and healing amounts - creating a fully configurable strategy game engine ready for easy balance tweaking
+- July 02, 2025: **Enhanced Type Safety**: Extended GameAction schema to include all diplomacy and city management actions (ESTABLISH_TRADE_ROUTE, DECLARE_WAR, FORM_ALLIANCE, CONVERT_CITY, UPGRADE_UNIT), eliminating TypeScript errors and strengthening type safety across the game logic system
 - July 02, 2025: **Advanced GameReducer Expansion**: Implemented sophisticated faction-specific abilities (12 unique abilities across 6 factions), diplomacy mechanics (war declarations, alliances, trade routes), city conversion systems, and unit upgrade mechanics - transforming the gameReducer into a comprehensive strategy game engine
 - July 02, 2025: **Comprehensive Performance Optimizations**: Added React memoization throughout UI components (PlayerHUD, SelectedUnitPanel, CombatPanel) with pre-calculated stats, optimized combat data processing, and maintained existing HexGridInstanced fog-of-war optimizations for maximum responsiveness
 - July 02, 2025: **Code Cleanup & Type Safety**: Removed redundant HexGrid.tsx file (old non-performant implementation), resolved circular dependency issues with dedicated coordinates.ts file, completed strengthened Zod schemas eliminating all z.any() types
