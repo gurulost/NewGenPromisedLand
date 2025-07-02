@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { GameState, PlayerState, HexCoordinate, TerrainType } from "@shared/types/game";
 import { gameReducer } from "@shared/logic/gameReducer";
-import { generateMap } from "../gameStorage";
+import { MapGenerator } from "@shared/utils/mapGenerator";
 import { useGameState } from "./useGameState";
 
 type GamePhase = 'menu' | 'playerSetup' | 'handoff' | 'playing' | 'gameOver';
@@ -45,10 +45,8 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       turnOrder: setup.turnOrder,
     }));
 
-    // Scale map size based on player count for balanced gameplay
-    const baseSize = 4;
-    const mapSize = baseSize + Math.floor(players.length / 2); // 2 players: 4, 4 players: 5, 6 players: 6
-    const map = generateMap(mapSize, mapSize, Date.now()); // Use timestamp as seed for randomization
+    // Generate balanced map with strategic resource distribution
+    const map = MapGenerator.generateBalancedMap(players.length, Date.now());
     
     // Mark starting tiles as explored
     const exploredTiles = new Set([
