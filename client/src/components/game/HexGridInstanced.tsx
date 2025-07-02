@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { Tile, GameMap } from "@shared/types/game";
 import { hexToPixel, pixelToHex } from "@shared/utils/hex";
 import { getUnitDefinition } from "@shared/data/units";
+import { getVisibleTilesInRange, calculateFogOfWarState } from "@shared/utils/lineOfSight";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 
@@ -30,7 +31,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   // Get current player and memoized visibility calculations
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
 
-  // Memoized fog of war calculation - massive CPU performance boost
+  // Memoized fog of war calculation with line-of-sight - massive CPU performance boost
   const { visibleTileKeys, exploredTileKeys, tileInstanceData } = useMemo(() => {
     const visible = new Set<string>();
     const explored = new Set<string>();
@@ -54,27 +55,23 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       return { visibleTileKeys: visible, exploredTileKeys: explored, tileInstanceData: instanceData };
     }
 
-    // Calculate currently visible tiles
+    // Calculate currently visible tiles using line-of-sight
     const playerUnits = gameState.units.filter(unit => unit.playerId === currentPlayer.id);
     playerUnits.forEach(unit => {
       // Use unit's actual vision radius from definition
       const unitDef = getUnitDefinition(unit.type);
       const visionRadius = unitDef.baseStats.visionRadius;
       
-      for (let q = unit.coordinate.q - visionRadius; q <= unit.coordinate.q + visionRadius; q++) {
-        for (let r = unit.coordinate.r - visionRadius; r <= unit.coordinate.r + visionRadius; r++) {
-          const s = -q - r;
-          const distance = Math.max(
-            Math.abs(q - unit.coordinate.q),
-            Math.abs(r - unit.coordinate.r),
-            Math.abs(s - unit.coordinate.s)
-          );
-          
-          if (distance <= visionRadius) {
-            visible.add(`${q},${r}`);
-          }
-        }
-      }
+      // Get visible tiles with line-of-sight calculations
+      const unitVisibleTiles = getVisibleTilesInRange(
+        unit.coordinate,
+        visionRadius,
+        map,
+        true // Enable shadow casting for performance
+      );
+      
+      // Add all visible tiles to the set
+      unitVisibleTiles.forEach(tileKey => visible.add(tileKey));
     });
 
     // Calculate explored tiles
@@ -84,34 +81,44 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       }
     });
 
-    // Generate instance data for all tiles
+    // Generate instance data for all tiles with improved fog of war
     map.tiles.forEach((tile, index) => {
       const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      const isInCurrentVision = visible.has(tileKey);
-      const isExplored = explored.has(tileKey);
+      
+      // Calculate fog of war state
+      const fogState = calculateFogOfWarState(tileKey, visible, explored);
       
       let color: [number, number, number];
       let opacity: number;
       let textureId: number;
       
-      // Determine visibility state and appearance
-      if (isInCurrentVision) {
+      // Apply fog of war based on visibility state
+      const baseColor = getTerrainColor(tile.terrain);
+      
+      if (fogState.visibility === 'visible') {
         // Fully visible - normal appearance
-        color = getTerrainColor(tile.terrain);
-        opacity = 1.0;
+        color = baseColor;
+        opacity = fogState.opacity;
         textureId = getTextureId(tile.terrain);
-      } else if (isExplored) {
-        // Explored but not in current vision - dimmed
-        const baseColor = getTerrainColor(tile.terrain);
-        color = [baseColor[0] * 0.5, baseColor[1] * 0.5, baseColor[2] * 0.5];
-        opacity = 0.8;
+      } else if (fogState.visibility === 'explored') {
+        // Explored but not in current vision - slightly darker but still recognizable
+        color = [
+          baseColor[0] * fogState.colorMultiplier,
+          baseColor[1] * fogState.colorMultiplier,
+          baseColor[2] * fogState.colorMultiplier
+        ];
+        opacity = fogState.opacity;
         textureId = getTextureId(tile.terrain);
       } else {
         // Unexplored - very dark
-        color = [0.05, 0.05, 0.05];
-        opacity = 0.1;
-        textureId = 0;
+        color = [
+          baseColor[0] * fogState.colorMultiplier,
+          baseColor[1] * fogState.colorMultiplier,
+          baseColor[2] * fogState.colorMultiplier
+        ];
+        opacity = fogState.opacity;
+        textureId = 0; // No texture for unexplored tiles
       }
       
       instanceData.push({
@@ -170,14 +177,27 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         void main() {
           vec3 texColor = vColor;
           
+          // Apply texture if textureId is valid
           if (vTextureId > 0.5) {
+            vec3 textureColor = vec3(1.0);
+            
             if (vTextureId < 1.5) {
-              texColor *= texture2D(grassTexture, vUv).rgb;
+              textureColor = texture2D(grassTexture, vUv).rgb;
             } else if (vTextureId < 2.5) {
-              texColor *= texture2D(sandTexture, vUv).rgb;
+              textureColor = texture2D(sandTexture, vUv).rgb;
             } else if (vTextureId < 3.5) {
-              texColor *= texture2D(woodTexture, vUv).rgb;
+              textureColor = texture2D(woodTexture, vUv).rgb;
             }
+            
+            // Blend texture with base color for fog of war effect
+            texColor = mix(texColor, texColor * textureColor, vOpacity);
+          }
+          
+          // Add subtle fog overlay for explored but not visible tiles
+          if (vOpacity < 1.0 && vOpacity > 0.2) {
+            // Add a subtle blue-gray tint to indicate fog of war
+            vec3 fogColor = vec3(0.4, 0.5, 0.6);
+            texColor = mix(texColor, fogColor, 0.15);
           }
           
           gl_FragColor = vec4(texColor, vOpacity);

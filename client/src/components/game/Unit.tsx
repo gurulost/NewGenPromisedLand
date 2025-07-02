@@ -5,6 +5,8 @@ import { Unit as UnitType } from "@shared/types/unit";
 import { hexToPixel } from "@shared/utils/hex";
 import { getFaction } from "@shared/data/factions";
 import { canSelectUnit, isPassableForUnit } from "@shared/logic/unitLogic";
+import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
+import { getUnitDefinition } from "@shared/data/units";
 import { usePathfindingWorker } from "../../hooks/usePathfindingWorker";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
@@ -31,6 +33,42 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   const faction = player ? getFaction(player.factionId as any) : null;
   const currentPlayer = gameState?.players[gameState?.currentPlayerIndex || 0];
   const isCurrentPlayerUnit = currentPlayer?.id === unit.playerId;
+
+  // Calculate visibility based on fog of war
+  const isUnitVisible = useMemo(() => {
+    if (!gameState || !currentPlayer) return false;
+    
+    // Always show current player's own units
+    if (isCurrentPlayerUnit) return true;
+    
+    // For enemy units, check if they're in currently visible tiles
+    const currentPlayerUnits = gameState.units.filter(u => u.playerId === currentPlayer.id);
+    
+    for (const playerUnit of currentPlayerUnits) {
+      const unitDef = getUnitDefinition(playerUnit.type);
+      const visionRadius = unitDef.baseStats.visionRadius;
+      
+      // Get visible tiles with line-of-sight calculations
+      const visibleTiles = getVisibleTilesInRange(
+        playerUnit.coordinate,
+        visionRadius,
+        gameState.map,
+        true
+      );
+      
+      const unitTileKey = `${unit.coordinate.q},${unit.coordinate.r}`;
+      if (visibleTiles.has(unitTileKey)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }, [gameState, currentPlayer, unit.coordinate, isCurrentPlayerUnit]);
+
+  // Don't render the unit if it's not visible due to fog of war
+  if (!isUnitVisible) {
+    return null;
+  }
   
   // Calculate reachable tiles when this unit is selected (using web worker)
   useEffect(() => {
