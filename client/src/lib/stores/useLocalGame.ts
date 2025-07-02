@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { GameState, PlayerState, TerrainType, HexCoordinate } from "@shared/types/game";
 import { hexDistance } from "@shared/utils/hex";
 import { gameReducer } from "@shared/logic/gameReducer";
-import { MapGenerator } from "@shared/utils/mapGenerator";
+import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenerator";
 import { useGameState } from "./useGameState";
 
 type GamePhase = 'menu' | 'playerSetup' | 'handoff' | 'playing' | 'gameOver';
@@ -17,7 +17,7 @@ interface LocalGameStore {
     name: string;
     factionId: string;
     turnOrder: number;
-  }>) => void;
+  }>, mapSize?: MapSize) => void;
   endTurn: (playerId: string) => void;
   moveUnit: (unitId: string, targetCoordinate: any) => void;
   attackUnit: (attackerId: string, targetId: string) => void;
@@ -32,7 +32,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
   
   setGamePhase: (phase) => set({ gamePhase: phase }),
   
-  startLocalGame: (playerSetup) => {
+  startLocalGame: (playerSetup, mapSize = 'normal') => {
     // Create initial game state
     const players: PlayerState[] = playerSetup.map(setup => ({
       id: setup.id,
@@ -53,8 +53,24 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       currentResearch: undefined,
     }));
 
-    // Generate balanced map with strategic resource distribution
-    const map = MapGenerator.generateBalancedMap(players.length, Date.now());
+    // Extract faction IDs for terrain generation
+    const playerFactions = playerSetup.map(p => p.factionId);
+    
+    // Get map configuration based on selected size
+    const mapConfig = MAP_SIZE_CONFIGS[mapSize];
+    
+    // Generate balanced map with faction-biased terrain generation
+    const mapGenerator = new MapGenerator({
+      width: mapConfig.dimensions,
+      height: mapConfig.dimensions,
+      seed: Date.now(),
+      playerCount: players.length,
+      mapSize: mapSize,
+      minResourceDistance: 2,
+      maxResourcesPerPlayer: 3
+    }, playerFactions);
+    
+    const map = mapGenerator.generateMap();
     
     // Find city tiles from the generated map for player starting positions
     const cityTiles = map.tiles.filter(tile => tile.hasCity);

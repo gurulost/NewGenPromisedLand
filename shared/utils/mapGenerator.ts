@@ -28,9 +28,75 @@ interface MapGenerationConfig {
   height: number;
   seed?: number;
   playerCount: number;
+  mapSize: MapSize;
   minResourceDistance?: number;
   maxResourcesPerPlayer?: number;
 }
+
+export type MapSize = 'tiny' | 'small' | 'normal' | 'large' | 'huge';
+
+export interface MapSizeConfig {
+  tiles: number;
+  dimensions: number;
+  maxPlayers: number;
+  name: string;
+}
+
+export const MAP_SIZE_CONFIGS: Record<MapSize, MapSizeConfig> = {
+  tiny: { tiles: 121, dimensions: 11, maxPlayers: 2, name: 'Tiny' },
+  small: { tiles: 196, dimensions: 14, maxPlayers: 3, name: 'Small' },
+  normal: { tiles: 256, dimensions: 16, maxPlayers: 4, name: 'Normal' },
+  large: { tiles: 324, dimensions: 18, maxPlayers: 6, name: 'Large' },
+  huge: { tiles: 400, dimensions: 20, maxPlayers: 8, name: 'Huge' }
+};
+
+interface FactionTerrainModifiers {
+  mountainMod: number;
+  forestMod: number;
+  resourceMods: {
+    metal: number;
+    animal: number;
+    fruit: number;
+    crop: number;
+    fish?: number;
+    water?: number;
+  };
+  specialFeatures?: string[];
+}
+
+export const FACTION_TERRAIN_MODIFIERS: Record<string, FactionTerrainModifiers> = {
+  NEPHITES: {
+    mountainMod: 1.5,
+    forestMod: 0.8,
+    resourceMods: { metal: 1.5, animal: 1.0, fruit: 1.0, crop: 1.0 },
+    specialFeatures: ['Sacred Grove']
+  },
+  LAMANITES: {
+    mountainMod: 0.8,
+    forestMod: 1.5,
+    resourceMods: { metal: 1.0, animal: 2.0, fruit: 0.5, crop: 0.0 }
+  },
+  MULEKITES: {
+    mountainMod: 0.5,
+    forestMod: 0.8,
+    resourceMods: { metal: 1.0, animal: 1.0, fruit: 1.5, crop: 1.0, fish: 1.5, water: 1.5 }
+  },
+  ZORAMITES: {
+    mountainMod: 1.2,
+    forestMod: 0.5,
+    resourceMods: { metal: 2.0, animal: 1.0, fruit: 0.5, crop: 1.0 }
+  },
+  ANTI_NEPHI_LEHIES: {
+    mountainMod: 0.5,
+    forestMod: 1.2,
+    resourceMods: { metal: 0.1, animal: 0.1, fruit: 1.0, crop: 2.0 }
+  },
+  JAREDITES: {
+    mountainMod: 1.0,
+    forestMod: 1.0,
+    resourceMods: { metal: 1.0, animal: 1.0, fruit: 1.0, crop: 1.0 }
+  }
+};
 
 interface ResourceSpawnRate {
   food: number;
@@ -44,9 +110,11 @@ export class MapGenerator {
   private rng: SeededRandom;
   private noise2D: ReturnType<typeof createNoise2D>;
   private config: MapGenerationConfig;
+  private playerFactions: string[] = [];
 
-  constructor(config: MapGenerationConfig) {
+  constructor(config: MapGenerationConfig, playerFactions?: string[]) {
     this.config = config;
+    this.playerFactions = playerFactions || [];
     this.rng = new SeededRandom(config.seed);
     // Create seeded noise function
     this.noise2D = createNoise2D(() => this.rng.next());
@@ -56,7 +124,7 @@ export class MapGenerator {
     const tiles: Tile[] = [];
     const mapRadius = Math.min(this.config.width, this.config.height);
 
-    // Generate terrain using multiple noise layers
+    // Step 1: Generate base hex grid
     for (let q = -mapRadius; q <= mapRadius; q++) {
       const r1 = Math.max(-mapRadius, -q - mapRadius);
       const r2 = Math.min(mapRadius, -q + mapRadius);
@@ -65,11 +133,9 @@ export class MapGenerator {
         const s = -q - r;
         const coordinate: HexCoordinate = { q, r, s };
         
-        const terrain = this.generateTerrain(q, r, mapRadius);
-        
         const tile: Tile = {
           coordinate,
-          terrain,
+          terrain: 'plains' as TerrainType, // Temporary, will be set properly
           resources: [],
           hasCity: false,
           exploredBy: [],
@@ -79,17 +145,233 @@ export class MapGenerator {
       }
     }
 
-    // Place cities first before resources
-    this.placeCities(tiles, mapRadius);
+    // Step 2: Determine capital spawns (player starting positions)
+    const capitalPositions = this.generateCapitalSpawns(mapRadius);
     
-    // Then place resources strategically around cities
-    this.placeResourcesStrategically(tiles);
+    // Step 3: Place neutral villages/cities
+    this.placeCities(tiles, mapRadius, capitalPositions);
+    
+    // Step 4: Generate terrain with faction-specific modifiers
+    this.generateFactionBiasedTerrain(tiles, mapRadius, capitalPositions);
+    
+    // Step 5: Place resources in zones around cities
+    this.placeZonedResources(tiles);
+    
+    // Step 6: Place special features
+    this.placeSpecialFeatures(tiles, capitalPositions);
 
     return {
       tiles,
       width: this.config.width,
       height: this.config.height,
     };
+  }
+
+  /**
+   * Step 2: Generate capital spawns using quadrant-based system
+   */
+  private generateCapitalSpawns(mapRadius: number): HexCoordinate[] {
+    const capitalPositions: HexCoordinate[] = [];
+    const playerCount = this.config.playerCount;
+    
+    // Create balanced quadrants for player spawning
+    for (let i = 0; i < playerCount; i++) {
+      const angle = (i / playerCount) * 2 * Math.PI;
+      const spawnRadius = Math.floor(mapRadius * 0.6); // 60% from center
+      
+      const q = Math.round(spawnRadius * Math.cos(angle));
+      const r = Math.round(spawnRadius * Math.sin(angle));
+      const s = -q - r;
+      
+      capitalPositions.push({ q, r, s });
+    }
+    
+    return capitalPositions;
+  }
+
+  /**
+   * Step 3: Place cities with capital positions reserved for players
+   */
+  private placeCities(tiles: Tile[], mapRadius: number, capitalPositions: HexCoordinate[]): void {
+    // Mark capital positions as cities
+    for (const capitalPos of capitalPositions) {
+      const tile = tiles.find(t => 
+        t.coordinate.q === capitalPos.q && t.coordinate.r === capitalPos.r
+      );
+      if (tile) {
+        tile.hasCity = true;
+      }
+    }
+
+    // Place additional neutral cities/villages
+    const additionalCities = Math.max(2, Math.floor(this.config.playerCount * 0.5));
+    let placed = 0;
+    
+    while (placed < additionalCities) {
+      const candidate = tiles[Math.floor(this.rng.next() * tiles.length)];
+      
+      // Check distance from existing cities
+      const tooClose = [...capitalPositions].some(cityPos => 
+        hexDistance(candidate.coordinate, cityPos) < 6
+      );
+      
+      if (!candidate.hasCity && !tooClose) {
+        candidate.hasCity = true;
+        placed++;
+      }
+    }
+  }
+
+  /**
+   * Step 4: Generate faction-biased terrain using cascading modifiers
+   */
+  private generateFactionBiasedTerrain(tiles: Tile[], mapRadius: number, capitalPositions: HexCoordinate[]): void {
+    // Base terrain percentages
+    const baseTerrain = {
+      mountain: 0.14,  // 14%
+      forest: 0.38,    // 38%
+      plains: 0.48     // 48% (fields)
+    };
+
+    for (const tile of tiles) {
+      // Determine which faction influences this tile (if any)
+      let influencingFaction = null;
+      let minDistance = Infinity;
+      
+      for (let i = 0; i < capitalPositions.length; i++) {
+        const distance = hexDistance(tile.coordinate, capitalPositions[i]);
+        if (distance < Math.floor(mapRadius * 0.4) && distance < minDistance) {
+          minDistance = distance;
+          influencingFaction = this.playerFactions[i];
+        }
+      }
+
+      // Apply faction modifiers if within influence range
+      let terrainProbs = { ...baseTerrain };
+      if (influencingFaction && FACTION_TERRAIN_MODIFIERS[influencingFaction]) {
+        terrainProbs = this.applyCascadingModifiers(baseTerrain, FACTION_TERRAIN_MODIFIERS[influencingFaction]);
+      }
+
+      // Generate terrain based on noise and modified probabilities
+      tile.terrain = this.selectTerrainFromProbabilities(tile.coordinate, terrainProbs, mapRadius);
+    }
+  }
+
+  /**
+   * Apply cascading terrain modifiers as specified
+   */
+  private applyCascadingModifiers(base: any, modifiers: FactionTerrainModifiers): any {
+    // Step 1: Start with base percentages
+    let mountain = base.mountain;
+    let forest = base.forest;
+    let plains = base.plains;
+
+    // Step 2: Apply mountain modifier
+    const originalMountain = mountain;
+    mountain = Math.min(0.8, Math.max(0.05, mountain * modifiers.mountainMod)); // Clamp between 5-80%
+    const mountainDelta = mountain - originalMountain;
+    
+    // Subtract delta proportionally from original forest and plains
+    const originalTotal = base.forest + base.plains;
+    if (originalTotal > 0) {
+      forest -= mountainDelta * (base.forest / originalTotal);
+      plains -= mountainDelta * (base.plains / originalTotal);
+    }
+
+    // Step 3: Apply forest modifier to newly adjusted forest percentage
+    const newForest = Math.min(0.8, Math.max(0.05, forest * modifiers.forestMod));
+    const forestDelta = newForest - forest;
+    
+    // Subtract forest delta only from plains
+    plains -= forestDelta;
+    forest = newForest;
+
+    // Step 4: Ensure valid percentages
+    const total = mountain + forest + plains;
+    if (total > 0) {
+      mountain /= total;
+      forest /= total;
+      plains /= total;
+    }
+
+    return { mountain, forest, plains };
+  }
+
+  /**
+   * Select terrain based on probabilities and noise
+   */
+  private selectTerrainFromProbabilities(coord: HexCoordinate, probs: any, mapRadius: number): TerrainType {
+    // Use noise to add variation
+    const noiseValue = this.noise2D(coord.q * 0.1, coord.r * 0.1);
+    const distanceFromCenter = Math.sqrt(coord.q ** 2 + coord.r ** 2) / mapRadius;
+    
+    // Add some edge effects (more water near edges)
+    let waterChance = distanceFromCenter > 0.8 ? 0.3 : 0.1;
+    
+    const rand = this.rng.next() + noiseValue * 0.3;
+    
+    if (rand < waterChance) return 'water';
+    
+    const adjustedRand = (rand - waterChance) / (1 - waterChance);
+    
+    if (adjustedRand < probs.mountain) return 'mountain';
+    if (adjustedRand < probs.mountain + probs.forest) return 'forest';
+    return 'plains';
+  }
+
+  /**
+   * Step 5: Place resources in zones around cities with faction modifiers
+   */
+  private placeZonedResources(tiles: Tile[]): void {
+    const cityTiles = tiles.filter(tile => tile.hasCity);
+    
+    for (const tile of tiles) {
+      // Only place resources within 2-tile radius of cities
+      const nearbyCity = cityTiles.find(cityTile => 
+        hexDistance(tile.coordinate, cityTile.coordinate) <= 2
+      );
+      
+      if (!nearbyCity || tile.hasCity) continue;
+      
+      const distance = hexDistance(tile.coordinate, nearbyCity.coordinate);
+      const isInnerCity = distance === 1;
+      
+      // Get spawn rates based on distance
+      const spawnRates = isInnerCity ? this.getInnerCitySpawnTable() : this.getOuterCitySpawnTable();
+      
+      // Apply faction resource modifiers if applicable
+      // TODO: Implement faction-specific resource modifiers based on nearby capital
+      
+      const resource = this.getResourceFromTable(spawnRates, tile.terrain);
+      if (resource) {
+        tile.resources = [resource];
+      }
+    }
+  }
+
+  /**
+   * Step 6: Place special faction features
+   */
+  private placeSpecialFeatures(tiles: Tile[], capitalPositions: HexCoordinate[]): void {
+    for (let i = 0; i < capitalPositions.length; i++) {
+      const faction = this.playerFactions[i];
+      const modifiers = FACTION_TERRAIN_MODIFIERS[faction];
+      
+      if (modifiers?.specialFeatures) {
+        for (const feature of modifiers.specialFeatures) {
+          // Find a suitable tile near the capital for special features
+          const nearbyTiles = tiles.filter(tile => {
+            const distance = hexDistance(tile.coordinate, capitalPositions[i]);
+            return distance >= 2 && distance <= 4 && !tile.hasCity && tile.resources.length === 0;
+          });
+          
+          if (nearbyTiles.length > 0) {
+            const chosenTile = this.rng.choice(nearbyTiles);
+            chosenTile.resources = [feature];
+          }
+        }
+      }
+    }
   }
 
   private generateTerrain(q: number, r: number, mapRadius: number): TerrainType {
@@ -247,46 +529,7 @@ export class MapGenerator {
     return null;
   }
 
-  /**
-   * Strategic city placement ensuring balanced distribution across map sectors
-   */
-  private placeCities(tiles: Tile[], mapRadius: number): void {
-    const targetCities = Math.max(3, Math.floor(this.config.playerCount * 1.5));
-    const placedCities: HexCoordinate[] = [];
-    
-    // Divide map into sectors based on player count for balanced distribution
-    const sectors = this.createMapSectors(mapRadius, this.config.playerCount);
-    
-    // Place one major city per sector first (for potential player spawns)
-    for (const sector of sectors) {
-      const cityLocation = this.findBestCityLocation(tiles, sector, placedCities, mapRadius);
-      if (cityLocation) {
-        const cityTile = tiles.find(t => 
-          t.coordinate.q === cityLocation.q && 
-          t.coordinate.r === cityLocation.r
-        );
-        if (cityTile) {
-          cityTile.hasCity = true;
-          placedCities.push(cityLocation);
-        }
-      }
-    }
-    
-    // Place additional neutral cities to reach target count
-    while (placedCities.length < targetCities) {
-      const cityLocation = this.findBestCityLocation(tiles, null, placedCities, mapRadius);
-      if (!cityLocation) break; // No more suitable locations
-      
-      const cityTile = tiles.find(t => 
-        t.coordinate.q === cityLocation.q && 
-        t.coordinate.r === cityLocation.r
-      );
-      if (cityTile) {
-        cityTile.hasCity = true;
-        placedCities.push(cityLocation);
-      }
-    }
-  }
+
   
   /**
    * Create balanced map sectors for player starting positions
@@ -417,6 +660,7 @@ export class MapGenerator {
       height: mapSize,
       seed: seed ?? Date.now(),
       playerCount,
+      mapSize: 'normal', // Default to normal size
       minResourceDistance: 2,
       maxResourcesPerPlayer: 3
     });

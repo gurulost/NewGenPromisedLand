@@ -8,6 +8,7 @@ import { X, Plus } from "lucide-react";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { getAllFactions } from "@shared/data/factions";
 import { FactionId } from "@shared/types/faction";
+import { MAP_SIZE_CONFIGS, MapSize } from "@shared/utils/mapGenerator";
 
 interface PlayerSetupData {
   id: string;
@@ -21,6 +22,7 @@ export default function PlayerSetup() {
     { id: '1', name: 'Player 1', factionId: null },
     { id: '2', name: 'Player 2', factionId: null },
   ]);
+  const [selectedMapSize, setSelectedMapSize] = useState<MapSize>('normal');
 
   const factions = getAllFactions();
   const usedFactions = players.map(p => p.factionId).filter(Boolean);
@@ -49,7 +51,8 @@ export default function PlayerSetup() {
 
   const canStart = players.length >= 2 && 
                    players.every(p => p.name.trim() && p.factionId) &&
-                   new Set(players.map(p => p.factionId)).size === players.length;
+                   new Set(players.map(p => p.factionId)).size === players.length &&
+                   players.length <= MAP_SIZE_CONFIGS[selectedMapSize].maxPlayers;
 
   const handleStartGame = () => {
     if (canStart) {
@@ -58,7 +61,7 @@ export default function PlayerSetup() {
         name: p.name,
         factionId: p.factionId!,
         turnOrder: index
-      })));
+      })), selectedMapSize);
     }
   };
 
@@ -148,6 +151,40 @@ export default function PlayerSetup() {
             </Button>
           )}
 
+          {/* Map Size Selection */}
+          <Card className="bg-gray-800/50 border-gray-600">
+            <CardContent className="p-4">
+              <div className="space-y-3">
+                <Label htmlFor="map-size">Map Size</Label>
+                <Select value={selectedMapSize} onValueChange={(value: MapSize) => setSelectedMapSize(value)}>
+                  <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-800 border-gray-600">
+                    {Object.entries(MAP_SIZE_CONFIGS).map(([size, config]) => (
+                      <SelectItem 
+                        key={size} 
+                        value={size}
+                        className="text-white hover:bg-gray-700"
+                        disabled={players.length > config.maxPlayers}
+                      >
+                        <div className="flex flex-col">
+                          <span className="font-medium">{config.name}</span>
+                          <span className="text-xs text-gray-400">
+                            {config.tiles} tiles • Max {config.maxPlayers} players
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">
+                  Selected: {MAP_SIZE_CONFIGS[selectedMapSize].name} map with {MAP_SIZE_CONFIGS[selectedMapSize].tiles} tiles
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="flex gap-4 pt-4">
             <Button
               variant="outline"
@@ -171,7 +208,8 @@ export default function PlayerSetup() {
               <p className="text-sm text-red-400">
                 {players.some(p => !p.name.trim()) && "All players need names. "}
                 {players.some(p => !p.factionId) && "All players need factions. "}
-                {new Set(players.map(p => p.factionId)).size !== players.length && "Each player needs a unique faction."}
+                {new Set(players.map(p => p.factionId)).size !== players.length && "Each player needs a unique faction. "}
+                {players.length > MAP_SIZE_CONFIGS[selectedMapSize].maxPlayers && `Too many players for ${MAP_SIZE_CONFIGS[selectedMapSize].name} map (max ${MAP_SIZE_CONFIGS[selectedMapSize].maxPlayers}).`}
               </p>
             </div>
           )}
