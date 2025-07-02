@@ -42,6 +42,46 @@ export default function HexGrid({ map }: HexGridProps) {
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
   const visibilityMask = currentPlayer?.visibilityMask || [];
 
+  // Memoized fog of war calculation - only recalculate when units change position
+  const { visibleTileKeys, exploredTileKeys } = useMemo(() => {
+    const visible = new Set<string>();
+    const explored = new Set<string>();
+    
+    if (!gameState || !currentPlayer) {
+      return { visibleTileKeys: visible, exploredTileKeys: explored };
+    }
+
+    // Calculate currently visible tiles (within unit vision ranges)
+    const playerUnits = gameState.units.filter(unit => unit.playerId === currentPlayer.id);
+    playerUnits.forEach(unit => {
+      const visionRadius = unit.type === 'scout' ? 3 : 2; // Data-driven vision
+      
+      for (let q = unit.coordinate.q - visionRadius; q <= unit.coordinate.q + visionRadius; q++) {
+        for (let r = unit.coordinate.r - visionRadius; r <= unit.coordinate.r + visionRadius; r++) {
+          const s = -q - r;
+          const distance = Math.max(
+            Math.abs(q - unit.coordinate.q),
+            Math.abs(r - unit.coordinate.r),
+            Math.abs(s - unit.coordinate.s)
+          );
+          
+          if (distance <= visionRadius) {
+            visible.add(`${q},${r}`);
+          }
+        }
+      }
+    });
+
+    // Calculate explored tiles (persistent memory)
+    map.tiles.forEach(tile => {
+      if (tile.exploredBy.includes(currentPlayer.id)) {
+        explored.add(`${tile.coordinate.q},${tile.coordinate.r}`);
+      }
+    });
+
+    return { visibleTileKeys: visible, exploredTileKeys: explored };
+  }, [gameState?.units, currentPlayer?.id, map.tiles]);
+
   const getTerrainTexture = (terrain: string) => {
     switch (terrain) {
       case 'forest':
@@ -108,19 +148,11 @@ export default function HexGrid({ map }: HexGridProps) {
         const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
         const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
         const isVisible = visibilityMask.includes(tileKey);
-        const isExplored = tile.exploredBy.includes(currentPlayer?.id || '');
         const isReachable = reachableTiles.includes(tileKey);
         
-        // Calculate current vision status for strategic fog of war
-        const playerUnits = gameState?.units.filter(unit => unit.playerId === currentPlayer?.id) || [];
-        const isInCurrentVision = playerUnits.some(unit => {
-          const distance = Math.max(
-            Math.abs(tile.coordinate.q - unit.coordinate.q),
-            Math.abs(tile.coordinate.r - unit.coordinate.r),
-            Math.abs(tile.coordinate.s - unit.coordinate.s)
-          );
-          return distance <= 2; // 2-tile vision radius
-        });
+        // Use memoized fog of war calculations for O(1) performance
+        const isInCurrentVision = visibleTileKeys.has(tileKey);
+        const isExplored = exploredTileKeys.has(tileKey);
         
         // Three fog of war states:
         // 1. Unexplored: Completely dark
