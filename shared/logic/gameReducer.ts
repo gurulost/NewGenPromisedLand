@@ -57,24 +57,40 @@ function handleMoveUnit(
       : u
   );
 
-  // Update visibility for the player
-  const tileKey = `${payload.targetCoordinate.q},${payload.targetCoordinate.r}`;
+  // Update visibility for the player - add vision radius around the unit
+  const visionRadius = 2; // Units can see 2 tiles around them
+  const visibleTiles: string[] = [];
+  
+  // Get all tiles within vision radius
+  for (let q = payload.targetCoordinate.q - visionRadius; q <= payload.targetCoordinate.q + visionRadius; q++) {
+    for (let r = payload.targetCoordinate.r - visionRadius; r <= payload.targetCoordinate.r + visionRadius; r++) {
+      const s = -q - r;
+      const distance = Math.max(Math.abs(q - payload.targetCoordinate.q), 
+                               Math.abs(r - payload.targetCoordinate.r), 
+                               Math.abs(s - payload.targetCoordinate.s));
+      
+      if (distance <= visionRadius) {
+        visibleTiles.push(`${q},${r}`);
+      }
+    }
+  }
+  
   const updatedPlayers = state.players.map(player => 
     player.id === currentPlayer.id
       ? {
           ...player,
-          visibilityMask: [...new Set([...player.visibilityMask, tileKey])]
+          visibilityMask: Array.from(new Set([...player.visibilityMask, ...visibleTiles]))
         }
       : player
   );
 
-  // Update explored tiles
+  // Update explored tiles - explore all visible tiles
   const updatedTiles = state.map.tiles.map(tile => {
-    if (tile.coordinate.q === payload.targetCoordinate.q &&
-        tile.coordinate.r === payload.targetCoordinate.r) {
+    const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
+    if (visibleTiles.includes(tileKey)) {
       return {
         ...tile,
-        exploredBy: [...new Set([...tile.exploredBy, currentPlayer.id])]
+        exploredBy: Array.from(new Set([...tile.exploredBy, currentPlayer.id]))
       };
     }
     return tile;

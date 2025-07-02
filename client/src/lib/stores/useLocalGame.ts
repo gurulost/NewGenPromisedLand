@@ -100,21 +100,35 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       }
     ];
 
-    // Set initial visibility for starting units - explore more tiles around spawn
-    const updatedPlayers = players.map((player, index) => {
-      if (index === 0) {
-        // Player 1 around origin
-        return {
-          ...player,
-          visibilityMask: ['0,0', '1,0', '0,1', '-1,1', '-1,0', '0,-1', '1,-1']
-        };
-      } else {
-        // Player 2 around their spawn
-        return {
-          ...player,
-          visibilityMask: ['2,-1', '1,-1', '2,0', '1,0', '3,-1', '2,-2', '3,-2']
-        };
+    // Set initial visibility for starting units - give vision radius around each unit
+    const getVisionTiles = (centerQ: number, centerR: number, radius: number = 2) => {
+      const tiles = [];
+      for (let q = centerQ - radius; q <= centerQ + radius; q++) {
+        for (let r = centerR - radius; r <= centerR + radius; r++) {
+          const s = -q - r;
+          const distance = Math.max(Math.abs(q - centerQ), Math.abs(r - centerR), Math.abs(s - (-centerQ - centerR)));
+          if (distance <= radius) {
+            tiles.push(`${q},${r}`);
+          }
+        }
       }
+      return tiles;
+    };
+
+    const updatedPlayers = players.map((player, index) => {
+      const playerUnits = units.filter(unit => unit.playerId === player.id);
+      const allVisibleTiles: string[] = [];
+      
+      // Add vision around each unit for this player
+      playerUnits.forEach(unit => {
+        const visionTiles = getVisionTiles(unit.coordinate.q, unit.coordinate.r, 2);
+        allVisibleTiles.push(...visionTiles);
+      });
+      
+      return {
+        ...player,
+        visibilityMask: Array.from(new Set(allVisibleTiles))
+      };
     });
 
     const gameState: GameState = {

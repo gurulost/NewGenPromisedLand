@@ -75,9 +75,10 @@ export default function HexGrid({ map }: HexGridProps) {
   const handleTileClick = (tile: Tile) => {
     const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
     const isVisible = visibilityMask.includes(tileKey);
+    const isReachable = reachableTiles.includes(tileKey);
     
-    if (isVisible && selectedUnit) {
-      // Try to move the selected unit to this tile
+    if (selectedUnit && isReachable) {
+      // Try to move the selected unit to this tile (allows exploration into fog of war)
       const { moveUnit } = useLocalGame.getState();
       moveUnit(selectedUnit.id, tile.coordinate);
     } else if (isVisible) {
