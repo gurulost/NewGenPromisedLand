@@ -10,22 +10,43 @@ function handleResearchTech(
   state: GameState,
   payload: { playerId: string; techId: string }
 ): GameState {
+  console.log('=== RESEARCH_TECH reducer called ===');
   const { playerId, techId } = payload;
+  console.log('Player ID:', playerId, 'Tech ID:', techId);
   
   const tech = TECHNOLOGIES[techId];
-  if (!tech) return state;
+  if (!tech) {
+    console.log('Tech not found:', techId);
+    return state;
+  }
+  console.log('Tech found:', tech);
   
   const player = state.players.find(p => p.id === playerId);
-  if (!player) return state;
+  if (!player) {
+    console.log('Player not found:', playerId);
+    return state;
+  }
+  console.log('Player found:', player);
   
   const cost = calculateResearchCost(tech, player.researchedTechs.length);
+  console.log('Tech cost:', cost, 'Player stars:', player.stars);
   
   // Check if player can afford and prerequisites are met
-  if (player.stars < cost) return state;
-  if (!tech.prerequisites.every(prereq => player.researchedTechs.includes(prereq))) return state;
-  if (player.researchedTechs.includes(techId)) return state;
+  if (player.stars < cost) {
+    console.log('Player cannot afford tech');
+    return state;
+  }
+  if (!tech.prerequisites.every(prereq => player.researchedTechs.includes(prereq))) {
+    console.log('Prerequisites not met:', tech.prerequisites);
+    return state;
+  }
+  if (player.researchedTechs.includes(techId)) {
+    console.log('Tech already researched');
+    return state;
+  }
   
-  return {
+  console.log('All checks passed, researching tech!');
+  const newState = {
     ...state,
     players: state.players.map(p =>
       p.id === playerId
@@ -37,6 +58,8 @@ function handleResearchTech(
         : p
     ),
   };
+  console.log('New state:', newState);
+  return newState;
 }
 
 // Build Improvement Handler

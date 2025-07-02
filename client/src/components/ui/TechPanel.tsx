@@ -31,10 +31,19 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   };
   
   const handleResearchTech = (techId: string) => {
+    console.log('Attempting to research tech:', techId);
+    console.log('Current player:', currentPlayer);
+    console.log('Player stars:', currentPlayer.stars);
+    
     const tech = TECHNOLOGIES[techId];
     const cost = calculateResearchCost(tech, researchedCount);
     
+    console.log('Tech:', tech);
+    console.log('Cost:', cost);
+    console.log('Can afford:', currentPlayer.stars >= cost);
+    
     if (currentPlayer.stars >= cost) {
+      console.log('Dispatching RESEARCH_TECH action');
       dispatch({
         type: 'RESEARCH_TECH',
         payload: {
@@ -42,6 +51,8 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           techId,
         }
       });
+    } else {
+      console.log('Cannot afford tech - need', cost - currentPlayer.stars, 'more stars');
     }
   };
   
