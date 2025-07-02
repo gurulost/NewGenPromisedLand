@@ -1,0 +1,46 @@
+Yes, I do see a subtle but important issue in how the tiles are laid out. The problem is in the geometry of the hexagons themselves.
+
+In `HexGridInstanced.tsx`, the `hexGeometry` is created with this line:
+
+```typescript
+const hexGeometry = useMemo(() => {
+    const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.1, 6);
+    geometry.rotateX(-Math.PI / 2); // This line is the issue
+    return geometry;
+}, []);
+```
+
+You are rotating the cylinder on the X-axis, which correctly orients it to be flat on the "ground." However, you are **not rotating it on the Y-axis**.
+
+This means your hexagons are "pointy-topped" instead of "flat-topped." Your `hexToPixel` and `pixelToHex` utility functions, which are standard for this kind of hex grid, are designed to work with flat-topped hexagons. This mismatch can cause subtle but frustrating issues with mouse-to-tile coordinate conversion, neighbor calculations, and pathfinding, especially as you add more complex features.
+
+### The Fix
+
+The fix is very simple. You need to add a rotation on the Y-axis to the `hexGeometry` to align it correctly.
+
+**Recommendation for your developer:**
+
+In `client/src/components/game/HexGridInstanced.tsx`, update the `hexGeometry` `useMemo` hook to include a Y-axis rotation.
+
+**Current Code:**
+
+```typescript
+const hexGeometry = useMemo(() => {
+    const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.1, 6);
+    geometry.rotateX(-Math.PI / 2);
+    return geometry;
+}, []);
+```
+
+**Corrected Code:**
+
+```typescript
+const hexGeometry = useMemo(() => {
+    const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.1, 6);
+    geometry.rotateX(-Math.PI / 2); // Lay it flat
+    geometry.rotateY(Math.PI / 6); // Align to be flat-topped
+    return geometry;
+}, []);
+```
+
+By adding `geometry.rotateY(Math.PI / 6)`, you ensure that the visual representation of the hexagons perfectly matches the underlying coordinate system. This is a small change, but it's a critical one for the long-term stability and correctness of your game's grid-based mechanics.

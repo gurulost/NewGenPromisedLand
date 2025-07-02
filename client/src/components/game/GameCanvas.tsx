@@ -16,17 +16,25 @@ export default function GameCanvas() {
 
   // Setup camera controls
   useEffect(() => {
-    if (controlsRef.current) {
+    if (controlsRef.current && gameState) {
       controlsRef.current.enableDamping = true;
       controlsRef.current.dampingFactor = 0.05;
       controlsRef.current.maxPolarAngle = Math.PI / 2.5; // Allow more vertical rotation
-      controlsRef.current.minDistance = 3;
-      controlsRef.current.maxDistance = 25;
-      // Position camera to see the hex grid better
-      camera.position.set(0, 12, 12);
+      controlsRef.current.minDistance = 5;
+      controlsRef.current.maxDistance = 40;
+      
+      // Calculate map bounds to center camera properly
+      const mapSize = Math.max(gameState.map.width, gameState.map.height);
+      const distance = mapSize * 2; // Scale camera distance with map size
+      
+      // Position camera to see the full hex grid
+      camera.position.set(0, distance, distance);
       camera.lookAt(0, 0, 0);
+      
+      // Set the orbit target to the center of the map
+      controlsRef.current.target.set(0, 0, 0);
     }
-  }, [camera]);
+  }, [camera, gameState]);
 
   useFrame(() => {
     if (controlsRef.current) {

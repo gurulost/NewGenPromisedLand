@@ -43,13 +43,15 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     }> = [];
     
     if (!gameState || !currentPlayer) {
+      // Show all tiles clearly when no game state (for debugging)
       map.tiles.forEach((tile, index) => {
         const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
+        const baseColor = getTerrainColor(tile.terrain);
         instanceData.push({
           position: [pixelPos.x, 0, pixelPos.z],
-          color: [0.1, 0.1, 0.1],
-          opacity: 0.1,
-          textureId: 0
+          color: baseColor,
+          opacity: 0.8, // Much more visible
+          textureId: getTextureId(tile.terrain)
         });
       });
       return { visibleTileKeys: visible, exploredTileKeys: explored, tileInstanceData: instanceData };
@@ -99,25 +101,25 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       if (fogState.visibility === 'visible') {
         // Fully visible - normal appearance
         color = baseColor;
-        opacity = fogState.opacity;
+        opacity = 1.0; // Full opacity for visible tiles
         textureId = getTextureId(tile.terrain);
       } else if (fogState.visibility === 'explored') {
-        // Explored but not in current vision - slightly darker but still recognizable
+        // Explored but not in current vision - slightly darker but still very visible
         color = [
-          baseColor[0] * fogState.colorMultiplier,
-          baseColor[1] * fogState.colorMultiplier,
-          baseColor[2] * fogState.colorMultiplier
+          baseColor[0] * 0.8, // Much lighter than before
+          baseColor[1] * 0.8,
+          baseColor[2] * 0.8
         ];
-        opacity = fogState.opacity;
+        opacity = 0.9; // High opacity for explored tiles
         textureId = getTextureId(tile.terrain);
       } else {
-        // Unexplored - very dark
+        // Unexplored - still visible but darker
         color = [
-          baseColor[0] * fogState.colorMultiplier,
-          baseColor[1] * fogState.colorMultiplier,
-          baseColor[2] * fogState.colorMultiplier
+          baseColor[0] * 0.4, // Darker but still visible
+          baseColor[1] * 0.4,
+          baseColor[2] * 0.4
         ];
-        opacity = fogState.opacity;
+        opacity = 0.6; // More visible than before
         textureId = 0; // No texture for unexplored tiles
       }
       
