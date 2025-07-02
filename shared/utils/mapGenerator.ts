@@ -43,10 +43,10 @@ export interface MapSizeConfig {
 }
 
 export const MAP_SIZE_CONFIGS: Record<MapSize, MapSizeConfig> = {
-  tiny: { tiles: 121, dimensions: 11, maxPlayers: 2, name: 'Tiny' },
-  small: { tiles: 196, dimensions: 14, maxPlayers: 3, name: 'Small' },
-  normal: { tiles: 256, dimensions: 16, maxPlayers: 4, name: 'Normal' },
-  large: { tiles: 324, dimensions: 18, maxPlayers: 6, name: 'Large' },
+  tiny: { tiles: 121, dimensions: 11, maxPlayers: 8, name: 'Tiny' },
+  small: { tiles: 196, dimensions: 14, maxPlayers: 8, name: 'Small' },
+  normal: { tiles: 256, dimensions: 16, maxPlayers: 8, name: 'Normal' },
+  large: { tiles: 324, dimensions: 18, maxPlayers: 8, name: 'Large' },
   huge: { tiles: 400, dimensions: 20, maxPlayers: 8, name: 'Huge' }
 };
 

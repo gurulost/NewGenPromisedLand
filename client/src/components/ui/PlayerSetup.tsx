@@ -27,6 +27,18 @@ export default function PlayerSetup() {
   const factions = getAllFactions();
   const usedFactions = players.map(p => p.factionId).filter(Boolean);
 
+  // Helper function to get recommended player count for each map size
+  const getRecommendedPlayers = (mapSize: MapSize): string => {
+    switch (mapSize) {
+      case 'tiny': return '2 players';
+      case 'small': return '2-3 players';
+      case 'normal': return '3-4 players';
+      case 'large': return '4-6 players';
+      case 'huge': return '6-8 players';
+      default: return '2-4 players';
+    }
+  };
+
   const addPlayer = () => {
     if (players.length < 6) {
       setPlayers([...players, {
@@ -51,8 +63,7 @@ export default function PlayerSetup() {
 
   const canStart = players.length >= 2 && 
                    players.every(p => p.name.trim() && p.factionId) &&
-                   new Set(players.map(p => p.factionId)).size === players.length &&
-                   players.length <= MAP_SIZE_CONFIGS[selectedMapSize].maxPlayers;
+                   new Set(players.map(p => p.factionId)).size === players.length;
 
   const handleStartGame = () => {
     if (canStart) {
@@ -166,12 +177,11 @@ export default function PlayerSetup() {
                         key={size} 
                         value={size}
                         className="text-white hover:bg-gray-700"
-                        disabled={players.length > config.maxPlayers}
                       >
                         <div className="flex flex-col">
                           <span className="font-medium">{config.name}</span>
                           <span className="text-xs text-gray-400">
-                            {config.tiles} tiles • Max {config.maxPlayers} players
+                            {config.tiles} tiles • Recommended for {getRecommendedPlayers(size as MapSize)}
                           </span>
                         </div>
                       </SelectItem>
@@ -208,8 +218,7 @@ export default function PlayerSetup() {
               <p className="text-sm text-red-400">
                 {players.some(p => !p.name.trim()) && "All players need names. "}
                 {players.some(p => !p.factionId) && "All players need factions. "}
-                {new Set(players.map(p => p.factionId)).size !== players.length && "Each player needs a unique faction. "}
-                {players.length > MAP_SIZE_CONFIGS[selectedMapSize].maxPlayers && `Too many players for ${MAP_SIZE_CONFIGS[selectedMapSize].name} map (max ${MAP_SIZE_CONFIGS[selectedMapSize].maxPlayers}).`}
+                {new Set(players.map(p => p.factionId)).size !== players.length && "Each player needs a unique faction."}
               </p>
             </div>
           )}
