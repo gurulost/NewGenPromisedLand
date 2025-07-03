@@ -457,7 +457,8 @@ function handleMoveUnit(
     player.id === currentPlayer.id
       ? {
           ...player,
-          visibilityMask: Array.from(new Set([...player.visibilityMask, ...visibleTiles]))
+          visibilityMask: Array.from(new Set([...player.visibilityMask, ...visibleTiles])),
+          exploredTiles: Array.from(new Set([...player.exploredTiles, ...visibleTiles]))
         }
       : player
   );

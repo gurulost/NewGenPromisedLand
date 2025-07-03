@@ -210,12 +210,14 @@ function castShadow(
 }
 
 /**
- * Calculate fog of war state for a tile
+ * Calculate fog of war state for a tile with three-tiered system
  */
 export interface FogOfWarState {
-  visibility: 'visible' | 'explored' | 'hidden';
+  visibility: 'visible' | 'explored' | 'unexplored';
   opacity: number;
   colorMultiplier: number;
+  showTerrain: boolean;
+  showUnits: boolean;
 }
 
 export function calculateFogOfWarState(
@@ -224,22 +226,31 @@ export function calculateFogOfWarState(
   exploredTiles: Set<string>
 ): FogOfWarState {
   if (visibleTiles.has(tileKey)) {
+    // Visible: Full visibility of terrain and units
     return {
       visibility: 'visible',
       opacity: 1.0,
-      colorMultiplier: 1.0
+      colorMultiplier: 1.0,
+      showTerrain: true,
+      showUnits: true
     };
   } else if (exploredTiles.has(tileKey)) {
+    // Explored: Terrain visible but no units, memory state
     return {
       visibility: 'explored',
-      opacity: 0.85, // Slightly darker than visible
-      colorMultiplier: 0.75 // Reduced brightness but still recognizable
+      opacity: 0.7,
+      colorMultiplier: 0.6,
+      showTerrain: true,
+      showUnits: false
     };
   } else {
+    // Unexplored: Completely hidden with clouds/fog overlay
     return {
-      visibility: 'hidden',
-      opacity: 0.15,
-      colorMultiplier: 0.1
+      visibility: 'unexplored',
+      opacity: 0.0, // Completely hidden
+      colorMultiplier: 0.0,
+      showTerrain: false,
+      showUnits: false
     };
   }
 }

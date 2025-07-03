@@ -24,6 +24,7 @@ describe('Game Reducer', () => {
       researchedTechs: [],
       turnOrder: 0,
       visibilityMask: [],
+      exploredTiles: [],
       researchProgress: 0,
       citiesOwned: []
     };
@@ -369,6 +370,7 @@ describe('Game Reducer', () => {
             internalDissent: 0
           },
           visibilityMask: [],
+          exploredTiles: [],
           isEliminated: false,
           turnOrder: 1,
           stars: 50,
@@ -477,6 +479,7 @@ describe('Game Reducer', () => {
         factionId: 'LAMANITES' as const,
         stats: { faith: 0, pride: 0, internalDissent: 0 },
         visibilityMask: [],
+        exploredTiles: [],
         isEliminated: false,
         turnOrder: 1,
         stars: 10,

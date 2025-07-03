@@ -99,32 +99,28 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       let opacity: number;
       let textureId: number;
       
-      // Apply fog of war based on visibility state
+      // Apply three-tiered fog of war system
       const baseColor = getTerrainColor(tile.terrain);
       
       if (fogState.visibility === 'visible') {
-        // Fully visible - normal appearance
+        // Visible: Full visibility of terrain and units
         color = baseColor;
-        opacity = 1.0; // Full opacity for visible tiles
+        opacity = 1.0;
         textureId = getTextureId(tile.terrain);
       } else if (fogState.visibility === 'explored') {
-        // Explored but not in current vision - slightly darker but still very visible
+        // Explored: Terrain visible but dimmed (memory state)
         color = [
-          baseColor[0] * 0.8, // Much lighter than before
-          baseColor[1] * 0.8,
-          baseColor[2] * 0.8
+          baseColor[0] * 0.6,
+          baseColor[1] * 0.6,
+          baseColor[2] * 0.6
         ];
-        opacity = 0.9; // High opacity for explored tiles
+        opacity = 0.7;
         textureId = getTextureId(tile.terrain);
       } else {
-        // Unexplored - still visible but darker
-        color = [
-          baseColor[0] * 0.4, // Darker but still visible
-          baseColor[1] * 0.4,
-          baseColor[2] * 0.4
-        ];
-        opacity = 0.6; // More visible than before
-        textureId = 0; // No texture for unexplored tiles
+        // Unexplored: Completely hidden with dark cloud overlay
+        color = [0.1, 0.1, 0.15]; // Dark blue-gray cloud color
+        opacity = 1.0; // Full opacity cloud
+        textureId = 0; // No terrain texture visible
       }
       
       instanceData.push({

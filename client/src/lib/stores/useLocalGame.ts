@@ -50,6 +50,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
         internalDissent: 10,
       },
       visibilityMask: [],
+      exploredTiles: [],
       isEliminated: false,
       turnOrder: setup.turnOrder,
       stars: 10, // Starting currency
@@ -201,9 +202,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
         allVisibleTiles.push(...visionTiles);
       });
       
+      const uniqueVisibleTiles = Array.from(new Set(allVisibleTiles));
+      
       return {
         ...player,
-        visibilityMask: Array.from(new Set(allVisibleTiles))
+        visibilityMask: uniqueVisibleTiles,
+        exploredTiles: uniqueVisibleTiles // Initially, explored tiles are the same as visible tiles
       };
     });
 

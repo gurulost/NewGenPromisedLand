@@ -156,7 +156,8 @@ export function canUnitAttackTarget(
 }
 
 /**
- * Checks if a unit is visible to a player based on their units' vision
+ * Checks if a unit is visible to a player based on three-tiered fog of war system
+ * Units are only visible if they're in currently visible tiles (not just explored)
  */
 export function isUnitVisibleToPlayer(
   unit: Unit,
@@ -165,23 +166,24 @@ export function isUnitVisibleToPlayer(
 ): boolean {
   // Player's own units are always visible
   if (unit.playerId === playerId) {
-    console.log(`👁️ Own unit visible: ${unit.id} (player ${playerId})`);
     return true;
   }
   
   // Find all friendly units for the player
   const playerUnits = gameState.units.filter(u => u.playerId === playerId);
-  console.log(`👁️ Checking visibility for unit ${unit.id} from ${playerUnits.length} friendly units`);
   
-  // Check if any friendly unit can see this enemy unit using proper hex distance
+  // Check if the enemy unit's tile is currently visible (not just explored)
+  const unitTileKey = `${unit.coordinate.q},${unit.coordinate.r}`;
+  
+  // Calculate currently visible tiles for this player
   const isVisible = playerUnits.some(friendlyUnit => {
     const distance = hexDistance(friendlyUnit.coordinate, unit.coordinate);
-    const canSee = distance <= (friendlyUnit.visionRadius || 2); // Default to 2 if missing
-    console.log(`👁️ Unit ${friendlyUnit.id} vision check: distance=${distance}, visionRadius=${friendlyUnit.visionRadius}, canSee=${canSee}`);
-    return canSee;
+    const visionRadius = friendlyUnit.visionRadius || 2;
+    return distance <= visionRadius;
   });
   
-  console.log(`👁️ Unit ${unit.id} visibility result: ${isVisible}`);
+  // Enemy units are only visible if they're in currently visible tiles
+  return isVisible;
   return isVisible;
 }
 

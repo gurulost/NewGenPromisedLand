@@ -54,7 +54,8 @@ export const PlayerStateSchema = z.object({
   name: z.string(),
   factionId: z.string(),
   stats: GameStatsSchema,
-  visibilityMask: z.array(z.string()).default([]),
+  visibilityMask: z.array(z.string()).default([]), // Currently visible tiles
+  exploredTiles: z.array(z.string()).default([]), // Previously explored tiles
   isEliminated: z.boolean().default(false),
   turnOrder: z.number(),
   stars: z.number().default(10), // Currency for building/recruiting
