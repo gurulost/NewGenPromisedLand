@@ -497,9 +497,12 @@ function handleAttackUnit(
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (attacker.playerId !== currentPlayer.id) return state;
 
-  // Check if units are adjacent (attack range)
+  // Prevent friendly fire - cannot attack units from the same player
+  if (attacker.playerId === target.playerId) return state;
+
+  // Check if units are within attack range
   const distance = hexDistance(attacker.coordinate, target.coordinate);
-  if (distance > 1) return state; // Most units have range 1 for now
+  if (distance > attacker.attackRange) return state;
 
   // Calculate damage using data-driven modifier system
   let attackPower = attacker.attack;
@@ -743,7 +746,7 @@ function handleEndTurn(
     return player;
   });
 
-  // Reset movement for next player's units
+  // Reset movement for next player's units at start of their turn
   const updatedUnits = state.units.map((u: Unit) => 
     u.playerId === nextPlayer.id 
       ? { ...u, remainingMovement: u.movement }

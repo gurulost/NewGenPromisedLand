@@ -42,7 +42,7 @@ describe('Unit Logic', () => {
       id: 'enemy1',
       type: 'warrior',
       playerId: 'player2',
-      coordinate: { q: 2, r: 0, s: -2 },
+      coordinate: { q: 3, r: 0, s: -3 }, // Distance 3, outside vision range of 2
       hp: 8,
       maxHp: 10,
       attack: 4,
@@ -111,7 +111,7 @@ describe('Unit Logic', () => {
     });
 
     it('should block movement to tiles with enemy units', () => {
-      expect(isPassableForUnit({ q: 2, r: 0, s: -2 }, mockGameState, testUnit)).toBe(false);
+      expect(isPassableForUnit({ q: 3, r: 0, s: -3 }, mockGameState, testUnit)).toBe(false);
     });
 
     it('should allow movement to tiles with friendly units', () => {
@@ -151,6 +151,16 @@ describe('Unit Logic', () => {
       
       // Should not include water tiles
       expect(reachableTiles).not.toContainEqual({ q: -1, r: 0, s: 1 });
+    });
+
+    it('should return only current tile when unit has zero remaining movement', () => {
+      // Create a unit with no remaining movement
+      const exhaustedUnit = { ...testUnit, remainingMovement: 0 };
+      
+      const reachableTiles = calculateReachableTiles(exhaustedUnit, mockGameState);
+      
+      // Should only include the tile the unit is currently on
+      expect(reachableTiles).toEqual([testUnit.coordinate]);
     });
   });
 
@@ -213,6 +223,40 @@ describe('Unit Logic', () => {
       
       expect(targets).not.toContain(friendlyUnit);
     });
+
+    it('should find targets for ranged units at greater distances', () => {
+      // Create a ranged unit with attack range of 3
+      const rangedUnit: Unit = {
+        ...testUnit,
+        id: 'archer1',
+        type: 'scout', // Using scout as a ranged unit type
+        attackRange: 3
+      };
+      
+      // Place enemy at distance 2 (should be in range for ranged unit)
+      enemyUnit.coordinate = { q: 2, r: 0, s: -2 };
+      
+      const targets = getValidAttackTargets(rangedUnit, mockGameState);
+      
+      expect(targets).toContain(enemyUnit);
+    });
+
+    it('should not find targets beyond ranged unit attack range', () => {
+      // Create a ranged unit with attack range of 2
+      const rangedUnit: Unit = {
+        ...testUnit,
+        id: 'archer1',
+        type: 'scout',
+        attackRange: 2
+      };
+      
+      // Place enemy at distance 3 (beyond range)
+      enemyUnit.coordinate = { q: 3, r: 0, s: -3 };
+      
+      const targets = getValidAttackTargets(rangedUnit, mockGameState);
+      
+      expect(targets).not.toContain(enemyUnit);
+    });
   });
 
   describe('canUnitAttackTarget', () => {
@@ -250,8 +294,16 @@ describe('Unit Logic', () => {
     });
 
     it('should not see enemy units outside vision range', () => {
-      // Enemy unit is at (2, 0, -2), which is outside vision range
+      // Enemy unit is at (3, 0, -3), which is outside vision range of 2
       expect(isUnitVisibleToPlayer(enemyUnit, 'player1', mockGameState)).toBe(false);
+    });
+
+    it('should see enemy units exactly at vision range boundary', () => {
+      // Test for unit exactly at the edge of vision radius (distance = visionRadius)
+      const visionRadius = testUnit.visionRadius; // 2
+      enemyUnit.coordinate = { q: visionRadius, r: 0, s: -visionRadius }; // Distance exactly = 2
+      
+      expect(isUnitVisibleToPlayer(enemyUnit, 'player1', mockGameState)).toBe(true);
     });
   });
 

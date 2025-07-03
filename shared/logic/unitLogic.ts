@@ -172,7 +172,7 @@ export function isUnitVisibleToPlayer(
   // Check if any friendly unit can see this enemy unit using proper hex distance
   return playerUnits.some(friendlyUnit => {
     const distance = hexDistance(friendlyUnit.coordinate, unit.coordinate);
-    return distance < friendlyUnit.visionRadius;
+    return distance <= friendlyUnit.visionRadius;
   });
 }
 
