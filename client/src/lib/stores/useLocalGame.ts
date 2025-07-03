@@ -5,6 +5,7 @@ import { hexDistance } from "@shared/utils/hex";
 import { gameReducer } from "@shared/logic/gameReducer";
 import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenerator";
 import { useGameState } from "./useGameState";
+import { gameDebugger } from "../../utils/gameDebug";
 
 type GamePhase = 'menu' | 'playerSetup' | 'handoff' | 'playing' | 'gameOver';
 
@@ -31,7 +32,11 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
   gamePhase: 'menu',
   gameState: null,
   
-  setGamePhase: (phase) => set({ gamePhase: phase }),
+  setGamePhase: (phase) => {
+    gameDebugger.trackGamePhase(phase);
+    gameDebugger.logUIInteraction(`Game phase changed to: ${phase}`, { phase });
+    set({ gamePhase: phase });
+  },
   
   startLocalGame: (playerSetup, mapSize = 'normal') => {
     // Create initial game state
