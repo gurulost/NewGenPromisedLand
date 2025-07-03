@@ -70,6 +70,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   return (
     <div 
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      style={{ pointerEvents: 'auto' }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
