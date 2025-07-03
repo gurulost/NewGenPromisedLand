@@ -29,13 +29,13 @@ export default function GameCanvas() {
       controlsRef.current.minPolarAngle = isometricAngle;
       controlsRef.current.maxPolarAngle = isometricAngle;
       
-      // Adjust zoom limits based on map size
+      // Adjust zoom limits based on map size - closer like Polytopia
       const mapSize = Math.max(gameState.map.width, gameState.map.height);
-      controlsRef.current.minDistance = mapSize * 0.8;
-      controlsRef.current.maxDistance = mapSize * 3;
+      controlsRef.current.minDistance = mapSize * 0.5; // Allow closer zoom
+      controlsRef.current.maxDistance = mapSize * 2; // Prevent too far zoom
       
-      // Position camera to see the full hex grid
-      const distance = mapSize * 2;
+      // Position camera closer like Polytopia - more detailed view
+      const distance = mapSize * 1.2;
       camera.position.set(0, distance, distance);
       camera.lookAt(0, 0, 0);
       
@@ -44,22 +44,23 @@ export default function GameCanvas() {
     }
   }, [camera, gameState]);
 
-  // Smooth camera centering when unit is selected (Polytopia-style)
-  useEffect(() => {
-    if (selectedUnit && controlsRef.current) {
-      const pixelPos = hexToPixel(selectedUnit.coordinate, 1);
-      const targetPosition = new THREE.Vector3(pixelPos.x, 0, pixelPos.y);
-
-      // Use GSAP to animate the camera target
-      gsap.to(controlsRef.current.target, {
-        x: targetPosition.x,
-        y: targetPosition.y,
-        z: targetPosition.z,
-        duration: 0.5,
-        ease: "power2.inOut",
-      });
-    }
-  }, [selectedUnit]);
+  // Disabled automatic camera centering - let players control the view manually
+  // In Polytopia, the camera stays where the player positioned it
+  // useEffect(() => {
+  //   if (selectedUnit && controlsRef.current) {
+  //     const pixelPos = hexToPixel(selectedUnit.coordinate, 1);
+  //     const targetPosition = new THREE.Vector3(pixelPos.x, 0, pixelPos.y);
+  //
+  //     // Use GSAP to animate the camera target
+  //     gsap.to(controlsRef.current.target, {
+  //       x: targetPosition.x,
+  //       y: targetPosition.y,
+  //       z: targetPosition.z,
+  //       duration: 0.5,
+  //       ease: "power2.inOut",
+  //     });
+  //   }
+  // }, [selectedUnit]);
 
   useFrame(() => {
     if (controlsRef.current) {
