@@ -468,6 +468,188 @@ describe('Game Reducer', () => {
     });
   });
 
+  describe('Complex Game Scenarios', () => {
+    it('should handle full turn cycle with movement and combat', () => {
+      // Setup: Add a second player and enemy unit for combat
+      const player2 = {
+        id: 'player2',
+        name: 'Player 2',
+        factionId: 'LAMANITES' as const,
+        stats: { faith: 0, pride: 0, internalDissent: 0 },
+        visibilityMask: [],
+        isEliminated: false,
+        turnOrder: 1,
+        stars: 10,
+        researchedTechs: [],
+        researchProgress: 0,
+        citiesOwned: []
+      };
+      
+      const enemyUnit: Unit = {
+        id: 'enemy-combat',
+        status: 'active',
+        type: 'warrior',
+        playerId: 'player2',
+        coordinate: { q: 2, r: 0, s: -2 },
+        hp: 5,
+        maxHp: 10,
+        movement: 2,
+        remainingMovement: 2,
+        attack: 3,
+        defense: 1,
+        visionRadius: 2,
+        attackRange: 1,
+        abilities: [],
+        level: 1,
+        experience: 0
+      };
+      
+      // Modify the mock state to include second player
+      const stateWithTwoPlayers = {
+        ...mockGameState,
+        players: [...mockGameState.players, player2],
+        units: [...mockGameState.units, enemyUnit]
+      };
+      
+      // Step 1: Move unit closer to enemy
+      const moveAction: GameAction = {
+        type: 'MOVE_UNIT',
+        payload: {
+          unitId: 'unit1',
+          targetCoordinate: { q: 1, r: 0, s: -1 }
+        }
+      };
+      
+      let gameState = gameReducer(stateWithTwoPlayers, moveAction);
+      let unit = gameState.units.find(u => u.id === 'unit1');
+      expect(unit?.coordinate).toEqual({ q: 1, r: 0, s: -1 });
+      expect(unit?.remainingMovement).toBeLessThan(2);
+      
+      // Step 2: Attack enemy unit
+      const attackAction: GameAction = {
+        type: 'ATTACK_UNIT',
+        payload: {
+          attackerId: 'unit1',
+          targetId: 'enemy-combat'
+        }
+      };
+      
+      gameState = gameReducer(gameState, attackAction);
+      const enemy = gameState.units.find(u => u.id === 'enemy-combat');
+      expect(enemy?.hp).toBeLessThan(5); // Should have taken damage
+      
+      // Step 3: End turn
+      const endTurnAction: GameAction = {
+        type: 'END_TURN',
+        payload: {
+          playerId: 'player1'
+        }
+      };
+      
+      gameState = gameReducer(gameState, endTurnAction);
+      expect(gameState.currentPlayerIndex).toBe(1); // Should advance to next player
+    });
+
+    it('should reject invalid moves at reducer level', () => {
+      // Try to move unit to a coordinate that's too far away
+      const invalidMoveAction: GameAction = {
+        type: 'MOVE_UNIT',
+        payload: {
+          unitId: 'unit1',
+          targetCoordinate: { q: 5, r: 0, s: -5 } // Way too far
+        }
+      };
+
+      const newState = gameReducer(mockGameState, invalidMoveAction);
+      const unit = newState.units.find(u => u.id === 'unit1');
+      
+      // Unit should not have moved
+      expect(unit?.coordinate).toEqual({ q: 0, r: 0, s: 0 });
+      expect(newState).toEqual(mockGameState); // State should be unchanged
+    });
+
+    it('should handle multiple units and coordinate conflicts', () => {
+      // Add another friendly unit
+      const unit2: Unit = {
+        id: 'unit2',
+        status: 'active',
+        type: 'warrior',
+        playerId: 'player1',
+        coordinate: { q: 1, r: 0, s: -1 },
+        hp: 10,
+        maxHp: 10,
+        movement: 2,
+        remainingMovement: 2,
+        attack: 5,
+        defense: 2,
+        visionRadius: 2,
+        attackRange: 1,
+        abilities: [],
+        level: 1,
+        experience: 0
+      };
+      
+      mockGameState.units.push(unit2);
+      
+      // Try to move first unit to same coordinate as second unit
+      const moveAction: GameAction = {
+        type: 'MOVE_UNIT',
+        payload: {
+          unitId: 'unit1',
+          targetCoordinate: { q: 1, r: 0, s: -1 }
+        }
+      };
+
+      const newState = gameReducer(mockGameState, moveAction);
+      const unit1 = newState.units.find(u => u.id === 'unit1');
+      
+      // Should allow movement to tile with friendly unit
+      expect(unit1?.coordinate).toEqual({ q: 1, r: 0, s: -1 });
+    });
+
+    it('should handle unit death and removal correctly', () => {
+      // Create a very weak enemy unit
+      const weakEnemy: Unit = {
+        id: 'weak-enemy',
+        status: 'active',
+        type: 'warrior',
+        playerId: 'player2',
+        coordinate: { q: 1, r: 0, s: -1 },
+        hp: 1,
+        maxHp: 10,
+        movement: 2,
+        remainingMovement: 2,
+        attack: 1,
+        defense: 0,
+        visionRadius: 2,
+        attackRange: 1,
+        abilities: [],
+        level: 1,
+        experience: 0
+      };
+      
+      const stateWithWeakEnemy = {
+        ...mockGameState,
+        units: [...mockGameState.units, weakEnemy]
+      };
+      
+      const attackAction: GameAction = {
+        type: 'ATTACK_UNIT',
+        payload: {
+          attackerId: 'unit1',
+          targetId: 'weak-enemy'
+        }
+      };
+
+      const newState = gameReducer(stateWithWeakEnemy, attackAction);
+      const deadUnit = newState.units.find(u => u.id === 'weak-enemy');
+      
+      // Unit should be completely removed from game state
+      expect(deadUnit).toBeUndefined();
+      expect(newState.units.length).toBe(stateWithWeakEnemy.units.length - 1); // One less unit than before
+    });
+  });
+
   describe('State immutability', () => {
     it('should not mutate original state', () => {
       const moveAction: GameAction = {
