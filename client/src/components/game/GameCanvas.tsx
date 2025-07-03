@@ -34,17 +34,72 @@ export default function GameCanvas() {
       controlsRef.current.minDistance = mapSize * 0.5; // Allow closer zoom
       controlsRef.current.maxDistance = mapSize * 2; // Prevent too far zoom
       
-      // Position camera closer like Polytopia - more detailed view
-      const distance = mapSize * 1.2;
-      camera.position.set(0, distance, distance);
-      camera.lookAt(0, 0, 0);
+      // Position camera near current player's starting area
+      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+      const playerCity = gameState.cities?.find(city => 
+        currentPlayer.citiesOwned.includes(city.id)
+      );
       
-      // Set the orbit target to the center of the map
-      controlsRef.current.target.set(0, 0, 0);
+      let cameraTargetPosition = { x: 0, z: 0 }; // Default to center
+      
+      if (playerCity) {
+        // Convert hex coordinates to world position
+        const pixelPos = hexToPixel(playerCity.coordinate, 1);
+        cameraTargetPosition = { x: pixelPos.x, z: pixelPos.y };
+      }
+      
+      // Position camera closer like Polytopia - focused on player's area
+      const distance = mapSize * 1.2;
+      camera.position.set(
+        cameraTargetPosition.x, 
+        distance, 
+        cameraTargetPosition.z + distance
+      );
+      camera.lookAt(cameraTargetPosition.x, 0, cameraTargetPosition.z);
+      
+      // Set the orbit target to the player's starting area
+      controlsRef.current.target.set(cameraTargetPosition.x, 0, cameraTargetPosition.z);
     }
   }, [camera, gameState]);
 
-  // Disabled automatic camera centering - let players control the view manually
+  // Reposition camera when player changes (at start of each turn)
+  useEffect(() => {
+    if (controlsRef.current && gameState) {
+      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+      const playerCity = gameState.cities?.find(city => 
+        currentPlayer.citiesOwned.includes(city.id)
+      );
+      
+      if (playerCity) {
+        // Convert hex coordinates to world position
+        const pixelPos = hexToPixel(playerCity.coordinate, 1);
+        const cameraTargetPosition = { x: pixelPos.x, z: pixelPos.y };
+        
+        // Smoothly move camera to focus on current player's area
+        const mapSize = Math.max(gameState.map.width, gameState.map.height);
+        const distance = mapSize * 1.2;
+        
+        // Use GSAP for smooth camera transition
+        gsap.to(camera.position, {
+          x: cameraTargetPosition.x,
+          y: distance,
+          z: cameraTargetPosition.z + distance,
+          duration: 1,
+          ease: "power2.inOut",
+        });
+        
+        gsap.to(controlsRef.current.target, {
+          x: cameraTargetPosition.x,
+          y: 0,
+          z: cameraTargetPosition.z,
+          duration: 1,
+          ease: "power2.inOut",
+        });
+      }
+    }
+  }, [gameState?.currentPlayerIndex, camera, gameState]);
+
+  // Disabled automatic camera centering on unit selection - let players control the view manually
   // In Polytopia, the camera stays where the player positioned it
   // useEffect(() => {
   //   if (selectedUnit && controlsRef.current) {
