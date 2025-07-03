@@ -64,6 +64,30 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
            currentPlayer.researchedTechs.includes(structureDef.requiredTech) &&
            !cityStructures.find(s => s.type === structureType);
   };
+
+  const getStructureBuildMessage = (structureType: StructureType) => {
+    const structureDef = STRUCTURE_DEFINITIONS[structureType];
+    const hasStructure = cityStructures.find(s => s.type === structureType);
+    
+    if (hasStructure) {
+      return "Built";
+    }
+    
+    const hasRequiredTech = currentPlayer.researchedTechs.includes(structureDef.requiredTech);
+    const hasEnoughStars = currentPlayer.stars >= structureDef.cost;
+    
+    if (!hasRequiredTech) {
+      // Find the tech name for better UX
+      const techName = structureDef.requiredTech.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+      return `Requires ${techName}`;
+    }
+    
+    if (!hasEnoughStars) {
+      return `Need ${structureDef.cost - currentPlayer.stars} more stars`;
+    }
+    
+    return "Build";
+  };
   
   const canAffordUnit = (unitType: UnitType) => {
     const unitDef = getUnitDefinition(unitType);
@@ -75,6 +99,38 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
       unitDef.factionSpecific.includes(currentPlayer.factionId);
     
     return currentPlayer.stars >= unitDef.cost && hasSpace && meetsRequirements && factionMatch;
+  };
+
+  const getUnitRecruitMessage = (unitType: UnitType) => {
+    const unitDef = getUnitDefinition(unitType);
+    const hasSpace = cityUnits.length < 4;
+    const hasEnoughStars = currentPlayer.stars >= unitDef.cost;
+    
+    if (!hasSpace) {
+      return "City Full (4/4)";
+    }
+    
+    const factionMatch = unitDef.factionSpecific.length === 0 || 
+      unitDef.factionSpecific.includes(currentPlayer.factionId);
+    
+    if (!factionMatch) {
+      return "Wrong Faction";
+    }
+    
+    if (unitDef.requirements) {
+      if (unitDef.requirements.faith && currentPlayer.stats.faith < unitDef.requirements.faith) {
+        return `Need ${unitDef.requirements.faith} Faith`;
+      }
+      if (unitDef.requirements.pride && currentPlayer.stats.pride < unitDef.requirements.pride) {
+        return `Need ${unitDef.requirements.pride} Pride`;
+      }
+    }
+    
+    if (!hasEnoughStars) {
+      return `Need ${unitDef.cost - currentPlayer.stars} more stars`;
+    }
+    
+    return "Recruit";
   };
 
   return (
@@ -199,6 +255,18 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                       <p className="text-sm text-gray-600 mb-3">{structure.description}</p>
                       
                       <div className="mb-3">
+                        <p className="text-xs font-medium text-gray-500 mb-1">Requirements:</p>
+                        <div className="text-xs space-y-1">
+                          <p>Technology: {structure.requiredTech.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} 
+                            {currentPlayer.researchedTechs.includes(structure.requiredTech) ? 
+                              <span className="text-green-600 ml-1">✓</span> : 
+                              <span className="text-red-500 ml-1">✗</span>
+                            }
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="mb-3">
                         <p className="text-xs font-medium text-gray-500 mb-1">Effects:</p>
                         <div className="text-xs space-y-1">
                           {structure.effects.starProduction > 0 && (
@@ -220,9 +288,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                         variant={canAfford && !hasStructure ? "default" : "outline"}
                         size="sm"
                       >
-                        {hasStructure ? "Built" : 
-                         canAfford ? "Build" : 
-                         `Need ${structure.cost - currentPlayer.stars} more stars`}
+                        {getStructureBuildMessage(structure.id as StructureType)}
                       </Button>
                     </Card>
                   );
@@ -282,9 +348,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                         variant={canAfford ? "default" : "outline"}
                         size="sm"
                       >
-                        {canAfford ? "Recruit" : 
-                         cityUnits.length >= 4 ? "City Full" :
-                         `Need ${unit.cost - currentPlayer.stars} more stars`}
+                        {getUnitRecruitMessage(unit.type)}
                       </Button>
                     </Card>
                   );
