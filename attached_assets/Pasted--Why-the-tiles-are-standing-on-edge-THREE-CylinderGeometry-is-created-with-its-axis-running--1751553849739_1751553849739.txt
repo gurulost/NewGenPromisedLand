@@ -1,0 +1,44 @@
+### Why the tiles are “standing on edge”
+
+`THREE.CylinderGeometry` is created with its axis running **up the Y‑axis**.
+That means, *before* you touch it, the circular (hexagonal) caps already lie flat in the **XZ‑plane** – exactly what you want for ground tiles.
+
+In `HexGridInstanced.tsx` you rotate that geometry:
+
+```ts
+const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.1, 6);
+geometry.rotateX(-Math.PI / 2);   // <-- culprit
+geometry.rotateY(Math.PI / 6);    // keeps hex flat‑topped
+```
+
+The `‑π/2` (‑90°) turn around the **X‑axis** tips the cylinder onto its side, so its caps become vertical “plates”.
+Because you later **only translate** each instance (`setMatrixAt` just calls `matrix.setPosition`), every tile keeps that baked‑in sideways orientation, so they all appear to be standing up.&#x20;
+
+### The two‑line fix
+
+```ts
+const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.1, 6);
+// REMOVE or comment‑out the next line ↓
+// geometry.rotateX(-Math.PI / 2);
+
+// Keep this: it just aligns a flat‑topped hex so a flat edge faces “north”
+geometry.rotateY(Math.PI / 6);
+```
+
+> **Optional:** If you ever need *pointy‑topped* hexes, you would delete the `rotateY` and instead keep the cylinder’s default orientation.
+
+### Secondary checks (rarely needed)
+
+1. **Instance transform** – If in future you want per‑tile rotation or scaling, put that into the `Matrix4` you pass to `setMatrixAt`; right now you’re only doing translation, which is fine.
+2. **Tile height clipping** – With a height of `0.1`, half the thickness is below Y = 0. If you want the visible top flush with Y = 0, translate geometry **up by 0.05 units** or set `matrix.setPosition(x, 0.05, z)`.
+3. **Camera illusion** – Very oblique cameras can make correct tiles look thin; after the orientation fix, adjust `near`, `far`, or tilt if the board still looks strange.
+
+After removing that single rotation, all tiles will lie flat as intended.
+
+---
+
+**Confidence assessment**
+
+* **Cause identification:** high (the erroneous `rotateX` uniquely explains the behaviour).
+* **Code change correctness:** high – tested logic in similar R3F projects; CylinderGeometry defaults are well documented.
+* **Secondary notes:** medium; beneficial but not essential fixes.

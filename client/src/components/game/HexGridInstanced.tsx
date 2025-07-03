@@ -49,7 +49,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
         const baseColor = getTerrainColor(tile.terrain);
         instanceData.push({
-          position: [pixelPos.x, 0, pixelPos.y], // y becomes z in 3D space
+          position: [pixelPos.x, 0.1, pixelPos.y], // y becomes z in 3D space, slightly above ground
           color: baseColor,
           opacity: 1.0, // Fully visible for debugging
           textureId: getTextureId(tile.terrain)
@@ -128,7 +128,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       }
       
       instanceData.push({
-        position: [pixelPos.x, 0, pixelPos.y], // y becomes z in 3D space
+        position: [pixelPos.x, 0.1, pixelPos.y], // y becomes z in 3D space, slightly above ground
         color,
         opacity,
         textureId
@@ -141,9 +141,9 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   // Create hex geometry once
   const hexGeometry = useMemo(() => {
     const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.2, 6);
-    // Rotate to lie flat in XZ-plane with flat top pointing north
-    geometry.rotateX(Math.PI / 2); // Rotate to lie flat
-    geometry.rotateZ(Math.PI / 6); // Align flat-top to north
+    // CylinderGeometry already lies flat in XZ-plane by default
+    // Only rotate to align flat-top to north
+    geometry.rotateY(Math.PI / 6); // Align flat-top to north
     return geometry;
   }, []);
 
