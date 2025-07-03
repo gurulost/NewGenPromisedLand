@@ -137,8 +137,8 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   // Create hex geometry once
   const hexGeometry = useMemo(() => {
     const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.1, 6);
-    geometry.rotateX(-Math.PI / 2); // Lay it flat
-    geometry.rotateY(Math.PI / 6); // Align to be flat-topped
+    // CylinderGeometry already lies flat in XZ-plane by default
+    geometry.rotateY(Math.PI / 6); // Align to be flat-topped (flat edge faces north)
     return geometry;
   }, []);
 
