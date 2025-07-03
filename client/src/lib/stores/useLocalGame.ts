@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { GameState, PlayerState, TerrainType, HexCoordinate } from "@shared/types/game";
+import { GameState, PlayerState, TerrainType } from "@shared/types/game";
+import { HexCoordinate } from "@shared/types/coordinates";
 import { hexDistance } from "@shared/utils/hex";
 import { gameReducer } from "@shared/logic/gameReducer";
 import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenerator";

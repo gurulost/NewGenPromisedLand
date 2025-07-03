@@ -6,6 +6,7 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { getVisibleUnits } from "@shared/logic/unitLogic";
 import HexGridInstanced from "./HexGridInstanced";
 import Unit from "./Unit";
+import { useGameDebugger } from "../../utils/gameDebug";
 import * as THREE from "three";
 
 export default function GameCanvas() {
@@ -13,6 +14,7 @@ export default function GameCanvas() {
   const { selectedUnit, hoveredTile } = useGameState();
   const { camera } = useThree();
   const controlsRef = useRef<any>();
+  const debug = useGameDebugger();
 
   // Setup camera controls
   useEffect(() => {
@@ -65,7 +67,13 @@ export default function GameCanvas() {
       {/* Units - using centralized vision system */}
       {(() => {
         const visibleUnits = getVisibleUnits(gameState);
-        console.log('Visible units in GameCanvas:', visibleUnits.length, visibleUnits.map(u => u.id));
+        debug.logRendering(`GameCanvas rendering ${visibleUnits.length} visible units`, {
+          totalUnits: gameState.units.length,
+          visibleUnits: visibleUnits.length,
+          unitIds: visibleUnits.map(u => u.id),
+          currentPlayer: gameState.players[gameState.currentPlayerIndex]?.name
+        });
+        
         return visibleUnits.map((unit: any) => (
           <Unit
             key={unit.id}

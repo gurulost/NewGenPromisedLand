@@ -10,6 +10,7 @@ import { getUnitDefinition } from "@shared/data/units";
 import { usePathfindingWorker } from "../../hooks/usePathfindingWorker";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
+import { useGameDebugger } from "../../utils/gameDebug";
 import * as THREE from "three";
 
 interface UnitProps {
@@ -25,6 +26,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   const { setSelectedUnit, setReachableTiles } = useGameState();
   const { gameState } = useLocalGame();
   const { getReachableTiles: getReachableTilesWorker } = usePathfindingWorker();
+  const debug = useGameDebugger();
   
   const pixelPos = hexToPixel(unit.coordinate, HEX_SIZE);
   
@@ -37,13 +39,13 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   // Calculate visibility based on fog of war
   const isUnitVisible = useMemo(() => {
     if (!gameState || !currentPlayer) {
-      console.log('Unit visibility: no gameState or currentPlayer');
+      debug.logVisibility('No game state or current player', { gameState: !!gameState, currentPlayer: !!currentPlayer });
       return false;
     }
     
     // Always show current player's own units
     if (isCurrentPlayerUnit) {
-      console.log('Unit visible: current player unit', unit.id);
+      debug.logUnit(`Own unit visible: ${unit.id}`, unit);
       return true;
     }
     

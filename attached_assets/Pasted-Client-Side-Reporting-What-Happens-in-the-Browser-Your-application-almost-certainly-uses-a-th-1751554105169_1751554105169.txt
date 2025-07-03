@@ -1,0 +1,25 @@
+Client-Side Reporting (What Happens in the Browser) 🖥️
+
+Your application almost certainly uses a third-party monitoring service to automatically catch errors that happen on the client side. Given that your app is built with React and TypeScript, a tool like BugSnag, Sentry, or LogRocket is likely integrated.
+Here's how it works:
+* Automatic Error Capture: When a user encounters a bug—like a button not working or a component crashing—the service automatically captures the error without the user having to do anything.
+* Rich Context: The report sent to the service is highly detailed. It includes:
+    * Stack Traces: The exact lines of code that caused the error, with support for source maps to show your original TypeScript code instead of the minified version.
+    * User Actions: A timeline of events leading up to the error, such as clicks and page loads, which helps developers reproduce the bug.
+    * Environment Details: Information about the user's browser, operating system, and device.
+* React-Specific Tools: The reporting library uses React's <ErrorBoundary> component to catch errors within your UI, providing even more specific information about which component failed.
+
+
+Server-Side Reporting (What Happens on the Backend) ☁️
+
+Your backend has a separate, more traditional logging system to track errors that happen on the server.
+* Centralized Logging: All server-side errors are collected into a centralized logging system. This could be a file on the server, a cloud service like AWS CloudWatch, or a dedicated log management platform.
+* Error Severity: Server-side logs are usually categorized by severity (e.g., info, warning, error, critical). Critical errors might trigger immediate alerts to the development team via email or Slack.
+* Fast-Fail Philosophy: For critical errors, such as a database connection failure or a major service outage, the system is likely designed to "fail fast." This means it will stop processing and log a detailed error immediately to prevent further data corruption.
+
+
+How They Work Together
+
+The client-side and server-side systems are complementary.
+* If a user tries to perform an action and the server responds with an error (like a "500 Internal Server Error"), the client-side reporting service will log this failure, and the server-side logs will contain the detailed root cause of that error.
+* This dual system ensures that you have a complete picture of any issue, whether it originates in the user's browser or on your backend infrastructure.
