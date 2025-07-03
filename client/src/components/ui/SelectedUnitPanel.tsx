@@ -25,18 +25,18 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
     <div className="absolute bottom-4 left-4 pointer-events-auto">
       <Card className="w-64 bg-black/80 border-white/20">
         <CardHeader className="pb-2">
-          <CardTitle className="text-white">{unitStats.definition.name}</CardTitle>
+          <CardTitle className="text-white font-cinzel font-semibold tracking-wide">{unitStats.definition.name}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <div className="text-sm text-gray-300">
+          <div className="text-sm text-gray-300 font-body">
             {unitStats.definition.description}
           </div>
           
           {/* Unit HP */}
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-red-300">Health</span>
-              <span className="text-white">{unit.hp}/{unitStats.definition.baseStats.hp}</span>
+              <span className="text-red-300 font-cinzel font-medium">Health</span>
+              <span className="text-white font-body font-medium">{unit.hp}/{unitStats.definition.baseStats.hp}</span>
             </div>
             <Progress 
               value={unitStats.hpPercentage} 
@@ -45,7 +45,7 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
           </div>
           
           {/* Unit Stats */}
-          <div className="grid grid-cols-2 gap-2 text-sm">
+          <div className="grid grid-cols-2 gap-2 text-sm font-body">
             <div className="flex justify-between">
               <span className="text-gray-400">Attack:</span>
               <span className="text-white">{unit.attack}</span>
@@ -65,7 +65,7 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
           </div>
           
           {/* Unit Position */}
-          <div className="text-xs text-gray-400">
+          <div className="text-xs text-gray-400 font-body">
             Position: ({unit.coordinate.q}, {unit.coordinate.r})
           </div>
         </CardContent>

@@ -80,10 +80,10 @@ export default function PlayerSetup() {
     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
       <Card className="w-full max-w-2xl bg-black/80 border-amber-600/50 text-white">
         <CardHeader>
-          <CardTitle className="text-2xl text-amber-400 text-center">
+          <CardTitle className="text-2xl font-cinzel text-amber-400 text-center font-semibold tracking-wide">
             Local Game Setup
           </CardTitle>
-          <p className="text-gray-300 text-center text-sm">
+          <p className="text-gray-300 text-center text-sm font-body">
             Configure players for pass-and-play mode
           </p>
         </CardHeader>

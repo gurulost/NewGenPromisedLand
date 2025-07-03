@@ -38,10 +38,10 @@ export default function CombatPanel({ selectedUnit, gameState, onAttackUnit }: C
     <div className="absolute bottom-4 right-4 pointer-events-auto">
       <Card className="w-64 bg-black/80 border-white/20">
         <CardHeader className="pb-2">
-          <CardTitle className="text-white">Combat Options</CardTitle>
+          <CardTitle className="text-white font-cinzel font-semibold tracking-wide">Combat Options</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <div className="text-sm text-gray-300 mb-3">
+          <div className="text-sm text-gray-300 mb-3 font-body">
             Enemies in range: {combatData.length}
           </div>
           
@@ -54,7 +54,7 @@ export default function CombatPanel({ selectedUnit, gameState, onAttackUnit }: C
                   key={enemy.id}
                   variant="outline"
                   size="sm"
-                  className="w-full justify-start bg-red-600/20 border-red-400 text-red-100 hover:bg-red-600/40"
+                  className="w-full justify-start bg-red-600/20 border-red-400 text-red-100 hover:bg-red-600/40 font-body"
                   onClick={() => onAttackUnit(selectedUnit.id, enemy.id)}
                 >
                   <div className="flex justify-between w-full">
