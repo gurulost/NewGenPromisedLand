@@ -63,13 +63,17 @@ export default function GameCanvas() {
       <HexGridInstanced map={gameState.map} />
       
       {/* Units - using centralized vision system */}
-      {getVisibleUnits(gameState).map((unit: any) => (
-        <Unit
-          key={unit.id}
-          unit={unit}
-          isSelected={selectedUnit?.id === unit.id}
-        />
-      ))}
+      {(() => {
+        const visibleUnits = getVisibleUnits(gameState);
+        console.log('Visible units in GameCanvas:', visibleUnits.length, visibleUnits.map(u => u.id));
+        return visibleUnits.map((unit: any) => (
+          <Unit
+            key={unit.id}
+            unit={unit}
+            isSelected={selectedUnit?.id === unit.id}
+          />
+        ));
+      })()}
       
       {/* Selection indicator */}
       {hoveredTile && (

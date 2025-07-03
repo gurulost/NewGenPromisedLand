@@ -151,7 +151,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       return [
         {
           id: `unit-${player.id}-1`,
-          type: 'warrior',
+          type: 'warrior' as const,
           playerId: player.id,
           coordinate: unitPosition,
           hp: 25,
@@ -160,10 +160,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
           defense: 4,
           movement: 3,
           remainingMovement: 3,
-          status: 'active',
+          status: 'active' as const,
           abilities: [],
           level: 1,
           experience: 0,
+          visionRadius: 2,
+          attackRange: 1,
         }
       ];
     });

@@ -36,10 +36,16 @@ export default function Unit({ unit, isSelected }: UnitProps) {
 
   // Calculate visibility based on fog of war
   const isUnitVisible = useMemo(() => {
-    if (!gameState || !currentPlayer) return false;
+    if (!gameState || !currentPlayer) {
+      console.log('Unit visibility: no gameState or currentPlayer');
+      return false;
+    }
     
     // Always show current player's own units
-    if (isCurrentPlayerUnit) return true;
+    if (isCurrentPlayerUnit) {
+      console.log('Unit visible: current player unit', unit.id);
+      return true;
+    }
     
     // For enemy units, check if they're in currently visible tiles
     const currentPlayerUnits = gameState.units.filter(u => u.playerId === currentPlayer.id);
@@ -142,7 +148,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
                      healthPercent > 0.3 ? "#f59e0b" : "#ef4444";
 
   return (
-    <group position={[pixelPos.x, 0, pixelPos.z]}>
+    <group position={[pixelPos.x, 0, pixelPos.y]}>
       {/* Unit mesh */}
       <mesh
         ref={meshRef}
