@@ -143,12 +143,12 @@ export const GAME_RULES: GameRules = {
     movementCosts: {
       'plains': 1,
       'forest': 2,
-      'mountain': 99, // Effectively impassable
-      'water': 99,    // Effectively impassable
+      'mountain': 3, // Passable but expensive
+      'water': 99,   // Effectively impassable
       'desert': 2,
       'swamp': 3,
     },
-    impassableTypes: ['water', 'mountain'],
+    impassableTypes: ['water'],
     defenseBonus: {
       'plains': 0,
       'forest': 1,

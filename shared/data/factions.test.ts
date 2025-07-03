@@ -6,7 +6,7 @@ describe('Factions', () => {
     const allFactions = getAllFactions();
     expect(allFactions).toHaveLength(6);
     
-    const expectedFactionIds = ['nephites', 'lamanites', 'mulekites', 'anti-nephi-lehies', 'zoramites', 'jaredites'];
+    const expectedFactionIds = ['NEPHITES', 'LAMANITES', 'MULEKITES', 'ANTI_NEPHI_LEHIES', 'ZORAMITES', 'JAREDITES'];
     expectedFactionIds.forEach(id => {
       expect(FACTIONS[id]).toBeDefined();
     });
@@ -21,19 +21,22 @@ describe('Factions', () => {
       expect(faction.description).toBeDefined();
       expect(faction.color).toBeDefined();
       expect(faction.abilities).toBeInstanceOf(Array);
-      expect(faction.startingUnits).toBeInstanceOf(Array);
-      expect(faction.bonuses).toBeDefined();
+      expect(faction.uniqueUnits).toBeInstanceOf(Array);
+      expect(faction.startingStats).toBeDefined();
+      expect(faction.playstyle).toBeDefined();
+      expect(faction.strengths).toBeInstanceOf(Array);
+      expect(faction.weaknesses).toBeInstanceOf(Array);
     });
   });
 
   it('should retrieve individual factions correctly', () => {
-    const nephites = getFaction('nephites');
+    const nephites = getFaction('NEPHITES');
     expect(nephites.name).toBe('Nephites');
-    expect(nephites.id).toBe('nephites');
+    expect(nephites.id).toBe('NEPHITES');
     
-    const lamanites = getFaction('lamanites');
+    const lamanites = getFaction('LAMANITES');
     expect(lamanites.name).toBe('Lamanites');
-    expect(lamanites.id).toBe('lamanites');
+    expect(lamanites.id).toBe('LAMANITES');
   });
 
   it('should have unique colors for each faction', () => {
@@ -48,9 +51,11 @@ describe('Factions', () => {
     const allFactions = getAllFactions();
     
     allFactions.forEach(faction => {
-      faction.abilities.forEach(abilityId => {
-        expect(typeof abilityId).toBe('string');
-        expect(abilityId.length).toBeGreaterThan(0);
+      faction.abilities.forEach(ability => {
+        expect(ability.id).toBeDefined();
+        expect(ability.name).toBeDefined();
+        expect(ability.description).toBeDefined();
+        expect(['active', 'passive', 'triggered']).toContain(ability.type);
       });
     });
   });
@@ -59,8 +64,8 @@ describe('Factions', () => {
     const allFactions = getAllFactions();
     
     allFactions.forEach(faction => {
-      expect(faction.startingUnits.length).toBeGreaterThan(0);
-      faction.startingUnits.forEach(unitType => {
+      expect(faction.uniqueUnits.length).toBeGreaterThan(0);
+      faction.uniqueUnits.forEach(unitType => {
         expect(typeof unitType).toBe('string');
         expect(unitType.length).toBeGreaterThan(0);
       });
@@ -71,18 +76,10 @@ describe('Factions', () => {
     const allFactions = getAllFactions();
     
     allFactions.forEach(faction => {
-      if (faction.bonuses.stats) {
-        const statsBonuses = faction.bonuses.stats;
-        if (statsBonuses.faith !== undefined) {
-          expect(typeof statsBonuses.faith).toBe('number');
-        }
-        if (statsBonuses.pride !== undefined) {
-          expect(typeof statsBonuses.pride).toBe('number');
-        }
-        if (statsBonuses.internalDissent !== undefined) {
-          expect(typeof statsBonuses.internalDissent).toBe('number');
-        }
-      }
+      expect(faction.startingStats).toBeDefined();
+      expect(typeof faction.startingStats.faith).toBe('number');
+      expect(typeof faction.startingStats.pride).toBe('number');
+      expect(typeof faction.startingStats.internalDissent).toBe('number');
     });
   });
 });

@@ -3,6 +3,7 @@ import { Unit } from "../types/unit";
 import { HexCoordinate } from "../types/coordinates";
 import { getReachableTiles } from "./pathfinding";
 import { GAME_RULES } from "../data/gameRules";
+import { hexDistance } from "../utils/hex";
 
 /**
  * Centralized unit logic functions to be shared between UI and game reducer
@@ -30,6 +31,19 @@ export function isPassableForUnit(
   
   // Check if tile is explored by the unit's player
   if (unit && !tile.exploredBy.includes(unit.playerId)) return false;
+  
+  // Check for units on the target tile
+  const unitOnTile = gameState.units.find(u => 
+    u.coordinate.q === coordinate.q && 
+    u.coordinate.r === coordinate.r &&
+    u.coordinate.s === coordinate.s
+  );
+  
+  if (unitOnTile) {
+    // Can't move to tiles with enemy units
+    if (unit && unitOnTile.playerId !== unit.playerId) return false;
+    // Can move through tiles with friendly units
+  }
   
   // Additional unit-specific checks could be added here
   // (e.g., naval units can pass through water, flying units over mountains)
@@ -114,10 +128,8 @@ export function getValidAttackTargets(
     // Must be an enemy unit
     if (target.playerId === unit.playerId) return false;
     
-    // Must be within attack range
-    const distance = Math.abs(target.coordinate.q - unit.coordinate.q) +
-                    Math.abs(target.coordinate.r - unit.coordinate.r) +
-                    Math.abs(target.coordinate.s - unit.coordinate.s);
+    // Must be within attack range using proper hex distance
+    const distance = hexDistance(unit.coordinate, target.coordinate);
     
     return distance <= unit.attackRange;
   });
@@ -137,10 +149,8 @@ export function canUnitAttackTarget(
   // Attacker must not be exhausted
   if (attacker.status === 'exhausted') return false;
   
-  // Must be within attack range
-  const distance = Math.abs(target.coordinate.q - attacker.coordinate.q) +
-                  Math.abs(target.coordinate.r - attacker.coordinate.r) +
-                  Math.abs(target.coordinate.s - attacker.coordinate.s);
+  // Must be within attack range using proper hex distance
+  const distance = hexDistance(attacker.coordinate, target.coordinate);
   
   return distance <= attacker.attackRange;
 }
@@ -159,15 +169,10 @@ export function isUnitVisibleToPlayer(
   // Find all friendly units for the player
   const playerUnits = gameState.units.filter(u => u.playerId === playerId);
   
-  // Check if any friendly unit can see this enemy unit
+  // Check if any friendly unit can see this enemy unit using proper hex distance
   return playerUnits.some(friendlyUnit => {
-    const distance = Math.max(
-      Math.abs(unit.coordinate.q - friendlyUnit.coordinate.q),
-      Math.abs(unit.coordinate.r - friendlyUnit.coordinate.r),
-      Math.abs(unit.coordinate.s - friendlyUnit.coordinate.s)
-    );
-    
-    return distance <= friendlyUnit.visionRadius;
+    const distance = hexDistance(friendlyUnit.coordinate, unit.coordinate);
+    return distance < friendlyUnit.visionRadius;
   });
 }
 

@@ -9,7 +9,8 @@ import {
   isUnitVisibleToPlayer,
   getVisibleUnits
 } from './unitLogic';
-import type { GameState, Unit, PlayerState } from '../types/game';
+import type { GameState, PlayerState } from '../types/game';
+import type { Unit } from '../types/unit';
 import type { HexCoordinate } from '../types/coordinates';
 
 describe('Unit Logic', () => {
@@ -32,7 +33,9 @@ describe('Unit Logic', () => {
       visionRadius: 2,
       attackRange: 1,
       status: 'active',
-      experience: 0
+      experience: 0,
+      abilities: [],
+      level: 1
     };
 
     enemyUnit = {
@@ -49,7 +52,9 @@ describe('Unit Logic', () => {
       visionRadius: 2,
       attackRange: 1,
       status: 'active',
-      experience: 0
+      experience: 0,
+      abilities: [],
+      level: 1
     };
 
     const mockPlayer: PlayerState = {
@@ -69,11 +74,12 @@ describe('Unit Logic', () => {
     mockGameState = {
       map: {
         tiles: [
-          { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [] },
-          { coordinate: { q: 1, r: 0, s: -1 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [] },
-          { coordinate: { q: 0, r: 1, s: -1 }, terrain: 'mountain', resources: [], hasCity: false, exploredBy: [] },
-          { coordinate: { q: 2, r: 0, s: -2 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [] },
-          { coordinate: { q: -1, r: 0, s: 1 }, terrain: 'water', resources: [], hasCity: false, exploredBy: [] }
+          { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['player1', 'player2'] },
+          { coordinate: { q: 1, r: 0, s: -1 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['player1', 'player2'] },
+          { coordinate: { q: 0, r: 1, s: -1 }, terrain: 'mountain', resources: [], hasCity: false, exploredBy: ['player1', 'player2'] },
+          { coordinate: { q: 2, r: 0, s: -2 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['player1', 'player2'] },
+          { coordinate: { q: 1, r: 1, s: -2 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['player1', 'player2'] },
+          { coordinate: { q: -1, r: 0, s: 1 }, terrain: 'water', resources: [], hasCity: false, exploredBy: ['player1', 'player2'] }
         ],
         width: 10,
         height: 10
@@ -81,10 +87,13 @@ describe('Unit Logic', () => {
       players: [mockPlayer],
       units: [testUnit, enemyUnit],
       currentPlayerIndex: 0,
-      turnNumber: 1,
-      gamePhase: 'playing',
+      turn: 1,
+      phase: 'playing',
       winner: undefined,
-      cities: []
+      cities: [],
+      id: 'test-game',
+      improvements: [],
+      structures: []
     };
   });
 
@@ -109,11 +118,12 @@ describe('Unit Logic', () => {
       const friendlyUnit: Unit = {
         ...enemyUnit,
         id: 'friendly1',
-        playerId: 'player1'
+        playerId: 'player1',
+        coordinate: { q: 1, r: 1, s: -2 } // Different coordinate for friendly unit
       };
       mockGameState.units.push(friendlyUnit);
 
-      expect(isPassableForUnit({ q: 2, r: 0, s: -2 }, mockGameState, testUnit)).toBe(true);
+      expect(isPassableForUnit({ q: 1, r: 1, s: -2 }, mockGameState, testUnit)).toBe(true);
     });
   });
 

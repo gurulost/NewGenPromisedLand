@@ -107,8 +107,8 @@ describe('GameRuleHelpers', () => {
   });
 
   it('should calculate research cost with scaling', () => {
-    const baseCost = GameRuleHelpers.calculateResearchCost(0); // First tech
-    const scaledCost = GameRuleHelpers.calculateResearchCost(3); // Fourth tech
+    const baseCost = GameRuleHelpers.calculateResearchCost(GAME_RULES.research.baseTechCost, 0); // First tech
+    const scaledCost = GameRuleHelpers.calculateResearchCost(GAME_RULES.research.baseTechCost, 3); // Fourth tech
     
     expect(baseCost).toBe(GAME_RULES.research.baseTechCost);
     expect(scaledCost).toBeGreaterThan(baseCost);

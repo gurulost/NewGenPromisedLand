@@ -49,7 +49,11 @@ function cubeRound(q: number, r: number, s: number): HexCoordinate {
     roundS = -roundQ - roundR;
   }
   
-  return { q: roundQ, r: roundR, s: roundS };
+  return { 
+    q: roundQ === 0 ? 0 : roundQ,  // Normalize -0 to 0
+    r: roundR === 0 ? 0 : roundR,  // Normalize -0 to 0  
+    s: roundS === 0 ? 0 : roundS   // Normalize -0 to 0
+  };
 }
 
 /**

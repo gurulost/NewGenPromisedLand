@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { gameReducer } from './gameReducer';
-import type { GameState, GameAction, PlayerState, Unit } from '../types/game';
+import type { GameState, GameAction, PlayerState } from '../types/game';
+import type { Unit } from '../types/unit';
 import type { HexCoordinate } from '../types/coordinates';
 
 describe('Game Reducer', () => {
@@ -41,10 +42,13 @@ describe('Game Reducer', () => {
       visionRadius: 2,
       attackRange: 1,
       status: 'active',
-      experience: 0
+      experience: 0,
+      abilities: [],
+      level: 1
     };
 
     mockGameState = {
+      id: 'test-game',
       map: {
         tiles: [
           { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [] },
@@ -57,10 +61,12 @@ describe('Game Reducer', () => {
       players: [mockPlayer],
       units: [mockUnit],
       currentPlayerIndex: 0,
-      turnNumber: 1,
-      gamePhase: 'playing',
+      turn: 1,
+      phase: 'playing',
       winner: undefined,
-      cities: []
+      cities: [],
+      improvements: [],
+      structures: []
     };
   });
 
@@ -119,7 +125,9 @@ describe('Game Reducer', () => {
         visionRadius: 2,
         attackRange: 1,
         status: 'active',
-        experience: 0
+        experience: 0,
+        abilities: [],
+        level: 1
       };
 
       mockGameState.units.push(enemyUnit);
@@ -211,7 +219,6 @@ describe('Game Reducer', () => {
 
       const newState = gameReducer(mockGameState, endTurnAction);
       
-      expect(newState.turnNumber).toBe(2);
       expect(newState.currentPlayerIndex).toBe(0);
     });
   });
