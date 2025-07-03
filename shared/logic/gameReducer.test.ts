@@ -226,6 +226,7 @@ describe('Game Reducer', () => {
   describe('RESEARCH_TECH action', () => {
     it('should add tech to researched list when player has enough stars', () => {
       mockGameState.players[0].stars = 100;
+      mockGameState.players[0].researchedTechs = ['organization']; // Add prerequisite
 
       const researchAction: GameAction = {
         type: 'RESEARCH_TECH',
@@ -243,7 +244,8 @@ describe('Game Reducer', () => {
     });
 
     it('should not allow research without sufficient stars', () => {
-      mockGameState.players[0].stars = 5; // Not enough for research
+      mockGameState.players[0].stars = 5; // Not enough for research (agriculture costs 10)
+      mockGameState.players[0].researchedTechs = ['organization']; // Add prerequisite
 
       const researchAction: GameAction = {
         type: 'RESEARCH_TECH',

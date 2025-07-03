@@ -1,0 +1,59 @@
+Suggestions for Improvement
+
+Here are some specific recommendations for each of the main test files to enhance their coverage and resilience.
+
+1. Game Reducer Logic (gameReducer.test.ts)
+
+This file is solid for testing basic actions. To make it more powerful, you can add tests for more complex scenarios and edge cases.
+
+Test for Invalid Actions: Add tests to ensure the reducer correctly handles invalid or impossible actions. For example:
+
+Attempting to move a unit that doesn't belong to the current player.
+
+Attempting to attack a friendly unit.
+
+Dispatching an action for a unit that doesn't exist.
+
+Why? This ensures your game state remains stable and cannot be corrupted by illegal moves.
+
+Test State Transitions Thoroughly: Expand the END_TURN tests to verify all expected side effects of a turn ending.
+
+Does a unit's "fortified" status get reset?
+
+Are temporary ability effects correctly removed?
+
+Is income (stars, resources) calculated and added correctly?
+
+Why? The end-of-turn phase often involves many small but critical state updates that are easy to miss.
+
+2. Unit Logic (unitLogic.test.ts)
+
+This is your most comprehensive test file and is very well done. Here are a few ways to make it even better by testing the boundaries.
+
+Test Vision at the Edges: Your current vision test checks for a unit well within the vision radius. Add a test for a unit that is exactly on the edge of the vision radius.
+
+Create a scenario where hexDistance is exactly equal to visionRadius.
+
+Assert that isUnitVisibleToPlayer returns true.
+
+Why? This confirms that your vision boundary is inclusive (<=) and not exclusive (<), which is a common source of off-by-one errors.
+
+Test Movement with Zero remainingMovement:
+
+Set a unit's remainingMovement to 0.
+
+Call calculateReachableTiles for that unit.
+
+Assert that the function returns only the tile the unit is currently on.
+
+Why? This ensures that exhausted units cannot move, which is a critical game rule.
+
+Test Attack Range for Ranged Units: Once you add units with an attackRange greater than 1, you'll need new tests.
+
+Create a test where a target is 2 or 3 hexes away.
+
+Assert that getValidAttackTargets correctly finds the target for a ranged unit but not for a melee unit.
+
+Why? This will be essential for verifying the combat logic for archers, catapults, or other ranged attackers.
+
+By incorporating these suggestions, you will build an even more resilient and comprehensive testing suite that will give you and your developer greater confidence as you continue to add new features to your game.

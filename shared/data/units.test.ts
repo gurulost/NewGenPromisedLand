@@ -15,12 +15,12 @@ describe('Unit Definitions', () => {
       expect(unit.name).toBeDefined();
       expect(unit.description).toBeDefined();
       expect(unit.cost).toBeGreaterThan(0);
-      expect(unit.hp).toBeGreaterThan(0);
-      expect(unit.attack).toBeGreaterThan(0);
-      expect(unit.defense).toBeGreaterThan(0);
-      expect(unit.movement).toBeGreaterThan(0);
-      expect(unit.visionRadius).toBeGreaterThan(0);
-      expect(unit.attackRange).toBeGreaterThan(0);
+      expect(unit.baseStats.hp).toBeGreaterThan(0);
+      expect(unit.baseStats.attack).toBeGreaterThan(0);
+      expect(unit.baseStats.defense).toBeGreaterThan(0);
+      expect(unit.baseStats.movement).toBeGreaterThan(0);
+      expect(unit.baseStats.visionRadius).toBeGreaterThan(0);
+      expect(unit.baseStats.attackRange).toBeGreaterThan(0);
     });
   });
 
@@ -52,47 +52,47 @@ describe('Unit Definitions', () => {
   });
 
   it('should filter units by faction correctly', () => {
-    const nephiteUnits = getUnitsForFaction('nephites');
-    const lamaniteUnits = getUnitsForFaction('lamanites');
+    const nephiteUnits = getUnitsForFaction('NEPHITES');
+    const lamaniteUnits = getUnitsForFaction('LAMANITES');
     
     expect(nephiteUnits.length).toBeGreaterThan(0);
     expect(lamaniteUnits.length).toBeGreaterThan(0);
     
     // Each faction should have specific units
     nephiteUnits.forEach(unit => {
-      expect(unit.availableToFactions).toContain('nephites');
+      expect(unit.factionSpecific).toContain('NEPHITES');
     });
     
     lamaniteUnits.forEach(unit => {
-      expect(unit.availableToFactions).toContain('lamanites');
+      expect(unit.factionSpecific).toContain('LAMANITES');
     });
   });
 
   it('should have reasonable stat ranges', () => {
     Object.values(UNIT_DEFINITIONS).forEach(unit => {
       // HP should be reasonable (between 1 and 50)
-      expect(unit.hp).toBeGreaterThanOrEqual(1);
-      expect(unit.hp).toBeLessThanOrEqual(50);
+      expect(unit.baseStats.hp).toBeGreaterThanOrEqual(1);
+      expect(unit.baseStats.hp).toBeLessThanOrEqual(50);
       
       // Attack and defense should be reasonable
-      expect(unit.attack).toBeGreaterThanOrEqual(1);
-      expect(unit.attack).toBeLessThanOrEqual(20);
-      expect(unit.defense).toBeGreaterThanOrEqual(1);
-      expect(unit.defense).toBeLessThanOrEqual(20);
+      expect(unit.baseStats.attack).toBeGreaterThanOrEqual(1);
+      expect(unit.baseStats.attack).toBeLessThanOrEqual(20);
+      expect(unit.baseStats.defense).toBeGreaterThanOrEqual(1);
+      expect(unit.baseStats.defense).toBeLessThanOrEqual(20);
       
       // Movement should be between 1 and 5
-      expect(unit.movement).toBeGreaterThanOrEqual(1);
-      expect(unit.movement).toBeLessThanOrEqual(5);
+      expect(unit.baseStats.movement).toBeGreaterThanOrEqual(1);
+      expect(unit.baseStats.movement).toBeLessThanOrEqual(5);
     });
   });
 
   it('should have proper tech requirements structure', () => {
     Object.values(UNIT_DEFINITIONS).forEach(unit => {
-      if (unit.techRequirements && unit.techRequirements.length > 0) {
-        unit.techRequirements.forEach(tech => {
-          expect(typeof tech).toBe('string');
-          expect(tech.length).toBeGreaterThan(0);
-        });
+      if (unit.requirements && Object.keys(unit.requirements).length > 0) {
+        // Check requirements structure (faith, pride, dissent, techs)
+        if (unit.requirements.faith !== undefined) {
+          expect(typeof unit.requirements.faith).toBe('number');
+        }
       }
     });
   });

@@ -8,7 +8,7 @@ import {
   hexAdd,
   hexSubtract,
   hexRing
-} from './hexCoordinates';
+} from './hex';
 import type { HexCoordinate } from '../types/coordinates';
 
 describe('Hex Coordinate Utilities', () => {

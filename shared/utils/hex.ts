@@ -1,4 +1,4 @@
-import { HexCoordinate } from "../types/game";
+import { HexCoordinate } from "../types/coordinates";
 
 export function hexDistance(a: HexCoordinate, b: HexCoordinate): number {
   return (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
@@ -37,15 +37,15 @@ export function hexSubtract(a: HexCoordinate, b: HexCoordinate): HexCoordinate {
   };
 }
 
-export function hexToPixel(coord: HexCoordinate, size: number): { x: number; z: number } {
+export function hexToPixel(coord: HexCoordinate, size: number): { x: number; y: number } {
   const x = size * (3/2 * coord.q);
-  const z = size * (Math.sqrt(3)/2 * coord.q + Math.sqrt(3) * coord.r);
-  return { x, z };
+  const y = size * (Math.sqrt(3)/2 * coord.q + Math.sqrt(3) * coord.r);
+  return { x, y };
 }
 
-export function pixelToHex(x: number, z: number, size: number): HexCoordinate {
+export function pixelToHex(x: number, y: number, size: number): HexCoordinate {
   const q = (2/3 * x) / size;
-  const r = (-1/3 * x + Math.sqrt(3)/3 * z) / size;
+  const r = (-1/3 * x + Math.sqrt(3)/3 * y) / size;
   return hexRound({ q, r, s: -q - r });
 }
 
@@ -89,4 +89,41 @@ export function hexesInRange(center: HexCoordinate, range: number): HexCoordinat
   }
   
   return results;
+}
+
+export function isValidHexCoordinate(coord: HexCoordinate): boolean {
+  return Math.abs(coord.q + coord.r + coord.s) < 0.001;
+}
+
+export function hexRing(center: HexCoordinate, radius: number): HexCoordinate[] {
+  if (radius === 0) return [];
+  
+  const results: HexCoordinate[] = [];
+  const directions = [
+    { q: 1, r: 0, s: -1 },
+    { q: 1, r: -1, s: 0 },
+    { q: 0, r: -1, s: 1 },
+    { q: -1, r: 0, s: 1 },
+    { q: -1, r: 1, s: 0 },
+    { q: 0, r: 1, s: -1 },
+  ];
+  
+  let hex = hexAdd(center, hexMultiply(directions[4], radius));
+  
+  for (let i = 0; i < 6; i++) {
+    for (let j = 0; j < radius; j++) {
+      results.push(hex);
+      hex = hexAdd(hex, directions[i]);
+    }
+  }
+  
+  return results;
+}
+
+function hexMultiply(coord: HexCoordinate, factor: number): HexCoordinate {
+  return {
+    q: coord.q * factor,
+    r: coord.r * factor,
+    s: coord.s * factor,
+  };
 }
