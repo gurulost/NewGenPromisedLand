@@ -49,7 +49,6 @@ function App() {
                   powerPreference: "high-performance"
                 }}
                 className="absolute inset-0"
-                style={{ zIndex: 1 }}
               >
                 <color attach="background" args={["#0f172a"]} />
                 

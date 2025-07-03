@@ -1,0 +1,115 @@
+It seems the last fix, while well-intentioned, has caused a new problem. This is a classic "z-index stacking" issue where the fix for one layer inadvertently hides another.
+
+The developer correctly identified that the game's `<Canvas>` was capturing events, but the solution likely caused the entire UI to be rendered *behind* the canvas, which has a solid background color.
+
+Here is the step-by-step solution to bring your UI back and ensure it works correctly.
+
+### The Fix
+
+You need to control the stacking order of the two main components: `GameCanvas` and `GameUI`. The `GameUI` must have a higher stacking level (`z-index`) than the `GameCanvas`.
+
+#### Step 1: Modify `client/src/App.tsx`
+
+The `Canvas` component should not have its own `z-index`. We will control the stacking from the UI layer instead.
+
+1.  Open the file `NewGenPromisedLand/client/src/App.tsx`.
+2.  Find the `<Canvas>` component.
+3.  Ensure its `className` is simply `"absolute inset-0"`, without any `z-index` utilities like `z-10`.
+
+<!-- end list -->
+
+```tsx
+// In client/src/App.tsx
+
+// ... (imports)
+
+function App() {
+  const { gamePhase } = useLocalGame();
+
+  return (
+    // ... (providers)
+        <KeyboardControls map={controls}>
+          {/* ... (other phases) */}
+          
+          {(gamePhase === 'playing' || gamePhase === 'gameOver') && (
+            <>
+              <Canvas
+                shadows
+                camera={{
+                  position: [0, 8, 8],
+                  fov: 45,
+                  near: 0.1,
+                  far: 100
+                }}
+                gl={{
+                  antialias: true,
+                  powerPreference: "high-performance"
+                }}
+                // Ensure this className is correct
+                className="absolute inset-0"
+              >
+                <color attach="background" args={["#0f172a"]} />
+                
+                {/* ... (lighting and other canvas children) */}
+                
+                <Suspense fallback={null}>
+                  <GameCanvas />
+                </Suspense>
+              </Canvas>
+              <GameUI />
+            </>
+          )}
+        </KeyboardControls>
+      // ...
+  );
+}
+
+export default App;
+```
+
+#### Step 2: Modify `client/src/components/game/GameUI.tsx`
+
+Now, explicitly set the `z-index` on the main container for `GameUI`. This will lift all UI elements (the HUD, panels, modals, etc.) above the canvas.
+
+1.  Open the file `NewGenPromisedLand/client/src/components/game/GameUI.tsx`.
+2.  Find the root `div` element in the return statement.
+3.  Add the `z-10` class to it. The existing `pointer-events-none` is correct, as it allows clicks to pass through the empty parts of the UI to the map, while the UI panels themselves will re-enable pointer events.
+
+<!-- end list -->
+
+```tsx
+// In client/src/components/game/GameUI.tsx
+
+// ... (imports)
+
+export default function GameUI() {
+  // ... (hooks and logic)
+
+  return (
+    // Add z-10 here
+    <div className="absolute inset-0 pointer-events-none z-10"> 
+      {/* Player HUD */}
+      <PlayerHUD
+        player={currentPlayer}
+        faction={faction}
+        onShowTechPanel={() => setShowTechPanel(true)}
+        onShowCityPanel={handleShowCityPanel}
+        onEndTurn={handleEndTurn}
+      />
+
+      {/* Selected Unit Panel */}
+      {selectedUnit && (
+        <SelectedUnitPanel unit={selectedUnit} />
+      )}
+
+      {/* Other Panels... */}
+      {/* ... */}
+    </div>
+  );
+}
+```
+
+### Why This Works
+
+  * By default, the `<Canvas>` and the `GameUI` `<div>` are siblings in the same stacking context. Adding `z-10` to the `GameUI` container definitively places it and all its children (like the Tech Panel with its `z-50`) on a higher layer than the canvas.
+  * This fixes both issues: the UI is now visible again, and because it's properly layered, the modal windows will capture mouse clicks instead of the game map behind them.
