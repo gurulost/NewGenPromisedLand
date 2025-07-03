@@ -164,16 +164,25 @@ export function isUnitVisibleToPlayer(
   gameState: GameState
 ): boolean {
   // Player's own units are always visible
-  if (unit.playerId === playerId) return true;
+  if (unit.playerId === playerId) {
+    console.log(`👁️ Own unit visible: ${unit.id} (player ${playerId})`);
+    return true;
+  }
   
   // Find all friendly units for the player
   const playerUnits = gameState.units.filter(u => u.playerId === playerId);
+  console.log(`👁️ Checking visibility for unit ${unit.id} from ${playerUnits.length} friendly units`);
   
   // Check if any friendly unit can see this enemy unit using proper hex distance
-  return playerUnits.some(friendlyUnit => {
+  const isVisible = playerUnits.some(friendlyUnit => {
     const distance = hexDistance(friendlyUnit.coordinate, unit.coordinate);
-    return distance <= friendlyUnit.visionRadius;
+    const canSee = distance <= (friendlyUnit.visionRadius || 2); // Default to 2 if missing
+    console.log(`👁️ Unit ${friendlyUnit.id} vision check: distance=${distance}, visionRadius=${friendlyUnit.visionRadius}, canSee=${canSee}`);
+    return canSee;
   });
+  
+  console.log(`👁️ Unit ${unit.id} visibility result: ${isVisible}`);
+  return isVisible;
 }
 
 /**
@@ -188,7 +197,25 @@ export function getVisibleUnits(
     playerId = currentPlayer.id;
   }
   
-  return gameState.units.filter(unit => 
+  const allUnits = gameState.units;
+  const visibleUnits = allUnits.filter(unit => 
     isUnitVisibleToPlayer(unit, playerId, gameState)
   );
+  
+  // Debug logging
+  console.log('🎮 getVisibleUnits Debug:', {
+    currentPlayerId: playerId,
+    totalUnits: allUnits.length,
+    visibleUnits: visibleUnits.length,
+    allUnitsInfo: allUnits.map(u => ({
+      id: u.id,
+      playerId: u.playerId,
+      coordinate: u.coordinate,
+      visionRadius: u.visionRadius,
+      attackRange: u.attackRange,
+      isVisible: isUnitVisibleToPlayer(u, playerId, gameState)
+    }))
+  });
+  
+  return visibleUnits;
 }
