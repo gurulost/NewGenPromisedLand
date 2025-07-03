@@ -69,14 +69,31 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   
   return (
     <div 
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center"
+      style={{ 
+        zIndex: 9999, 
+        pointerEvents: 'auto',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0
+      }}
       onClick={(e) => {
+        console.log('🔴 Backdrop clicked:', e.target === e.currentTarget);
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
     >
-      <Card className="w-[90%] h-[90%] max-w-4xl bg-white border-2" onClick={(e) => e.stopPropagation()}>
+      <Card 
+        className="w-[90%] h-[90%] max-w-4xl bg-white border-2" 
+        style={{ pointerEvents: 'auto' }}
+        onClick={(e) => {
+          console.log('🟡 Card clicked');
+          e.stopPropagation();
+        }}
+      >
         <CardHeader className="border-b">
           <div className="flex justify-between items-center">
             <CardTitle className="flex items-center gap-2 font-cinzel text-xl font-semibold tracking-wide">
@@ -88,7 +105,14 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                 <Star className="w-4 h-4 text-yellow-500" />
                 <span className="font-semibold">{currentPlayer.stars} Stars</span>
               </div>
-              <Button variant="outline" onClick={onClose}>
+              <Button 
+                variant="outline" 
+                onClick={(e) => {
+                  console.log('🟢 Close button clicked');
+                  e.stopPropagation();
+                  onClose();
+                }}
+              >
                 Close
               </Button>
             </div>
