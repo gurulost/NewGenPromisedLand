@@ -49,11 +49,14 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
         const baseColor = getTerrainColor(tile.terrain);
         instanceData.push({
-          position: [pixelPos.x, 0, pixelPos.z],
+          position: [pixelPos.x, 0, pixelPos.y], // y becomes z in 3D space
           color: baseColor,
-          opacity: 0.8, // Much more visible
+          opacity: 1.0, // Fully visible for debugging
           textureId: getTextureId(tile.terrain)
         });
+        // Add all tiles as visible for debugging
+        visible.add(`${tile.coordinate.q},${tile.coordinate.r}`);
+        explored.add(`${tile.coordinate.q},${tile.coordinate.r}`);
       });
       return { visibleTileKeys: visible, exploredTileKeys: explored, tileInstanceData: instanceData };
     }
@@ -125,7 +128,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       }
       
       instanceData.push({
-        position: [pixelPos.x, 0, pixelPos.z],
+        position: [pixelPos.x, 0, pixelPos.y], // y becomes z in 3D space
         color,
         opacity,
         textureId
@@ -137,9 +140,10 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
 
   // Create hex geometry once
   const hexGeometry = useMemo(() => {
-    const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.1, 6);
-    // CylinderGeometry already lies flat in XZ-plane by default
-    geometry.rotateY(Math.PI / 6); // Align to be flat-topped (flat edge faces north)
+    const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.2, 6);
+    // Rotate to lie flat in XZ-plane with flat top pointing north
+    geometry.rotateX(Math.PI / 2); // Rotate to lie flat
+    geometry.rotateZ(Math.PI / 6); // Align flat-top to north
     return geometry;
   }, []);
 
@@ -344,7 +348,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         const pixelPos = hexToPixel(hoveredTile.coordinate, HEX_SIZE);
         setHoveredTile({
           x: pixelPos.x,
-          z: pixelPos.z,
+          z: pixelPos.y, // y becomes z in 3D space
           tile: hoveredTile
         });
       }
