@@ -16,8 +16,8 @@ interface HexGridInstancedProps {
 const HEX_SIZE = 1;
 
 export default function HexGridInstanced({ map }: HexGridInstancedProps) {
-  const { gameState } = useLocalGame();
-  const { setHoveredTile, selectedUnit, reachableTiles } = useGameState();
+  const { gameState, moveUnit } = useLocalGame();
+  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit } = useGameState();
   const { camera, raycaster, gl } = useThree();
   
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -275,7 +275,37 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       if (instanceId !== undefined && instanceId < map.tiles.length) {
         const clickedTile = map.tiles[instanceId];
         console.log('Tile clicked:', clickedTile.coordinate);
-        // TODO: Implement tile selection logic here
+        
+        // Check if there's a unit on this tile
+        const unitOnTile = gameState?.units.find(unit => 
+          unit.coordinate.q === clickedTile.coordinate.q &&
+          unit.coordinate.r === clickedTile.coordinate.r
+        );
+        
+        const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+        
+        if (unitOnTile && currentPlayer) {
+          // If clicking on a unit
+          if (unitOnTile.playerId === currentPlayer.id) {
+            // Select own unit
+            console.log('Unit clicked:', unitOnTile.id, 'Current player:', currentPlayer.id, 'Unit player:', unitOnTile.playerId);
+            setSelectedUnit(unitOnTile);
+          } else if (selectedUnit && selectedUnit.playerId === currentPlayer.id) {
+            // Attack enemy unit if we have a unit selected
+            // This would need attack logic implementation
+            console.log('Attack target clicked:', unitOnTile.id);
+          }
+        } else if (selectedUnit && selectedUnit.playerId === currentPlayer?.id) {
+          // Move selected unit to empty tile
+          const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
+          
+          if (reachableTiles.has(tileKey)) {
+            console.log('Moving unit to:', clickedTile.coordinate);
+            moveUnit(selectedUnit.id, clickedTile.coordinate);
+          } else {
+            console.log('Tile not reachable');
+          }
+        }
       }
     }
   };
