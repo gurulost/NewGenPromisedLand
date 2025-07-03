@@ -6,6 +6,7 @@ import { Tile, GameMap } from "@shared/types/game";
 import { hexToPixel, pixelToHex } from "@shared/utils/hex";
 import { getUnitDefinition } from "@shared/data/units";
 import { getVisibleTilesInRange, calculateFogOfWarState } from "@shared/utils/lineOfSight";
+import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 
@@ -17,7 +18,7 @@ const HEX_SIZE = 1;
 
 export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const { gameState, moveUnit } = useLocalGame();
-  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit } = useGameState();
+  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles } = useGameState();
   const { camera, raycaster, gl } = useThree();
   
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -290,6 +291,15 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             // Select own unit
             console.log('Unit clicked:', unitOnTile.id, 'Current player:', currentPlayer.id, 'Unit player:', unitOnTile.playerId);
             setSelectedUnit(unitOnTile);
+            
+            // Calculate reachable tiles for the selected unit
+            if (gameState) {
+              const reachableCoords = calculateReachableTiles(unitOnTile, gameState);
+              const reachableKeys = reachableCoords.map(coord => `${coord.q},${coord.r}`);
+              console.log('Calculating reachable tiles for unit:', unitOnTile.id, 'Movement:', unitOnTile.remainingMovement);
+              console.log('Reachable tiles:', reachableKeys);
+              setReachableTiles(reachableKeys);
+            }
           } else if (selectedUnit && selectedUnit.playerId === currentPlayer.id) {
             // Attack enemy unit if we have a unit selected
             // This would need attack logic implementation
@@ -299,7 +309,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           // Move selected unit to empty tile
           const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
           
-          if (reachableTiles.has(tileKey)) {
+          if (reachableTiles.includes(tileKey)) {
             console.log('Moving unit to:', clickedTile.coordinate);
             moveUnit(selectedUnit.id, clickedTile.coordinate);
           } else {
