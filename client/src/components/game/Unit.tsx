@@ -1,6 +1,6 @@
 import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Text } from "@react-three/drei";
+import { Text, Box, Cylinder, Sphere, Cone, Torus } from "@react-three/drei";
 import { Unit as UnitType } from "@shared/types/unit";
 import { hexToPixel } from "@shared/utils/hex";
 import { getFaction } from "@shared/data/factions";
@@ -22,7 +22,7 @@ const UNIT_HEIGHT = 0.5;
 const HEX_SIZE = 1;
 
 export default function Unit({ unit, isSelected }: UnitProps) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<THREE.Group>(null);
   const { setSelectedUnit, setReachableTiles } = useGameState();
   const { gameState } = useLocalGame();
   const { getReachableTiles: getReachableTilesWorker } = usePathfindingWorker();
@@ -90,22 +90,316 @@ export default function Unit({ unit, isSelected }: UnitProps) {
     }
   });
 
-  // Unit geometry based on type
-  const geometry = useMemo(() => {
+  // AAA-Quality Unit Model Component
+  const UnitModel = useMemo(() => {
+    const factionColor = faction?.color || '#888888';
+    const metalColor = '#C0C0C0';
+    const weaponColor = '#654321';
+    const shieldColor = '#8B4513';
+    const primaryColor = factionColor;
+    const accentColor = faction?.id === 'NEPHITES' ? '#FFD700' : 
+                        faction?.id === 'LAMANITES' ? '#8B0000' :
+                        faction?.id === 'MULEKITES' ? '#4169E1' :
+                        faction?.id === 'ANTI_NEPHI_LEHIES' ? '#FFFFFF' :
+                        faction?.id === 'ZORAMITES' ? '#9932CC' :
+                        faction?.id === 'JAREDITES' ? '#2F4F4F' : '#888888';
+    
     switch (unit.type) {
       case 'warrior':
+        return (
+          <group scale={[1.2, 1.2, 1.2]}>
+            {/* Body/Torso */}
+            <Cylinder position={[0, 0.25, 0]} args={[0.15, 0.2, 0.4, 8]}>
+              <meshStandardMaterial color={primaryColor} metalness={0.3} roughness={0.7} />
+            </Cylinder>
+            
+            {/* Head/Helmet */}
+            <Sphere position={[0, 0.55, 0]} args={[0.12, 8, 6]}>
+              <meshStandardMaterial color={metalColor} metalness={0.8} roughness={0.2} />
+            </Sphere>
+            
+            {/* Helmet Crest */}
+            <Cylinder position={[0, 0.65, 0]} args={[0.02, 0.05, 0.15, 6]}>
+              <meshStandardMaterial color={accentColor} metalness={0.6} roughness={0.4} />
+            </Cylinder>
+            
+            {/* Shield (left arm) */}
+            <Cylinder position={[-0.25, 0.3, 0]} args={[0.15, 0.15, 0.03, 8]} rotation={[0, 0, Math.PI/6]}>
+              <meshStandardMaterial color={shieldColor} metalness={0.4} roughness={0.6} />
+            </Cylinder>
+            
+            {/* Sword (right arm) */}
+            <Box position={[0.25, 0.4, 0]} args={[0.03, 0.3, 0.02]} rotation={[0, 0, -Math.PI/4]}>
+              <meshStandardMaterial color={metalColor} metalness={0.9} roughness={0.1} />
+            </Box>
+            
+            {/* Sword Handle */}
+            <Cylinder position={[0.25, 0.2, 0]} args={[0.02, 0.02, 0.1, 6]} rotation={[0, 0, -Math.PI/4]}>
+              <meshStandardMaterial color={weaponColor} metalness={0.2} roughness={0.8} />
+            </Cylinder>
+            
+            {/* Legs */}
+            <Cylinder position={[-0.07, 0.05, 0]} args={[0.06, 0.08, 0.2, 6]}>
+              <meshStandardMaterial color={primaryColor} metalness={0.3} roughness={0.7} />
+            </Cylinder>
+            <Cylinder position={[0.07, 0.05, 0]} args={[0.06, 0.08, 0.2, 6]}>
+              <meshStandardMaterial color={primaryColor} metalness={0.3} roughness={0.7} />
+            </Cylinder>
+            
+            {/* Cape */}
+            <Box position={[0, 0.3, -0.15]} args={[0.25, 0.35, 0.02]} rotation={[0.3, 0, 0]}>
+              <meshStandardMaterial color={accentColor} transparent opacity={0.8} />
+            </Box>
+          </group>
+        );
+        
       case 'stripling_warrior':
-        return new THREE.ConeGeometry(0.3, 0.8, 8);
-      case 'missionary':
-        return new THREE.SphereGeometry(0.25, 8, 6);
+        return (
+          <group scale={[1.1, 1.1, 1.1]}>
+            {/* Young warrior - lighter armor, divine glow */}
+            
+            {/* Body */}
+            <Cylinder position={[0, 0.25, 0]} args={[0.14, 0.18, 0.38, 8]}>
+              <meshStandardMaterial color={primaryColor} metalness={0.2} roughness={0.6} />
+            </Cylinder>
+            
+            {/* Head */}
+            <Sphere position={[0, 0.5, 0]} args={[0.11, 8, 6]}>
+              <meshStandardMaterial color="#FDBCB4" />
+            </Sphere>
+            
+            {/* Divine Halo */}
+            <Torus position={[0, 0.6, 0]} args={[0.16, 0.01, 8, 16]}>
+              <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.5} />
+            </Torus>
+            
+            {/* Light Armor Chest */}
+            <Box position={[0, 0.35, 0.05]} args={[0.2, 0.15, 0.05]}>
+              <meshStandardMaterial color={metalColor} metalness={0.7} roughness={0.3} />
+            </Box>
+            
+            {/* Spear */}
+            <Cylinder position={[0.2, 0.45, 0]} args={[0.015, 0.015, 0.6, 6]} rotation={[0, 0, -Math.PI/8]}>
+              <meshStandardMaterial color={weaponColor} />
+            </Cylinder>
+            
+            {/* Spear Tip */}
+            <Cone position={[0.25, 0.75, 0]} args={[0.03, 0.08, 6]} rotation={[0, 0, -Math.PI/8]}>
+              <meshStandardMaterial color={metalColor} metalness={0.9} roughness={0.1} />
+            </Cone>
+            
+            {/* Small Shield */}
+            <Cylinder position={[-0.2, 0.25, 0]} args={[0.12, 0.12, 0.025, 8]}>
+              <meshStandardMaterial color="#FFD700" metalness={0.6} roughness={0.3} />
+            </Cylinder>
+            
+            {/* Legs */}
+            <Cylinder position={[-0.06, 0.05, 0]} args={[0.055, 0.075, 0.18, 6]}>
+              <meshStandardMaterial color={primaryColor} />
+            </Cylinder>
+            <Cylinder position={[0.06, 0.05, 0]} args={[0.055, 0.075, 0.18, 6]}>
+              <meshStandardMaterial color={primaryColor} />
+            </Cylinder>
+          </group>
+        );
+        
       case 'scout':
-        return new THREE.CylinderGeometry(0.2, 0.3, 0.6, 6);
+        return (
+          <group scale={[1.0, 1.0, 1.0]}>
+            {/* Lean, agile scout design */}
+            
+            {/* Body - slimmer */}
+            <Cylinder position={[0, 0.22, 0]} args={[0.12, 0.15, 0.35, 8]}>
+              <meshStandardMaterial color={primaryColor} metalness={0.1} roughness={0.9} />
+            </Cylinder>
+            
+            {/* Head with hood */}
+            <Sphere position={[0, 0.45, 0]} args={[0.1, 8, 6]}>
+              <meshStandardMaterial color="#FDBCB4" />
+            </Sphere>
+            
+            {/* Hood */}
+            <Cone position={[0, 0.52, -0.02]} args={[0.14, 0.2, 8]} rotation={[0.3, 0, 0]}>
+              <meshStandardMaterial color={primaryColor} transparent opacity={0.8} />
+            </Cone>
+            
+            {/* Bow */}
+            <Torus position={[-0.15, 0.35, -0.1]} args={[0.15, 0.01, 8, 16]} rotation={[0, Math.PI/4, Math.PI/6]}>
+              <meshStandardMaterial color={weaponColor} />
+            </Torus>
+            
+            {/* Quiver */}
+            <Cylinder position={[0, 0.4, -0.15]} args={[0.04, 0.05, 0.2, 6]}>
+              <meshStandardMaterial color={weaponColor} />
+            </Cylinder>
+            
+            {/* Arrows */}
+            <Cylinder position={[0, 0.5, -0.15]} args={[0.005, 0.005, 0.15, 4]}>
+              <meshStandardMaterial color={weaponColor} />
+            </Cylinder>
+            <Cylinder position={[0.02, 0.52, -0.15]} args={[0.005, 0.005, 0.15, 4]}>
+              <meshStandardMaterial color={weaponColor} />
+            </Cylinder>
+            
+            {/* Boots - higher for travel */}
+            <Cylinder position={[-0.06, 0.08, 0]} args={[0.05, 0.07, 0.15, 6]}>
+              <meshStandardMaterial color={weaponColor} />
+            </Cylinder>
+            <Cylinder position={[0.06, 0.08, 0]} args={[0.05, 0.07, 0.15, 6]}>
+              <meshStandardMaterial color={weaponColor} />
+            </Cylinder>
+            
+            {/* Cloak */}
+            <Box position={[0, 0.25, -0.12]} args={[0.22, 0.3, 0.015]} rotation={[0.2, 0, 0]}>
+              <meshStandardMaterial color={accentColor} transparent opacity={0.7} />
+            </Box>
+          </group>
+        );
+        
+      case 'missionary':
+        return (
+          <group scale={[1.0, 1.0, 1.0]}>
+            {/* Peaceful religious figure */}
+            
+            {/* Robes */}
+            <Cylinder position={[0, 0.25, 0]} args={[0.18, 0.22, 0.45, 8]}>
+              <meshStandardMaterial color="#FFFFFF" metalness={0.0} roughness={1.0} />
+            </Cylinder>
+            
+            {/* Head */}
+            <Sphere position={[0, 0.52, 0]} args={[0.11, 8, 6]}>
+              <meshStandardMaterial color="#FDBCB4" />
+            </Sphere>
+            
+            {/* Halo */}
+            <Torus position={[0, 0.62, 0]} args={[0.15, 0.008, 8, 16]}>
+              <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.6} />
+            </Torus>
+            
+            {/* Cross/Holy Symbol */}
+            <Box position={[0, 0.4, 0.2]} args={[0.02, 0.1, 0.02]}>
+              <meshStandardMaterial color="#FFD700" metalness={0.8} roughness={0.2} />
+            </Box>
+            <Box position={[0, 0.45, 0.2]} args={[0.06, 0.02, 0.02]}>
+              <meshStandardMaterial color="#FFD700" metalness={0.8} roughness={0.2} />
+            </Box>
+            
+            {/* Staff */}
+            <Cylinder position={[0.25, 0.35, 0]} args={[0.015, 0.015, 0.7, 6]}>
+              <meshStandardMaterial color={weaponColor} />
+            </Cylinder>
+            
+            {/* Staff Top Ornament */}
+            <Sphere position={[0.25, 0.7, 0]} args={[0.04, 8, 6]}>
+              <meshStandardMaterial color="#FFD700" metalness={0.8} roughness={0.2} />
+            </Sphere>
+            
+            {/* Prayer Beads */}
+            <Torus position={[-0.15, 0.3, 0.1]} args={[0.05, 0.008, 8, 16]}>
+              <meshStandardMaterial color="#8B4513" />
+            </Torus>
+            
+            {/* Divine Light Effect */}
+            <Sphere position={[0, 0.3, 0]} args={[0.3, 8, 6]}>
+              <meshStandardMaterial 
+                color="#FFFFFF" 
+                transparent 
+                opacity={0.1} 
+                emissive="#FFFFFF" 
+                emissiveIntensity={0.2} 
+              />
+            </Sphere>
+          </group>
+        );
+        
       case 'commander':
-        return new THREE.CylinderGeometry(0.4, 0.4, 0.9, 8);
+        return (
+          <group scale={[1.3, 1.3, 1.3]}>
+            {/* Elite commander with ornate armor */}
+            
+            {/* Body - Heavy Armor */}
+            <Cylinder position={[0, 0.28, 0]} args={[0.16, 0.22, 0.45, 8]}>
+              <meshStandardMaterial color={metalColor} metalness={0.8} roughness={0.2} />
+            </Cylinder>
+            
+            {/* Ornate Chest Plate */}
+            <Box position={[0, 0.4, 0.08]} args={[0.25, 0.2, 0.06]}>
+              <meshStandardMaterial color={accentColor} metalness={0.9} roughness={0.1} />
+            </Box>
+            
+            {/* Head with Crown/Plume */}
+            <Sphere position={[0, 0.6, 0]} args={[0.13, 8, 6]}>
+              <meshStandardMaterial color={metalColor} metalness={0.8} roughness={0.2} />
+            </Sphere>
+            
+            {/* Command Plume */}
+            <Box position={[0, 0.75, 0]} args={[0.03, 0.2, 0.08]} rotation={[0.2, 0, 0]}>
+              <meshStandardMaterial color={accentColor} transparent opacity={0.9} />
+            </Box>
+            
+            {/* Large Sword */}
+            <Box position={[0.3, 0.5, 0]} args={[0.04, 0.4, 0.03]} rotation={[0, 0, -Math.PI/6]}>
+              <meshStandardMaterial color={metalColor} metalness={0.95} roughness={0.05} />
+            </Box>
+            
+            {/* Sword Hilt */}
+            <Box position={[0.25, 0.25, 0]} args={[0.1, 0.03, 0.03]} rotation={[0, 0, -Math.PI/6]}>
+              <meshStandardMaterial color={accentColor} metalness={0.8} roughness={0.3} />
+            </Box>
+            
+            {/* Tower Shield */}
+            <Box position={[-0.3, 0.35, 0]} args={[0.04, 0.35, 0.2]} rotation={[0, 0, Math.PI/8]}>
+              <meshStandardMaterial color={primaryColor} metalness={0.6} roughness={0.4} />
+            </Box>
+            
+            {/* Shield Emblem */}
+            <Sphere position={[-0.3, 0.35, 0.12]} args={[0.04, 8, 6]}>
+              <meshStandardMaterial color={accentColor} metalness={0.8} roughness={0.2} />
+            </Sphere>
+            
+            {/* Armored Legs */}
+            <Cylinder position={[-0.08, 0.08, 0]} args={[0.07, 0.09, 0.22, 6]}>
+              <meshStandardMaterial color={metalColor} metalness={0.7} roughness={0.3} />
+            </Cylinder>
+            <Cylinder position={[0.08, 0.08, 0]} args={[0.07, 0.09, 0.22, 6]}>
+              <meshStandardMaterial color={metalColor} metalness={0.7} roughness={0.3} />
+            </Cylinder>
+            
+            {/* Command Aura */}
+            <Torus position={[0, 0.1, 0]} args={[0.4, 0.01, 8, 16]} rotation={[-Math.PI/2, 0, 0]}>
+              <meshStandardMaterial 
+                color={accentColor} 
+                emissive={accentColor} 
+                emissiveIntensity={0.3} 
+                transparent 
+                opacity={0.6} 
+              />
+            </Torus>
+          </group>
+        );
+        
       default:
-        return new THREE.BoxGeometry(0.4, 0.6, 0.4);
+        return (
+          <group scale={[1.0, 1.0, 1.0]}>
+            {/* Default unit - simple but detailed */}
+            <Cylinder position={[0, 0.2, 0]} args={[0.12, 0.15, 0.3, 8]}>
+              <meshStandardMaterial color={primaryColor} metalness={0.4} roughness={0.6} />
+            </Cylinder>
+            
+            <Sphere position={[0, 0.4, 0]} args={[0.09, 8, 6]}>
+              <meshStandardMaterial color="#FDBCB4" />
+            </Sphere>
+            
+            <Cylinder position={[-0.05, 0.05, 0]} args={[0.04, 0.06, 0.15, 6]}>
+              <meshStandardMaterial color={primaryColor} />
+            </Cylinder>
+            <Cylinder position={[0.05, 0.05, 0]} args={[0.04, 0.06, 0.15, 6]}>
+              <meshStandardMaterial color={primaryColor} />
+            </Cylinder>
+          </group>
+        );
     }
-  }, [unit.type]);
+  }, [unit.type, faction]);
 
   const handleClick = () => {
     console.log('Unit clicked:', unit.id, 'Current player:', gameState?.players[gameState.currentPlayerIndex]?.id, 'Unit player:', unit.playerId);
@@ -124,21 +418,20 @@ export default function Unit({ unit, isSelected }: UnitProps) {
 
   return (
     <group position={[pixelPos.x, 0, pixelPos.y]}>
-      {/* Unit mesh */}
-      <mesh
+      {/* AAA-Quality Unit Model */}
+      <group
         ref={meshRef}
-        geometry={geometry}
         position={[0, UNIT_HEIGHT, 0]}
         onClick={handleClick}
         onPointerEnter={() => document.body.style.cursor = 'pointer'}
         onPointerLeave={() => document.body.style.cursor = 'default'}
       >
-        <meshLambertMaterial 
-          color={faction?.color || '#888888'}
-          transparent={unit.status === 'exhausted' || !isCurrentPlayerUnit}
-          opacity={unit.status === 'exhausted' ? 0.7 : !isCurrentPlayerUnit ? 0.4 : 1}
-        />
-      </mesh>
+        <group
+          scale={unit.status === 'exhausted' ? [0.9, 0.9, 0.9] : [1, 1, 1]}
+        >
+          {UnitModel}
+        </group>
+      </group>
 
       {/* Selection ring */}
       {isSelected && (
