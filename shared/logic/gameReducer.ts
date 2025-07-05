@@ -1376,6 +1376,100 @@ function handleConvertCity(
   };
 }
 
+function handleUnitAction(
+  state: GameState,
+  payload: { unitId: string; actionType: string; playerId: string; target?: any }
+): GameState {
+  const { unitId, actionType, playerId, target } = payload;
+  
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+
+  switch (actionType) {
+    case 'stealth':
+      // Implement stealth mode for scouts
+      if (unit.type === 'scout' && unit.remainingMovement >= 2) {
+        return {
+          ...state,
+          units: state.units.map(u =>
+            u.id === unitId
+              ? { ...u, remainingMovement: u.remainingMovement - 2, status: 'stealth' as any }
+              : u
+          )
+        };
+      }
+      break;
+      
+    case 'heal':
+      // Implement healing for missionaries
+      if (unit.type === 'missionary' && player.stats.faith >= 5) {
+        const nearbyUnits = state.units.filter(u => 
+          u.playerId === playerId && 
+          hexDistance(u.coordinate, unit.coordinate) <= GAME_RULES.abilities.healRadius &&
+          u.hp < u.maxHp
+        );
+        
+        if (nearbyUnits.length > 0) {
+          return {
+            ...state,
+            players: state.players.map(p =>
+              p.id === playerId
+                ? { ...p, stats: { ...p.stats, faith: p.stats.faith - 5 } }
+                : p
+            ),
+            units: state.units.map(u => {
+              if (nearbyUnits.some(nu => nu.id === u.id)) {
+                return { ...u, hp: Math.min(u.maxHp, u.hp + GAME_RULES.units.healingAmount) };
+              }
+              return u;
+            })
+          };
+        }
+      }
+      break;
+      
+    case 'reconnaissance':
+      // Implement reconnaissance for scouts
+      if (unit.type === 'scout') {
+        const revealRadius = GAME_RULES.abilities.visionRevealRadius;
+        const tilesToReveal: string[] = [];
+        
+        // Generate coordinates around the unit
+        for (let q = -revealRadius; q <= revealRadius; q++) {
+          for (let r = -revealRadius; r <= revealRadius; r++) {
+            const s = -q - r;
+            if (Math.abs(q) <= revealRadius && Math.abs(r) <= revealRadius && Math.abs(s) <= revealRadius) {
+              const tileCoord = { q: unit.coordinate.q + q, r: unit.coordinate.r + r, s };
+              tilesToReveal.push(`${tileCoord.q},${tileCoord.r}`);
+            }
+          }
+        }
+        
+        return {
+          ...state,
+          players: state.players.map(p =>
+            p.id === playerId
+              ? { 
+                  ...p, 
+                  exploredTiles: [...p.exploredTiles, ...tilesToReveal.filter(tile => !p.exploredTiles.includes(tile))]
+                }
+              : p
+          )
+        };
+      }
+      break;
+      
+    default:
+      console.log(`Unit action ${actionType} not implemented yet`);
+      break;
+  }
+  
+  return state;
+}
+
 function handleUpgradeUnit(
   state: GameState,
   payload: { playerId: string; unitId: string; upgradeType?: 'attack' | 'defense' | 'movement' | 'vision' }

@@ -263,7 +263,7 @@ export function executeDivineProtection(
         : p
     ),
     units: state.units.map(unit => {
-      if (protectedUnits.some(protected => protected.id === unit.id)) {
+      if (protectedUnits.some(protectedUnit => protectedUnit.id === unit.id)) {
         return {
           ...unit,
           status: 'defending' as const, // Use defending status to indicate protection

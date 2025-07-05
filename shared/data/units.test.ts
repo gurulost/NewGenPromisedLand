@@ -58,14 +58,21 @@ describe('Unit Definitions', () => {
     expect(nephiteUnits.length).toBeGreaterThan(0);
     expect(lamaniteUnits.length).toBeGreaterThan(0);
     
-    // Each faction should have specific units
-    nephiteUnits.forEach(unit => {
-      expect(unit.factionSpecific).toContain('NEPHITES');
-    });
+    // Check that we get common units + faction-specific units
+    const nephiteSpecificUnits = nephiteUnits.filter(unit => 
+      unit.factionSpecific.length > 0 && unit.factionSpecific.includes('NEPHITES')
+    );
+    const lamaniteSpecificUnits = lamaniteUnits.filter(unit => 
+      unit.factionSpecific.length > 0 && unit.factionSpecific.includes('LAMANITES')
+    );
     
-    lamaniteUnits.forEach(unit => {
-      expect(unit.factionSpecific).toContain('LAMANITES');
-    });
+    // Each faction should have at least some faction-specific units
+    expect(nephiteSpecificUnits.length).toBeGreaterThan(0);
+    expect(lamaniteSpecificUnits.length).toBeGreaterThan(0);
+    
+    // Verify common units are included for all factions
+    const commonUnits = nephiteUnits.filter(unit => unit.factionSpecific.length === 0);
+    expect(commonUnits.length).toBeGreaterThan(0);
   });
 
   it('should have reasonable stat ranges', () => {

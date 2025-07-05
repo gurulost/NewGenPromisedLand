@@ -214,6 +214,7 @@ export const GameActionSchema = z.discriminatedUnion('type', [
     payload: z.object({
       unitId: z.string(),
       actionType: z.string(),
+      playerId: z.string(),
       target: z.union([
         HexCoordinateSchema,
         z.string(),

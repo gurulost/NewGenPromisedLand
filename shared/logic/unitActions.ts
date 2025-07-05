@@ -72,18 +72,19 @@ export function executeScoutAction(
   
   if (action === 'STEALTH' && unitDef.abilities.includes('STEALTH')) {
     // Toggle stealth mode - invisible to enemies unless adjacent
+    const newStatus = unit.status === 'defending' ? 'active' : 'defending';
     const newState = {
       ...state,
       units: state.units.map(u => 
         u.id === unit.id 
-          ? { ...u, status: (u.status === 'defending' ? 'active' : 'defending') as const }
+          ? { ...u, status: newStatus as 'active' | 'defending' }
           : u
       )
     };
     
     return {
       success: true,
-      message: unit.status === 'defending' ? "Scout revealed" : "Scout hidden",
+      message: newStatus === 'active' ? "Scout revealed" : "Scout hidden",
       newState,
       effects: { }
     };
