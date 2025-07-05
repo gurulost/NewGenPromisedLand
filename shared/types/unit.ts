@@ -2,14 +2,20 @@ import { z } from "zod";
 import { HexCoordinateSchema } from "./coordinates";
 
 export const UnitTypeSchema = z.enum([
+  // Common units (available to all factions)
   'warrior',
-  'stripling_warrior',
-  'royal_envoy',
-  'missionary',
-  'guard',
   'scout',
   'worker',
-  'commander'
+  'guard',
+  'commander',
+  
+  // Faction-specific special units
+  'stripling_warrior',      // Nephites
+  'missionary',             // Nephites, Anti-Nephi-Lehies
+  'royal_envoy',           // Mulekites, Zoramites
+  'wilderness_hunter',     // Lamanites
+  'ancient_giant',         // Jaredites
+  'peacekeeping_guard'     // Anti-Nephi-Lehies
 ]);
 
 export type UnitType = z.infer<typeof UnitTypeSchema>;
