@@ -9,6 +9,8 @@ import CombatPanel from "../ui/CombatPanel";
 import AbilitiesPanel from "../ui/AbilitiesPanel";
 import TechPanel from "../ui/TechPanel";
 import CityPanel from "../ui/CityPanel";
+import VictoryScreen from "../ui/VictoryScreen";
+import SaveLoadMenu from "../ui/SaveLoadMenu";
 
 export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit } = useLocalGame();
