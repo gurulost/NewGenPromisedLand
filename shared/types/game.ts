@@ -209,6 +209,19 @@ export const GameActionSchema = z.discriminatedUnion('type', [
       unitId: z.string(),
     }),
   }),
+  z.object({
+    type: z.literal('UNIT_ACTION'),
+    payload: z.object({
+      unitId: z.string(),
+      actionType: z.string(),
+      target: z.union([
+        HexCoordinateSchema,
+        z.string(),
+        z.object({ unitId: z.string() }),
+        z.object({ coordinate: HexCoordinateSchema }),
+      ]).optional(),
+    }),
+  }),
 ]);
 
 export type GameAction = z.infer<typeof GameActionSchema>;

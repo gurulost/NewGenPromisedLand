@@ -8,6 +8,8 @@ import { GAME_RULES, GameRuleHelpers } from "../data/gameRules";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "../types/city";
 import { ABILITIES, AbilityDefinition } from "../data/abilities";
 import { getFaction } from "../data/factions";
+import { executeUnitAction } from "./unitActions";
+import { executeAbility } from "./abilitySystem";
 
 // Tech Research Handler
 function handleResearchTech(
@@ -382,6 +384,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     
     case 'UPGRADE_UNIT':
       return handleUpgradeUnit(state, action.payload);
+    
+    case 'UNIT_ACTION':
+      return handleUnitAction(state, action.payload);
     
     default:
       return state;
