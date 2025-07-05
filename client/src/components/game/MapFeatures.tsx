@@ -1,6 +1,6 @@
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { hexToPixel } from "@shared/utils/hex";
-import { Box, Cylinder } from "@react-three/drei";
+import { Box, Cylinder, Sphere, Cone } from "@react-three/drei";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useMemo } from "react";
 import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
@@ -14,18 +14,18 @@ export default function MapFeatures() {
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
   
   // Memoize visible features to avoid recalculating on every render
-  const visibleFeatures = useMemo(() => {
-    if (!gameState || !currentPlayer) return [];
+  const { visibleCities, visibleTiles, exploredTiles } = useMemo(() => {
+    if (!gameState || !currentPlayer) return { visibleCities: [], visibleTiles: new Set(), exploredTiles: new Set() };
     
     // Calculate which tiles are explored or visible by current player
-    const exploredTiles = new Set<string>();
-    const visibleTiles = new Set<string>();
+    const explored = new Set<string>();
+    const visible = new Set<string>();
     
     // Add explored tiles
     gameState.map.tiles.forEach(tile => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
       if (tile.exploredBy.includes(currentPlayer.id)) {
-        exploredTiles.add(tileKey);
+        explored.add(tileKey);
       }
     });
     
@@ -46,21 +46,71 @@ export default function MapFeatures() {
         );
         
         // Add all visible tiles to the set
-        unitVisibleTiles.forEach((tileKey: string) => visibleTiles.add(tileKey));
+        unitVisibleTiles.forEach((tileKey: string) => visible.add(tileKey));
       });
     
     // Filter cities that are visible or explored
-    return gameState.cities?.filter(city => {
+    const cities = gameState.cities?.filter(city => {
       const cityKey = `${city.coordinate.q},${city.coordinate.r}`;
-      return exploredTiles.has(cityKey) || visibleTiles.has(cityKey);
+      return explored.has(cityKey) || visible.has(cityKey);
     }) || [];
+    
+    return { visibleCities: cities, visibleTiles: visible, exploredTiles: explored };
   }, [gameState, currentPlayer]);
+  
+  // Get visible tiles with resources and improvements
+  const visibleTilesWithFeatures = useMemo(() => {
+    if (!gameState) return [];
+    
+    return gameState.map.tiles.filter(tile => {
+      const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
+      const isVisible = visibleTiles.has(tileKey) || exploredTiles.has(tileKey);
+      const hasFeatures = tile.resources.length > 0; // Add improvements check when available
+      
+      return isVisible && hasFeatures;
+    });
+  }, [gameState, visibleTiles, exploredTiles]);
   
   if (!gameState) return null;
   
+  // Function to render resource models
+  const renderResource = (resource: string, position: { x: number; y: number }, key: string) => {
+    const y = 0.1; // Slight elevation above ground
+    
+    switch (resource) {
+      case 'food':
+        return (
+          <Sphere key={`food-${key}`} position={[position.x - 0.3, y, position.y]} args={[0.1]}>
+            <meshStandardMaterial color="#90EE90" /> {/* Light green */}
+          </Sphere>
+        );
+      case 'wood':
+        return (
+          <Cylinder key={`wood-${key}`} position={[position.x + 0.3, y + 0.1, position.y]} args={[0.05, 0.05, 0.2]} rotation={[0, 0, 0]}>
+            <meshStandardMaterial color="#8B4513" /> {/* Brown */}
+          </Cylinder>
+        );
+      case 'stone':
+        return (
+          <Box key={`stone-${key}`} position={[position.x, y, position.y - 0.3]} args={[0.15, 0.15, 0.15]}>
+            <meshStandardMaterial color="#696969" /> {/* Gray */}
+          </Box>
+        );
+      case 'gold':
+        return (
+          <Sphere key={`gold-${key}`} position={[position.x, y, position.y + 0.3]} args={[0.08]}>
+            <meshStandardMaterial color="#FFD700" /> {/* Gold */}
+          </Sphere>
+        );
+      default:
+        return null;
+    }
+  };
+  
   return (
     <group>
-      {visibleFeatures.map(city => {
+      {/* Render Cities */}
+      {visibleCities.map(city => {
         const position = hexToPixel(city.coordinate, 1);
         const isPlayerCity = city.ownerId === currentPlayer?.id;
         
@@ -95,6 +145,20 @@ export default function MapFeatures() {
                 color={isPlayerCity ? "#FF6347" : "#696969"} // Tomato red for player, gray for others
               />
             </Box>
+          </group>
+        );
+      })}
+      
+      {/* Render Resources on Tiles */}
+      {visibleTilesWithFeatures.map(tile => {
+        const position = hexToPixel(tile.coordinate, 1);
+        const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
+        
+        return (
+          <group key={`tile-features-${tileKey}`}>
+            {tile.resources.map((resource, index) => 
+              renderResource(resource, position, `${tileKey}-${index}`)
+            )}
           </group>
         );
       })}

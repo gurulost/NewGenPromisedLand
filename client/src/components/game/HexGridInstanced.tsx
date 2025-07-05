@@ -111,6 +111,15 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         // Cities are golden/yellow color
         baseColor = [0.9, 0.8, 0.2]; // Bright gold for cities
       }
+      // Check for resources on this tile and slightly modify color
+      else if (tile.resources.length > 0 && (fogState.visibility === 'visible' || fogState.visibility === 'explored')) {
+        // Enhance tile color to indicate resources are present
+        baseColor = [
+          Math.min(1.0, baseColor[0] * 1.2), // Brighten the existing color
+          Math.min(1.0, baseColor[1] * 1.2),
+          Math.min(1.0, baseColor[2] * 1.2)
+        ];
+      }
       
       if (fogState.visibility === 'visible') {
         // Visible: Full visibility of terrain and units
