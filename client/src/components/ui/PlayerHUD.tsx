@@ -2,9 +2,12 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Progress } from "./progress";
 import { Button } from "./button";
-import { Star, Book, Building } from "lucide-react";
-import type { PlayerState } from "@shared/types/game";
+import { Star, Book, Building, TrendingUp } from "lucide-react";
+import type { PlayerState, GameState } from "@shared/types/game";
 import type { Faction } from "@shared/types/faction";
+import { GAME_RULES, GameRuleHelpers } from "@shared/data/gameRules";
+import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
+import { useLocalGame } from "../../lib/stores/useLocalGame";
 
 interface PlayerHUDProps {
   player: PlayerState;
@@ -21,16 +24,69 @@ export default function PlayerHUD({
   onShowCityPanel, 
   onEndTurn 
 }: PlayerHUDProps) {
-  // Memoize expensive stat calculations
+  const { gameState } = useLocalGame();
+
+  // Memoize expensive stat calculations including star production
   const playerStats = useMemo(() => {
+    if (!gameState) return {
+      faithPercentage: player.stats.faith,
+      pridePercentage: player.stats.pride,
+      dissentPercentage: player.stats.internalDissent,
+      cityCount: player.citiesOwned.length,
+      techCount: player.researchedTechs.length,
+      starProduction: 0,
+      starProductionBreakdown: []
+    };
+
+    // Calculate total star production
+    const cityCount = player.citiesOwned.length;
+    let totalStarProduction = GameRuleHelpers.calculateStarIncome(cityCount);
+    
+    const breakdown: Array<{source: string, amount: number}> = [
+      { source: "Base", amount: GAME_RULES.resources.baseStarsPerTurn },
+      { source: `Cities (${cityCount})`, amount: cityCount * GAME_RULES.resources.starsPerCity }
+    ];
+
+    // Add improvements
+    const playerImprovements = gameState.improvements?.filter(imp => imp.ownerId === player.id) || [];
+    let improvementStars = 0;
+    playerImprovements.forEach(improvement => {
+      const improvementDef = IMPROVEMENT_DEFINITIONS[improvement.type as keyof typeof IMPROVEMENT_DEFINITIONS];
+      if (improvementDef && improvement.constructionTurns === 0) {
+        improvementStars += improvement.starProduction;
+        totalStarProduction += improvement.starProduction;
+      }
+    });
+    
+    if (improvementStars > 0) {
+      breakdown.push({ source: `Improvements (${playerImprovements.length})`, amount: improvementStars });
+    }
+
+    // Add structures
+    const playerStructures = gameState.structures?.filter(struct => struct.ownerId === player.id) || [];
+    let structureStars = 0;
+    playerStructures.forEach(structure => {
+      const structureDef = STRUCTURE_DEFINITIONS[structure.type as keyof typeof STRUCTURE_DEFINITIONS];
+      if (structureDef && structure.constructionTurns === 0) {
+        structureStars += structure.effects.starProduction;
+        totalStarProduction += structure.effects.starProduction;
+      }
+    });
+    
+    if (structureStars > 0) {
+      breakdown.push({ source: `Structures (${playerStructures.length})`, amount: structureStars });
+    }
+
     return {
       faithPercentage: player.stats.faith,
       pridePercentage: player.stats.pride,
       dissentPercentage: player.stats.internalDissent,
       cityCount: player.citiesOwned.length,
-      techCount: player.researchedTechs.length
+      techCount: player.researchedTechs.length,
+      starProduction: totalStarProduction,
+      starProductionBreakdown: breakdown
     };
-  }, [player.stats, player.citiesOwned.length, player.researchedTechs.length]);
+  }, [player, gameState]);
 
   // Memoize faction styling
   const factionStyle = useMemo(() => ({
@@ -51,14 +107,38 @@ export default function PlayerHUD({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-center justify-between text-white">
-            <div className="flex items-center gap-1">
-              <Star className="w-4 h-4 text-yellow-400" />
-              <span>{player.stars}</span>
+          {/* Star Resources with Production Info */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-white">
+              <div className="flex items-center gap-1">
+                <Star className="w-4 h-4 text-yellow-400" />
+                <span className="font-semibold">{player.stars}</span>
+              </div>
+              <div className="flex items-center gap-1 text-sm text-green-400">
+                <TrendingUp className="w-3 h-3" />
+                <span>+{playerStats.starProduction}/turn</span>
+              </div>
             </div>
-            <div className="text-sm text-gray-400">
-              Turn {/* This could be passed as a prop if needed */}
-            </div>
+            
+            {/* Star Production Breakdown - Expandable */}
+            <details className="group">
+              <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-300 flex items-center gap-1">
+                <span>Production breakdown</span>
+                <span className="transition-transform group-open:rotate-90">▶</span>
+              </summary>
+              <div className="mt-1 space-y-1 text-xs">
+                {playerStats.starProductionBreakdown.map((item, index) => (
+                  <div key={index} className="flex justify-between text-gray-300">
+                    <span>{item.source}:</span>
+                    <span className="text-yellow-400">+{item.amount}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between font-semibold text-white border-t border-gray-600 pt-1">
+                  <span>Total:</span>
+                  <span className="text-green-400">+{playerStats.starProduction}</span>
+                </div>
+              </div>
+            </details>
           </div>
           
           {/* Faith Progress */}
