@@ -1,0 +1,104 @@
+Of course. Here is a comprehensive guide you can give your developer to fix the rendering of cities, ruins, and other map features, making the system fully functional and scalable for the future.
+Developer Directions: Overhaul of Map Feature Rendering
+Hi [Developer Name],
+We've identified a critical bug where map features like our starting city and discoverable ruins are not being rendered. The game logic correctly places them on the map, but the client-side rendering code in HexGridInstanced.tsx is currently only drawing the base terrain.
+Our goal is to fix this and implement a robust system that can render any type of building or map feature, both now and in the future.
+The Core Problem
+The useMemo hook that generates tileInstanceData in HexGridInstanced.tsx only considers the tile.terrain property when determining a tile's appearance. It doesn't check for any buildings or other objects that might be on that tile.
+Step 1: The Quick Fix (Visible Cities and Ruins)
+First, let's get our existing features visible. This involves modifying the tile rendering loop to change the color of a tile if it contains a city or ruin.
+In client/src/components/game/HexGridInstanced.tsx:
+ * Access Building and Ruins Data: Make sure the gameState.buildings array is available within the component.
+ * Modify the Loop: Inside the useMemo hook for tileInstanceData, update the map.tiles.forEach loop. For each tile, check if a building or ruin exists at its coordinates.
+ * Apply Conditional Coloring: If a building is found, override the baseColor with a distinct color for that feature.
+Example Implementation:
+// In client/src/components/game/HexGridInstanced.tsx
+
+// ... inside the useMemo for tileInstanceData
+map.tiles.forEach((tile, index) => {
+    // ... existing pixelPos and fogState logic ...
+
+    // Check for a building on the tile
+    const buildingOnTile = gameState.buildings.find(b =>
+        b.coordinate.q === tile.coordinate.q && b.coordinate.r === tile.coordinate.r
+    );
+
+    let baseColor = getTerrainColor(tile.terrain);
+
+    // Override color based on the building type
+    if (buildingOnTile) {
+        switch (buildingOnTile.type) {
+            case 'CITY':
+                baseColor = [0.8, 0.8, 0.2]; // Gold for cities
+                break;
+            case 'RUIN':
+                baseColor = [0.5, 0.3, 0.7]; // Purple for ruins
+                break;
+            // Add other building types here in the future
+        }
+    }
+
+    // ... rest of the logic uses baseColor ...
+});
+
+This will solve the immediate problem and make your cities and ruins visible on the map.
+Step 2: The "Fully Functional" Solution (3D Models)
+While changing colors works, a truly functional system should render distinct 3D models for each feature. This will make the game look much more professional and is a more scalable approach.
+This involves separating the rendering of terrain and the rendering of objects on the terrain.
+ * Create a New Component for Map Objects: Create a new React component, for example, MapFeatures.tsx. This component will be responsible for rendering all buildings and other objects.
+ * Fetch and Render Models: Inside MapFeatures.tsx, you will:
+   * Iterate through gameState.buildings.
+   * For each building, load a corresponding 3D model (you can use simple placeholders like Box or Cylinder from @react-three/drei to start).
+   * Place the model at the correct hex coordinate on the map.
+   * Make sure to only render objects that are on tiles visible to the player (respecting the fog of war).
+ * Integrate into GameCanvas.tsx: Add your new <MapFeatures /> component inside the main <Canvas> in GameCanvas.tsx, alongside the existing <HexGridInstanced />.
+Example MapFeatures.tsx Component:
+// In a new file: client/src/components/game/MapFeatures.tsx
+
+import { useLocalGame } from "../../lib/stores/useLocalGame";
+import { hexToPixel } from "@shared/utils/hex";
+import { Box } from "@react-three/drei"; // Using a simple box as a placeholder
+
+export function MapFeatures() {
+  const { gameState } = useLocalGame();
+  
+  // You'll need access to the visibility map here as well
+  // For now, this example renders all buildings
+  
+  return (
+    <group>
+      {gameState.buildings.map(building => {
+        const position = hexToPixel(building.coordinate, 1);
+        
+        // Render a different model based on building type
+        if (building.type === 'CITY') {
+          return (
+            <Box
+              key={building.id}
+              position={[position.x, 0.5, position.y]} // Place it slightly above the hex
+              args={[0.8, 1, 0.8]} // Width, Height, Depth
+            >
+              <meshStandardMaterial color="gold" />
+            </Box>
+          );
+        }
+        
+        if (building.type === 'RUIN') {
+           return (
+            <Box
+              key={building.id}
+              position={[position.x, 0.3, position.y]}
+              args={[0.5, 0.5, 0.5]}
+            >
+              <meshStandardMaterial color="purple" />
+            </Box>
+          );
+        }
+        
+        return null;
+      })}
+    </group>
+  );
+}
+
+By following these two steps, you'll not only fix the immediate visibility bug but also establish a clean, scalable architecture for rendering all current and future map objects, making the game truly functional.

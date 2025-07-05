@@ -1,0 +1,103 @@
+import { useLocalGame } from "../../lib/stores/useLocalGame";
+import { hexToPixel } from "@shared/utils/hex";
+import { Box, Cylinder } from "@react-three/drei";
+import { useGameState } from "../../lib/stores/useGameState";
+import { useMemo } from "react";
+import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
+import { getUnitDefinition } from "@shared/data/units";
+
+export default function MapFeatures() {
+  const { gameState } = useLocalGame();
+  const { selectedUnit } = useGameState();
+  
+  // Get current player for visibility calculations
+  const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+  
+  // Memoize visible features to avoid recalculating on every render
+  const visibleFeatures = useMemo(() => {
+    if (!gameState || !currentPlayer) return [];
+    
+    // Calculate which tiles are explored or visible by current player
+    const exploredTiles = new Set<string>();
+    const visibleTiles = new Set<string>();
+    
+    // Add explored tiles
+    gameState.map.tiles.forEach(tile => {
+      const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
+      if (tile.exploredBy.includes(currentPlayer.id)) {
+        exploredTiles.add(tileKey);
+      }
+    });
+    
+    // Add currently visible tiles from units using proper line-of-sight
+    gameState.units
+      .filter(unit => unit.playerId === currentPlayer.id)
+      .forEach(unit => {
+        // Use unit's actual vision radius from definition
+        const unitDef = getUnitDefinition(unit.type);
+        const visionRadius = unitDef.baseStats.visionRadius;
+        
+        // Get visible tiles with line-of-sight calculations
+        const unitVisibleTiles = getVisibleTilesInRange(
+          unit.coordinate,
+          visionRadius,
+          gameState.map,
+          true // Enable shadow casting for performance
+        );
+        
+        // Add all visible tiles to the set
+        unitVisibleTiles.forEach((tileKey: string) => visibleTiles.add(tileKey));
+      });
+    
+    // Filter cities that are visible or explored
+    return gameState.cities?.filter(city => {
+      const cityKey = `${city.coordinate.q},${city.coordinate.r}`;
+      return exploredTiles.has(cityKey) || visibleTiles.has(cityKey);
+    }) || [];
+  }, [gameState, currentPlayer]);
+  
+  if (!gameState) return null;
+  
+  return (
+    <group>
+      {visibleFeatures.map(city => {
+        const position = hexToPixel(city.coordinate, 1);
+        const isPlayerCity = city.ownerId === currentPlayer?.id;
+        
+        return (
+          <group key={city.id}>
+            {/* City base - a cylinder for the city foundation */}
+            <Cylinder
+              position={[position.x, 0.15, position.y]}
+              args={[0.6, 0.8, 0.3, 8]} // radiusTop, radiusBottom, height, segments
+            >
+              <meshStandardMaterial 
+                color={isPlayerCity ? "#FFD700" : "#8B4513"} // Gold for player cities, brown for others
+              />
+            </Cylinder>
+            
+            {/* City tower/building */}
+            <Box
+              position={[position.x, 0.5, position.y]}
+              args={[0.5, 0.7, 0.5]} // width, height, depth
+            >
+              <meshStandardMaterial 
+                color={isPlayerCity ? "#FFA500" : "#A0522D"} // Orange for player cities, darker brown for others
+              />
+            </Box>
+            
+            {/* City flag/marker on top */}
+            <Box
+              position={[position.x, 0.9, position.y]}
+              args={[0.15, 0.3, 0.05]} // small flag
+            >
+              <meshStandardMaterial 
+                color={isPlayerCity ? "#FF6347" : "#696969"} // Tomato red for player, gray for others
+              />
+            </Box>
+          </group>
+        );
+      })}
+    </group>
+  );
+}

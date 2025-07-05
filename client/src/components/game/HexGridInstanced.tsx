@@ -100,7 +100,17 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       let textureId: number;
       
       // Apply three-tiered fog of war system
-      const baseColor = getTerrainColor(tile.terrain);
+      let baseColor = getTerrainColor(tile.terrain);
+      
+      // Check for cities on this tile and override color if found
+      const cityOnTile = gameState.cities?.find(city =>
+        city.coordinate.q === tile.coordinate.q && city.coordinate.r === tile.coordinate.r
+      );
+      
+      if (cityOnTile && (fogState.visibility === 'visible' || fogState.visibility === 'explored')) {
+        // Cities are golden/yellow color
+        baseColor = [0.9, 0.8, 0.2]; // Bright gold for cities
+      }
       
       if (fogState.visibility === 'visible') {
         // Visible: Full visibility of terrain and units

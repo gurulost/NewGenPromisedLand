@@ -6,6 +6,7 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { getVisibleUnits } from "@shared/logic/unitLogic";
 import HexGridInstanced from "./HexGridInstanced";
 import Unit from "./Unit";
+import MapFeatures from "./MapFeatures";
 import { useGameDebugger } from "../../utils/gameDebug";
 import { hexToPixel } from "@shared/utils/hex";
 import { gsap } from "gsap";
@@ -142,6 +143,9 @@ export default function GameCanvas() {
       
       {/* Grid - Using Instanced Rendering for Performance */}
       <HexGridInstanced map={gameState.map} />
+      
+      {/* Map Features - Cities, Ruins, and other structures */}
+      <MapFeatures />
       
       {/* Units - using centralized vision system */}
       {(() => {
