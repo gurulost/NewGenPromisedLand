@@ -47,6 +47,7 @@ export const UnitSchema = z.object({
   experience: z.number().default(0),
   visionRadius: z.number().default(2),
   attackRange: z.number().default(1),
+  hasAttacked: z.boolean().default(false),
 });
 
 export type Unit = z.infer<typeof UnitSchema>;

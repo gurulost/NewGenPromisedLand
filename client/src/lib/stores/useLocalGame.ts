@@ -173,6 +173,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
           experience: 0,
           visionRadius: 2,
           attackRange: 1,
+          hasAttacked: false,
         }
       ];
     });

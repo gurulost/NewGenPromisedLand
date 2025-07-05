@@ -321,7 +321,8 @@ function handleRecruitUnit(
     level: 1,
     experience: 0,
     visionRadius: unitDef.baseStats.visionRadius,
-    attackRange: unitDef.baseStats.attackRange
+    attackRange: unitDef.baseStats.attackRange,
+    hasAttacked: false
   };
   
   return {
@@ -501,6 +502,9 @@ function handleAttackUnit(
   // Prevent friendly fire - cannot attack units from the same player
   if (attacker.playerId === target.playerId) return state;
 
+  // Check if unit has already attacked this turn
+  if (attacker.hasAttacked) return state;
+
   // Check if units are within attack range
   const distance = hexDistance(attacker.coordinate, target.coordinate);
   if (distance > attacker.attackRange) return state;
@@ -544,9 +548,15 @@ function handleAttackUnit(
 
   console.log(`Combat: ${attacker.type} (${attackPower} attack) vs ${target.type} (${defensePower} defense) = ${damage} damage`);
 
-  let updatedUnits = state.units.map((u: Unit) => 
-    u.id === payload.targetId ? { ...u, hp: newHp } : u
-  );
+  let updatedUnits = state.units.map((u: Unit) => {
+    if (u.id === payload.targetId) {
+      return { ...u, hp: newHp };
+    }
+    if (u.id === payload.attackerId) {
+      return { ...u, hasAttacked: true };
+    }
+    return u;
+  });
 
   // Remove unit if killed
   if (newHp <= 0) {
@@ -747,10 +757,10 @@ function handleEndTurn(
     return player;
   });
 
-  // Reset movement for next player's units at start of their turn
+  // Reset movement and attack status for next player's units at start of their turn
   const updatedUnits = state.units.map((u: Unit) => 
     u.playerId === nextPlayer.id 
-      ? { ...u, remainingMovement: u.movement }
+      ? { ...u, remainingMovement: u.movement, hasAttacked: false }
       : u
   );
 
@@ -1255,9 +1265,9 @@ function handleDeclareWar(
 
 function handleFormAlliance(
   state: GameState,
-  payload: { playerId: string; allyPlayerId: string }
+  payload: { playerId: string; targetPlayerId: string }
 ): GameState {
-  const { playerId, allyPlayerId } = payload;
+  const { playerId, targetPlayerId: allyPlayerId } = payload;
   
   const player = state.players.find(p => p.id === playerId);
   const ally = state.players.find(p => p.id === allyPlayerId);
@@ -1355,9 +1365,9 @@ function handleConvertCity(
 
 function handleUpgradeUnit(
   state: GameState,
-  payload: { playerId: string; unitId: string; upgradeType: 'attack' | 'defense' | 'movement' | 'vision' }
+  payload: { playerId: string; unitId: string; upgradeType?: 'attack' | 'defense' | 'movement' | 'vision' }
 ): GameState {
-  const { playerId, unitId, upgradeType } = payload;
+  const { playerId, unitId, upgradeType = 'attack' } = payload;
   
   const player = state.players.find(p => p.id === playerId);
   if (!player) return state;
