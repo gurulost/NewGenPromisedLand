@@ -109,6 +109,57 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     abilities: ['FAITHFUL_DEFENSE', 'YOUNG_VIGOR'],
   },
 
+  spearman: {
+    type: 'spearman',
+    name: 'Spearman',
+    description: 'Bronze-armed warrior with extended reach and anti-cavalry capabilities',
+    baseStats: {
+      hp: 20,
+      attack: 7,
+      defense: 5,
+      movement: 3,
+      visionRadius: 2,
+      attackRange: 1,
+    },
+    cost: 12,
+    factionSpecific: [], // Available to ALL factions
+    abilities: ['ANTI_CAVALRY', 'FORMATION_FIGHTING'],
+  },
+
+  boat: {
+    type: 'boat',
+    name: 'Boat',
+    description: 'Simple watercraft for coastal exploration and transport',
+    baseStats: {
+      hp: 15,
+      attack: 3,
+      defense: 2,
+      movement: 4,
+      visionRadius: 3,
+      attackRange: 1,
+    },
+    cost: 8,
+    factionSpecific: [], // Available to ALL factions
+    abilities: ['NAVAL_TRANSPORT', 'COASTAL_EXPLORATION'],
+  },
+
+  catapult: {
+    type: 'catapult',
+    name: 'Catapult',
+    description: 'Siege weapon with long-range bombardment capabilities',
+    baseStats: {
+      hp: 12,
+      attack: 15,
+      defense: 2,
+      movement: 1,
+      visionRadius: 2,
+      attackRange: 3,
+    },
+    cost: 20,
+    factionSpecific: [], // Available to ALL factions
+    abilities: ['SIEGE_WEAPON', 'LONG_RANGE_BOMBARDMENT'],
+  },
+
   missionary: {
     type: 'missionary',
     name: 'Missionary',

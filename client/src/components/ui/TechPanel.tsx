@@ -15,23 +15,20 @@ interface TechPanelProps {
 
 // Define tech tree layout positions for visual connections
 const TECH_POSITIONS: Record<string, { x: number; y: number; tier: number }> = {
-  // Tier 1 - Starting techs
-  agriculture: { x: 1, y: 1, tier: 1 },
+  // Tier 1 - Starting techs (prerequisites: none)
+  organization: { x: 1, y: 1, tier: 1 },
   hunting: { x: 2, y: 1, tier: 1 },
-  mining: { x: 3, y: 1, tier: 1 },
+  spirituality: { x: 3, y: 1, tier: 1 },
   
   // Tier 2 - Early development
-  pottery: { x: 1, y: 2, tier: 2 },
-  animal_husbandry: { x: 2, y: 2, tier: 2 },
-  metalworking: { x: 3, y: 2, tier: 2 },
-  sailing: { x: 4, y: 2, tier: 2 },
+  agriculture: { x: 1, y: 2, tier: 2 },
+  bronze_working: { x: 1.5, y: 2, tier: 2 },
+  sailing: { x: 2, y: 2, tier: 2 },
+  priesthood: { x: 3, y: 2, tier: 2 },
   
   // Tier 3 - Advanced
   engineering: { x: 1, y: 3, tier: 3 },
-  navigation: { x: 2, y: 3, tier: 3 },
-  
-  // Religious techs distributed across tiers
-  temple_building: { x: 0, y: 2, tier: 2 },
+  philosophy: { x: 2, y: 3, tier: 3 },
 };
 
 type TechStatus = 'researched' | 'available' | 'locked' | 'researching';
@@ -217,7 +214,10 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
         <div className="flex-1 overflow-hidden relative">
           <div className="absolute inset-0 bg-gradient-to-br from-slate-900/50 via-transparent to-slate-800/30" />
           
-          <div className="relative w-full h-full overflow-auto p-8">
+          <div className="relative w-full h-full overflow-auto p-8 touch-pan-x touch-pan-y" style={{ 
+            WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-x pan-y'
+          }}>
             {/* Background Grid Pattern */}
             <div className="absolute inset-0 opacity-10">
               <svg className="w-full h-full">

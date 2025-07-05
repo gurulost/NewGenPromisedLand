@@ -117,6 +117,45 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
     type: 'unit',
     effect: 'AREA_BUFF',
   },
+
+  // Technology-unlocked abilities
+  blessing: {
+    id: 'blessing',
+    name: 'Blessing',
+    description: 'Provides divine protection and healing to allied units',
+    type: 'unit',
+    effect: 'DIVINE_HEALING',
+    requirements: { faith: 30 },
+  },
+
+  conversion: {
+    id: 'conversion',
+    name: 'Conversion',
+    description: 'Convert enemy units to your side through faith',
+    type: 'unit',
+    effect: 'CONVERT_ENEMY',
+    requirements: { faith: 50 },
+  },
+
+  divine_protection: {
+    id: 'divine_protection',
+    name: 'Divine Protection',
+    description: 'Grants temporary immunity to damage',
+    type: 'unit',
+    effect: 'DAMAGE_IMMUNITY',
+    duration: 2,
+    cooldown: 5,
+    requirements: { faith: 60 },
+  },
+
+  enlightenment: {
+    id: 'enlightenment',
+    name: 'Enlightenment',
+    description: 'Increases research speed and unlocks advanced technologies',
+    type: 'global',
+    effect: 'RESEARCH_BOOST',
+    requirements: { faith: 80 },
+  },
 };
 
 export const getAbility = (id: string): AbilityDefinition | undefined => {

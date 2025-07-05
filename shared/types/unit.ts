@@ -8,6 +8,9 @@ export const UnitTypeSchema = z.enum([
   'worker',
   'guard',
   'commander',
+  'spearman',
+  'boat',
+  'catapult',
   
   // Faction-specific special units
   'stripling_warrior',      // Nephites
