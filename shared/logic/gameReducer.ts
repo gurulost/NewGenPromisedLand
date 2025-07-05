@@ -412,17 +412,25 @@ function handleMoveUnit(
     return state;
   }
 
-  // Check if target tile is passable using data-driven terrain rules
+  // Check if target tile is passable using centralized logic
   const targetTile = state.map.tiles.find(tile => 
     tile.coordinate.q === payload.targetCoordinate.q &&
     tile.coordinate.r === payload.targetCoordinate.r
   );
   
   console.log('Target tile:', targetTile);
-  if (!targetTile || GAME_RULES.terrain.impassableTypes.includes(targetTile.terrain)) {
-    console.log('Target tile is not passable');
+  if (!targetTile) {
+    console.log('Target tile not found');
     return state;
   }
+
+  // Check basic terrain passability
+  if (GAME_RULES.terrain.impassableTypes.includes(targetTile.terrain)) {
+    console.log('Target tile terrain is impassable');
+    return state;
+  }
+  
+  // Allow units to move and explore - no additional blocking logic needed
 
   // Update unit position and movement
   const updatedUnits = state.units.map((u: Unit) => 

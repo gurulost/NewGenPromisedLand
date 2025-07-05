@@ -29,8 +29,8 @@ export function isPassableForUnit(
   
   if (isImpassable || movementCost === undefined) return false;
   
-  // Check if tile is explored by the unit's player
-  if (unit && !tile.exploredBy.includes(unit.playerId)) return false;
+  // Allow movement to unexplored tiles (units can explore new areas)
+  // Units should be able to move to and explore adjacent unexplored tiles
   
   // Check for units on the target tile
   const unitOnTile = gameState.units.find(u => 
@@ -42,7 +42,8 @@ export function isPassableForUnit(
   if (unitOnTile) {
     // Can't move to tiles with enemy units
     if (unit && unitOnTile.playerId !== unit.playerId) return false;
-    // Can move through tiles with friendly units
+    // Allow friendly units to stack on the same tile
+    // This is common in many strategy games for tactical positioning
   }
   
   // Additional unit-specific checks could be added here
