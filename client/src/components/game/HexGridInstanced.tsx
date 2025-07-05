@@ -191,17 +191,38 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         uniform sampler2D grassTexture;
         uniform sampler2D sandTexture;
         uniform sampler2D woodTexture;
+        uniform float time;
         
         varying vec3 vColor;
         varying float vOpacity;
         varying float vTextureId;
         varying vec2 vUv;
         
+        // Cloud noise function for beautiful fog of war
+        float noise(vec2 p) {
+          return sin(p.x * 10.0 + time * 0.5) * sin(p.y * 10.0 + time * 0.3) * 0.5 + 0.5;
+        }
+        
+        float fbm(vec2 p) {
+          float value = 0.0;
+          float amplitude = 0.5;
+          float frequency = 1.0;
+          
+          for(int i = 0; i < 4; i++) {
+            value += amplitude * noise(p * frequency);
+            amplitude *= 0.5;
+            frequency *= 2.0;
+            p = p * 2.0 + vec2(time * 0.1, time * 0.05);
+          }
+          
+          return value;
+        }
+        
         void main() {
           vec3 texColor = vColor;
           
-          // Apply texture if textureId is valid
-          if (vTextureId > 0.5) {
+          // Apply texture if textureId is valid (for visible/explored tiles)
+          if (vTextureId > 0.5 && vOpacity > 0.1) {
             vec3 textureColor = vec3(1.0);
             
             if (vTextureId < 1.5) {
@@ -216,23 +237,61 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             texColor = mix(texColor, texColor * textureColor, vOpacity);
           }
           
-          // Add subtle fog overlay for explored but not visible tiles
-          if (vOpacity < 1.0 && vOpacity > 0.2) {
+          // Create beautiful cloud-like fog for unexplored areas
+          if (vOpacity < 0.1) {
+            // Generate animated cloud patterns
+            vec2 cloudUv = vUv * 3.0 + vec2(time * 0.02, time * 0.01);
+            float cloudPattern1 = fbm(cloudUv);
+            float cloudPattern2 = fbm(cloudUv * 1.5 + vec2(1.7, 9.2));
+            float cloudPattern3 = fbm(cloudUv * 0.5 + vec2(8.3, 2.8));
+            
+            // Combine patterns for rich cloud texture
+            float clouds = (cloudPattern1 + cloudPattern2 * 0.7 + cloudPattern3 * 0.4) / 2.1;
+            clouds = smoothstep(0.3, 0.8, clouds);
+            
+            // Beautiful cloud colors - soft blues, whites, and grays
+            vec3 cloudColor1 = vec3(0.85, 0.9, 0.95);  // Light blue-white
+            vec3 cloudColor2 = vec3(0.7, 0.8, 0.9);   // Soft blue
+            vec3 cloudColor3 = vec3(0.9, 0.95, 1.0);  // Pure white
+            
+            // Mix cloud colors based on noise
+            vec3 finalCloudColor = mix(cloudColor2, cloudColor1, cloudPattern1);
+            finalCloudColor = mix(finalCloudColor, cloudColor3, cloudPattern3 * 0.6);
+            
+            // Add depth and movement to clouds
+            float cloudDensity = clouds * (0.8 + 0.2 * sin(time * 0.3 + vUv.x * 5.0));
+            
+            texColor = finalCloudColor;
+            gl_FragColor = vec4(texColor, cloudDensity * 0.9);
+          }
+          // Explored but not visible tiles - subtle fog
+          else if (vOpacity < 1.0 && vOpacity > 0.2) {
             // Add a subtle blue-gray tint to indicate fog of war
             vec3 fogColor = vec3(0.4, 0.5, 0.6);
             texColor = mix(texColor, fogColor, 0.15);
+            gl_FragColor = vec4(texColor, vOpacity);
           }
-          
-          gl_FragColor = vec4(texColor, vOpacity);
+          // Fully visible tiles
+          else {
+            gl_FragColor = vec4(texColor, vOpacity);
+          }
         }
       `,
       uniforms: {
         grassTexture: { value: grassTexture },
         sandTexture: { value: sandTexture },
-        woodTexture: { value: woodTexture }
+        woodTexture: { value: woodTexture },
+        time: { value: 0.0 }
       }
     });
   }, [grassTexture, sandTexture, woodTexture]);
+
+  // Animate the cloud fog of war
+  useFrame((state) => {
+    if (shaderMaterial) {
+      shaderMaterial.uniforms.time.value = state.clock.elapsedTime;
+    }
+  });
 
   // Update instance attributes when tile data changes
   useEffect(() => {
