@@ -76,7 +76,7 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
       gameState: gameState,
       metadata: {
         currentPlayer: currentPlayer.name,
-        turn: gameState.currentTurn || 1,
+        turn: gameState.turn || 1,
         playerCount: gameState.players.length,
         mapSize: `${gameState.map.width}x${gameState.map.height}`
       }

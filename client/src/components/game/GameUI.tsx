@@ -13,12 +13,13 @@ import VictoryScreen from "../ui/VictoryScreen";
 import SaveLoadMenu from "../ui/SaveLoadMenu";
 
 export default function GameUI() {
-  const { gameState, endTurn, useAbility, attackUnit } = useLocalGame();
+  const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame } = useLocalGame();
   const { selectedUnit, setSelectedUnit } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
+  const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
 
   if (!gameState) return null;
 
@@ -50,6 +51,45 @@ export default function GameUI() {
     );
     return unsubscribe;
   }, [subscribeKeys, selectedUnit, setSelectedUnit]);
+
+  // Save/Load keyboard shortcut
+  useEffect(() => {
+    const unsubscribe = subscribeKeys(
+      (state) => state.save,
+      (pressed) => {
+        if (pressed) {
+          setShowSaveLoadMenu(true);
+        }
+      }
+    );
+    return unsubscribe;
+  }, [subscribeKeys]);
+
+  // Check for victory conditions
+  useEffect(() => {
+    if (gameState?.winner) {
+      // Victory screen will be shown
+      return;
+    }
+    
+    // Check faith victory
+    const faithWinner = gameState?.players.find(p => p.stats.faith >= 100);
+    if (faithWinner) {
+      // Set winner and trigger victory screen
+      const updatedState = { ...gameState, winner: faithWinner.id };
+      // This would ideally be handled by the game reducer
+      return;
+    }
+    
+    // Check elimination victory
+    const activePlayers = gameState?.players.filter(p => !p.isEliminated);
+    if (activePlayers && activePlayers.length === 1) {
+      // Set winner and trigger victory screen
+      const updatedState = { ...gameState, winner: activePlayers[0].id };
+      // This would ideally be handled by the game reducer
+      return;
+    }
+  }, [gameState]);
 
   const handleEndTurn = () => {
     endTurn(currentPlayer.id);
@@ -117,6 +157,29 @@ export default function GameUI() {
           open={showCityPanel}
           onClose={() => setShowCityPanel(false)}
           cityId={selectedCityId as string}
+        />
+      )}
+
+      {/* Victory Screen */}
+      {gameState?.winner && (
+        <VictoryScreen
+          winnerId={gameState.winner}
+          victoryType="faith" // This would be determined by victory conditions
+          onPlayAgain={() => {
+            resetGame();
+            setGamePhase('menu');
+          }}
+          onMainMenu={() => {
+            resetGame();
+            setGamePhase('menu');
+          }}
+        />
+      )}
+
+      {/* Save/Load Menu */}
+      {showSaveLoadMenu && (
+        <SaveLoadMenu
+          onClose={() => setShowSaveLoadMenu(false)}
         />
       )}
     </div>

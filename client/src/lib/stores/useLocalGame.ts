@@ -14,6 +14,7 @@ interface LocalGameStore {
   gameState: GameState | null;
   
   setGamePhase: (phase: GamePhase) => void;
+  setGameState: (state: GameState | null) => void;
   startLocalGame: (playerSetup: Array<{
     id: string;
     name: string;
@@ -36,6 +37,11 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     gameDebugger.trackGamePhase(phase);
     gameDebugger.logUIInteraction(`Game phase changed to: ${phase}`, { phase });
     set({ gamePhase: phase });
+  },
+  
+  setGameState: (state) => {
+    gameDebugger.logUIInteraction(`Game state updated`, { hasState: !!state });
+    set({ gameState: state });
   },
   
   startLocalGame: (playerSetup, mapSize = 'normal') => {

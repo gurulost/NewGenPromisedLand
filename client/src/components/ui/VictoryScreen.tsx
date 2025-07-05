@@ -75,7 +75,7 @@ export default function VictoryScreen({
   };
 
   const getFinalStats = () => {
-    const totalTurns = gameState.currentTurn;
+    const totalTurns = gameState.turn;
     const citiesControlled = winner.citiesOwned.length;
     const unitsRemaining = gameState.units.filter(u => u.playerId === winnerId).length;
     const techsResearched = winner.researchedTechs.length;
