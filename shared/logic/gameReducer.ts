@@ -1039,7 +1039,7 @@ function handleEndTurn(
       const resetUnit = { 
         ...u, 
         hasAttacked: false, 
-        remainingMovement: getUnitDefinition(u.type).baseStats.movement 
+        remainingMovement: u.movement 
       };
       
       // Clear temporary status effects (keep permanent ones like formation/siege)
@@ -1325,7 +1325,7 @@ function handleApplyStealth(
   
   const updatedUnits = state.units.map(u => 
     u.id === unitId 
-      ? { ...u, status: 'stealthed', hasAttacked: true }
+      ? { ...u, status: 'stealthed' as const, hasAttacked: true }
       : u
   );
   
@@ -1352,7 +1352,7 @@ function handleReconnaissance(
   const player = state.players.find(p => p.id === playerId);
   if (!player) return state;
   
-  const newVisibleTiles = [];
+  const newVisibleTiles: string[] = [];
   for (let q = unit.coordinate.q - reconRadius; q <= unit.coordinate.q + reconRadius; q++) {
     for (let r = unit.coordinate.r - reconRadius; r <= unit.coordinate.r + reconRadius; r++) {
       const s = -q - r;
@@ -1399,7 +1399,7 @@ function handleFormationFighting(
   // Apply formation bonus - this is passive, just mark the unit as having used the action
   const updatedUnits = state.units.map(u => 
     u.id === unitId 
-      ? { ...u, status: 'formation', hasAttacked: true }
+      ? { ...u, status: 'formation' as const, hasAttacked: true }
       : u
   );
   
@@ -1423,7 +1423,7 @@ function handleSiegeMode(
   
   const updatedUnits = state.units.map(u => 
     u.id === unitId 
-      ? { ...u, status: 'siege_mode', hasAttacked: true }
+      ? { ...u, status: 'siege_mode' as const, hasAttacked: true }
       : u
   );
   
@@ -1455,7 +1455,7 @@ function handleRallyTroops(
       const distance = hexDistance(unit.coordinate, u.coordinate);
       if (distance <= rallyRadius) {
         // Temporarily boost attack for nearby units
-        return { ...u, status: 'rallied' };
+        return { ...u, status: 'rallied' as const };
       }
     }
     return u;
