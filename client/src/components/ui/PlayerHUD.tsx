@@ -124,13 +124,12 @@ export default function PlayerHUD({
           {/* Star Resources with Production Info */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-white">
-              <Tooltip content={<StarProductionTooltip />}>
-                <div className="flex items-center gap-1 cursor-help">
-                  <Star className="w-4 h-4 text-yellow-400" />
-                  <span className="font-semibold">{player.stars}</span>
-                  <Info className="w-3 h-3 text-gray-400 opacity-60" />
-                </div>
-              </Tooltip>
+              <div className="flex items-center gap-1 relative">
+                <Star className="w-4 h-4 text-yellow-400" />
+                <span className="font-semibold">{player.stars}</span>
+                <Info className="w-3 h-3 text-gray-400 opacity-60" />
+                <InfoTooltip content={<StarProductionTooltip />} />
+              </div>
               <div className="flex items-center gap-1 text-sm text-green-400">
                 <TrendingUp className="w-3 h-3" />
                 <span>+{playerStats.starProduction}/turn</span>
@@ -161,12 +160,13 @@ export default function PlayerHUD({
           {/* Faith Progress */}
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <Tooltip content={<FaithSystemTooltip />}>
-                <span className="text-blue-300 font-cinzel font-medium cursor-help flex items-center gap-1">
+              <div className="relative">
+                <span className="text-blue-300 font-cinzel font-medium flex items-center gap-1">
                   Faith
                   <Info className="w-3 h-3 text-gray-400 opacity-60" />
                 </span>
-              </Tooltip>
+                <InfoTooltip content={<FaithSystemTooltip />} />
+              </div>
               <span className="text-white font-body font-medium">{player.stats.faith}/100</span>
             </div>
             <Progress value={player.stats.faith} className="h-2" />
@@ -175,12 +175,13 @@ export default function PlayerHUD({
           {/* Pride Progress */}
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <Tooltip content={<PrideSystemTooltip />}>
-                <span className="text-purple-300 font-cinzel font-medium cursor-help flex items-center gap-1">
+              <div className="relative">
+                <span className="text-purple-300 font-cinzel font-medium flex items-center gap-1">
                   Pride
                   <Info className="w-3 h-3 text-gray-400 opacity-60" />
                 </span>
-              </Tooltip>
+                <InfoTooltip content={<PrideSystemTooltip />} />
+              </div>
               <span className="text-white font-body font-medium">{player.stats.pride}/100</span>
             </div>
             <Progress value={player.stats.pride} className="h-2" />
@@ -198,7 +199,7 @@ export default function PlayerHUD({
           {/* Action Buttons */}
           <div className="space-y-2">
             <div className="flex gap-2">
-              <Tooltip content={<TechnologyTooltip />}>
+              <div className="relative">
                 <Button
                   variant="outline"
                   size="sm"
@@ -208,7 +209,8 @@ export default function PlayerHUD({
                   <Book className="w-4 h-4 mr-1" />
                   Research
                 </Button>
-              </Tooltip>
+                <InfoTooltip content={<TechnologyTooltip />} />
+              </div>
               
               <Button
                 variant="outline"
