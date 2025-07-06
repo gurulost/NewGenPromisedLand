@@ -6,7 +6,7 @@ import { getFaction } from "@shared/data/factions";
 import PlayerHUD from "../ui/PlayerHUD";
 import SelectedUnitPanel from "../ui/SelectedUnitPanel";
 import CombatPanel from "../ui/CombatPanel";
-import AbilitiesPanel from "../ui/AbilitiesPanel";
+import { AbilitiesPanel } from "../ui/AbilitiesPanel";
 import TechPanel from "../ui/TechPanel";
 import CityPanel from "../ui/CityPanel";
 import VictoryScreen from "../ui/VictoryScreen";
@@ -15,6 +15,7 @@ import { TurnTransition, useTurnTransition } from "../ui/TurnTransition";
 import { SaveSystem } from "../ui/SaveSystem";
 import { UnitSelectionUI } from "../effects/UnitSelection";
 import { Tooltip, ActionTooltip } from "../ui/TooltipSystem";
+import type { Unit } from "@shared/types/unit";
 
 export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
@@ -25,6 +26,7 @@ export default function GameUI() {
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
   const [showAdvancedSaveSystem, setShowAdvancedSaveSystem] = useState(false);
+  const [hoveredEnemy, setHoveredEnemy] = useState<Unit | null>(null);
 
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
@@ -121,6 +123,20 @@ export default function GameUI() {
     useAbility(currentPlayer.id, abilityId);
   };
 
+  const handleActivateAbility = (abilityId: string, targetId?: string) => {
+    // Dispatch the faction ability action
+    const action = {
+      type: 'ACTIVATE_FACTION_ABILITY' as const,
+      payload: {
+        playerId: currentPlayer.id,
+        abilityId,
+        targetId
+      }
+    };
+    // This would typically be handled by the game store
+    console.log('Activating ability:', action);
+  };
+
   const handleAttackUnit = (attackerId: string, targetId: string) => {
     attackUnit(attackerId, targetId);
   };
@@ -194,15 +210,18 @@ export default function GameUI() {
           selectedUnit={selectedUnit}
           gameState={gameState}
           onAttackUnit={handleAttackUnit}
+          hoveredEnemy={hoveredEnemy}
         />
       )}
 
       {/* Faction Abilities Panel */}
-      <AbilitiesPanel
-        player={currentPlayer}
-        faction={faction}
-        onUseAbility={handleUseAbility}
-      />
+      <div className="absolute top-20 left-4 pointer-events-auto">
+        <AbilitiesPanel
+          currentPlayer={currentPlayer}
+          gameState={gameState}
+          onActivateAbility={handleActivateAbility}
+        />
+      </div>
 
       {/* Tech Panel Modal */}
       <TechPanel

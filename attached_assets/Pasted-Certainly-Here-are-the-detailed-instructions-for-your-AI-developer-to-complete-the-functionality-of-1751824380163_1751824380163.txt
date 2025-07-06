@@ -1,0 +1,72 @@
+Certainly. Here are the detailed instructions for your AI developer to complete the functionality of the core UI panels.
+
+### **Objective: Build Fully Functional and Interactive UI Panels**
+
+The game's user interface, managed by `GameUI.tsx`, relies on several panels like `CombatPanel` and `AbilitiesPanel` that are currently placeholders. The goal is to implement their full functionality, making them dynamic, informative, and a core part of the player's interactive experience.
+
+---
+
+### **Guiding Principle: State-Driven UI**
+
+Before diving into specific panels, remember this key principle: **The UI is a reflection of the game state.** Panels should not contain complex game logic. They should receive data from the central game state (`useGame` store) and dispatch well-defined actions to the `gameReducer.ts`. `GameUI.tsx` will act as the orchestrator, deciding which panels to display based on the current context (e.g., what unit is selected).
+
+---
+
+### **1. Implementing the `CombatPanel.tsx`**
+
+The `CombatPanel` must provide players with a clear and accurate preview of the outcome of a potential battle *before* they commit to an attack.
+
+#### **Implementation Steps:**
+
+1.  **Create a Combat Preview Function:**
+    * The frontend should not calculate combat outcomes itself. Create a dedicated, non-mutating function, perhaps in `shared/logic/combatSystem.ts` or a new `shared/logic/combatPreview.ts`.
+    * This function, let's call it `getCombatPreview`, will take the `attacker` unit and `defender` unit as arguments.
+    * It should run through the full combat calculation—including terrain bonuses, unit stats, and any modifiers—and return a *preview object*.
+    * **Preview Object Example:** `{ attackerDamage: 15, defenderDamage: 8, attackerHealthAfter: 85, defenderHealthAfter: 2, odds: 'Favorable' }`
+
+2.  **Triggering the Combat Preview:**
+    * In `GameCanvas.tsx` or `GameUI.tsx`, detect when a player has a unit selected and then hovers their mouse over a valid enemy target.
+    * When this happens, call the `getCombatPreview` function with the selected unit and the hovered-over enemy.
+    * Store the resulting preview object in the component's state (e.g., `useState<CombatPreview | null>`).
+
+3.  **Updating `CombatPanel.tsx`:**
+    * Pass the combat preview object as a prop to the `CombatPanel`.
+    * The panel should only render if the preview object is not null.
+    * Inside the panel, display the data clearly:
+        * Show portraits and names for both the attacker and the defender.
+        * Display "Expected Damage" to both units.
+        * Use health bars or text to show the "Predicted Health" of each unit *after* the battle.
+        * Crucially, list any active combat modifiers (e.g., "+2 Defense from Forest," "-1 Attack from low health") so the player understands *why* the outcome is what it is.
+
+---
+
+### **2. Implementing the `AbilitiesPanel.tsx`**
+
+The `AbilitiesPanel` is the player's interface for using their faction's unique, game-altering powers. It needs to be more than a static list.
+
+#### **Implementation Steps:**
+
+1.  **Make it Data-Driven:**
+    * The `AbilitiesPanel` should be driven by the active player's faction data from `shared/data/factions.ts` and the player's current resource count from the game state.
+    * It should dynamically list the abilities available to the player's chosen faction.
+
+2.  **Display and Cost:**
+    * For each ability, the panel should clearly display:
+        * Its name and a description of its effect (use the `Tooltip` or `HoverCard` components for this).
+        * The "star" cost to activate it.
+        * Its current status (Ready, On Cooldown).
+
+3.  **Implement Interactivity and Validation:**
+    * An ability's button should be **disabled** if the player cannot afford the resource cost or if the ability is on cooldown.
+    * Some abilities may require a target (e.g., "select a city," "select a unit"). When the player clicks such an ability:
+        * The panel should enter a "targeting mode."
+        * It should display instructional text like, "Select a target for [Ability Name]."
+        * The main game view should highlight valid targets.
+    * Once a valid target is selected, the action can be dispatched.
+
+4.  **Dispatch Actions to the Reducer:**
+    * When an ability is successfully activated, dispatch a specific action to the `gameReducer.ts`, such as `ACTIVATE_FACTION_ABILITY`.
+    * The payload should include the `abilityId` and any `targetId` (if required).
+    * The reducer will then be responsible for applying the ability's effects to the game state (e.g., adding resources, applying status effects to units, etc.) and tracking its cooldown.
+
+By following these instructions, your developer can transform these static UI elements into core components of a dynamic and engaging user experience.
