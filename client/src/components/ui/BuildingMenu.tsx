@@ -23,7 +23,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { City, GameState, PlayerState } from '../../../shared/types/game';
-import { Tooltip, ActionTooltip, StarProductionTooltip, FaithSystemTooltip, PrideSystemTooltip, DissentTooltip } from './TooltipSystem';
+import { InfoTooltip, ActionTooltip } from './TooltipSystem';
 import { BuildingMenuBackground } from './AnimatedBackground';
 import { PrimaryButton, SuccessButton, GhostButton } from './EnhancedButton';
 import { getUnitDefinition, UNIT_DEFINITIONS } from '@shared/data/units';

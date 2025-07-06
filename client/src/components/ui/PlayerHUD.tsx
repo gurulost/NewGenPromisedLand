@@ -8,7 +8,7 @@ import type { Faction } from "@shared/types/faction";
 import { GAME_RULES, GameRuleHelpers } from "@shared/data/gameRules";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
-import { Tooltip, StarProductionTooltip, FaithSystemTooltip, PrideSystemTooltip, TechnologyTooltip } from "./TooltipSystem";
+import { InfoTooltip, StarProductionTooltip, FaithSystemTooltip, PrideSystemTooltip, TechnologyTooltip } from "./TooltipSystem";
 
 interface PlayerHUDProps {
   player: PlayerState;
