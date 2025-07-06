@@ -380,6 +380,80 @@ function handleCaptureCity(
   };
 }
 
+// Capture Village Handler
+function handleCaptureVillage(
+  state: GameState,
+  payload: { unitId: string; playerId: string }
+): GameState {
+  const { unitId, playerId } = payload;
+  
+  // Find the unit attempting to capture
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+  
+  // Find the village tile at the unit's current position
+  const villageTile = state.map.tiles.find(tile => 
+    tile.coordinate.q === unit.coordinate.q &&
+    tile.coordinate.r === unit.coordinate.r &&
+    tile.feature === 'village'
+  );
+  
+  if (!villageTile) return state;
+  
+  // Check if village is already captured by this player
+  if (villageTile.cityOwner === playerId) return state;
+  
+  // Find the player
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+  
+  // Capture the village - update tile ownership and give rewards
+  const updatedMapTiles = state.map.tiles.map(tile => {
+    if (tile.coordinate.q === unit.coordinate.q && 
+        tile.coordinate.r === unit.coordinate.r && 
+        tile.feature === 'village') {
+      return {
+        ...tile,
+        cityOwner: playerId,
+        exploredBy: tile.exploredBy.includes(playerId) ? tile.exploredBy : [...tile.exploredBy, playerId]
+      };
+    }
+    return tile;
+  });
+  
+  // Give rewards to the player (stars and possibly tech boost)
+  const VILLAGE_STAR_REWARD = 5;
+  const VILLAGE_TECH_BOOST = 1;
+  
+  const updatedPlayers = state.players.map(p => {
+    if (p.id === playerId) {
+      return {
+        ...p,
+        stars: p.stars + VILLAGE_STAR_REWARD,
+        researchProgress: p.researchProgress + VILLAGE_TECH_BOOST
+      };
+    }
+    return p;
+  });
+  
+  // Exhaust the unit after capturing
+  const updatedUnits = state.units.map(u => 
+    u.id === unitId 
+      ? { ...u, remainingMovement: 0, hasAttacked: true }
+      : u
+  );
+  
+  return {
+    ...state,
+    map: {
+      ...state.map,
+      tiles: updatedMapTiles
+    },
+    players: updatedPlayers,
+    units: updatedUnits
+  };
+}
+
 // Recruit Unit Handler
 function handleRecruitUnit(
   state: GameState,
@@ -487,6 +561,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     
     case 'CAPTURE_CITY':
       return handleCaptureCity(state, action.payload);
+    
+    case 'CAPTURE_VILLAGE':
+      return handleCaptureVillage(state, action.payload);
     
     case 'RECRUIT_UNIT':
       return handleRecruitUnit(state, action.payload);
