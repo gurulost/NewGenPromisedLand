@@ -124,6 +124,25 @@ export default function GameUI() {
     attackUnit(attackerId, targetId);
   };
 
+  const handleUnitAction = (action: string) => {
+    if (!selectedUnit) return;
+    
+    switch (action) {
+      case 'attack':
+        // Enter attack mode - show attack indicators
+        console.log('Attack mode activated');
+        break;
+      case 'move':
+        // Enter move mode - show movement indicators  
+        console.log('Move mode activated');
+        break;
+      case 'ability':
+        // Use unit ability
+        console.log('Using unit ability');
+        break;
+    }
+  };
+
   const handleShowCityPanel = () => {
     const playerCity = gameState.cities?.find(city => 
       currentPlayer.citiesOwned.includes(city.id)
@@ -226,10 +245,7 @@ export default function GameUI() {
       {/* Enhanced Unit Selection UI */}
       <UnitSelectionUI
         selectedUnit={selectedUnit}
-        onUnitAction={(action) => {
-          console.log(`Unit action: ${action}`);
-          // Handle unit actions (move, attack, ability)
-        }}
+        onUnitAction={handleUnitAction}
       />
 
       {/* Tooltips for UI Elements */}

@@ -201,7 +201,7 @@ export function UnitSelectionUI({
 
   return (
     <motion.div
-      className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40"
+      className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 pointer-events-auto"
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 100, opacity: 0 }}
@@ -220,8 +220,8 @@ export function UnitSelectionUI({
               {selectedUnit.type} 
             </h3>
             <div className="flex gap-4 text-sm text-slate-300">
-              <span>❤️ {selectedUnit.hp}/{selectedUnit.maxHp}</span>
-              <span>🏃 {selectedUnit.remainingMovement}/{selectedUnit.movement}</span>
+              <span>❤️ {selectedUnit.currentHp || selectedUnit.hp}/{selectedUnit.maxHp}</span>
+              <span>🏃 {selectedUnit.currentMovement || selectedUnit.remainingMovement}/{selectedUnit.maxMovement || selectedUnit.movement}</span>
             </div>
           </div>
 
@@ -239,7 +239,7 @@ export function UnitSelectionUI({
               label="Move"
               hotkey="M"
               onClick={() => onUnitAction('move')}
-              disabled={selectedUnit.remainingMovement === 0}
+              disabled={(selectedUnit.currentMovement || selectedUnit.remainingMovement || 0) === 0}
             />
             <ActionButton
               icon="⚡"
