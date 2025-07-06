@@ -54,18 +54,38 @@ export function isPassableForUnit(
 
 /**
  * Calculates all tiles reachable by a unit within its movement range
+ * Support both old (unit, gameState) and new (gameState, coordinate, movementRange) signatures
  */
 export function calculateReachableTiles(
-  unit: Unit,
-  gameState: GameState
+  unitOrGameState: Unit | GameState,
+  gameStateOrCoordinate: GameState | HexCoordinate,
+  movementRange?: number
 ): HexCoordinate[] {
+  // Handle both function signatures for backward compatibility
+  let gameState: GameState;
+  let coordinate: HexCoordinate;
+  let movement: number;
+  
+  if ('units' in unitOrGameState) {
+    // New signature: (gameState, coordinate, movementRange)
+    gameState = unitOrGameState;
+    coordinate = gameStateOrCoordinate as HexCoordinate;
+    movement = movementRange || 0;
+  } else {
+    // Old signature: (unit, gameState)
+    const unit = unitOrGameState as Unit;
+    gameState = gameStateOrCoordinate as GameState;
+    coordinate = unit.coordinate;
+    movement = unit.remainingMovement;
+  }
+  
   const isPassable = (coord: HexCoordinate): boolean => {
-    return isPassableForUnit(coord, gameState, unit);
+    return isPassableForUnit(coord, gameState);
   };
   
   return getReachableTiles(
-    unit.coordinate,
-    unit.remainingMovement,
+    coordinate,
+    movement,
     isPassable
   );
 }
@@ -109,7 +129,7 @@ export function canUnitReachCoordinate(
   targetCoordinate: HexCoordinate,
   gameState: GameState
 ): boolean {
-  const reachableTiles = calculateReachableTiles(unit, gameState);
+  const reachableTiles = calculateReachableTiles(gameState, unit.coordinate, unit.remainingMovement);
   
   return reachableTiles.some(coord => 
     coord.q === targetCoordinate.q && 
