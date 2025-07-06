@@ -102,17 +102,23 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       // Apply three-tiered fog of war system
       let baseColor = getTerrainColor(tile.terrain);
       
+      // Check if tile is currently visible
+      const isCurrentlyVisible = gameState.visibility?.[currentPlayer.id]?.has(tileKey) || false;
+      
+      // Check if tile has been explored before
+      const hasBeenExplored = tile.exploredBy?.includes(currentPlayer.id) || false;
+      
       // Check for cities on this tile and override color if found
       const cityOnTile = gameState.cities?.find(city =>
         city.coordinate.q === tile.coordinate.q && city.coordinate.r === tile.coordinate.r
       );
       
-      if (cityOnTile && (fogState.visibility === 'visible' || fogState.visibility === 'explored')) {
+      if (cityOnTile && (isCurrentlyVisible || hasBeenExplored)) {
         // Cities are golden/yellow color
         baseColor = [0.9, 0.8, 0.2]; // Bright gold for cities
       }
       // Check for resources on this tile and slightly modify color
-      else if (tile.resources.length > 0 && (fogState.visibility === 'visible' || fogState.visibility === 'explored')) {
+      else if (tile.resources.length > 0 && (isCurrentlyVisible || hasBeenExplored)) {
         // Enhance tile color to indicate resources are present
         baseColor = [
           Math.min(1.0, baseColor[0] * 1.2), // Brighten the existing color
@@ -121,12 +127,12 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         ];
       }
       
-      if (fogState.visibility === 'visible') {
+      if (isCurrentlyVisible) {
         // Visible: Full visibility of terrain and units
         color = baseColor;
         opacity = 1.0;
         textureId = getTextureId(tile.terrain);
-      } else if (fogState.visibility === 'explored') {
+      } else if (hasBeenExplored) {
         // Explored: Terrain visible but dimmed (memory state)
         color = [
           baseColor[0] * 0.6,
@@ -136,7 +142,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         opacity = 0.7;
         textureId = getTextureId(tile.terrain);
       } else {
-        // Unexplored: Show darker base terrain with cloud overlay
+        // Unexplored: Show darker base terrain (clouds will be added as separate layer)
         color = [0.05, 0.05, 0.1]; // Very dark base color
         opacity = 1.0;
         textureId = 0; // No terrain texture visible
@@ -554,12 +560,15 @@ function FogOfWarClouds({ map, gameState, currentPlayer }: {
     
     map.tiles.forEach((tile, index) => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      const fogState = calculateFogOfWarState(tileKey, 
-        gameState.visibility?.[currentPlayer.id] || new Set(),
-        new Set(tile.exploredBy || [])
-      );
       
-      if (fogState.visibility === 'unexplored') {
+      // Check if tile is currently visible
+      const isCurrentlyVisible = gameState.visibility?.[currentPlayer.id]?.has(tileKey) || false;
+      
+      // Check if tile has been explored before (even if not currently visible)
+      const hasBeenExplored = tile.exploredBy?.includes(currentPlayer.id) || false;
+      
+      // Only show clouds on tiles that are completely unexplored
+      if (!isCurrentlyVisible && !hasBeenExplored) {
         const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
         matrix.setPosition(pixelPos.x, 0.2, pixelPos.y);
         cloudMeshRef.current.setMatrixAt(cloudCount, matrix);
