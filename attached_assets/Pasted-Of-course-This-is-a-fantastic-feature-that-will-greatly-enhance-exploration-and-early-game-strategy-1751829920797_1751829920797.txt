@@ -1,0 +1,82 @@
+Of course. This is a fantastic feature that will greatly enhance exploration and early-game strategy. Here are the detailed instructions for your developer to implement Polytopia-style villages.
+
+### **Objective: Implement Capturable Villages**
+
+The goal is to add neutral "villages" that randomly spawn on the map. Any player unit can capture a village, turning it into a new city for their empire. This creates a "race" to find and claim neutral territory, rewarding exploration.
+
+-----
+
+### **Part 1: Village Spawning (Map Generation)**
+
+The first step is to procedurally place villages on the map when a new game is created.
+
+**File to Modify:** `shared/utils/mapGenerator.ts`
+
+1.  **Update Tile Data Structure:**
+
+      * First, we need a way to represent a village on a tile. In the data structure that defines a map tile (likely within `mapGenerator.ts` or a shared type file), add a new optional property:
+        ```typescript
+        interface Tile {
+          // ... existing properties like terrain, elevation, etc.
+          feature?: 'village' | 'ruin'; // Add this 'feature' property
+        }
+        ```
+
+2.  **Create a `placeVillages` Function:**
+
+      * Inside `mapGenerator.ts`, create a new function that takes the generated map data as input. This function should be called at the end of the map generation process.
+      * Define constants for spawn chance and placement rules, as described in the prompt (e.g., `VILLAGE_SPAWN_CHANCE = 0.05`, `MIN_DISTANCE_BETWEEN_VILLAGES = 3`).
+
+3.  **Implement Spawning Logic:**
+
+      * Iterate through all the valid tiles on the map (e.g., land tiles not on the absolute edge of the map).
+      * For each tile, check against the `VILLAGE_SPAWN_CHANCE`.
+      * **Crucially**, if the random check passes, you must perform a second check to enforce the "no more than one village in a 3x3 area" rule. Create a helper function `isVillageNearby(tile, map)` that checks all adjacent and diagonal tiles for an existing village feature.
+      * If both checks pass, set `tile.feature = 'village'`.
+
+### **Part 2: Visual Representation (Client-Side)**
+
+Players need to be able to see the villages on the map.
+
+**File to Modify:** `client/src/components/game/MapFeatures.tsx` (or a similar rendering component)
+
+1.  **Create a Village Model:**
+
+      * You will need a new 3D model for the village. Create a simple, neutral-looking village hut or collection of huts as a `.glb` file and place it in your assets folder.
+
+2.  **Render the Village:**
+
+      * This component should already be iterating over map tiles to render things like forests or mountains.
+      * Add logic to this iteration: if a tile has `tile.feature === 'village'`, then render your new village 3D model at that tile's coordinates.
+
+### **Part 3: Capture Functionality (Game Logic & UI)**
+
+This is the core mechanic of interacting with the village.
+
+**Files to Modify:** `shared/logic/gameReducer.ts` and `client/src/components/ui/UnitActionsPanel.tsx`
+
+1.  **Create a New "Capture" Action:**
+
+      * In `shared/types/game.ts` (or wherever your action types are defined), add a new action:
+        ```typescript
+        type GameAction =
+          | // ... existing actions
+          | { type: 'CAPTURE_VILLAGE'; payload: { unitId: string; playerId: string } };
+        ```
+
+2.  **Add a "Capture" Button to the UI:**
+
+      * In `client/src/components/ui/UnitActionsPanel.tsx`, when displaying the actions for a selected unit, add a condition:
+      * Check the tile the selected unit is currently on. If `tile.feature === 'village'` AND the unit has not moved or acted this turn (`!unit.hasMoved`), display a new "Capture Village" button.
+
+3.  **Implement the Reducer Logic:**
+
+      * In `shared/logic/gameReducer.ts`, add a new case to handle the `CAPTURE_VILLAGE` action.
+      * When this action is dispatched, the reducer must:
+        a. **Find the unit and tile:** Get the unit from the `unitId` and its tile coordinates.
+        b. **Validate:** Confirm that the tile feature is indeed 'village'.
+        c. **Remove the village feature:** Set `tile.feature = undefined`.
+        d. **Create a new city:** Add a new city object to the `state.cities` array. Set its `ownerId` to the `playerId` from the action payload and its coordinates to the tile's coordinates. Give it a default level 1 status.
+        e. **End the unit's turn:** Find the capturing unit in the `state.units` array and update its properties to reflect that its turn is over (e.g., set `hasMoved = true` and `hasAttacked = true`).
+
+By following these three parts, your developer will have a complete, end-to-end implementation for spawning, viewing, and capturing neutral villages, adding a significant layer of strategic depth to the game.
