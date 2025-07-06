@@ -12,7 +12,7 @@ import {
   Anchor, Bomb, Sparkles, Move, Settings, Info 
 } from "lucide-react";
 import UnitActionsPanel from "./UnitActionsPanel";
-import { Tooltip, MovementTooltip } from "./TooltipSystem";
+import { InfoTooltip } from "./TooltipSystem";
 
 interface SelectedUnitPanelProps {
   unit: Unit;
@@ -67,12 +67,24 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
               <span className="text-white">{unit.defense}</span>
             </div>
             <div className="flex justify-between">
-              <Tooltip content={<MovementTooltip />}>
-                <span className="text-gray-400 cursor-help flex items-center gap-1">
-                  Movement:
-                  <Info className="w-3 h-3 opacity-60" />
-                </span>
-              </Tooltip>
+              <span className="text-gray-400 flex items-center gap-1">
+                Movement:
+                <InfoTooltip 
+                  content={
+                    <div className="space-y-2">
+                      <div className="font-semibold text-green-300">Movement System</div>
+                      <div className="text-xs text-slate-300">
+                        Shows remaining movement points this turn.
+                      </div>
+                      <div className="text-xs space-y-1">
+                        <div>• Each tile costs movement points</div>
+                        <div>• Different terrain has different costs</div>
+                        <div>• Movement resets each turn</div>
+                      </div>
+                    </div>
+                  }
+                />
+              </span>
               <span className="text-white">{unitStats.movementDisplay}</span>
             </div>
             <div className="flex justify-between">

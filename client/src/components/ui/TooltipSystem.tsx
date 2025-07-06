@@ -1,13 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-
-interface TooltipProps {
-  content: React.ReactNode;
-  children: React.ReactElement;
-  delay?: number;
-  placement?: 'top' | 'bottom' | 'left' | 'right';
-  disabled?: boolean;
-}
+import { Info } from 'lucide-react';
 
 interface TooltipPosition {
   x: number;
@@ -15,105 +8,139 @@ interface TooltipPosition {
   placement: string;
 }
 
-export function Tooltip({ 
+interface InfoTooltipProps {
+  content: React.ReactNode;
+  placement?: 'top' | 'bottom' | 'left' | 'right';
+  className?: string;
+}
+
+interface LegacyTooltipProps {
+  content: React.ReactNode;
+  children: React.ReactElement;
+  delay?: number;
+  placement?: 'top' | 'bottom' | 'left' | 'right';
+  disabled?: boolean;
+}
+
+// Main standalone info button tooltip that doesn't interfere with clicks
+export function InfoTooltip({ 
   content, 
-  children, 
-  delay = 500, 
   placement = 'top',
-  disabled = false 
-}: TooltipProps) {
+  className = ""
+}: InfoTooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState<TooltipPosition>({ x: 0, y: 0, placement });
-  const timeoutRef = useRef<NodeJS.Timeout>();
-  const elementRef = useRef<HTMLElement>();
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
-  const toggleTooltip = (event: MouseEvent | TouchEvent) => {
-    if (disabled) return;
-    
-    event.preventDefault();
+  const showTooltip = (event: React.MouseEvent) => {
     event.stopPropagation();
-    
-    if (isVisible) {
-      setIsVisible(false);
-    } else {
-      const rect = (event.target as HTMLElement).getBoundingClientRect();
-      const tooltipPosition = calculatePosition(rect, placement);
-      setPosition(tooltipPosition);
-      setIsVisible(true);
-    }
+    const rect = (event.target as HTMLElement).getBoundingClientRect();
+    const tooltipPosition = calculatePosition(rect, placement);
+    setPosition(tooltipPosition);
+    setIsVisible(true);
   };
 
   const hideTooltip = () => {
     setIsVisible(false);
   };
 
-  const calculatePosition = (rect: DOMRect, preferredPlacement: string): TooltipPosition => {
-    const tooltipOffset = 8;
-    const viewportPadding = 16;
-    
-    let x = 0;
-    let y = 0;
-    let finalPlacement = preferredPlacement;
+  useEffect(() => {
+    const handleClickOutside = (event: Event) => {
+      if (buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
+        hideTooltip();
+      }
+    };
 
-    switch (preferredPlacement) {
-      case 'top':
-        x = rect.left + rect.width / 2;
-        y = rect.top - tooltipOffset;
-        if (y < viewportPadding) {
-          finalPlacement = 'bottom';
-          y = rect.bottom + tooltipOffset;
-        }
-        break;
-      case 'bottom':
-        x = rect.left + rect.width / 2;
-        y = rect.bottom + tooltipOffset;
-        if (y > window.innerHeight - viewportPadding) {
-          finalPlacement = 'top';
-          y = rect.top - tooltipOffset;
-        }
-        break;
-      case 'left':
-        x = rect.left - tooltipOffset;
-        y = rect.top + rect.height / 2;
-        if (x < viewportPadding) {
-          finalPlacement = 'right';
-          x = rect.right + tooltipOffset;
-        }
-        break;
-      case 'right':
-        x = rect.right + tooltipOffset;
-        y = rect.top + rect.height / 2;
-        if (x > window.innerWidth - viewportPadding) {
-          finalPlacement = 'left';
-          x = rect.left - tooltipOffset;
-        }
-        break;
+    if (isVisible) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
     }
+  }, [isVisible]);
 
-    return { x, y, placement: finalPlacement };
+  const tooltipElement = isVisible && (
+    <div
+      className="fixed z-[9999] pointer-events-none"
+      style={{
+        left: position.x,
+        top: position.y,
+        transform: getTransform(position.placement)
+      }}
+    >
+      <div className="bg-slate-800 text-white text-sm px-3 py-2 rounded-lg border border-slate-600 shadow-xl max-w-xs backdrop-blur-sm bg-opacity-95">
+        <div className="relative">
+          {content}
+          <div
+            className={`absolute w-2 h-2 bg-slate-800 border-slate-600 transform rotate-45 ${getArrowClasses(position.placement)}`}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors duration-200 ${className}`}
+        onClick={showTooltip}
+        onMouseEnter={showTooltip}
+        onMouseLeave={hideTooltip}
+        aria-label="More information"
+      >
+        <Info className="w-3 h-3" />
+      </button>
+      {tooltipElement && createPortal(tooltipElement, document.body)}
+    </>
+  );
+}
+
+// Legacy wrapper tooltip - only triggers on hover, doesn't block clicks
+export function Tooltip({ 
+  content, 
+  children, 
+  delay = 500, 
+  placement = 'top',
+  disabled = false 
+}: LegacyTooltipProps) {
+  const [isVisible, setIsVisible] = useState(false);
+  const [position, setPosition] = useState<TooltipPosition>({ x: 0, y: 0, placement });
+  const timeoutRef = useRef<NodeJS.Timeout>();
+  const elementRef = useRef<HTMLElement>();
+
+  const showTooltip = (event: MouseEvent) => {
+    if (disabled) return;
+    
+    const rect = (event.target as HTMLElement).getBoundingClientRect();
+    const tooltipPosition = calculatePosition(rect, placement);
+    setPosition(tooltipPosition);
+    
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    timeoutRef.current = setTimeout(() => {
+      setIsVisible(true);
+    }, delay);
+  };
+
+  const hideTooltip = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    setIsVisible(false);
   };
 
   useEffect(() => {
     const element = elementRef.current;
     if (!element) return;
 
-    // Handle clicks outside to close tooltip
-    const handleClickOutside = (event: Event) => {
-      if (element && !element.contains(event.target as Node)) {
-        hideTooltip();
-      }
-    };
-
-    element.addEventListener('click', toggleTooltip);
-    element.addEventListener('touchstart', toggleTooltip);
-    document.addEventListener('click', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
+    element.addEventListener('mouseenter', showTooltip);
+    element.addEventListener('mouseleave', hideTooltip);
 
     return () => {
-      element.removeEventListener('click', toggleTooltip);
-      element.removeEventListener('touchstart', toggleTooltip);
-      document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
+      element.removeEventListener('mouseenter', showTooltip);
+      element.removeEventListener('mouseleave', hideTooltip);
     };
   }, [disabled]);
 
@@ -158,6 +185,52 @@ export function Tooltip({
   );
 }
 
+function calculatePosition(rect: DOMRect, preferredPlacement: string): TooltipPosition {
+  const tooltipOffset = 8;
+  const viewportPadding = 16;
+  
+  let x = 0;
+  let y = 0;
+  let finalPlacement = preferredPlacement;
+
+  switch (preferredPlacement) {
+    case 'top':
+      x = rect.left + rect.width / 2;
+      y = rect.top - tooltipOffset;
+      if (y < viewportPadding) {
+        finalPlacement = 'bottom';
+        y = rect.bottom + tooltipOffset;
+      }
+      break;
+    case 'bottom':
+      x = rect.left + rect.width / 2;
+      y = rect.bottom + tooltipOffset;
+      if (y > window.innerHeight - viewportPadding) {
+        finalPlacement = 'top';
+        y = rect.top - tooltipOffset;
+      }
+      break;
+    case 'left':
+      x = rect.left - tooltipOffset;
+      y = rect.top + rect.height / 2;
+      if (x < viewportPadding) {
+        finalPlacement = 'right';
+        x = rect.right + tooltipOffset;
+      }
+      break;
+    case 'right':
+      x = rect.right + tooltipOffset;
+      y = rect.top + rect.height / 2;
+      if (x > window.innerWidth - viewportPadding) {
+        finalPlacement = 'left';
+        x = rect.left - tooltipOffset;
+      }
+      break;
+  }
+
+  return { x, y, placement: finalPlacement };
+}
+
 function getTransform(placement: string): string {
   switch (placement) {
     case 'top':
@@ -188,7 +261,66 @@ function getArrowClasses(placement: string): string {
   }
 }
 
-// Advanced tooltip content components
+// Specialized tooltip content components
+export function ActionTooltip({ 
+  title, 
+  description, 
+  cost, 
+  requirements, 
+  effects, 
+  hotkey 
+}: {
+  title: string;
+  description: string;
+  cost?: string;
+  requirements?: string[];
+  effects?: string[];
+  hotkey?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-blue-300">{title}</div>
+      <div className="text-xs text-slate-300">{description}</div>
+      
+      {cost && (
+        <div className="text-xs">
+          <span className="text-yellow-300">Cost: </span>
+          <span className="text-white">{cost}</span>
+        </div>
+      )}
+      
+      {requirements && requirements.length > 0 && (
+        <div className="text-xs">
+          <div className="text-red-300 mb-1">Requirements:</div>
+          <ul className="list-disc list-inside text-slate-300">
+            {requirements.map((req, index) => (
+              <li key={index}>{req}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {effects && effects.length > 0 && (
+        <div className="text-xs">
+          <div className="text-green-300 mb-1">Effects:</div>
+          <ul className="list-disc list-inside text-slate-300">
+            {effects.map((effect, index) => (
+              <li key={index}>{effect}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {hotkey && (
+        <div className="text-xs">
+          <span className="text-purple-300">Hotkey: </span>
+          <kbd className="bg-slate-600 px-1 rounded text-white">{hotkey}</kbd>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function UnitTooltip({ unit, unitDef }: { unit: any; unitDef: any }) {
   return (
     <div className="space-y-2">
@@ -222,239 +354,84 @@ export function UnitTooltip({ unit, unitDef }: { unit: any; unitDef: any }) {
   );
 }
 
-export function TileTooltip({ tile, resources }: { tile: any; resources?: any[] }) {
+export function StarProductionTooltip({ totalIncome, breakdown }: { totalIncome: number; breakdown: any }) {
   return (
     <div className="space-y-2">
-      <div className="font-semibold text-green-300 capitalize">{tile.terrain}</div>
-      
-      {resources && resources.length > 0 && (
-        <div className="text-xs">
-          <div className="text-slate-300 mb-1">Resources:</div>
-          <div className="text-yellow-300">
-            {resources.map(r => r.type).join(', ')}
-          </div>
-        </div>
-      )}
-      
-      <div className="text-xs text-slate-400">
-        Coordinate: ({tile.coordinate.q}, {tile.coordinate.r})
+      <div className="font-semibold text-yellow-300">Star Income: {totalIncome}/turn</div>
+      <div className="text-xs space-y-1">
+        <div>Base Income: {breakdown.base}</div>
+        {breakdown.cities > 0 && <div>Cities: +{breakdown.cities}</div>}
+        {breakdown.improvements > 0 && <div>Improvements: +{breakdown.improvements}</div>}
+        {breakdown.structures > 0 && <div>Structures: +{breakdown.structures}</div>}
       </div>
     </div>
-  );
-}
-
-export function ActionTooltip({ 
-  title, 
-  description, 
-  cost, 
-  requirements, 
-  hotkey 
-}: { 
-  title: string; 
-  description: string; 
-  cost?: string; 
-  requirements?: string[]; 
-  hotkey?: string; 
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="font-semibold text-blue-300">{title}</div>
-        {hotkey && (
-          <div className="text-xs bg-slate-700 px-1.5 py-0.5 rounded border border-slate-500">
-            {hotkey}
-          </div>
-        )}
-      </div>
-      
-      <div className="text-sm text-slate-200">{description}</div>
-      
-      {cost && (
-        <div className="text-xs text-yellow-300">Cost: {cost}</div>
-      )}
-      
-      {requirements && requirements.length > 0 && (
-        <div className="text-xs text-red-300">
-          Requires: {requirements.join(', ')}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function InfoTooltip({ 
-  title, 
-  content, 
-  details, 
-  formula 
-}: { 
-  title: string; 
-  content: string; 
-  details?: string[]; 
-  formula?: string; 
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-purple-300">{title}</div>
-      <div className="text-sm text-slate-200">{content}</div>
-      
-      {details && details.length > 0 && (
-        <div className="border-t border-slate-600 pt-2">
-          <div className="space-y-1">
-            {details.map((detail, index) => (
-              <div key={index} className="text-xs text-slate-300 flex items-start gap-1">
-                <span className="text-blue-300">•</span>
-                <span>{detail}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {formula && (
-        <div className="border-t border-slate-600 pt-2">
-          <div className="text-xs font-mono text-green-300 bg-slate-900/50 px-2 py-1 rounded">
-            {formula}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Strategic Game Mechanics Tooltips
-export function StarProductionTooltip() {
-  return (
-    <InfoTooltip
-      title="Star Production Strategy"
-      content="Stars are your primary currency for recruiting units and building structures."
-      details={[
-        "Base income: 1 star per turn",
-        "Cities: +1 star per city owned",
-        "Markets: +2 stars per market built",
-        "Trade routes: +1 star per active route",
-        "Customs houses: +3 stars per customs house"
-      ]}
-      formula="Total Stars = Base(1) + Cities + Markets(2x) + Trade Routes + Customs Houses(3x)"
-    />
   );
 }
 
 export function FaithSystemTooltip() {
   return (
-    <InfoTooltip
-      title="Faith & Religious Strategy"
-      content="Faith powers religious abilities and unit recruitment for spiritual factions."
-      details={[
-        "Gained from cities with temples (+1 per turn)",
-        "Used for: Missionary recruitment, healing abilities",
-        "Conversion actions: Convert enemy cities to your faith",
-        "Blessing abilities: Enhance your units in combat",
-        "Required for: Anti-Nephi-Lehi peaceful units"
-      ]}
-      formula="Faith per Turn = Cities with Temples × 1"
-    />
+    <div className="space-y-2">
+      <div className="font-semibold text-blue-300">Faith System</div>
+      <div className="text-xs text-slate-300">
+        Faith represents your civilization's spiritual strength and unity.
+      </div>
+      <div className="text-xs space-y-1">
+        <div>• Gained from temples and cities</div>
+        <div>• Used for special abilities</div>
+        <div>• Enables conversion and healing</div>
+        <div>• Required for faith victory</div>
+      </div>
+    </div>
   );
 }
 
 export function PrideSystemTooltip() {
   return (
-    <InfoTooltip
-      title="Pride & Military Strategy"
-      content="Pride fuels aggressive military actions and warrior abilities."
-      details={[
-        "Gained from successful battles and conquests",
-        "Used for: Elite warrior recruitment, charge abilities",
-        "War declarations: Formal conflicts with other factions", 
-        "Ancestral rage: Temporary combat bonuses",
-        "Required for: Lamanite and Zoramite military units"
-      ]}
-      formula="Pride Growth = Battles Won + Cities Captured"
-    />
-  );
-}
-
-export function DissentTooltip() {
-  return (
-    <InfoTooltip
-      title="Internal Dissent Management"
-      content="Internal dissent represents civil unrest and threatens your civilization's stability."
-      details={[
-        "Increases when cities are lost or units are destroyed",
-        "High dissent (above 75) can trigger city revolts",
-        "Reduced by: Building temples, maintaining small armies",
-        "Peaceful governance: Anti-Nephi-Lehies gain bonuses at low dissent",
-        "Critical threshold: 100 dissent causes automatic defeat"
-      ]}
-      formula="Dissent Sources = City Losses + Unit Deaths + Aggressive Actions"
-    />
-  );
-}
-
-export function CombatTooltip() {
-  return (
-    <InfoTooltip
-      title="Combat Calculation"
-      content="Understanding combat helps you make tactical decisions and minimize losses."
-      details={[
-        "Higher attack vs defense = more damage dealt",
-        "Terrain provides defensive bonuses (mountains +2, forests +1)",
-        "Unit abilities can modify damage (formation fighting, siege mode)",
-        "Fortified units receive +50% defense bonus",
-        "Flanking attacks (2+ units) gain +25% damage bonus"
-      ]}
-      formula="Damage = max(1, (Attack - Defense) × Modifiers × Random(0.8-1.2))"
-    />
+    <div className="space-y-2">
+      <div className="font-semibold text-red-300">Pride System</div>
+      <div className="text-xs text-slate-300">
+        Pride represents your civilization's military strength and ambition.
+      </div>
+      <div className="text-xs space-y-1">
+        <div>• Gained from victories and conquests</div>
+        <div>• Enables aggressive abilities</div>
+        <div>• Boosts combat effectiveness</div>
+        <div>• Can lead to internal conflicts</div>
+      </div>
+    </div>
   );
 }
 
 export function TechnologyTooltip() {
   return (
-    <InfoTooltip
-      title="Technology Research Strategy"
-      content="Technologies unlock new units, buildings, and abilities for strategic advancement."
-      details={[
-        "Research cost increases with each tech learned",
-        "Prerequisites: Some techs require others first",
-        "Military techs: Unlock stronger units and weapons",
-        "Economic techs: Improve resource generation",
-        "Religious techs: Enable faith-based abilities and units"
-      ]}
-      formula="Research Cost = Base Cost × (1 + 0.3 × Techs Learned)"
-    />
+    <div className="space-y-2">
+      <div className="font-semibold text-green-300">Technology Research</div>
+      <div className="text-xs text-slate-300">
+        Research technologies to unlock new units, buildings, and abilities.
+      </div>
+      <div className="text-xs space-y-1">
+        <div>• Costs increase with each tech</div>
+        <div>• Some techs have prerequisites</div>
+        <div>• Research one tech at a time</div>
+        <div>• Essential for advanced strategy</div>
+      </div>
+    </div>
   );
 }
 
-export function MovementTooltip() {
+export function DissentTooltip() {
   return (
-    <InfoTooltip
-      title="Movement & Terrain Strategy"
-      content="Efficient movement is crucial for tactical positioning and exploration."
-      details={[
-        "Plains: 1 movement point (standard cost)",
-        "Forests: 2 movement points (difficult terrain)",
-        "Mountains: 3 movement points (very difficult)",
-        "Roads: Reduce movement cost by 1 (minimum 1)",
-        "Water: Only boats can cross water tiles"
-      ]}
-      formula="Movement Cost = Terrain Base Cost - Road Bonus"
-    />
-  );
-}
-
-export function CityGrowthTooltip() {
-  return (
-    <InfoTooltip
-      title="City Development Strategy"
-      content="Growing cities increases population, star production, and strategic options."
-      details={[
-        "Population grows automatically each turn",
-        "Larger cities can build more structures",
-        "Markets and farms accelerate growth",
-        "High population unlocks advanced buildings",
-        "Capital cities grow 25% faster than regular cities"
-      ]}
-      formula="Growth Rate = Base(1) + Markets + Farms + Capital Bonus(0.25)"
-    />
+    <div className="space-y-2">
+      <div className="font-semibold text-orange-300">Internal Dissent</div>
+      <div className="text-xs text-slate-300">
+        Dissent represents internal conflicts and civil unrest in your civilization.
+      </div>
+      <div className="text-xs space-y-1">
+        <div>• Increases with aggressive actions</div>
+        <div>• Reduces efficiency and growth</div>
+        <div>• Can be reduced through faith</div>
+        <div>• High dissent causes rebellions</div>
+      </div>
+    </div>
   );
 }
