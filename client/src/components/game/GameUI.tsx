@@ -124,7 +124,7 @@ export default function GameUI() {
   };
 
   const handleActivateAbility = (abilityId: string, targetId?: string) => {
-    // Dispatch the faction ability action
+    // Dispatch the faction ability action through the game store
     const action = {
       type: 'ACTIVATE_FACTION_ABILITY' as const,
       payload: {
@@ -133,8 +133,10 @@ export default function GameUI() {
         targetId
       }
     };
-    // This would typically be handled by the game store
-    console.log('Activating ability:', action);
+    
+    // Get dispatch from useLocalGame store
+    const { dispatch } = useLocalGame.getState();
+    dispatch(action);
   };
 
   const handleAttackUnit = (attackerId: string, targetId: string) => {
