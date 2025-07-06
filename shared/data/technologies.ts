@@ -135,6 +135,19 @@ export const TECHNOLOGIES: Record<string, Technology> = {
       structures: ['fortress']
     },
     category: 'military'
+  },
+
+  leadership: {
+    id: 'leadership',
+    name: 'Leadership',
+    description: 'Like Captain Moroni\'s inspiring leadership that united the Nephite armies (Alma 46), this develops military command structures and tactical coordination, enabling elite commanders to rally troops and lead complex formations.',
+    cost: 20,
+    prerequisites: ['bronze_working', 'organization'],
+    unlocks: {
+      units: ['commander'],
+      abilities: ['rally_troops', 'tactical_command']
+    },
+    category: 'military'
   }
 };
 
