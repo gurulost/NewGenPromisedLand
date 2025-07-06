@@ -18,6 +18,9 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
       case 'worker':
       case 'settler':
         return '/models/settler.glb';
+      case 'scout':
+      case 'archer':
+        return '/models/archer.glb';
       default:
         return '/models/warrior.glb'; // Default to warrior for unknown types
     }
@@ -37,6 +40,8 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     // Adjust scale based on unit type if needed
     if (unit.type === 'worker' || unit.type === 'settler') {
       scale = 0.35; // Slightly smaller for civilian units
+    } else if (unit.type === 'scout' || unit.type === 'archer') {
+      scale = 0.38; // Medium scale for ranged units
     }
     
     clone.scale.setScalar(scale);
@@ -145,3 +150,4 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
 // Preload all unit models
 useGLTF.preload('/models/warrior.glb');
 useGLTF.preload('/models/settler.glb');
+useGLTF.preload('/models/archer.glb');
