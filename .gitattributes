@@ -1,2 +1,5 @@
 /attached_assets/0-2_1751822119779.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/boat.glb filter=lfs diff=lfs merge=lfs -text
+/attached_assets/Large[[:space:]]City_1751825340893.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/city_level1.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/city_level2.glb filter=lfs diff=lfs merge=lfs -text
