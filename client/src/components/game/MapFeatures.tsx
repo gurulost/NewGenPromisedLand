@@ -10,12 +10,29 @@ import Construction from "./Construction";
 import { CityModel } from "./CityModel";
 
 // Village Model Component
-function VillageModel({ position }: { position: { x: number; y: number } }) {
-  const { scene } = useGLTF("/models/Village.glb");
+function VillageModel({ position, owner }: { position: { x: number; y: number }; owner?: string }) {
+  const { scene } = useGLTF("/models/village.glb");
+  
+  // Get color based on ownership
+  const getOwnershipColor = (owner?: string) => {
+    if (!owner || owner === 'neutral') return '#888888'; // Gray for neutral
+    // For now, use green for owned - in future could map to player colors
+    return '#4ade80'; // Green for owned
+  };
   
   return (
-    <group position={[position.x, 0.1, position.y]} scale={[0.5, 0.5, 0.5]}>
+    <group position={[position.x, 0.1, position.y]} scale={[0.6, 0.6, 0.6]}>
       <primitive object={scene.clone()} />
+      {/* Village ownership indicator - small flag */}
+      <group position={[0, 1.2, 0]}>
+        <Cylinder args={[0.15, 0.15, 0.1]} position={[0, 0, 0]}>
+          <meshStandardMaterial color={getOwnershipColor(owner)} />
+        </Cylinder>
+        {/* Flag pole */}
+        <Cylinder args={[0.02, 0.02, 0.4]} position={[0, 0.25, 0]}>
+          <meshStandardMaterial color="#8B4513" />
+        </Cylinder>
+      </group>
     </group>
   );
 }
@@ -454,7 +471,7 @@ export default function MapFeatures() {
         
         return (
           <group key={`village-${villageKey}`}>
-            <VillageModel position={position} />
+            <VillageModel position={position} owner={village.cityOwner || 'neutral'} />
           </group>
         );
       })}
