@@ -217,7 +217,7 @@ export default function GameUI() {
       )}
 
       {/* Faction Abilities Panel */}
-      <div className="absolute top-20 left-4 pointer-events-auto">
+      <div className="absolute top-4 left-80 pointer-events-auto">
         <AbilitiesPanel
           currentPlayer={currentPlayer}
           gameState={gameState}
