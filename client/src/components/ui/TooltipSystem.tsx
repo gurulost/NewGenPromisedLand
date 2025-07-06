@@ -272,3 +272,163 @@ export function ActionTooltip({
     </div>
   );
 }
+
+export function InfoTooltip({ 
+  title, 
+  content, 
+  details, 
+  formula 
+}: { 
+  title: string; 
+  content: string; 
+  details?: string[]; 
+  formula?: string; 
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-purple-300">{title}</div>
+      <div className="text-sm text-slate-200">{content}</div>
+      
+      {details && details.length > 0 && (
+        <div className="border-t border-slate-600 pt-2">
+          <div className="space-y-1">
+            {details.map((detail, index) => (
+              <div key={index} className="text-xs text-slate-300 flex items-start gap-1">
+                <span className="text-blue-300">•</span>
+                <span>{detail}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {formula && (
+        <div className="border-t border-slate-600 pt-2">
+          <div className="text-xs font-mono text-green-300 bg-slate-900/50 px-2 py-1 rounded">
+            {formula}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Strategic Game Mechanics Tooltips
+export function StarProductionTooltip() {
+  return (
+    <InfoTooltip
+      title="Star Production Strategy"
+      content="Stars are your primary currency for recruiting units and building structures."
+      details={[
+        "Base income: 1 star per turn",
+        "Cities: +1 star per city owned",
+        "Markets: +2 stars per market built",
+        "Trade routes: +1 star per active route",
+        "Customs houses: +3 stars per customs house"
+      ]}
+      formula="Total Stars = Base(1) + Cities + Markets(2x) + Trade Routes + Customs Houses(3x)"
+    />
+  );
+}
+
+export function FaithSystemTooltip() {
+  return (
+    <InfoTooltip
+      title="Faith & Religious Strategy"
+      content="Faith powers religious abilities and unit recruitment for spiritual factions."
+      details={[
+        "Gained from cities with temples (+1 per turn)",
+        "Used for: Missionary recruitment, healing abilities",
+        "Conversion actions: Convert enemy cities to your faith",
+        "Blessing abilities: Enhance your units in combat",
+        "Required for: Anti-Nephi-Lehi peaceful units"
+      ]}
+      formula="Faith per Turn = Cities with Temples × 1"
+    />
+  );
+}
+
+export function PrideSystemTooltip() {
+  return (
+    <InfoTooltip
+      title="Pride & Military Strategy"
+      content="Pride fuels aggressive military actions and warrior abilities."
+      details={[
+        "Gained from successful battles and conquests",
+        "Used for: Elite warrior recruitment, charge abilities",
+        "War declarations: Formal conflicts with other factions", 
+        "Ancestral rage: Temporary combat bonuses",
+        "Required for: Lamanite and Zoramite military units"
+      ]}
+      formula="Pride Growth = Battles Won + Cities Captured"
+    />
+  );
+}
+
+export function CombatTooltip() {
+  return (
+    <InfoTooltip
+      title="Combat Calculation"
+      content="Understanding combat helps you make tactical decisions and minimize losses."
+      details={[
+        "Higher attack vs defense = more damage dealt",
+        "Terrain provides defensive bonuses (mountains +2, forests +1)",
+        "Unit abilities can modify damage (formation fighting, siege mode)",
+        "Fortified units receive +50% defense bonus",
+        "Flanking attacks (2+ units) gain +25% damage bonus"
+      ]}
+      formula="Damage = max(1, (Attack - Defense) × Modifiers × Random(0.8-1.2))"
+    />
+  );
+}
+
+export function TechnologyTooltip() {
+  return (
+    <InfoTooltip
+      title="Technology Research Strategy"
+      content="Technologies unlock new units, buildings, and abilities for strategic advancement."
+      details={[
+        "Research cost increases with each tech learned",
+        "Prerequisites: Some techs require others first",
+        "Military techs: Unlock stronger units and weapons",
+        "Economic techs: Improve resource generation",
+        "Religious techs: Enable faith-based abilities and units"
+      ]}
+      formula="Research Cost = Base Cost × (1 + 0.3 × Techs Learned)"
+    />
+  );
+}
+
+export function MovementTooltip() {
+  return (
+    <InfoTooltip
+      title="Movement & Terrain Strategy"
+      content="Efficient movement is crucial for tactical positioning and exploration."
+      details={[
+        "Plains: 1 movement point (standard cost)",
+        "Forests: 2 movement points (difficult terrain)",
+        "Mountains: 3 movement points (very difficult)",
+        "Roads: Reduce movement cost by 1 (minimum 1)",
+        "Water: Only boats can cross water tiles"
+      ]}
+      formula="Movement Cost = Terrain Base Cost - Road Bonus"
+    />
+  );
+}
+
+export function CityGrowthTooltip() {
+  return (
+    <InfoTooltip
+      title="City Development Strategy"
+      content="Growing cities increases population, star production, and strategic options."
+      details={[
+        "Population grows automatically each turn",
+        "Larger cities can build more structures",
+        "Markets and farms accelerate growth",
+        "High population unlocks advanced buildings",
+        "Capital cities grow 25% faster than regular cities"
+      ]}
+      formula="Growth Rate = Base(1) + Markets + Farms + Capital Bonus(0.25)"
+    />
+  );
+}

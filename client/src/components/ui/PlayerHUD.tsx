@@ -2,12 +2,13 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Progress } from "./progress";
 import { Button } from "./button";
-import { Star, Book, Building, TrendingUp } from "lucide-react";
+import { Star, Book, Building, TrendingUp, Info } from "lucide-react";
 import type { PlayerState, GameState } from "@shared/types/game";
 import type { Faction } from "@shared/types/faction";
 import { GAME_RULES, GameRuleHelpers } from "@shared/data/gameRules";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
+import { Tooltip, StarProductionTooltip, FaithSystemTooltip, PrideSystemTooltip, TechnologyTooltip } from "./TooltipSystem";
 
 interface PlayerHUDProps {
   player: PlayerState;
@@ -123,10 +124,13 @@ export default function PlayerHUD({
           {/* Star Resources with Production Info */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-white">
-              <div className="flex items-center gap-1">
-                <Star className="w-4 h-4 text-yellow-400" />
-                <span className="font-semibold">{player.stars}</span>
-              </div>
+              <Tooltip content={<StarProductionTooltip />}>
+                <div className="flex items-center gap-1 cursor-help">
+                  <Star className="w-4 h-4 text-yellow-400" />
+                  <span className="font-semibold">{player.stars}</span>
+                  <Info className="w-3 h-3 text-gray-400 opacity-60" />
+                </div>
+              </Tooltip>
               <div className="flex items-center gap-1 text-sm text-green-400">
                 <TrendingUp className="w-3 h-3" />
                 <span>+{playerStats.starProduction}/turn</span>
@@ -157,7 +161,12 @@ export default function PlayerHUD({
           {/* Faith Progress */}
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-blue-300 font-cinzel font-medium">Faith</span>
+              <Tooltip content={<FaithSystemTooltip />}>
+                <span className="text-blue-300 font-cinzel font-medium cursor-help flex items-center gap-1">
+                  Faith
+                  <Info className="w-3 h-3 text-gray-400 opacity-60" />
+                </span>
+              </Tooltip>
               <span className="text-white font-body font-medium">{player.stats.faith}/100</span>
             </div>
             <Progress value={player.stats.faith} className="h-2" />
@@ -166,7 +175,12 @@ export default function PlayerHUD({
           {/* Pride Progress */}
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-purple-300 font-cinzel font-medium">Pride</span>
+              <Tooltip content={<PrideSystemTooltip />}>
+                <span className="text-purple-300 font-cinzel font-medium cursor-help flex items-center gap-1">
+                  Pride
+                  <Info className="w-3 h-3 text-gray-400 opacity-60" />
+                </span>
+              </Tooltip>
               <span className="text-white font-body font-medium">{player.stats.pride}/100</span>
             </div>
             <Progress value={player.stats.pride} className="h-2" />
@@ -184,15 +198,17 @@ export default function PlayerHUD({
           {/* Action Buttons */}
           <div className="space-y-2">
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 bg-blue-600/20 border-blue-400 text-blue-100 hover:bg-blue-600/40"
-                onClick={onShowTechPanel}
-              >
-                <Book className="w-4 h-4 mr-1" />
-                Research
-              </Button>
+              <Tooltip content={<TechnologyTooltip />}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 bg-blue-600/20 border-blue-400 text-blue-100 hover:bg-blue-600/40"
+                  onClick={onShowTechPanel}
+                >
+                  <Book className="w-4 h-4 mr-1" />
+                  Research
+                </Button>
+              </Tooltip>
               
               <Button
                 variant="outline"

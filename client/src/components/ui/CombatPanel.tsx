@@ -2,13 +2,14 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 import { Progress } from "./progress";
-import { Sword, Shield, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
+import { Sword, Shield, AlertTriangle, CheckCircle, XCircle, Info } from "lucide-react";
 import { getUnitDefinition } from "@shared/data/units";
 import { getValidAttackTargets, canUnitAttackTarget } from "@shared/logic/unitLogic";
 import { hexDistance } from "@shared/utils/hex";
 import { getCombatPreview, CombatPreview } from "@shared/logic/combatPreview";
 import type { Unit } from "@shared/types/unit";
 import type { GameState } from "@shared/types/game";
+import { Tooltip, CombatTooltip } from "./TooltipSystem";
 
 interface CombatPanelProps {
   selectedUnit: Unit;
@@ -76,6 +77,9 @@ export default function CombatPanel({ selectedUnit, gameState, onAttackUnit, hov
           <CardTitle className="text-white font-cinzel font-semibold tracking-wide flex items-center gap-2">
             <Sword className="w-4 h-4" />
             Combat Options
+            <Tooltip content={<CombatTooltip />}>
+              <Info className="w-3 h-3 text-gray-400 opacity-60 cursor-help" />
+            </Tooltip>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
