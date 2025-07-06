@@ -11,17 +11,28 @@ interface CityModelProps {
 
 export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
   // Determine which model to load based on city level
-  const modelPath = city.level >= 2 ? '/models/city_level2.glb' : '/models/city_level1.glb';
+  const modelPath = city.level >= 3 ? '/models/city_level3.glb' : 
+                   city.level >= 2 ? '/models/city_level2.glb' : 
+                   '/models/city_level1.glb';
   const { scene } = useGLTF(modelPath);
   
   // Clone the scene to avoid modifying the original
   const clonedScene = useMemo(() => {
     const clone = scene.clone();
     
-    // Scale the model to fit within a hex tile (HEX_SIZE = 1)
-    // Level 2 cities should be slightly larger to show progression
-    const baseScale = 0.8;
-    const levelScale = city.level >= 2 ? 0.9 : 0.8; // Level 2+ cities are 10% larger
+    // Scale the model based on city level
+    // Level 1: 0.8 scale (fits in 1 tile)
+    // Level 2: 0.9 scale (slightly larger, still 1 tile)
+    // Level 3+: 2.4 scale (spans 3 tiles wide, HEX_SIZE = 1, so 3 * 0.8 = 2.4)
+    let levelScale;
+    if (city.level >= 3) {
+      levelScale = 2.4; // Three tiles wide
+    } else if (city.level >= 2) {
+      levelScale = 0.9; // Medium city
+    } else {
+      levelScale = 0.8; // Small city
+    }
+    
     clone.scale.setScalar(levelScale);
     
     // Ensure proper materials and colors based on ownership
@@ -63,7 +74,7 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
       <primitive object={clonedScene} />
       
       {/* City level indicator - floating text above the model */}
-      <mesh position={[0, 1.2, 0]}>
+      <mesh position={[0, city.level >= 3 ? 2.0 : 1.2, 0]}>
         <sphereGeometry args={[0.1]} />
         <meshBasicMaterial 
           color={isPlayerCity ? "#00FF00" : "#FF6B6B"} 
@@ -75,18 +86,49 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
       {/* Add a subtle glow effect for higher level cities */}
       {city.level > 1 && (
         <mesh position={[0, 0.1, 0]}>
-          <cylinderGeometry args={[1.0, 1.0, 0.02, 16]} />
+          <cylinderGeometry args={[
+            city.level >= 3 ? 2.4 : 1.0, 
+            city.level >= 3 ? 2.4 : 1.0, 
+            0.02, 
+            16
+          ]} />
           <meshBasicMaterial 
             color={isPlayerCity ? "#4CAF50" : "#F44336"} 
             transparent 
-            opacity={0.3} 
+            opacity={city.level >= 3 ? 0.2 : 0.3} 
           />
         </mesh>
+      )}
+      
+      {/* Additional grandeur effects for level 3+ cities */}
+      {city.level >= 3 && (
+        <>
+          {/* Outer ring effect */}
+          <mesh position={[0, 0.05, 0]}>
+            <cylinderGeometry args={[2.6, 2.6, 0.01, 32]} />
+            <meshBasicMaterial 
+              color={isPlayerCity ? "#FFD700" : "#FF4444"} 
+              transparent 
+              opacity={0.15} 
+            />
+          </mesh>
+          
+          {/* Pulsing center core */}
+          <mesh position={[0, 0.15, 0]}>
+            <cylinderGeometry args={[0.3, 0.3, 0.05, 16]} />
+            <meshBasicMaterial 
+              color={isPlayerCity ? "#00FF00" : "#FF0000"} 
+              transparent 
+              opacity={0.6} 
+            />
+          </mesh>
+        </>
       )}
     </group>
   );
 }
 
-// Preload both models
+// Preload all three models
 useGLTF.preload('/models/city_level1.glb');
 useGLTF.preload('/models/city_level2.glb');
+useGLTF.preload('/models/city_level3.glb');
