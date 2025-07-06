@@ -74,7 +74,7 @@ function handleStartConstruction(
     const structure = STRUCTURE_DEFINITIONS[buildingType as keyof typeof STRUCTURE_DEFINITIONS];
     if (!structure) return state;
     cost.stars = structure.cost;
-    buildTime = 3; // Default build time for structures
+    buildTime = 1; // Default build time for structures
   } else if (category === 'units') {
     const unitDef = getUnitDefinition(buildingType as any);
     if (!unitDef) {
