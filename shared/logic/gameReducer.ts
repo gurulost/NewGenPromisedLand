@@ -509,6 +509,24 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'UNIT_ACTION':
       return handleUnitAction(state, action.payload);
     
+    case 'HEAL_UNIT':
+      return handleHealUnit(state, action.payload);
+    
+    case 'APPLY_STEALTH':
+      return handleApplyStealth(state, action.payload);
+    
+    case 'RECONNAISSANCE':
+      return handleReconnaissance(state, action.payload);
+    
+    case 'FORMATION_FIGHTING':
+      return handleFormationFighting(state, action.payload);
+    
+    case 'SIEGE_MODE':
+      return handleSiegeMode(state, action.payload);
+    
+    case 'RALLY_TROOPS':
+      return handleRallyTroops(state, action.payload);
+    
     case 'HARVEST_RESOURCE':
       return handleHarvestResource(state, action.payload);
     
@@ -1073,6 +1091,222 @@ function handleHarvestResource(
     ...state,
     cities: updatedCities,
     units: updatedUnits
+  };
+}
+
+// Unit Ability Handlers
+function handleHealUnit(
+  state: GameState,
+  payload: { unitId: string; playerId: string }
+): GameState {
+  const { unitId, playerId } = payload;
+  
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+  
+  // Check if unit has heal ability and hasn't acted
+  if (!unit.abilities.includes('heal') || unit.hasAttacked) return state;
+  
+  // Check faith cost requirement
+  const player = state.players.find(p => p.id === playerId);
+  if (!player || player.stats.faith < 5) return state;
+  
+  // Find nearby friendly units to heal (within 2 tiles)
+  const healRadius = 2;
+  const updatedUnits = state.units.map(u => {
+    if (u.playerId === playerId && u.id !== unitId) {
+      const distance = hexDistance(unit.coordinate, u.coordinate);
+      if (distance <= healRadius && u.hp < u.maxHp) {
+        return { ...u, hp: Math.min(u.maxHp, u.hp + 10) };
+      }
+    }
+    return u;
+  });
+  
+  // Mark the healing unit as having acted and consume faith
+  const updatedHealingUnits = updatedUnits.map(u => 
+    u.id === unitId ? { ...u, hasAttacked: true } : u
+  );
+  
+  const updatedPlayers = state.players.map(p => 
+    p.id === playerId 
+      ? { ...p, stats: { ...p.stats, faith: p.stats.faith - 5 } }
+      : p
+  );
+  
+  return {
+    ...state,
+    units: updatedHealingUnits,
+    players: updatedPlayers
+  };
+}
+
+function handleApplyStealth(
+  state: GameState,
+  payload: { unitId: string; playerId: string }
+): GameState {
+  const { unitId, playerId } = payload;
+  
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+  
+  // Check if unit has stealth ability and hasn't acted
+  if (!unit.abilities.includes('stealth') || unit.hasAttacked) return state;
+  if (unit.status === 'stealthed') return state;
+  
+  const updatedUnits = state.units.map(u => 
+    u.id === unitId 
+      ? { ...u, status: 'stealthed', hasAttacked: true }
+      : u
+  );
+  
+  return {
+    ...state,
+    units: updatedUnits
+  };
+}
+
+function handleReconnaissance(
+  state: GameState,
+  payload: { unitId: string; playerId: string }
+): GameState {
+  const { unitId, playerId } = payload;
+  
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+  
+  // Check if unit has reconnaissance ability and hasn't acted
+  if (!unit.abilities.includes('reconnaissance') || unit.hasAttacked) return state;
+  
+  // Reveal large area around unit (radius 4)
+  const reconRadius = 4;
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+  
+  const newVisibleTiles = [];
+  for (let q = unit.coordinate.q - reconRadius; q <= unit.coordinate.q + reconRadius; q++) {
+    for (let r = unit.coordinate.r - reconRadius; r <= unit.coordinate.r + reconRadius; r++) {
+      const s = -q - r;
+      const distance = Math.max(Math.abs(q - unit.coordinate.q), Math.abs(r - unit.coordinate.r), Math.abs(s - (-unit.coordinate.q - unit.coordinate.r)));
+      if (distance <= reconRadius) {
+        newVisibleTiles.push(`${q},${r}`);
+      }
+    }
+  }
+  
+  const updatedPlayers = state.players.map(p => 
+    p.id === playerId 
+      ? { 
+          ...p, 
+          visibilityMask: Array.from(new Set([...p.visibilityMask, ...newVisibleTiles])),
+          exploredTiles: Array.from(new Set([...p.exploredTiles, ...newVisibleTiles]))
+        }
+      : p
+  );
+  
+  const updatedUnits = state.units.map(u => 
+    u.id === unitId ? { ...u, hasAttacked: true } : u
+  );
+  
+  return {
+    ...state,
+    units: updatedUnits,
+    players: updatedPlayers
+  };
+}
+
+function handleFormationFighting(
+  state: GameState,
+  payload: { unitId: string; playerId: string }
+): GameState {
+  const { unitId, playerId } = payload;
+  
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+  
+  // Check if unit has formation fighting ability
+  if (!unit.abilities.includes('formation_fighting')) return state;
+  
+  // Apply formation bonus - this is passive, just mark the unit as having used the action
+  const updatedUnits = state.units.map(u => 
+    u.id === unitId 
+      ? { ...u, status: 'formation', hasAttacked: true }
+      : u
+  );
+  
+  return {
+    ...state,
+    units: updatedUnits
+  };
+}
+
+function handleSiegeMode(
+  state: GameState,
+  payload: { unitId: string; playerId: string }
+): GameState {
+  const { unitId, playerId } = payload;
+  
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+  
+  // Check if unit has siege ability and is stationary
+  if (!unit.abilities.includes('siege') || unit.remainingMovement > 0) return state;
+  
+  const updatedUnits = state.units.map(u => 
+    u.id === unitId 
+      ? { ...u, status: 'siege_mode', hasAttacked: true }
+      : u
+  );
+  
+  return {
+    ...state,
+    units: updatedUnits
+  };
+}
+
+function handleRallyTroops(
+  state: GameState,
+  payload: { unitId: string; playerId: string }
+): GameState {
+  const { unitId, playerId } = payload;
+  
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+  
+  // Check if unit has rally ability and pride cost
+  if (!unit.abilities.includes('rally') || unit.hasAttacked) return state;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player || player.stats.pride < 5) return state;
+  
+  // Rally nearby friendly units (within 2 tiles)
+  const rallyRadius = 2;
+  const updatedUnits = state.units.map(u => {
+    if (u.playerId === playerId && u.id !== unitId) {
+      const distance = hexDistance(unit.coordinate, u.coordinate);
+      if (distance <= rallyRadius) {
+        // Temporarily boost attack for nearby units
+        return { ...u, status: 'rallied' };
+      }
+    }
+    return u;
+  });
+  
+  // Mark the rally unit as having acted and consume pride
+  const updatedRallyUnits = updatedUnits.map(u => 
+    u.id === unitId ? { ...u, hasAttacked: true } : u
+  );
+  
+  const updatedPlayers = state.players.map(p => 
+    p.id === playerId 
+      ? { ...p, stats: { ...p.stats, pride: p.stats.pride - 5 } }
+      : p
+  );
+  
+  return {
+    ...state,
+    units: updatedRallyUnits,
+    players: updatedPlayers
   };
 }
 

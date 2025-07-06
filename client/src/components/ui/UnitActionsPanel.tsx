@@ -81,18 +81,20 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             name: 'Stealth Mode',
             description: 'Become invisible to enemies',
             icon: <Eye className="w-4 h-4" />,
-            cost: '2 Movement',
-            available: unit.remainingMovement >= 2
+            cost: 'Turn',
+            available: !unit.hasAttacked && unit.status !== 'stealthed'
           });
         }
-        actions.push({
-          id: 'reconnaissance',
-          name: 'Reconnaissance',
-          description: 'Reveal large area around unit',
-          icon: <Target className="w-4 h-4" />,
-          cost: 'Turn',
-          available: true
-        });
+        if (unitDef.abilities.includes('reconnaissance')) {
+          actions.push({
+            id: 'reconnaissance',
+            name: 'Reconnaissance',
+            description: 'Reveal large area around unit',
+            icon: <Target className="w-4 h-4" />,
+            cost: 'Turn',
+            available: !unit.hasAttacked
+          });
+        }
         break;
 
       case 'spearman':
@@ -116,7 +118,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: 'Restore health to friendly units',
             icon: <Heart className="w-4 h-4" />,
             cost: '5 Faith',
-            available: currentPlayer.stats.faith >= 5
+            available: currentPlayer.stats.faith >= 5 && !unit.hasAttacked
           });
         }
         if (unitDef.abilities.includes('convert')) {
@@ -162,7 +164,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: 'Boost nearby units\' attack and morale',
             icon: <Crown className="w-4 h-4" />,
             cost: '5 Pride',
-            available: currentPlayer.stats.pride >= 5
+            available: currentPlayer.stats.pride >= 5 && !unit.hasAttacked
           });
         }
         break;
@@ -176,23 +178,63 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     
     // This would dispatch the appropriate game action
     switch (actionId) {
-      case 'stealth':
+
+      
+      case 'heal':
         dispatch({
-          type: 'UNIT_ACTION',
+          type: 'HEAL_UNIT',
           payload: {
             unitId: unit.id,
-            actionType: 'stealth',
             playerId: currentPlayer.id
           }
         });
         break;
-      
-      case 'heal':
+        
+      case 'stealth':
         dispatch({
-          type: 'UNIT_ACTION',
+          type: 'APPLY_STEALTH',
           payload: {
             unitId: unit.id,
-            actionType: 'heal',
+            playerId: currentPlayer.id
+          }
+        });
+        break;
+        
+      case 'reconnaissance':
+        dispatch({
+          type: 'RECONNAISSANCE',
+          payload: {
+            unitId: unit.id,
+            playerId: currentPlayer.id
+          }
+        });
+        break;
+        
+      case 'formation_fighting':
+        dispatch({
+          type: 'FORMATION_FIGHTING',
+          payload: {
+            unitId: unit.id,
+            playerId: currentPlayer.id
+          }
+        });
+        break;
+        
+      case 'siege_mode':
+        dispatch({
+          type: 'SIEGE_MODE',
+          payload: {
+            unitId: unit.id,
+            playerId: currentPlayer.id
+          }
+        });
+        break;
+        
+      case 'rally':
+        dispatch({
+          type: 'RALLY_TROOPS',
+          payload: {
+            unitId: unit.id,
             playerId: currentPlayer.id
           }
         });

@@ -431,6 +431,51 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
           scale={unit.status === 'exhausted' ? [0.7, 0.7, 0.7] : [0.8, 0.8, 0.8]}
         >
           {UnitModel}
+          
+          {/* Status Effect Visual Indicators */}
+          {unit.status === 'stealthed' && (
+            <mesh position={[0, 0.8, 0]}>
+              <ringGeometry args={[0.2, 0.3, 8]} />
+              <meshBasicMaterial 
+                color="#4169E1" 
+                transparent 
+                opacity={0.6}
+              />
+            </mesh>
+          )}
+          
+          {unit.status === 'rallied' && (
+            <mesh position={[0, 0.8, 0]}>
+              <ringGeometry args={[0.2, 0.3, 8]} />
+              <meshBasicMaterial 
+                color="#FFD700" 
+                transparent 
+                opacity={0.8}
+              />
+            </mesh>
+          )}
+          
+          {unit.status === 'formation' && (
+            <mesh position={[0, 0.8, 0]}>
+              <ringGeometry args={[0.2, 0.3, 4]} />
+              <meshBasicMaterial 
+                color="#32CD32" 
+                transparent 
+                opacity={0.7}
+              />
+            </mesh>
+          )}
+          
+          {unit.status === 'siege_mode' && (
+            <mesh position={[0, 0.8, 0]}>
+              <boxGeometry args={[0.4, 0.1, 0.4]} />
+              <meshBasicMaterial 
+                color="#8B0000" 
+                transparent 
+                opacity={0.8}
+              />
+            </mesh>
+          )}
         </group>
       </group>
 
