@@ -7,6 +7,7 @@ import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
 import { getUnitDefinition } from "@shared/data/units";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
 import Construction from "./Construction";
+import { CityModel } from "./CityModel";
 
 export default function MapFeatures() {
   const { gameState } = useLocalGame();
@@ -347,100 +348,12 @@ export default function MapFeatures() {
         
         return (
           <group key={city.id}>
-            {/* Enhanced AAA-Quality City Model */}
-            
-            {/* City Foundation Platform */}
-            <Cylinder
-              position={[position.x, 0.05, position.y]}
-              args={[0.9, 1.0, 0.1, 12]}
-            >
-              <meshStandardMaterial 
-                color="#D2691E" 
-                metalness={0.3} 
-                roughness={0.8} 
-              />
-            </Cylinder>
-            
-            {/* Main City Base */}
-            <Cylinder
-              position={[position.x, 0.25, position.y]}
-              args={[0.7, 0.8, 0.4, 8]}
-            >
-              <meshStandardMaterial 
-                color={isPlayerCity ? "#DDD" : "#A0522D"}
-                metalness={0.2}
-                roughness={0.7}
-              />
-            </Cylinder>
-            
-            {/* Central Keep/Tower */}
-            <Box
-              position={[position.x, 0.6, position.y]}
-              args={[0.6, 0.7, 0.6]}
-            >
-              <meshStandardMaterial 
-                color={isPlayerCity ? "#F5F5DC" : "#8B4513"}
-                metalness={0.1}
-                roughness={0.8}
-              />
-            </Box>
-            
-            {/* Tower Details - Corner Towers */}
-            <Cylinder position={[position.x - 0.25, 0.5, position.y - 0.25]} args={[0.08, 0.1, 0.4, 6]}>
-              <meshStandardMaterial color={isPlayerCity ? "#DDD" : "#654321"} metalness={0.3} roughness={0.7} />
-            </Cylinder>
-            <Cylinder position={[position.x + 0.25, 0.5, position.y - 0.25]} args={[0.08, 0.1, 0.4, 6]}>
-              <meshStandardMaterial color={isPlayerCity ? "#DDD" : "#654321"} metalness={0.3} roughness={0.7} />
-            </Cylinder>
-            <Cylinder position={[position.x - 0.25, 0.5, position.y + 0.25]} args={[0.08, 0.1, 0.4, 6]}>
-              <meshStandardMaterial color={isPlayerCity ? "#DDD" : "#654321"} metalness={0.3} roughness={0.7} />
-            </Cylinder>
-            <Cylinder position={[position.x + 0.25, 0.5, position.y + 0.25]} args={[0.08, 0.1, 0.4, 6]}>
-              <meshStandardMaterial color={isPlayerCity ? "#DDD" : "#654321"} metalness={0.3} roughness={0.7} />
-            </Cylinder>
-            
-            {/* Central Spire */}
-            <Cone
-              position={[position.x, 1.1, position.y]}
-              args={[0.2, 0.4, 8]}
-            >
-              <meshStandardMaterial 
-                color={isPlayerCity ? "#FFD700" : "#2F4F4F"}
-                metalness={0.8}
-                roughness={0.2}
-              />
-            </Cone>
-            
-            {/* City Banner/Flag */}
-            <Cylinder position={[position.x, 1.4, position.y]} args={[0.01, 0.01, 0.3, 6]}>
-              <meshStandardMaterial color="#654321" />
-            </Cylinder>
-            <Box position={[position.x + 0.1, 1.4, position.y]} args={[0.15, 0.1, 0.02]}>
-              <meshStandardMaterial 
-                color={isPlayerCity ? "#FF6347" : "#696969"}
-                transparent
-                opacity={0.8}
-              />
-            </Box>
-            
-            {/* Windows/Details */}
-            <Box position={[position.x, 0.7, position.y + 0.32]} args={[0.1, 0.15, 0.02]}>
-              <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.3} />
-            </Box>
-            <Box position={[position.x + 0.32, 0.7, position.y]} args={[0.02, 0.15, 0.1]}>
-              <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.3} />
-            </Box>
-            <Box position={[position.x, 0.7, position.y - 0.32]} args={[0.1, 0.15, 0.02]}>
-              <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.3} />
-            </Box>
-            <Box position={[position.x - 0.32, 0.7, position.y]} args={[0.02, 0.15, 0.1]}>
-              <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.3} />
-            </Box>
-            
-            {/* City Walls */}
-            <Torus position={[position.x, 0.2, position.y]} args={[1.1, 0.1, 8, 16]} rotation={[-Math.PI/2, 0, 0]}>
-              <meshStandardMaterial color="#8B4513" metalness={0.3} roughness={0.8} />
-            </Torus>
+            {/* Use the new 3D city model */}
+            <CityModel 
+              city={city} 
+              position={position} 
+              isPlayerCity={isPlayerCity} 
+            />
             
             {/* Render Structures around the city */}
             {cityStructures.map((structure, structureIndex) => 
