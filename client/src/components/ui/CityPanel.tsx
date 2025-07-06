@@ -194,23 +194,19 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
             </div>
             
             {/* Construction Hall Button */}
-            <Tooltip content={
-              <ActionTooltip
-                title="Construction Hall"
-                description="Open the comprehensive building interface with detailed information and visual design"
-                hotkey="B"
-              />
-            }>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAdvancedBuildingMenu(true)}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-600/10 to-blue-600/10 border-purple-500/30 hover:from-purple-600/20 hover:to-blue-600/20"
-              >
-                <Hammer className="w-4 h-4" />
-                Construction Hall
-              </Button>
-            </Tooltip>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                console.log('Construction Hall button clicked');
+                setShowAdvancedBuildingMenu(true);
+              }}
+              className="flex items-center gap-2 bg-gradient-to-r from-purple-600/10 to-blue-600/10 border-purple-500/30 hover:from-purple-600/20 hover:to-blue-600/20"
+              title="Open the comprehensive building interface with detailed information and visual design (B)"
+            >
+              <Hammer className="w-4 h-4" />
+              Construction Hall
+            </Button>
           </div>
         </CardHeader>
         
