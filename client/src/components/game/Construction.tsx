@@ -43,7 +43,7 @@ export default function Construction({ construction }: ConstructionProps) {
     <group
       ref={meshRef}
       position={[pixelPos.x, 0.1, pixelPos.y]}
-      scale={[2.5, 2.5, 2.5]} // Scale up as mentioned in guidelines
+      scale={[0.8, 0.8, 0.8]} // Scale to fit within one tile
     >
       {model ? (
         // Use the loaded 3D model
@@ -52,14 +52,14 @@ export default function Construction({ construction }: ConstructionProps) {
           scale={[1, 1, 1]}
         />
       ) : (
-        // Fallback to simple geometry
+        // Fallback to simple geometry (sized to fit within one tile)
         <mesh>
           {construction.type === 'boat' ? (
-            <boxGeometry args={[0.8, 0.3, 1.5]} />
+            <boxGeometry args={[0.6, 0.2, 1.0]} />
           ) : construction.category === 'units' ? (
-            <cylinderGeometry args={[0.2, 0.2, 0.5]} />
+            <cylinderGeometry args={[0.15, 0.15, 0.4]} />
           ) : (
-            <boxGeometry args={[0.5, 0.5, 0.5]} />
+            <boxGeometry args={[0.4, 0.4, 0.4]} />
           )}
           <meshStandardMaterial 
             color={
@@ -75,9 +75,9 @@ export default function Construction({ construction }: ConstructionProps) {
         </mesh>
       )}
       
-      {/* Construction progress indicator */}
-      <mesh position={[0, 0.8, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.3, 0.4, 8]} />
+      {/* Construction progress indicator - sized for single tile */}
+      <mesh position={[0, 0.6, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.2, 0.3, 8]} />
         <meshBasicMaterial 
           color="#FFD700" 
           transparent 
@@ -86,8 +86,8 @@ export default function Construction({ construction }: ConstructionProps) {
       </mesh>
       
       {/* Progress fill */}
-      <mesh position={[0, 0.81, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.3, 0.4, 8, 1, 0, Math.PI * 2 * progress]} />
+      <mesh position={[0, 0.61, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.2, 0.3, 8, 1, 0, Math.PI * 2 * progress]} />
         <meshBasicMaterial 
           color="#00FF00" 
           transparent 
