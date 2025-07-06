@@ -28,7 +28,10 @@ export const UnitStatusSchema = z.enum([
   'exhausted',
   'defending',
   'fortified',
-  'wounded'
+  'stealthed',      // Scout stealth mode
+  'rallied',        // Boosted by commander
+  'formation',      // Spearman formation fighting
+  'siege_mode',     // Catapult siege mode
 ]);
 
 export type UnitStatus = z.infer<typeof UnitStatusSchema>;
