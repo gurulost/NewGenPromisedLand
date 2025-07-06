@@ -34,18 +34,25 @@ export default function GameCanvas() {
   
   // Combat effects moved to GameUI to avoid HTML in R3F
 
-  // Setup camera controls - Polytopia style
+  // Setup camera controls - Pure panning like RTS games
   useEffect(() => {
     if (controlsRef.current && gameState) {
+      // Enable smooth damping for responsive feel
       controlsRef.current.enableDamping = true;
-      controlsRef.current.dampingFactor = 0.05;
+      controlsRef.current.dampingFactor = 0.1;
       
-      // Lock camera angle like Polytopia - fixed isometric view
-      const isometricAngle = Math.PI / 4; // 45 degrees
-      controlsRef.current.minPolarAngle = isometricAngle;
-      controlsRef.current.maxPolarAngle = isometricAngle;
+      // Disable rotation completely - only allow panning and zooming
+      controlsRef.current.enableRotate = false;
       
-      // Adjust zoom limits based on map size - closer like Polytopia
+      // Enable panning (click and drag to move)
+      controlsRef.current.enablePan = true;
+      controlsRef.current.panSpeed = 1.0;
+      
+      // Enable zooming with mouse wheel
+      controlsRef.current.enableZoom = true;
+      controlsRef.current.zoomSpeed = 1.0;
+      
+      // Set zoom limits based on map size
       const mapSize = Math.max(gameState.map.size?.width || 10, gameState.map.size?.height || 10);
       controlsRef.current.minDistance = mapSize * 0.3; // Allow closer zoom
       controlsRef.current.maxDistance = mapSize * 3; // Prevent too far zoom
@@ -64,12 +71,12 @@ export default function GameCanvas() {
         cameraTargetPosition = { x: pixelPos.x, z: pixelPos.y };
       }
       
-      // Position camera closer like Polytopia - focused on player's area
+      // Position camera in fixed isometric view above the map
       const distance = mapSize * 1.2;
       camera.position.set(
         cameraTargetPosition.x, 
         distance, 
-        cameraTargetPosition.z + distance
+        cameraTargetPosition.z + distance * 0.7 // Slightly angled for isometric view
       );
       camera.lookAt(cameraTargetPosition.x, 0, cameraTargetPosition.z);
       
@@ -151,6 +158,15 @@ export default function GameCanvas() {
         enablePan={true}
         enableZoom={true}
         enableRotate={false}
+        mouseButtons={{
+          LEFT: THREE.MOUSE.PAN,
+          MIDDLE: THREE.MOUSE.DOLLY,
+          RIGHT: THREE.MOUSE.PAN
+        }}
+        touches={{
+          ONE: THREE.TOUCH.PAN,
+          TWO: THREE.TOUCH.DOLLY_PAN
+        }}
       />
       
       {/* Fog for atmosphere */}
