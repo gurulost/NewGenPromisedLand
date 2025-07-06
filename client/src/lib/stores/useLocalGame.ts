@@ -28,6 +28,7 @@ interface LocalGameStore {
   dispatch: (action: any) => void;
   resetGame: () => void;
   loadGameState: (state: GameState) => void;
+  harvestResource: (unitId: string, resourceCoordinate: any, cityId: string) => void;
 }
 
 export const useLocalGame = create<LocalGameStore>((set, get) => ({
@@ -99,10 +100,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
         coordinate: cityTile.coordinate,
         ownerId: player.id,
         population: 1,
-        starProduction: 2,
+        maxPopulation: 4, // Population needed to level up
+        level: 1,
+        starProduction: 2, // Base star production
         improvements: [],
         structures: [],
-        level: 1,
+        harvestedResources: [], // Track harvested resource tiles
       };
     });
     
@@ -325,5 +328,18 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       gameState: state,
       gamePhase: 'playing'
     });
+  },
+  
+  harvestResource: (unitId, resourceCoordinate, cityId) => {
+    const { gameState } = get();
+    if (!gameState) return;
+
+    const action = {
+      type: 'HARVEST_RESOURCE' as const,
+      payload: { unitId, resourceCoordinate, cityId }
+    };
+
+    const newGameState = gameReducer(gameState, action);
+    set({ gameState: newGameState });
   },
 }));

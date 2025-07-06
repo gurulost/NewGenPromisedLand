@@ -942,7 +942,7 @@ function handleEndTurn(
         }
       });
       
-      // Remove completedConstructions from player
+      // Remove completedConstructions from player (temporary property)
       delete (player as any).completedConstructions;
     }
   });
