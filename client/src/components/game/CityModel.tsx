@@ -70,7 +70,7 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
   }, [scene, isPlayerCity, city.level]);
   
   return (
-    <group position={[position.x, 0.1, position.y]}>
+    <group position={[position.x, 0.15, position.y]}>
       <primitive object={clonedScene} />
       
       {/* City level indicator - floating text above the model */}
@@ -85,7 +85,7 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
       
       {/* Add a subtle glow effect for higher level cities */}
       {city.level > 1 && (
-        <mesh position={[0, 0.0, 0]}>
+        <mesh position={[0, -0.05, 0]}>
           <cylinderGeometry args={[
             city.level >= 3 ? 2.4 : 1.0, 
             city.level >= 3 ? 2.4 : 1.0, 
@@ -104,7 +104,7 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
       {city.level >= 3 && (
         <>
           {/* Outer ring effect */}
-          <mesh position={[0, -0.04, 0]}>
+          <mesh position={[0, -0.09, 0]}>
             <cylinderGeometry args={[2.6, 2.6, 0.01, 32]} />
             <meshBasicMaterial 
               color={isPlayerCity ? "#FFD700" : "#FF4444"} 
@@ -114,7 +114,7 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
           </mesh>
           
           {/* Pulsing center core */}
-          <mesh position={[0, 0.05, 0]}>
+          <mesh position={[0, 0.0, 0]}>
             <cylinderGeometry args={[0.3, 0.3, 0.05, 16]} />
             <meshBasicMaterial 
               color={isPlayerCity ? "#00FF00" : "#FF0000"} 

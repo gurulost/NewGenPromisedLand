@@ -99,7 +99,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   }, [scene, isPlayerUnit, unit.status]);
   
   return (
-    <group position={[position.x, 0.1, position.y]}>
+    <group position={[position.x, 0.05, position.y]}>
       <primitive object={clonedScene} />
       
       {/* Unit status indicators */}
@@ -138,7 +138,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
       
       {/* Movement indicator for units that can still move */}
       {unit.remainingMovement > 0 && (
-        <mesh position={[0, -0.03, 0]}>
+        <mesh position={[0, -0.04, 0]}>
           <cylinderGeometry args={[0.6, 0.6, 0.01, 16]} />
           <meshBasicMaterial 
             color={isPlayerUnit ? "#22C55E" : "#EF4444"} 
