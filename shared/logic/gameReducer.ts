@@ -77,19 +77,55 @@ function handleStartConstruction(
     buildTime = 3; // Default build time for structures
   } else if (category === 'units') {
     const unitDef = getUnitDefinition(buildingType as any);
-    if (!unitDef) return state;
+    if (!unitDef) {
+      console.log(`Unit definition not found for ${buildingType}`);
+      return state;
+    }
     cost.stars = unitDef.cost.stars || 0;
     cost.faith = unitDef.cost.faith || 0;
     cost.pride = unitDef.cost.pride || 0;
     buildTime = 1; // Units build quickly
+    
+    // Special validation for boats - they need coastal access
+    if (buildingType === 'boat') {
+      const city = state.cities?.find(c => c.id === cityId);
+      if (city) {
+        // Check if city has coastal access (adjacent to water)
+        const cityTile = state.map.tiles.find(t => 
+          t.coordinate.q === city.coordinate.q && 
+          t.coordinate.r === city.coordinate.r
+        );
+        
+        if (cityTile && cityTile.terrain === 'water') {
+          // City is on water, allow boat building
+        } else {
+          // Check for adjacent water tiles
+          const adjacentWater = state.map.tiles.some(tile => {
+            const distance = Math.abs(tile.coordinate.q - city.coordinate.q) + 
+                           Math.abs(tile.coordinate.r - city.coordinate.r) + 
+                           Math.abs(tile.coordinate.s - city.coordinate.s);
+            return distance === 2 && tile.terrain === 'water'; // Adjacent hex distance is 2 in cube coordinates
+          });
+          
+          if (!adjacentWater) {
+            console.log(`Cannot build boat: city ${cityId} has no coastal access`);
+            return state;
+          }
+        }
+      }
+    }
   }
   
   // Check if player can afford
   if (player.stars < cost.stars || 
       player.stats.faith < (cost.faith || 0) || 
       player.stats.pride < (cost.pride || 0)) {
+    console.log(`Cannot afford ${buildingType}: need ${cost.stars} stars, ${cost.faith} faith, ${cost.pride} pride. Have ${player.stars} stars, ${player.stats.faith} faith, ${player.stats.pride} pride`);
     return state;
   }
+  
+  console.log(`Starting construction of ${buildingType} (${category}) for player ${playerId}`);
+  console.log(`Construction details:`, { buildingType, category, coordinate, cityId, cost, buildTime });
   
   // Create construction item
   const constructionId = `${buildingType}_${cityId}_${Date.now()}`;
@@ -104,6 +140,8 @@ function handleStartConstruction(
     totalTurns: buildTime,
     cost,
   };
+  
+  console.log(`Adding construction item to queue:`, constructionItem);
   
   // Deduct costs and add to construction queue
   return {

@@ -18,7 +18,7 @@ import { Tooltip, ActionTooltip } from "../ui/TooltipSystem";
 
 export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
-  const { selectedUnit, setSelectedUnit } = useGameState();
+  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
@@ -155,6 +155,24 @@ export default function GameUI() {
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10">
+      {/* Construction Mode Indicator */}
+      {constructionMode.isActive && (
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-auto z-50">
+          <div className="bg-black/80 text-white px-6 py-4 rounded-lg border-2 border-yellow-400 shadow-lg">
+            <div className="text-center">
+              <h3 className="text-lg font-bold mb-2">Construction Mode</h3>
+              <p className="mb-3">Select a tile to build: <span className="font-semibold text-yellow-300">{constructionMode.buildingType}</span></p>
+              <button 
+                onClick={cancelConstruction}
+                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Player HUD */}
       <PlayerHUD
         player={currentPlayer}

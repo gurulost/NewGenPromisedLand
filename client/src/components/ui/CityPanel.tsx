@@ -441,7 +441,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           gameState={gameState}
           onBuild={(optionId) => {
             console.log('Starting construction:', optionId);
-            // Determine building category and start construction mode
+            // Determine building category
             let category: 'improvements' | 'structures' | 'units';
             
             if (Object.values(STRUCTURE_DEFINITIONS).some(s => s.id === optionId)) {
@@ -452,12 +452,26 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               category = 'improvements';
             }
             
-            // Start construction mode for tile selection
-            startConstruction(optionId, category, city.id, currentPlayer.id);
-            setShowAdvancedBuildingMenu(false);
-            
-            // Show instruction message
-            console.log(`Select a tile to build ${optionId}`);
+            // For units, build directly at city location (no tile selection needed)
+            if (category === 'units') {
+              console.log(`Building unit ${optionId} at city location`);
+              dispatch({
+                type: 'START_CONSTRUCTION',
+                payload: {
+                  playerId: currentPlayer.id,
+                  buildingType: optionId,
+                  category: 'units',
+                  coordinate: city.coordinate, // Units built at city
+                  cityId: city.id,
+                },
+              });
+              setShowAdvancedBuildingMenu(false);
+            } else {
+              // For improvements/structures, start tile selection mode
+              console.log(`Starting tile selection for ${optionId}`);
+              startConstruction(optionId, category, city.id, currentPlayer.id);
+              setShowAdvancedBuildingMenu(false);
+            }
           }}
           onClose={() => setShowAdvancedBuildingMenu(false)}
         />
