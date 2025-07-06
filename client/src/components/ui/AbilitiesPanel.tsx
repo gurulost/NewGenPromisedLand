@@ -78,14 +78,15 @@ export function AbilitiesPanel({ currentPlayer, gameState, onActivateAbility }: 
   const handleAbilityClick = (ability: any) => {
     if (!ability.canActivate) return;
 
-    // Check if ability requires targeting
-    const requiresTargeting = ability.effect.includes('target') || ability.effect.includes('selected');
+    // Check if ability requires targeting (safely check if effect exists)
+    const effectString = ability.effect || '';
+    const requiresTargeting = effectString.includes('target') || effectString.includes('selected');
     
     if (requiresTargeting) {
       // Enter targeting mode
       setTargetingState({
         abilityId: ability.id,
-        targetType: ability.effect.includes('unit') ? 'unit' : 'city',
+        targetType: effectString.includes('unit') ? 'unit' : 'city',
         instruction: `Select a target for ${ability.name}`
       });
     } else {
