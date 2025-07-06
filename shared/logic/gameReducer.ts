@@ -536,6 +536,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'HARVEST_RESOURCE':
       return handleHarvestResource(state, action.payload);
     
+    case 'CLEAR_FOREST':
+      return handleClearForest(state, action.payload);
+    
+    case 'BUILD_ROAD':
+      return handleBuildRoad(state, action.payload);
+    
     default:
       return state;
   }
@@ -1128,6 +1134,122 @@ function handleHarvestResource(
     ...state,
     cities: updatedCities,
     units: updatedUnits
+  };
+}
+
+// Clear Forest Handler
+function handleClearForest(
+  state: GameState,
+  payload: { unitId: string; targetCoordinate: any; playerId: string }
+): GameState {
+  const { unitId, targetCoordinate, playerId } = payload;
+  
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player || player.stars < 5) return state;
+  
+  // Find the target tile
+  const targetTile = state.map.tiles.find(tile => 
+    tile.coordinate.q === targetCoordinate.q &&
+    tile.coordinate.r === targetCoordinate.r
+  );
+  
+  if (!targetTile || targetTile.terrain !== 'forest') return state;
+  
+  // Check if unit can perform this action
+  const unitDef = getUnitDefinition(unit.type);
+  if (!unitDef.abilities.includes('CLEAR_FOREST')) return state;
+  
+  // Check if unit is adjacent or on the tile
+  const distance = hexDistance(unit.coordinate, targetCoordinate);
+  if (distance > 1) return state;
+  
+  return {
+    ...state,
+    players: state.players.map(p => 
+      p.id === playerId 
+        ? { ...p, stars: p.stars - 5 }
+        : p
+    ),
+    map: {
+      ...state.map,
+      tiles: state.map.tiles.map(tile =>
+        tile.coordinate.q === targetCoordinate.q && tile.coordinate.r === targetCoordinate.r
+          ? { ...tile, terrain: 'plains' }
+          : tile
+      )
+    },
+    units: state.units.map(u => 
+      u.id === unitId 
+        ? { ...u, remainingMovement: 0 } // Exhaust unit after clearing
+        : u
+    )
+  };
+}
+
+// Build Road Handler
+function handleBuildRoad(
+  state: GameState,
+  payload: { unitId: string; targetCoordinate: any; playerId: string }
+): GameState {
+  const { unitId, targetCoordinate, playerId } = payload;
+  
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player || player.stars < 3) return state;
+  
+  // Find the target tile
+  const targetTile = state.map.tiles.find(tile => 
+    tile.coordinate.q === targetCoordinate.q &&
+    tile.coordinate.r === targetCoordinate.r
+  );
+  
+  if (!targetTile || targetTile.terrain === 'water' || targetTile.terrain === 'mountain') return state;
+  
+  // Check if unit can perform this action
+  const unitDef = getUnitDefinition(unit.type);
+  if (!unitDef.abilities.includes('BUILD_ROAD')) return state;
+  
+  // Check if unit is adjacent or on the tile
+  const distance = hexDistance(unit.coordinate, targetCoordinate);
+  if (distance > 1) return state;
+  
+  // Check if road already exists
+  const existingRoad = state.improvements?.find(imp => 
+    imp.coordinate.q === targetCoordinate.q && 
+    imp.coordinate.r === targetCoordinate.r &&
+    imp.type === 'road'
+  );
+  
+  if (existingRoad) return state;
+  
+  const roadImprovement = {
+    id: `road_${targetCoordinate.q}_${targetCoordinate.r}_${Date.now()}`,
+    type: 'road' as const,
+    coordinate: targetCoordinate,
+    ownerId: playerId,
+    cityId: '',
+    starProduction: 0,
+    constructionTurns: 0
+  };
+  
+  return {
+    ...state,
+    players: state.players.map(p => 
+      p.id === playerId 
+        ? { ...p, stars: p.stars - 3 }
+        : p
+    ),
+    improvements: [...(state.improvements || []), roadImprovement],
+    units: state.units.map(u => 
+      u.id === unitId 
+        ? { ...u, remainingMovement: 0 } // Exhaust unit after building
+        : u
+    )
   };
 }
 

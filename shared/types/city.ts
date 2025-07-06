@@ -9,7 +9,8 @@ export const ImprovementTypeSchema = z.enum([
   'irrigation',
   'workshop',
   'port',
-  'aqueduct'
+  'aqueduct',
+  'road'
 ]);
 
 export type ImprovementType = z.infer<typeof ImprovementTypeSchema>;
@@ -175,6 +176,17 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     validTerrain: ['plains', 'mountain'],
     requiredTech: 'engineering',
     constructionTime: 3
+  },
+  
+  road: {
+    id: 'road',
+    name: 'Road',
+    description: 'Infrastructure that reduces movement cost for units',
+    cost: 3,
+    starProduction: 0,
+    validTerrain: ['plains', 'forest', 'desert'],
+    requiredTech: 'organization',
+    constructionTime: 1
   }
 };
 

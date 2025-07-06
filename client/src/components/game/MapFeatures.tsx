@@ -257,6 +257,41 @@ export default function MapFeatures() {
             </Box>
           </group>
         );
+      case 'road':
+        return (
+          <group key={`road-${key}`}>
+            {/* Road surface - stone cobblestone appearance */}
+            <Box position={[position.x, y - 0.05, position.y]} args={[0.9, 0.02, 0.9]}>
+              <meshStandardMaterial color="#555555" />
+            </Box>
+            {/* Road markings - center line */}
+            <Box position={[position.x, y - 0.04, position.y]} args={[0.8, 0.01, 0.05]}>
+              <meshStandardMaterial color="#DDDDDD" />
+            </Box>
+            <Box position={[position.x, y - 0.04, position.y]} args={[0.05, 0.01, 0.8]}>
+              <meshStandardMaterial color="#DDDDDD" />
+            </Box>
+            {/* Road edges - small stones */}
+            {Array.from({ length: 6 }, (_, i) => (
+              <Box key={i} position={[
+                position.x - 0.4 + (i * 0.16), 
+                y - 0.02, 
+                position.y + 0.42
+              ]} args={[0.08, 0.04, 0.08]}>
+                <meshStandardMaterial color="#666666" />
+              </Box>
+            ))}
+            {Array.from({ length: 6 }, (_, i) => (
+              <Box key={i + 6} position={[
+                position.x - 0.4 + (i * 0.16), 
+                y - 0.02, 
+                position.y - 0.42
+              ]} args={[0.08, 0.04, 0.08]}>
+                <meshStandardMaterial color="#666666" />
+              </Box>
+            ))}
+          </group>
+        );
       default:
         return (
           <Box key={`improvement-${key}`} position={[position.x, y, position.y]} args={[0.3, 0.15, 0.3]}>
