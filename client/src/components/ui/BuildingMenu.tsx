@@ -62,7 +62,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose }: Buil
   const [selectedCategory, setSelectedCategory] = useState<'units' | 'structures' | 'improvements'>('units');
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'cost' | 'name' | 'buildTime'>('name');
+  const [sortBy, setSortBy] = useState<'cost' | 'name' | 'buildTime'>('cost');
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Play UI sounds

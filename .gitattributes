@@ -10,3 +10,5 @@
 /attached_assets/missionary_1751826193548.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/archer.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/missionary.glb filter=lfs diff=lfs merge=lfs -text
+/attached_assets/Worker_1751829097660.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/worker.glb filter=lfs diff=lfs merge=lfs -text

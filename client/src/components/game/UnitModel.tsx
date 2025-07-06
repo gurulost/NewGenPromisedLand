@@ -16,6 +16,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
       case 'warrior':
         return '/models/warrior.glb';
       case 'worker':
+        return '/models/worker.glb';
       case 'settler':
         return '/models/settler.glb';
       case 'scout':
@@ -153,6 +154,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
 
 // Preload all unit models
 useGLTF.preload('/models/warrior.glb');
+useGLTF.preload('/models/worker.glb');
 useGLTF.preload('/models/settler.glb');
 useGLTF.preload('/models/archer.glb');
 useGLTF.preload('/models/missionary.glb');
