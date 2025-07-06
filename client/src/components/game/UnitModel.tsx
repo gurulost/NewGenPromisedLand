@@ -2,6 +2,7 @@ import { useGLTF } from '@react-three/drei';
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { Unit } from '@shared/types/game';
+import { useLocalGame } from '../../lib/stores/useLocalGame';
 
 interface UnitModelProps {
   unit: Unit;
@@ -10,8 +11,14 @@ interface UnitModelProps {
 }
 
 export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
-  // Determine which model to load based on unit type
-  const getModelPath = (unitType: string) => {
+  const { gameState } = useLocalGame();
+  
+  // Get the player's faction to determine which model variant to use
+  const player = gameState?.players.find(p => p.id === unit.playerId);
+  const playerFaction = player?.factionId;
+  
+  // Determine which model to load based on unit type and faction
+  const getModelPath = (unitType: string, factionId?: string) => {
     switch (unitType) {
       case 'warrior':
         return '/models/warrior.glb';
@@ -20,6 +27,12 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
       case 'settler':
         return '/models/settler.glb';
       case 'scout':
+        // Use the new scout model for Nephite-aligned factions
+        if (factionId === 'NEPHITES' || factionId === 'ANTI_NEPHI_LEHIES' || factionId === 'MULEKITES') {
+          return '/models/scout_nephite.glb';
+        }
+        // Fall back to archer model for other factions
+        return '/models/archer.glb';
       case 'archer':
         return '/models/archer.glb';
       case 'missionary':
@@ -29,7 +42,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     }
   };
 
-  const modelPath = getModelPath(unit.type);
+  const modelPath = getModelPath(unit.type, playerFaction);
   const { scene } = useGLTF(modelPath);
   
   // Clone the scene to avoid modifying the original
@@ -158,3 +171,4 @@ useGLTF.preload('/models/worker.glb');
 useGLTF.preload('/models/settler.glb');
 useGLTF.preload('/models/archer.glb');
 useGLTF.preload('/models/missionary.glb');
+useGLTF.preload('/models/scout_nephite.glb');

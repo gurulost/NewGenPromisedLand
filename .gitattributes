@@ -17,3 +17,4 @@
 /client/public/models/Village.glb filter=lfs diff=lfs merge=lfs -text
 /attached_assets/Scout_1751830561066.glb filter=lfs diff=lfs merge=lfs -text
 /attached_assets/Fun[[:space:]]Scout_1751831308185.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/scout_nephite.glb filter=lfs diff=lfs merge=lfs -text
