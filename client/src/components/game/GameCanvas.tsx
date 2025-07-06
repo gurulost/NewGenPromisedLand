@@ -12,7 +12,6 @@ import { hexToPixel } from "@shared/utils/hex";
 import { gsap } from "gsap";
 import * as THREE from "three";
 import { UnitSelectionEffects, useUnitSelection } from "../effects/UnitSelection";
-import { CombatEffects, useCombatEffects } from "../effects/CombatEffects";
 import { calculateReachableTiles } from "@shared/logic/unitLogic";
 
 export default function GameCanvas() {
@@ -33,13 +32,7 @@ export default function GameCanvas() {
     hoverTile
   } = useUnitSelection();
   
-  const {
-    damageNumbers,
-    effects,
-    addDamageNumber,
-    addEffect,
-    removeEffect
-  } = useCombatEffects();
+  // Combat effects moved to GameUI to avoid HTML in R3F
 
   // Setup camera controls - Polytopia style
   useEffect(() => {
@@ -201,12 +194,7 @@ export default function GameCanvas() {
         validAttackCoordinates={validAttackCoordinates}
       />
 
-      {/* Combat Effects */}
-      <CombatEffects
-        damageNumbers={damageNumbers}
-        effects={effects}
-        onEffectComplete={removeEffect}
-      />
+      {/* Combat Effects - Note: Moved to GameUI to avoid HTML in R3F */}
       
       {/* Selection indicator */}
       {hoveredTile && (
