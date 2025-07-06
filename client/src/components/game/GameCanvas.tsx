@@ -46,9 +46,9 @@ export default function GameCanvas() {
       controlsRef.current.maxPolarAngle = isometricAngle;
       
       // Adjust zoom limits based on map size - closer like Polytopia
-      const mapSize = Math.max(gameState.map.width, gameState.map.height);
-      controlsRef.current.minDistance = mapSize * 0.5; // Allow closer zoom
-      controlsRef.current.maxDistance = mapSize * 2; // Prevent too far zoom
+      const mapSize = Math.max(gameState.map.size?.width || 10, gameState.map.size?.height || 10);
+      controlsRef.current.minDistance = mapSize * 0.3; // Allow closer zoom
+      controlsRef.current.maxDistance = mapSize * 3; // Prevent too far zoom
       
       // Position camera near current player's starting area
       const currentPlayer = gameState.players[gameState.currentPlayerIndex];
