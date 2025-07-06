@@ -66,6 +66,41 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose }: Buil
   const [sortBy, setSortBy] = useState<'cost' | 'name' | 'buildTime'>('cost');
   const audioRef = useRef<HTMLAudioElement>(null);
 
+  // Calculate star production breakdown
+  const playerCityObjects = gameState.cities?.filter(city => city.ownerId === player.id) || [];
+  let totalStarProduction = 0;
+  const breakdown: Array<{source: string, amount: number}> = [];
+  
+  // Cities
+  const cityStarProduction = playerCityObjects.reduce((sum, city) => sum + city.starProduction, 0);
+  totalStarProduction += cityStarProduction;
+  if (playerCityObjects.length > 0) {
+    breakdown.push({ source: `Cities (${playerCityObjects.length})`, amount: cityStarProduction });
+  } else {
+    const baseProduction = 2; // Base production fallback
+    totalStarProduction += baseProduction;
+    breakdown.push({ source: "Base", amount: baseProduction });
+  }
+  
+  // Improvements
+  const playerImprovements = gameState.improvements?.filter(imp => imp.ownerId === player.id && imp.constructionTurns === 0) || [];
+  const improvementStars = playerImprovements.reduce((sum, imp) => sum + imp.starProduction, 0);
+  if (improvementStars > 0) {
+    totalStarProduction += improvementStars;
+    breakdown.push({ source: `Improvements (${playerImprovements.length})`, amount: improvementStars });
+  }
+  
+  // Structures
+  const playerStructures = gameState.structures?.filter(struct => struct.ownerId === player.id && struct.constructionTurns === 0) || [];
+  const structureStars = playerStructures.reduce((sum, struct) => {
+    const structureDef = STRUCTURE_DEFINITIONS[struct.type as keyof typeof STRUCTURE_DEFINITIONS];
+    return sum + (structureDef?.effects.starProduction || 0);
+  }, 0);
+  if (structureStars > 0) {
+    totalStarProduction += structureStars;
+    breakdown.push({ source: `Structures (${playerStructures.length})`, amount: structureStars });
+  }
+
   // Play UI sounds
   const playSound = (soundType: 'hover' | 'select' | 'build' | 'error') => {
     // Sound effects would be implemented here
@@ -223,7 +258,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose }: Buil
               <div className="flex items-center gap-2">
                 <Star className="w-5 h-5 text-yellow-400" />
                 <span className="text-white font-semibold">{player.stars}</span>
-                <InfoTooltip content={<StarProductionTooltip />} />
+                <InfoTooltip content={<StarProductionTooltip totalIncome={totalStarProduction} breakdown={breakdown} />} />
               </div>
               <div className="flex items-center gap-2">
                 <Crown className="w-5 h-5 text-purple-400" />
