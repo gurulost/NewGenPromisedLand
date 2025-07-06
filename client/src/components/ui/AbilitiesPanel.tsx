@@ -117,7 +117,7 @@ export function AbilitiesPanel({ currentPlayer, gameState, onActivateAbility }: 
 
   return (
     <TooltipProvider>
-      <Card className="w-80 bg-purple-950/90 border-purple-800">
+      <Card className="w-80 bg-purple-950/90 border-purple-800 overflow-hidden">
         <CardHeader className="pb-3">
           <CardTitle className="text-white font-cinzel font-semibold tracking-wide flex items-center gap-2">
             <Zap className="w-4 h-4" />
@@ -205,7 +205,7 @@ export function AbilitiesPanel({ currentPlayer, gameState, onActivateAbility }: 
                           </div>
                         </div>
                         
-                        <div className="text-xs opacity-75 mb-2">
+                        <div className="text-xs opacity-75 mb-2 break-words whitespace-normal leading-relaxed">
                           {ability.description}
                         </div>
                         
