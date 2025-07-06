@@ -378,7 +378,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             
             // Calculate reachable tiles for the selected unit
             if (gameState) {
-              const reachableCoords = calculateReachableTiles(unitOnTile, gameState);
+              const reachableCoords = calculateReachableTiles(gameState, unitOnTile.coordinate, unitOnTile.remainingMovement);
               const reachableKeys = reachableCoords.map(coord => `${coord.q},${coord.r}`);
               console.log('Calculating reachable tiles for unit:', unitOnTile.id, 'Movement:', unitOnTile.remainingMovement);
               console.log('Reachable tiles:', reachableKeys);

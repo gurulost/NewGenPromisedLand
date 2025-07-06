@@ -52,10 +52,15 @@ export default function GameCanvas() {
       controlsRef.current.enableZoom = true;
       controlsRef.current.zoomSpeed = 1.0;
       
-      // Set zoom limits based on map size
-      const mapSize = Math.max(gameState.map.size?.width || 10, gameState.map.size?.height || 10);
-      controlsRef.current.minDistance = mapSize * 0.3; // Allow closer zoom
-      controlsRef.current.maxDistance = mapSize * 3; // Prevent too far zoom
+      // Set zoom limits based on map size - fix terrain disappearing
+      const mapSize = Math.max(gameState.map.width || 10, gameState.map.height || 10);
+      controlsRef.current.minDistance = 3; // Allow closer zoom but not too close
+      controlsRef.current.maxDistance = mapSize * 4; // Prevent too far zoom
+      
+      // Fix camera clipping planes to prevent terrain disappearing
+      camera.near = 0.1;
+      camera.far = mapSize * 10;
+      camera.updateProjectionMatrix();
       
       // Position camera near current player's starting area
       const currentPlayer = gameState.players[gameState.currentPlayerIndex];
@@ -99,7 +104,7 @@ export default function GameCanvas() {
         const cameraTargetPosition = { x: pixelPos.x, z: pixelPos.y };
         
         // Smoothly move camera to focus on current player's area
-        const mapSize = Math.max(gameState.map.width, gameState.map.height);
+        const mapSize = Math.max(gameState.map.width || 10, gameState.map.height || 10);
         const distance = mapSize * 1.2;
         
         // Use GSAP for smooth camera transition
