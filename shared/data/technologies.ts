@@ -18,7 +18,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
   organization: {
     id: 'organization',
     name: 'Organization',
-    description: 'Basic civic structure enabling resource management and construction',
+    description: 'Like Nephi organizing his people into "rulers and teachers" (2 Nephi 5:19), this establishes basic civic structure for resource management and settlement construction, enabling the growth of a righteous society.',
     cost: 5,
     prerequisites: [],
     unlocks: {
@@ -31,7 +31,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
   hunting: {
     id: 'hunting',
     name: 'Hunting',
-    description: 'Basic survival and combat techniques',
+    description: 'Following Nephi\'s example of obtaining food in the wilderness (1 Nephi 16:31), this knowledge of tracking, archery, and survival enables both sustenance and defense against wild beasts and enemies.',
     cost: 5,
     prerequisites: [],
     unlocks: {
@@ -44,7 +44,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
   spirituality: {
     id: 'spirituality',
     name: 'Spirituality',
-    description: 'Foundation of faith and religious practice',
+    description: 'As Lehi taught his family to "pray unto the Lord" (1 Nephi 2:16), this foundational faith practice strengthens the people through divine guidance, blessings, and protection from the adversary.',
     cost: 5,
     prerequisites: [],
     unlocks: {
@@ -58,7 +58,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
   agriculture: {
     id: 'agriculture',
     name: 'Agriculture',
-    description: 'Advanced farming techniques for greater food production',
+    description: 'Inspired by the Nephites who "did till the earth, and raise all manner of grain, and of fruit" (Enos 1:21), these advanced farming techniques provide abundant harvests to feed growing populations and support temple construction.',
     cost: 10,
     prerequisites: ['organization'],
     unlocks: {
@@ -71,7 +71,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
   bronze_working: {
     id: 'bronze_working',
     name: 'Bronze Working',
-    description: 'Metal forging for better weapons and tools',
+    description: 'As Nephi "did take the sword of Laban" and later taught his people to work metals (2 Nephi 5:15), this knowledge of forging creates stronger weapons and tools for both defense and industry.',
     cost: 12,
     prerequisites: ['hunting', 'organization'],
     unlocks: {
@@ -84,7 +84,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
   sailing: {
     id: 'sailing',
     name: 'Sailing',
-    description: 'Ocean navigation and coastal development',
+    description: 'Following the pattern of Lehi\'s transoceanic voyage guided by the Liahona (1 Nephi 18), this mastery of navigation enables exploration across waters to discover new lands and establish coastal settlements.',
     cost: 8,
     prerequisites: ['hunting'],
     unlocks: {
@@ -98,7 +98,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
   priesthood: {
     id: 'priesthood',
     name: 'Priesthood',
-    description: 'Organized religious hierarchy and advanced spiritual practices',
+    description: 'As Alma organized priests and teachers "after the manner of the holy order of God" (Alma 13:1), this sacred authority enables missionaries to baptize, heal, and establish the church among all nations.',
     cost: 15,
     prerequisites: ['spirituality'],
     unlocks: {
@@ -113,7 +113,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
   philosophy: {
     id: 'philosophy',
     name: 'Philosophy',
-    description: 'Advanced learning and wisdom traditions',
+    description: 'Like King Benjamin\'s profound teachings on service and charity (Mosiah 2), this wisdom tradition combines scriptural knowledge with reasoned learning, establishing schools to preserve truth and educate future generations.',
     cost: 20,
     prerequisites: ['priesthood', 'bronze_working'],
     unlocks: {
@@ -126,7 +126,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
   engineering: {
     id: 'engineering',
     name: 'Engineering',
-    description: 'Advanced construction and siege warfare',
+    description: 'Following the pattern of Nephi who "did build a temple; and I did construct it after the manner of the temple of Solomon" (2 Nephi 5:16), this advanced construction enables magnificent buildings and siege warfare capabilities.',
     cost: 25,
     prerequisites: ['bronze_working', 'agriculture'],
     unlocks: {

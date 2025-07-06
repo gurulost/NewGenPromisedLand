@@ -268,9 +268,6 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                     onMouseLeave={() => setHoveredTech(null)}
                     onClick={() => {
                       setSelectedTech(techId);
-                      if (status === 'available' && canAfford) {
-                        handleResearchTech(techId);
-                      }
                     }}
                   >
                     <div className="p-4 h-full flex flex-col justify-between rounded-xl border-2">
