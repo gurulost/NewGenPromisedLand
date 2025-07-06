@@ -530,6 +530,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'RESEARCH_TECHNOLOGY':
       return handleResearchTechnology(state, action.payload);
     
+    case 'ACTIVATE_FACTION_ABILITY':
+      return handleActivateFactionAbility(state, action.payload);
+    
     case 'HARVEST_RESOURCE':
       return handleHarvestResource(state, action.payload);
     
@@ -2125,5 +2128,49 @@ function handleUpgradeUnit(
         ? { ...u, ...unitUpgrades }
         : u
     )
+  };
+}
+
+function handleActivateFactionAbility(
+  state: GameState,
+  payload: { playerId: string; abilityId: string; targetId?: string }
+): GameState {
+  const { playerId, abilityId, targetId } = payload;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+
+  const ability = ABILITIES[abilityId];
+  if (!ability) return state;
+
+  // Check requirements
+  if (ability.requirements) {
+    const hasResources = Object.entries(ability.requirements).every(([resource, cost]) => {
+      if (resource === 'faith') return player.stats.faith >= cost;
+      if (resource === 'pride') return player.stats.pride >= cost;
+      return true;
+    });
+    
+    if (!hasResources) return state;
+  }
+
+  // Deduct costs and apply ability effects (simplified implementation)
+  let updatedPlayer = { ...player };
+  if (ability.requirements?.faith) {
+    updatedPlayer.stats = {
+      ...updatedPlayer.stats,
+      faith: updatedPlayer.stats.faith - ability.requirements.faith
+    };
+  }
+  if (ability.requirements?.pride) {
+    updatedPlayer.stats = {
+      ...updatedPlayer.stats, 
+      pride: updatedPlayer.stats.pride - ability.requirements.pride
+    };
+  }
+
+  return {
+    ...state,
+    players: state.players.map(p => p.id === playerId ? updatedPlayer : p)
   };
 }
