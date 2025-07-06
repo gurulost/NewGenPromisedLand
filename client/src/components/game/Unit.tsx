@@ -108,7 +108,7 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
     switch (unit.type) {
       case 'warrior':
         return (
-          <group scale={[1.2, 1.2, 1.2]}>
+          <group scale={[0.8, 0.8, 0.8]}>
             {/* Body/Torso */}
             <Cylinder position={[0, 0.25, 0]} args={[0.15, 0.2, 0.4, 8]}>
               <meshStandardMaterial color={primaryColor} metalness={0.3} roughness={0.7} />
@@ -156,7 +156,7 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
         
       case 'stripling_warrior':
         return (
-          <group scale={[1.1, 1.1, 1.1]}>
+          <group scale={[0.8, 0.8, 0.8]}>
             {/* Young warrior - lighter armor, divine glow */}
             
             {/* Body */}
@@ -315,7 +315,7 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
         
       case 'commander':
         return (
-          <group scale={[1.3, 1.3, 1.3]}>
+          <group scale={[0.8, 0.8, 0.8]}>
             {/* Elite commander with ornate armor */}
             
             {/* Body - Heavy Armor */}
@@ -428,7 +428,7 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
         onPointerLeave={() => document.body.style.cursor = 'default'}
       >
         <group
-          scale={unit.status === 'exhausted' ? [0.9, 0.9, 0.9] : [1, 1, 1]}
+          scale={unit.status === 'exhausted' ? [0.7, 0.7, 0.7] : [0.8, 0.8, 0.8]}
         >
           {UnitModel}
         </group>
