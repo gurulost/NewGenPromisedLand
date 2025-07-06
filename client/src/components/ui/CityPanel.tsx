@@ -4,10 +4,12 @@ import { Button } from "./button";
 import { Badge } from "./badge";
 import { Separator } from "./separator";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
-import { Star, Building, Sword, Hammer, Users } from "lucide-react";
+import { Star, Building, Sword, Hammer, Users, Sparkles } from "lucide-react";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS, type ImprovementType, type StructureType } from "@shared/types/city";
 import { getUnitDefinition, UNIT_DEFINITIONS } from "@shared/data/units";
 import type { UnitType } from "@shared/types/unit";
+import { BuildingMenu } from "./BuildingMenu";
+import { Tooltip, ActionTooltip } from "./TooltipSystem";
 
 interface CityPanelProps {
   open: boolean;
@@ -18,6 +20,7 @@ interface CityPanelProps {
 export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
   const { gameState, dispatch } = useLocalGame();
   const [selectedTab, setSelectedTab] = useState<'overview' | 'structures' | 'units' | 'improvements'>('overview');
+  const [showAdvancedBuildingMenu, setShowAdvancedBuildingMenu] = useState(false);
   
   if (!open || !gameState) return null;
   
@@ -176,21 +179,42 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           </div>
           
           {/* Tab Navigation */}
-          <div className="flex gap-2 mt-4">
-            {(['overview', 'structures', 'units'] as const).map(tab => (
+          <div className="flex gap-2 mt-4 justify-between">
+            <div className="flex gap-2">
+              {(['overview', 'structures', 'units'] as const).map(tab => (
+                <Button
+                  key={tab}
+                  variant={selectedTab === tab ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedTab(tab)}
+                  className="flex items-center gap-2"
+                >
+                  {tab === 'overview' && <Building className="w-4 h-4" />}
+                  {tab === 'structures' && <Hammer className="w-4 h-4" />}
+                  {tab === 'units' && <Users className="w-4 h-4" />}
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </Button>
+              ))}
+            </div>
+            
+            {/* Advanced Building Menu Button */}
+            <Tooltip content={
+              <ActionTooltip
+                title="Advanced Construction Hall"
+                description="Access the premium building interface with enhanced visuals, filtering, and detailed information"
+                hotkey="B"
+              />
+            }>
               <Button
-                key={tab}
-                variant={selectedTab === tab ? "default" : "outline"}
+                variant="outline"
                 size="sm"
-                onClick={() => setSelectedTab(tab)}
-                className="flex items-center gap-2"
+                onClick={() => setShowAdvancedBuildingMenu(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-purple-600/10 to-blue-600/10 border-purple-500/30 hover:from-purple-600/20 hover:to-blue-600/20"
               >
-                {tab === 'overview' && <Building className="w-4 h-4" />}
-                {tab === 'structures' && <Hammer className="w-4 h-4" />}
-                {tab === 'units' && <Users className="w-4 h-4" />}
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                <Sparkles className="w-4 h-4" />
+                Enhanced View
               </Button>
-            ))}
+            </Tooltip>
           </div>
         </CardHeader>
         
@@ -358,6 +382,28 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Advanced Building Menu */}
+      {showAdvancedBuildingMenu && (
+        <BuildingMenu
+          city={city}
+          player={currentPlayer}
+          gameState={gameState}
+          onBuild={(optionId) => {
+            console.log('Building:', optionId);
+            // Handle building based on option type
+            if (optionId.startsWith('structure_')) {
+              const structureType = optionId.replace('structure_', '') as StructureType;
+              handleBuildStructure(structureType);
+            } else if (optionId.startsWith('unit_')) {
+              const unitType = optionId.replace('unit_', '') as UnitType;
+              handleRecruitUnit(unitType);
+            }
+            setShowAdvancedBuildingMenu(false);
+          }}
+          onClose={() => setShowAdvancedBuildingMenu(false)}
+        />
+      )}
     </div>
   );
 }
