@@ -13,22 +13,22 @@ interface TechPanelProps {
   onClose: () => void;
 }
 
-// Define tech tree layout positions for visual connections
+// Define tech tree layout positions with proper spacing
 const TECH_POSITIONS: Record<string, { x: number; y: number; tier: number }> = {
-  // Tier 1 - Starting techs (prerequisites: none)
+  // Tier 1 - Starting techs (prerequisites: none) - spread out more
   organization: { x: 1, y: 1, tier: 1 },
-  hunting: { x: 2, y: 1, tier: 1 },
-  spirituality: { x: 3, y: 1, tier: 1 },
+  hunting: { x: 3, y: 1, tier: 1 },
+  spirituality: { x: 5, y: 1, tier: 1 },
   
-  // Tier 2 - Early development
-  agriculture: { x: 1, y: 2, tier: 2 },
-  bronze_working: { x: 1.5, y: 2, tier: 2 },
-  sailing: { x: 2, y: 2, tier: 2 },
-  priesthood: { x: 3, y: 2, tier: 2 },
+  // Tier 2 - Early development - avoid overlapping
+  agriculture: { x: 0.5, y: 2.5, tier: 2 },
+  bronze_working: { x: 2, y: 2.5, tier: 2 },
+  sailing: { x: 3.5, y: 2.5, tier: 2 },
+  priesthood: { x: 5.5, y: 2.5, tier: 2 },
   
-  // Tier 3 - Advanced
-  engineering: { x: 1, y: 3, tier: 3 },
-  philosophy: { x: 2, y: 3, tier: 3 },
+  // Tier 3 - Advanced - well spaced
+  engineering: { x: 1, y: 4, tier: 3 },
+  philosophy: { x: 4, y: 4, tier: 3 },
 };
 
 type TechStatus = 'researched' | 'available' | 'locked' | 'researching';
@@ -135,10 +135,10 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     
     return (
       <line
-        x1={fromPos.x * 200 + 100}
-        y1={fromPos.y * 150 + 75}
-        x2={toPos.x * 200 + 100}
-        y2={toPos.y * 150 + 75}
+        x1={fromPos.x * 220 + 120}
+        y1={fromPos.y * 180 + 90}
+        x2={toPos.x * 220 + 120}
+        y2={toPos.y * 180 + 90}
         className={`${lineColor} stroke-2 opacity-60`}
         strokeDasharray={status === 'locked' ? '5,5' : '0'}
       />
@@ -245,7 +245,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             </svg>
             
             {/* Tech Nodes */}
-            <div className="relative" style={{ minHeight: '600px', minWidth: '1000px' }}>
+            <div className="relative" style={{ minHeight: '800px', minWidth: '1400px' }}>
               {Object.entries(TECHNOLOGIES).map(([techId, tech]) => {
                 const position = TECH_POSITIONS[techId];
                 if (!position) return null;
@@ -259,10 +259,10 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                     key={techId}
                     className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${getTechStatusStyles(status)}`}
                     style={{
-                      left: `${position.x * 200 + 100}px`,
-                      top: `${position.y * 150 + 75}px`,
-                      width: '180px',
-                      height: '120px',
+                      left: `${position.x * 220 + 120}px`,
+                      top: `${position.y * 180 + 90}px`,
+                      width: '200px',
+                      height: '140px',
                     }}
                     onMouseEnter={() => setHoveredTech(techId)}
                     onMouseLeave={() => setHoveredTech(null)}
