@@ -290,22 +290,19 @@ export default function GameUI() {
 
       {/* Tooltips for UI Elements */}
       <div className="pointer-events-auto">
-        <Tooltip
-          content={
-            <ActionTooltip
-              title="Advanced Save System"
-              description="Access multiple save slots, auto-save, and import/export functionality"
-              hotkey="Ctrl+S"
-            />
-          }
-        >
+        <div className="relative">
           <button
             className="fixed top-4 right-4 p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-600 transition-all"
             onClick={() => setShowAdvancedSaveSystem(true)}
           >
             💾 Advanced Save
           </button>
-        </Tooltip>
+          <ActionTooltip
+            title="Advanced Save System"
+            description="Access multiple save slots, auto-save, and import/export functionality"
+            hotkey="Ctrl+S"
+          />
+        </div>
       </div>
     </div>
   );

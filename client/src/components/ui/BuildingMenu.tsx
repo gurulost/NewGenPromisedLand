@@ -220,30 +220,26 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose }: Buil
             
             {/* Resources Display */}
             <div className="flex items-center gap-6">
-              <Tooltip content={<StarProductionTooltip />}>
-                <div className="flex items-center gap-2 cursor-pointer">
-                  <Star className="w-5 h-5 text-yellow-400" />
-                  <span className="text-white font-semibold">{player.stars}</span>
-                </div>
-              </Tooltip>
-              <Tooltip content={<FaithSystemTooltip />}>
-                <div className="flex items-center gap-2 cursor-pointer">
-                  <Crown className="w-5 h-5 text-purple-400" />
-                  <span className="text-white font-semibold">{player.stats.faith}</span>
-                </div>
-              </Tooltip>
-              <Tooltip content={<PrideSystemTooltip />}>
-                <div className="flex items-center gap-2 cursor-pointer">
-                  <Swords className="w-5 h-5 text-red-400" />
-                  <span className="text-white font-semibold">{player.stats.pride}</span>
-                </div>
-              </Tooltip>
-              <Tooltip content={<DissentTooltip />}>
-                <div className="flex items-center gap-2 cursor-pointer">
-                  <AlertTriangle className="w-5 h-5 text-orange-400" />
-                  <span className="text-white font-semibold">{player.stats.internalDissent}</span>
-                </div>
-              </Tooltip>
+              <div className="flex items-center gap-2">
+                <Star className="w-5 h-5 text-yellow-400" />
+                <span className="text-white font-semibold">{player.stars}</span>
+                <InfoTooltip content={<StarProductionTooltip />} />
+              </div>
+              <div className="flex items-center gap-2">
+                <Crown className="w-5 h-5 text-purple-400" />
+                <span className="text-white font-semibold">{player.stats.faith}</span>
+                <InfoTooltip content={<FaithSystemTooltip />} />
+              </div>
+              <div className="flex items-center gap-2">
+                <Swords className="w-5 h-5 text-red-400" />
+                <span className="text-white font-semibold">{player.stats.pride}</span>
+                <InfoTooltip content={<PrideSystemTooltip />} />
+              </div>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-orange-400" />
+                <span className="text-white font-semibold">{player.stats.internalDissent}</span>
+                <InfoTooltip content={<DissentTooltip />} />
+              </div>
               
               <button
                 onClick={onClose}
@@ -468,13 +464,7 @@ function BuildingCard({
           </div>
         </div>
 
-        <Tooltip content={
-          <ActionTooltip
-            title={canAfford && option.unlocked ? "Build Now" : "Cannot Build"}
-            description={!option.unlocked ? "Requirements not met" : !canAfford ? "Insufficient resources" : `Build ${option.name}`}
-            cost={`${option.cost.stars || 0} stars, ${option.buildTime} turns`}
-          />
-        }>
+        <div className="relative">
           <motion.button
             className={`
               px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2
@@ -503,7 +493,12 @@ function BuildingCard({
               </>
             )}
           </motion.button>
-        </Tooltip>
+          <ActionTooltip
+            title={canAfford && option.unlocked ? "Build Now" : "Cannot Build"}
+            description={!option.unlocked ? "Requirements not met" : !canAfford ? "Insufficient resources" : `Build ${option.name}`}
+            cost={`${option.cost.stars || 0} stars, ${option.buildTime} turns`}
+          />
+        </div>
       </div>
     </motion.div>
   );
