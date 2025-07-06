@@ -9,3 +9,4 @@
 /client/public/models/settler.glb filter=lfs diff=lfs merge=lfs -text
 /attached_assets/missionary_1751826193548.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/archer.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/missionary.glb filter=lfs diff=lfs merge=lfs -text
