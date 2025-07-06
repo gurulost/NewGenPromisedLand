@@ -34,7 +34,8 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     },
     cost: 6,
     factionSpecific: [], // Available to ALL factions
-    abilities: ['STEALTH', 'EXTENDED_VISION'],
+    abilities: ['stealth', 'reconnaissance'],
+    requiredTechnology: 'hunting', // Scouts require hunting technology
   },
 
   worker: {
@@ -52,6 +53,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     cost: 5,
     factionSpecific: [], // Available to ALL factions
     abilities: ['BUILD', 'GATHER'],
+    requiredTechnology: 'organization',
   },
 
   guard: {
@@ -123,7 +125,8 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     },
     cost: 12,
     factionSpecific: [], // Available to ALL factions
-    abilities: ['ANTI_CAVALRY', 'FORMATION_FIGHTING'],
+    abilities: ['formation_fighting'],
+    requiredTechnology: 'bronze_working',
   },
 
   boat: {
@@ -141,6 +144,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     cost: 8,
     factionSpecific: [], // Available to ALL factions
     abilities: ['NAVAL_TRANSPORT', 'COASTAL_EXPLORATION'],
+    requiredTechnology: 'sailing',
   },
 
   catapult: {
@@ -157,7 +161,8 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     },
     cost: 20,
     factionSpecific: [], // Available to ALL factions
-    abilities: ['SIEGE_WEAPON', 'LONG_RANGE_BOMBARDMENT'],
+    abilities: ['siege'],
+    requiredTechnology: 'engineering',
   },
 
   missionary: {
@@ -175,7 +180,8 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     cost: 8,
     requirements: { faith: 60 },
     factionSpecific: ['NEPHITES', 'ANTI_NEPHI_LEHIES'], // Religious factions
-    abilities: ['CONVERT', 'HEAL'],
+    abilities: ['heal', 'convert'],
+    requiredTechnology: 'priesthood',
   },
 
   royal_envoy: {

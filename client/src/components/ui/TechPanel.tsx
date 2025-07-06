@@ -49,6 +49,29 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     const statuses: Record<string, TechStatus> = {};
     
     Object.keys(TECHNOLOGIES).forEach(techId => {
+      const tech = TECHNOLOGIES[techId];
+      const isResearched = currentPlayer.researchedTechs.includes(techId);
+      
+      if (isResearched) {
+        statuses[techId] = 'researched';
+      } else {
+        // Check if all prerequisites are met
+        const hasPrerequisites = tech.prerequisites.every(prereq => 
+          currentPlayer.researchedTechs.includes(prereq)
+        );
+        
+        // Check if player can afford the research
+        const canAfford = currentPlayer.stars >= tech.cost;
+        
+        if (hasPrerequisites && canAfford) {
+          statuses[techId] = 'available';
+        } else {
+          statuses[techId] = 'locked';
+        }
+      }
+    });
+    
+    Object.keys(TECHNOLOGIES).forEach(techId => {
       if (currentPlayer.researchedTechs.includes(techId)) {
         statuses[techId] = 'researched';
       } else if (currentPlayer.currentResearch === techId) {
@@ -74,10 +97,10 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     
     if (currentPlayer.stars >= cost) {
       dispatch({
-        type: 'RESEARCH_TECH',
+        type: 'RESEARCH_TECHNOLOGY',
         payload: {
           playerId: currentPlayer.id,
-          techId,
+          technologyId: techId,
         }
       });
     }

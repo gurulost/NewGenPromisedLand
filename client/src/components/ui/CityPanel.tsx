@@ -384,8 +384,13 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.values(UNIT_DEFINITIONS).map(unit => {
+                {Object.values(UNIT_DEFINITIONS).filter(unit => {
+                  // Filter units based on technology requirements
+                  if (!unit.requiredTechnology) return true;
+                  return currentPlayer.researchedTechs.includes(unit.requiredTechnology);
+                }).map(unit => {
                   const canAfford = canAffordUnit(unit.type);
+                  const hasRequiredTech = !unit.requiredTechnology || currentPlayer.researchedTechs.includes(unit.requiredTechnology);
                   
                   return (
                     <Card key={unit.type} className="p-4">
