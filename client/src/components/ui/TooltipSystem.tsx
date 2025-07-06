@@ -27,20 +27,23 @@ export function Tooltip({
   const timeoutRef = useRef<NodeJS.Timeout>();
   const elementRef = useRef<HTMLElement>();
 
-  const showTooltip = (event: MouseEvent) => {
+  const toggleTooltip = (event: MouseEvent | TouchEvent) => {
     if (disabled) return;
     
-    clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    if (isVisible) {
+      setIsVisible(false);
+    } else {
       const rect = (event.target as HTMLElement).getBoundingClientRect();
       const tooltipPosition = calculatePosition(rect, placement);
       setPosition(tooltipPosition);
       setIsVisible(true);
-    }, delay);
+    }
   };
 
   const hideTooltip = () => {
-    clearTimeout(timeoutRef.current);
     setIsVisible(false);
   };
 
@@ -94,19 +97,25 @@ export function Tooltip({
     const element = elementRef.current;
     if (!element) return;
 
-    element.addEventListener('mouseenter', showTooltip);
-    element.addEventListener('mouseleave', hideTooltip);
-    element.addEventListener('focus', showTooltip);
-    element.addEventListener('blur', hideTooltip);
+    // Handle clicks outside to close tooltip
+    const handleClickOutside = (event: Event) => {
+      if (element && !element.contains(event.target as Node)) {
+        hideTooltip();
+      }
+    };
+
+    element.addEventListener('click', toggleTooltip);
+    element.addEventListener('touchstart', toggleTooltip);
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
 
     return () => {
-      element.removeEventListener('mouseenter', showTooltip);
-      element.removeEventListener('mouseleave', hideTooltip);
-      element.removeEventListener('focus', showTooltip);
-      element.removeEventListener('blur', hideTooltip);
-      clearTimeout(timeoutRef.current);
+      element.removeEventListener('click', toggleTooltip);
+      element.removeEventListener('touchstart', toggleTooltip);
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [delay, disabled]);
+  }, [disabled]);
 
   const clonedChild = React.cloneElement(children, {
     ref: (el: HTMLElement) => {
@@ -361,6 +370,23 @@ export function PrideSystemTooltip() {
         "Required for: Lamanite and Zoramite military units"
       ]}
       formula="Pride Growth = Battles Won + Cities Captured"
+    />
+  );
+}
+
+export function DissentTooltip() {
+  return (
+    <InfoTooltip
+      title="Internal Dissent Management"
+      content="Internal dissent represents civil unrest and threatens your civilization's stability."
+      details={[
+        "Increases when cities are lost or units are destroyed",
+        "High dissent (above 75) can trigger city revolts",
+        "Reduced by: Building temples, maintaining small armies",
+        "Peaceful governance: Anti-Nephi-Lehies gain bonuses at low dissent",
+        "Critical threshold: 100 dissent causes automatic defeat"
+      ]}
+      formula="Dissent Sources = City Losses + Unit Deaths + Aggressive Actions"
     />
   );
 }

@@ -19,10 +19,11 @@ import {
   Wheat,
   Pickaxe,
   Home,
-  Castle
+  Castle,
+  AlertTriangle
 } from 'lucide-react';
 import { City, GameState, PlayerState } from '../../../shared/types/game';
-import { Tooltip, ActionTooltip } from './TooltipSystem';
+import { Tooltip, ActionTooltip, StarProductionTooltip, FaithSystemTooltip, PrideSystemTooltip, DissentTooltip } from './TooltipSystem';
 import { BuildingMenuBackground } from './AnimatedBackground';
 import { PrimaryButton, SuccessButton, GhostButton } from './EnhancedButton';
 import { getUnitDefinition, UNIT_DEFINITIONS } from '@shared/data/units';
@@ -219,18 +220,30 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose }: Buil
             
             {/* Resources Display */}
             <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Star className="w-5 h-5 text-yellow-400" />
-                <span className="text-white font-semibold">{player.stars}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Crown className="w-5 h-5 text-purple-400" />
-                <span className="text-white font-semibold">{player.stats.faith}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Swords className="w-5 h-5 text-red-400" />
-                <span className="text-white font-semibold">{player.stats.pride}</span>
-              </div>
+              <Tooltip content={<StarProductionTooltip />}>
+                <div className="flex items-center gap-2 cursor-pointer">
+                  <Star className="w-5 h-5 text-yellow-400" />
+                  <span className="text-white font-semibold">{player.stars}</span>
+                </div>
+              </Tooltip>
+              <Tooltip content={<FaithSystemTooltip />}>
+                <div className="flex items-center gap-2 cursor-pointer">
+                  <Crown className="w-5 h-5 text-purple-400" />
+                  <span className="text-white font-semibold">{player.stats.faith}</span>
+                </div>
+              </Tooltip>
+              <Tooltip content={<PrideSystemTooltip />}>
+                <div className="flex items-center gap-2 cursor-pointer">
+                  <Swords className="w-5 h-5 text-red-400" />
+                  <span className="text-white font-semibold">{player.stats.pride}</span>
+                </div>
+              </Tooltip>
+              <Tooltip content={<DissentTooltip />}>
+                <div className="flex items-center gap-2 cursor-pointer">
+                  <AlertTriangle className="w-5 h-5 text-orange-400" />
+                  <span className="text-white font-semibold">{player.stats.internalDissent}</span>
+                </div>
+              </Tooltip>
               
               <button
                 onClick={onClose}
