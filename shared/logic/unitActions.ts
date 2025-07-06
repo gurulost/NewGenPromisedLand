@@ -29,7 +29,7 @@ export interface UnitActionResult {
 export function executeWorkerAction(
   state: GameState,
   unit: Unit,
-  action: 'BUILD_IMPROVEMENT' | 'BUILD_STRUCTURE' | 'REPAIR',
+  action: 'BUILD_IMPROVEMENT' | 'BUILD_STRUCTURE' | 'REPAIR' | 'HARVEST' | 'CLEAR_FOREST' | 'BUILD_ROAD',
   target?: HexCoordinate,
   buildingType?: string
 ): UnitActionResult {
@@ -49,6 +49,21 @@ export function executeWorkerAction(
       return { success: false, message: "Invalid location" };
     }
 
+    // Handle Harvest action
+    if (action === 'HARVEST') {
+      return executeHarvestAction(state, unit, hex);
+    }
+
+    // Handle Clear Forest action
+    if (action === 'CLEAR_FOREST') {
+      return executeClearForestAction(state, unit, hex);
+    }
+
+    // Handle Build Road action
+    if (action === 'BUILD_ROAD') {
+      return executeBuildRoadAction(state, unit, hex);
+    }
+
     // Building logic would integrate with existing improvement system
     return {
       success: true,
@@ -58,6 +73,174 @@ export function executeWorkerAction(
   }
 
   return { success: false, message: "Invalid build action" };
+}
+
+/**
+ * Worker Harvest Action - Polytopia-style resource harvesting
+ * Removes resource from tile and provides immediate population boost to nearest city
+ */
+function executeHarvestAction(
+  state: GameState,
+  unit: Unit,
+  hex: any
+): UnitActionResult {
+  // Check if tile has harvestable resources
+  const harvestableResources = ['fruit', 'game', 'fish', 'ruins'];
+  if (!harvestableResources.includes(hex.terrain) && !hex.resource) {
+    return { success: false, message: "No harvestable resources on this tile" };
+  }
+
+  // Find nearest friendly city
+  const player = state.players.find(p => p.units.some(u => u.id === unit.id));
+  if (!player) return { success: false, message: "Player not found" };
+
+  const playerCities = state.cities?.filter(city => 
+    player.citiesOwned.includes(city.id)
+  ) || [];
+
+  if (playerCities.length === 0) {
+    return { success: false, message: "No cities to receive harvest bonus" };
+  }
+
+  // Find closest city
+  let closestCity = playerCities[0];
+  let closestDistance = hexDistance(unit.coordinate, closestCity.coordinate);
+  
+  for (const city of playerCities) {
+    const distance = hexDistance(unit.coordinate, city.coordinate);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestCity = city;
+    }
+  }
+
+  // Apply harvest bonus based on resource type
+  const harvestBonus = hex.terrain === 'fruit' ? 3 : 
+                      hex.terrain === 'game' ? 2 : 
+                      hex.terrain === 'fish' ? 2 : 1;
+
+  const newState = {
+    ...state,
+    cities: state.cities?.map(city => 
+      city.id === closestCity.id 
+        ? { ...city, population: Math.min(city.population + harvestBonus, 20) }
+        : city
+    ),
+    map: {
+      ...state.map,
+      tiles: state.map.tiles.map(tile =>
+        tile.coordinate.q === hex.coordinate.q && tile.coordinate.r === hex.coordinate.r
+          ? { ...tile, terrain: 'plains', resource: undefined }
+          : tile
+      )
+    }
+  };
+
+  return {
+    success: true,
+    message: `Harvested ${hex.terrain} - ${closestCity.name} gained ${harvestBonus} population`,
+    newState,
+    effects: { }
+  };
+}
+
+/**
+ * Worker Clear Forest Action - Terraforming ability
+ * Removes forest and allows building on plains terrain
+ */
+function executeClearForestAction(
+  state: GameState,
+  unit: Unit,
+  hex: any
+): UnitActionResult {
+  if (hex.terrain !== 'forest') {
+    return { success: false, message: "Can only clear forest tiles" };
+  }
+
+  const player = state.players.find(p => p.units.some(u => u.id === unit.id));
+  if (!player || player.stars < 5) {
+    return { success: false, message: "Need 5 stars to clear forest" };
+  }
+
+  const newState = {
+    ...state,
+    players: state.players.map(p => 
+      p.id === player.id 
+        ? { ...p, stars: p.stars - 5 }
+        : p
+    ),
+    map: {
+      ...state.map,
+      tiles: state.map.tiles.map(tile =>
+        tile.coordinate.q === hex.coordinate.q && tile.coordinate.r === hex.coordinate.r
+          ? { ...tile, terrain: 'plains' }
+          : tile
+      )
+    }
+  };
+
+  return {
+    success: true,
+    message: "Forest cleared - tile converted to plains",
+    newState,
+    effects: { }
+  };
+}
+
+/**
+ * Worker Build Road Action - Infrastructure development
+ * Creates roads that reduce movement cost for friendly units
+ */
+function executeBuildRoadAction(
+  state: GameState,
+  unit: Unit,
+  hex: any
+): UnitActionResult {
+  if (hex.terrain === 'water' || hex.terrain === 'mountain') {
+    return { success: false, message: "Cannot build roads on water or mountains" };
+  }
+
+  // Check if road already exists
+  const existingRoad = state.improvements?.find(imp => 
+    imp.coordinate.q === hex.coordinate.q && 
+    imp.coordinate.r === hex.coordinate.r &&
+    imp.type === 'road'
+  );
+
+  if (existingRoad) {
+    return { success: false, message: "Road already exists on this tile" };
+  }
+
+  const player = state.players.find(p => p.units.some(u => u.id === unit.id));
+  if (!player || player.stars < 3) {
+    return { success: false, message: "Need 3 stars to build road" };
+  }
+
+  const roadImprovement = {
+    id: `road_${hex.coordinate.q}_${hex.coordinate.r}_${Date.now()}`,
+    type: 'road' as const,
+    coordinate: hex.coordinate,
+    playerId: player.id,
+    cityId: '',
+    starsPerTurn: 0
+  };
+
+  const newState = {
+    ...state,
+    players: state.players.map(p => 
+      p.id === player.id 
+        ? { ...p, stars: p.stars - 3 }
+        : p
+    ),
+    improvements: [...(state.improvements || []), roadImprovement]
+  };
+
+  return {
+    success: true,
+    message: "Road built - reduces movement cost for friendly units",
+    newState,
+    effects: { construction: true }
+  };
 }
 
 /**

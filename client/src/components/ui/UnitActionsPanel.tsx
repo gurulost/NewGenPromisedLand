@@ -54,24 +54,51 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     // Unit-specific abilities
     switch (unit.type) {
       case 'worker':
+        // Build regular improvements
         actions.push({
           id: 'build_improvement',
           name: 'Build Improvement',
-          description: 'Construct terrain improvements',
+          description: 'Construct terrain improvements (farms, mines, etc.)',
           icon: <Hammer className="w-4 h-4" />,
           cost: 'Turn',
           available: true
         });
         
-        // Harvest action for Polytopia-style resource management
-        actions.push({
-          id: 'harvest_resource',
-          name: 'Harvest Resource',
-          description: 'Harvest forest, mountain, or animals to grow nearby city',
-          icon: <Star className="w-4 h-4" />,
-          cost: 'Movement',
-          available: unit.remainingMovement > 0
-        });
+        // Build Road - Polytopia-style infrastructure
+        if (unitDef.abilities.includes('BUILD_ROAD')) {
+          actions.push({
+            id: 'build_road',
+            name: 'Build Road',
+            description: 'Create roads that reduce movement cost for friendly units',
+            icon: <Move className="w-4 h-4" />,
+            cost: '3 Stars',
+            available: currentPlayer.stars >= 3 && unit.remainingMovement > 0
+          });
+        }
+        
+        // Clear Forest - Polytopia-style terraforming
+        if (unitDef.abilities.includes('CLEAR_FOREST')) {
+          actions.push({
+            id: 'clear_forest',
+            name: 'Clear Forest',
+            description: 'Remove forest and convert to plains terrain',
+            icon: <Zap className="w-4 h-4" />,
+            cost: '5 Stars',
+            available: currentPlayer.stars >= 5 && unit.remainingMovement > 0
+          });
+        }
+        
+        // Harvest Resource - Polytopia-style resource management
+        if (unitDef.abilities.includes('HARVEST')) {
+          actions.push({
+            id: 'harvest_resource',
+            name: 'Harvest Resource',
+            description: 'Harvest forest, mountain, or animals to grow nearby city',
+            icon: <Star className="w-4 h-4" />,
+            cost: 'Movement',
+            available: unit.remainingMovement > 0
+          });
+        }
         break;
 
       case 'scout':
@@ -246,6 +273,18 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         // This would open a map interface to select resource tiles
         console.log('Opening harvest resource interface');
         setSelectedAction('harvest_resource');
+        break;
+      
+      case 'build_road':
+        // This would open a map interface to select where to build road
+        console.log('Opening build road interface');
+        setSelectedAction('build_road');
+        break;
+        
+      case 'clear_forest':
+        // This would open a map interface to select forest tiles to clear
+        console.log('Opening clear forest interface');
+        setSelectedAction('clear_forest');
         break;
       
       case 'build_improvement':

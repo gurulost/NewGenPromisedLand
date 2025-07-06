@@ -112,6 +112,8 @@ export const GameStateSchema = z.object({
     z.object({ type: z.literal('SIEGE_MODE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
     z.object({ type: z.literal('RALLY_TROOPS'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
     z.object({ type: z.literal('RESEARCH_TECHNOLOGY'), payload: z.object({ playerId: z.string(), technologyId: z.string() }) }),
+    z.object({ type: z.literal('CLEAR_FOREST'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema, playerId: z.string() }) }),
+    z.object({ type: z.literal('BUILD_ROAD'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema, playerId: z.string() }) }),
     z.object({ type: z.string(), payload: z.unknown() }) // Fallback for other actions
   ]).optional(),
   winner: z.string().optional(),
@@ -167,6 +169,87 @@ export const GameActionSchema = z.discriminatedUnion('type', [
     payload: z.object({
       playerId: z.string(),
       techId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('CLEAR_FOREST'),
+    payload: z.object({
+      unitId: z.string(),
+      targetCoordinate: HexCoordinateSchema,
+      playerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('BUILD_ROAD'),
+    payload: z.object({
+      unitId: z.string(),
+      targetCoordinate: HexCoordinateSchema,
+      playerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('HEAL_UNIT'),
+    payload: z.object({
+      unitId: z.string(),
+      playerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('APPLY_STEALTH'),
+    payload: z.object({
+      unitId: z.string(),
+      playerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('RECONNAISSANCE'),
+    payload: z.object({
+      unitId: z.string(),
+      playerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('FORMATION_FIGHTING'),
+    payload: z.object({
+      unitId: z.string(),
+      playerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('SIEGE_MODE'),
+    payload: z.object({
+      unitId: z.string(),
+      playerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('RALLY_TROOPS'),
+    payload: z.object({
+      unitId: z.string(),
+      playerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('RESEARCH_TECHNOLOGY'),
+    payload: z.object({
+      playerId: z.string(),
+      technologyId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('ACTIVATE_FACTION_ABILITY'),
+    payload: z.object({
+      playerId: z.string(),
+      abilityId: z.string(),
+      targetId: z.string().optional(),
+    }),
+  }),
+  z.object({
+    type: z.literal('HARVEST_RESOURCE'),
+    payload: z.object({
+      unitId: z.string(),
+      resourceCoordinate: HexCoordinateSchema,
+      cityId: z.string(),
     }),
   }),
   z.object({

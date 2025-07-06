@@ -41,7 +41,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
   worker: {
     type: 'worker',
     name: 'Worker',
-    description: 'Non-combat unit for building improvements and gathering resources',
+    description: 'Essential civilian unit for building improvements, harvesting resources, and terraforming',
     baseStats: {
       hp: 10,
       attack: 1,
@@ -52,7 +52,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     },
     cost: 5,
     factionSpecific: [], // Available to ALL factions
-    abilities: ['BUILD', 'GATHER'],
+    abilities: ['BUILD', 'HARVEST', 'CLEAR_FOREST', 'BUILD_ROAD'],
     requiredTechnology: 'organization',
   },
 
