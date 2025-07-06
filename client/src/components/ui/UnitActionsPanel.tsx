@@ -51,6 +51,25 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
       });
     }
 
+    // Check for village capture opportunity
+    const currentTile = gameState.map.tiles.find(tile =>
+      tile.coordinate.q === unit.coordinate.q &&
+      tile.coordinate.r === unit.coordinate.r
+    );
+    
+    if (currentTile?.feature === 'village' && 
+        currentTile.cityOwner !== currentPlayer.id && 
+        !unit.hasAttacked) {
+      actions.push({
+        id: 'capture_village',
+        name: 'Capture Village',
+        description: 'Capture this neutral village for rewards (+5 stars, +1 research)',
+        icon: <Crown className="w-4 h-4" />,
+        cost: 'Turn',
+        available: true
+      });
+    }
+
     // Unit-specific abilities
     switch (unit.type) {
       case 'worker':
@@ -207,7 +226,16 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     
     // This would dispatch the appropriate game action
     switch (actionId) {
-
+      case 'capture_village':
+        dispatch({
+          type: 'CAPTURE_VILLAGE',
+          payload: {
+            unitId: unit.id,
+            playerId: currentPlayer.id
+          }
+        });
+        onClose(); // Close the panel after capturing
+        break;
       
       case 'heal':
         dispatch({
