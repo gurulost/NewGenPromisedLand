@@ -1,6 +1,6 @@
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { hexToPixel } from "@shared/utils/hex";
-import { Box, Cylinder, Sphere, Cone, Torus } from "@react-three/drei";
+import { Box, Cylinder, Sphere, Cone, Torus, useGLTF } from "@react-three/drei";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useMemo } from "react";
 import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
@@ -8,6 +8,17 @@ import { getUnitDefinition } from "@shared/data/units";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
 import Construction from "./Construction";
 import { CityModel } from "./CityModel";
+
+// Village Model Component
+function VillageModel({ position }: { position: { x: number; y: number } }) {
+  const { scene } = useGLTF("/models/Village.glb");
+  
+  return (
+    <group position={[position.x, 0.1, position.y]} scale={[0.5, 0.5, 0.5]}>
+      <primitive object={scene.clone()} />
+    </group>
+  );
+}
 
 export default function MapFeatures() {
   const { gameState } = useLocalGame();
@@ -17,13 +28,14 @@ export default function MapFeatures() {
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
   
   // Memoize visible features to avoid recalculating on every render
-  const { visibleCities, visibleTiles, exploredTiles, visibleImprovements, visibleStructures } = useMemo(() => {
+  const { visibleCities, visibleTiles, exploredTiles, visibleImprovements, visibleStructures, visibleVillages } = useMemo(() => {
     if (!gameState || !currentPlayer) return { 
       visibleCities: [], 
       visibleTiles: new Set(), 
       exploredTiles: new Set(),
       visibleImprovements: [],
-      visibleStructures: []
+      visibleStructures: [],
+      visibleVillages: []
     };
     
     // Calculate which tiles are explored or visible by current player
@@ -76,12 +88,20 @@ export default function MapFeatures() {
       return city !== undefined;
     }) || [];
     
+    // Filter villages that are visible or explored
+    const villages = gameState.map.tiles.filter(tile => {
+      const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
+      const isVisible = explored.has(tileKey) || visible.has(tileKey);
+      return isVisible && tile.feature === 'village';
+    });
+    
     return { 
       visibleCities: cities, 
       visibleTiles: visible, 
       exploredTiles: explored,
       visibleImprovements: improvements,
-      visibleStructures: structures
+      visibleStructures: structures,
+      visibleVillages: villages
     };
   }, [gameState, currentPlayer]);
   
@@ -423,6 +443,18 @@ export default function MapFeatures() {
             {tile.resources.map((resource, index) => 
               renderResource(resource, position, `${tileKey}-${index}`)
             )}
+          </group>
+        );
+      })}
+      
+      {/* Render Villages */}
+      {visibleVillages.map(village => {
+        const position = hexToPixel(village.coordinate, 1);
+        const villageKey = `${village.coordinate.q},${village.coordinate.r}`;
+        
+        return (
+          <group key={`village-${villageKey}`}>
+            <VillageModel position={position} />
           </group>
         );
       })}

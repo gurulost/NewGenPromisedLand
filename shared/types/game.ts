@@ -27,6 +27,15 @@ export const TerrainTypeSchema = z.enum([
 
 export type TerrainType = z.infer<typeof TerrainTypeSchema>;
 
+// Map features for neutral locations
+export const MapFeatureSchema = z.enum([
+  'village',
+  'ruin',
+  'shrine'
+]);
+
+export type MapFeature = z.infer<typeof MapFeatureSchema>;
+
 // Tile definition
 export const TileSchema = z.object({
   coordinate: HexCoordinateSchema,
@@ -35,6 +44,7 @@ export const TileSchema = z.object({
   hasCity: z.boolean().default(false),
   cityOwner: z.string().optional(),
   exploredBy: z.array(z.string()).default([]),
+  feature: MapFeatureSchema.optional(), // New feature property for villages, ruins, etc.
 });
 
 export type Tile = z.infer<typeof TileSchema>;
@@ -284,6 +294,13 @@ export const GameActionSchema = z.discriminatedUnion('type', [
     payload: z.object({
       playerId: z.string(),
       cityId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('CAPTURE_VILLAGE'),
+    payload: z.object({
+      unitId: z.string(),
+      playerId: z.string(),
     }),
   }),
   z.object({

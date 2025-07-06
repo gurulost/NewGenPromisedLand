@@ -151,13 +151,16 @@ export class MapGenerator {
     // Step 3: Place neutral villages/cities
     this.placeCities(tiles, mapRadius, capitalPositions);
     
-    // Step 4: Generate terrain with faction-specific modifiers
+    // Step 4: Place capturable villages
+    this.placeVillages(tiles, mapRadius, capitalPositions);
+    
+    // Step 5: Generate terrain with faction-specific modifiers
     this.generateFactionBiasedTerrain(tiles, mapRadius, capitalPositions);
     
-    // Step 5: Place resources in zones around cities
+    // Step 6: Place resources in zones around cities
     this.placeZonedResources(tiles);
     
-    // Step 6: Place special features
+    // Step 7: Place special features
     this.placeSpecialFeatures(tiles, capitalPositions);
 
     return {
@@ -223,7 +226,56 @@ export class MapGenerator {
   }
 
   /**
-   * Step 4: Generate faction-biased terrain using cascading modifiers
+   * Step 4: Place capturable villages with Book of Mormon themes
+   */
+  private placeVillages(tiles: Tile[], mapRadius: number, capitalPositions: HexCoordinate[]): void {
+    // Village spawn configuration
+    const VILLAGE_SPAWN_CHANCE = 0.08; // 8% chance per tile
+    const MIN_DISTANCE_BETWEEN_VILLAGES = 3;
+    const MIN_DISTANCE_FROM_CITIES = 4; // Don't place too close to cities
+    
+    // Get all existing city positions (capitals + neutral cities)
+    const cityTiles = tiles.filter(tile => tile.hasCity);
+    const allCityPositions = [...capitalPositions, ...cityTiles.map(t => t.coordinate)];
+    
+    // Find valid tiles for village placement
+    const validTiles = tiles.filter(tile => {
+      // Don't place on cities or water
+      if (tile.hasCity || tile.terrain === 'water') return false;
+      
+      // Don't place on map edges (too close to boundary)
+      const distanceFromCenter = Math.sqrt(tile.coordinate.q ** 2 + tile.coordinate.r ** 2);
+      if (distanceFromCenter > mapRadius * 0.85) return false;
+      
+      // Check distance from cities
+      const tooCloseToCity = allCityPositions.some(cityPos => 
+        hexDistance(tile.coordinate, cityPos) < MIN_DISTANCE_FROM_CITIES
+      );
+      if (tooCloseToCity) return false;
+      
+      return true;
+    });
+    
+    // Place villages with distance constraints
+    for (const tile of validTiles) {
+      if (this.rng.next() < VILLAGE_SPAWN_CHANCE) {
+        // Check distance from existing villages
+        const existingVillages = tiles.filter(t => t.feature === 'village');
+        const tooCloseToVillage = existingVillages.some(villageT => 
+          hexDistance(tile.coordinate, villageT.coordinate) < MIN_DISTANCE_BETWEEN_VILLAGES
+        );
+        
+        if (!tooCloseToVillage) {
+          tile.feature = 'village';
+        }
+      }
+    }
+    
+    console.log(`Generated ${tiles.filter(t => t.feature === 'village').length} villages on map`);
+  }
+
+  /**
+   * Step 5: Generate faction-biased terrain using cascading modifiers
    */
   private generateFactionBiasedTerrain(tiles: Tile[], mapRadius: number, capitalPositions: HexCoordinate[]): void {
     // Base terrain percentages
