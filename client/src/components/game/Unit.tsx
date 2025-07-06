@@ -434,7 +434,7 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
           {/* Use the new 3D unit model */}
           <UnitModel 
             unit={unit}
-            position={{ x: 0, y: -UNIT_HEIGHT + 0.1 }}
+            position={{ x: 0, y: -UNIT_HEIGHT + 0.05 }}
             isPlayerUnit={gameState?.players[gameState.currentPlayerIndex]?.id === unit.playerId}
           />
           
