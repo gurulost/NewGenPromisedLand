@@ -105,6 +105,12 @@ export const GameStateSchema = z.object({
     z.object({ type: z.literal('ATTACK_UNIT'), payload: z.object({ attackerId: z.string(), targetId: z.string() }) }),
     z.object({ type: z.literal('END_TURN'), payload: z.object({ playerId: z.string() }) }),
     z.object({ type: z.literal('HARVEST_RESOURCE'), payload: z.object({ unitId: z.string(), resourceCoordinate: HexCoordinateSchema, cityId: z.string() }) }),
+    z.object({ type: z.literal('HEAL_UNIT'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+    z.object({ type: z.literal('APPLY_STEALTH'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+    z.object({ type: z.literal('RECONNAISSANCE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+    z.object({ type: z.literal('FORMATION_FIGHTING'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+    z.object({ type: z.literal('SIEGE_MODE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+    z.object({ type: z.literal('RALLY_TROOPS'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
     z.object({ type: z.string(), payload: z.unknown() }) // Fallback for other actions
   ]).optional(),
   winner: z.string().optional(),
