@@ -128,7 +128,7 @@ export default function PlayerHUD({
                 <Star className="w-4 h-4 text-yellow-400" />
                 <span className="font-semibold">{player.stars}</span>
                 <Info className="w-3 h-3 text-gray-400 opacity-60" />
-                <InfoTooltip content={<StarProductionTooltip />} />
+                <InfoTooltip content={<StarProductionTooltip totalIncome={playerStats.starProduction} breakdown={playerStats.starProductionBreakdown} />} />
               </div>
               <div className="flex items-center gap-1 text-sm text-green-400">
                 <TrendingUp className="w-3 h-3" />

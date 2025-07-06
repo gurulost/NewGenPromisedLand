@@ -354,15 +354,16 @@ export function UnitTooltip({ unit, unitDef }: { unit: any; unitDef: any }) {
   );
 }
 
-export function StarProductionTooltip({ totalIncome, breakdown }: { totalIncome: number; breakdown: any }) {
+export function StarProductionTooltip({ totalIncome, breakdown }: { totalIncome: number; breakdown: Array<{source: string, amount: number}> }) {
   return (
     <div className="space-y-2">
       <div className="font-semibold text-yellow-300">Star Income: {totalIncome}/turn</div>
       <div className="text-xs space-y-1">
-        <div>Base Income: {breakdown.base}</div>
-        {breakdown.cities > 0 && <div>Cities: +{breakdown.cities}</div>}
-        {breakdown.improvements > 0 && <div>Improvements: +{breakdown.improvements}</div>}
-        {breakdown.structures > 0 && <div>Structures: +{breakdown.structures}</div>}
+        {breakdown.map((item, index) => (
+          <div key={index}>
+            {item.source}: +{item.amount}
+          </div>
+        ))}
       </div>
     </div>
   );
