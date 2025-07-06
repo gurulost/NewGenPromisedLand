@@ -155,6 +155,9 @@ export default function GameCanvas() {
     return null;
   }
 
+  // Calculate map size for fog and lighting
+  const mapSize = Math.max(gameState.map.width || 10, gameState.map.height || 10);
+
   return (
     <>
       <OrbitControls
@@ -174,8 +177,8 @@ export default function GameCanvas() {
         }}
       />
       
-      {/* Fog for atmosphere */}
-      <fog attach="fog" args={["#0f172a", 15, 35]} />
+      {/* Fog for atmosphere - adjusted for map size to prevent darkening on zoom */}
+      <fog attach="fog" args={["#0f172a", mapSize * 3, mapSize * 12]} />
       
       {/* Grid - Using Instanced Rendering for Performance */}
       <HexGridInstanced map={gameState.map} />
