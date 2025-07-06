@@ -25,6 +25,8 @@ import { City, GameState, PlayerState } from '../../../shared/types/game';
 import { Tooltip, ActionTooltip } from './TooltipSystem';
 import { BuildingMenuBackground } from './AnimatedBackground';
 import { PrimaryButton, SuccessButton, GhostButton } from './EnhancedButton';
+import { getUnitDefinition, UNIT_DEFINITIONS } from '@shared/data/units';
+import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '@shared/types/city';
 
 interface BuildingOption {
   id: string;
@@ -69,109 +71,82 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose }: Buil
     console.log(`Playing ${soundType} sound`);
   };
 
-  // Mock building options data - in real game this would come from game data
+  // Generate building options from actual game data
   const buildingOptions: BuildingOption[] = [
-    // Units
-    {
-      id: 'warrior',
-      name: 'Warrior',
-      description: 'Stalwart defender of the faith, trained in ancient combat techniques',
-      category: 'units',
-      cost: { stars: 10 },
+    // Units from game data
+    ...Object.values(UNIT_DEFINITIONS).map(unit => ({
+      id: unit.type,
+      name: unit.name,
+      description: unit.description,
+      category: 'units' as const,
+      cost: { stars: unit.cost, ...(unit.requirements || {}) },
       effects: [
-        { description: 'Melee Combat', icon: <Swords className="w-4 h-4" />, value: '6 Attack' },
-        { description: 'Defense', icon: <Shield className="w-4 h-4" />, value: '4 Defense' },
-        { description: 'Health', icon: <Heart className="w-4 h-4" />, value: '25 HP' }
+        { description: 'Attack', icon: <Swords className="w-4 h-4" />, value: `${unit.baseStats.attack}` },
+        { description: 'Defense', icon: <Shield className="w-4 h-4" />, value: `${unit.baseStats.defense}` },
+        { description: 'Health', icon: <Heart className="w-4 h-4" />, value: `${unit.baseStats.hp} HP` },
+        { description: 'Movement', icon: <TrendingUp className="w-4 h-4" />, value: `${unit.baseStats.movement}` }
       ],
       buildTime: 2,
-      icon: <Swords className="w-6 h-6" />,
-      rarity: 'common',
-      unlocked: true
-    },
-    {
-      id: 'missionary',
-      name: 'Missionary',
-      description: 'Holy messenger spreading faith and healing the wounded',
-      category: 'units',
-      cost: { stars: 8, faith: 20 },
-      requirements: ['temple'],
+      icon: <Users className="w-6 h-6" />,
+      rarity: unit.factionSpecific.length > 0 ? 'rare' : 'common' as const,
+      unlocked: unit.factionSpecific.length === 0 || unit.factionSpecific.includes(player.factionId)
+    })),
+    
+    // Structures from game data
+    ...Object.values(STRUCTURE_DEFINITIONS).map(structure => ({
+      id: structure.id,
+      name: structure.name,
+      description: structure.description,
+      category: 'structures' as const,
+      cost: { stars: structure.cost },
+      requirements: [structure.requiredTech],
       effects: [
-        { description: 'Healing', icon: <Heart className="w-4 h-4" />, value: '+5 HP' },
-        { description: 'Conversion', icon: <Star className="w-4 h-4" />, value: 'Convert Enemies' },
-        { description: 'Faith Generation', icon: <Crown className="w-4 h-4" />, value: '+2 Faith/Turn' }
+        ...(structure.effects.starProduction > 0 ? [{ 
+          description: 'Star Production', 
+          icon: <Star className="w-4 h-4" />, 
+          value: `+${structure.effects.starProduction}/turn` 
+        }] : []),
+        ...(structure.effects.defenseBonus > 0 ? [{ 
+          description: 'Defense Bonus', 
+          icon: <Shield className="w-4 h-4" />, 
+          value: `+${structure.effects.defenseBonus}` 
+        }] : []),
+        ...(structure.effects.unitProduction > 0 ? [{ 
+          description: 'Unit Production', 
+          icon: <Users className="w-4 h-4" />, 
+          value: `+${structure.effects.unitProduction}` 
+        }] : [])
       ],
       buildTime: 3,
-      icon: <Crown className="w-6 h-6" />,
-      rarity: 'rare',
-      unlocked: player.researchedTechs.includes('writing')
-    },
-    // Structures
-    {
-      id: 'temple',
-      name: 'Sacred Temple',
-      description: 'Magnificent temple dedicated to divine worship and enlightenment',
-      category: 'structures',
-      cost: { stars: 15, faith: 10 },
-      effects: [
-        { description: 'Faith Generation', icon: <Crown className="w-4 h-4" />, value: '+3 Faith/Turn' },
-        { description: 'Unit Training', icon: <Users className="w-4 h-4" />, value: 'Unlock Missionaries' },
-        { description: 'City Defense', icon: <Shield className="w-4 h-4" />, value: '+2 Defense' }
-      ],
-      buildTime: 4,
       icon: <Castle className="w-6 h-6" />,
-      rarity: 'epic',
-      unlocked: true
-    },
-    {
-      id: 'barracks',
-      name: 'Training Barracks',
-      description: 'Elite military facility for training the finest warriors',
-      category: 'structures',
-      cost: { stars: 12 },
+      rarity: structure.effects.starProduction >= 3 ? 'epic' : 'common' as const,
+      unlocked: player.researchedTechs.includes(structure.requiredTech)
+    })),
+    
+    // Improvements from game data  
+    ...Object.values(IMPROVEMENT_DEFINITIONS).map(improvement => ({
+      id: improvement.id,
+      name: improvement.name,
+      description: improvement.description,
+      category: 'improvements' as const,
+      cost: { stars: improvement.cost },
       effects: [
-        { description: 'Unit Training', icon: <Users className="w-4 h-4" />, value: 'Faster Training' },
-        { description: 'Experience Boost', icon: <TrendingUp className="w-4 h-4" />, value: '+1 Level' },
-        { description: 'Pride Generation', icon: <Swords className="w-4 h-4" />, value: '+2 Pride/Turn' }
-      ],
-      buildTime: 3,
-      icon: <Home className="w-6 h-6" />,
-      rarity: 'common',
-      unlocked: true
-    },
-    // Improvements
-    {
-      id: 'farm',
-      name: 'Fertile Farmland',
-      description: 'Blessed fields that provide sustenance for the growing population',
-      category: 'improvements',
-      cost: { stars: 6 },
-      effects: [
-        { description: 'Population Growth', icon: <Users className="w-4 h-4" />, value: '+1 Pop/Turn' },
-        { description: 'Star Production', icon: <Star className="w-4 h-4" />, value: '+2 Stars/Turn' },
-        { description: 'Food Security', icon: <Wheat className="w-4 h-4" />, value: 'Prevents Famine' }
+        ...(improvement.effects.starProduction > 0 ? [{ 
+          description: 'Star Production', 
+          icon: <Star className="w-4 h-4" />, 
+          value: `+${improvement.effects.starProduction}/turn` 
+        }] : []),
+        ...(improvement.effects.populationGrowth > 0 ? [{ 
+          description: 'Population Growth', 
+          icon: <Users className="w-4 h-4" />, 
+          value: `+${improvement.effects.populationGrowth}/turn` 
+        }] : [])
       ],
       buildTime: 2,
-      icon: <Wheat className="w-6 h-6" />,
-      rarity: 'common',
+      icon: <TrendingUp className="w-6 h-6" />,
+      rarity: improvement.effects.starProduction >= 3 ? 'rare' : 'common' as const,
       unlocked: true
-    },
-    {
-      id: 'mine',
-      name: 'Sacred Mine',
-      description: 'Deep excavation revealing precious metals and sacred stones',
-      category: 'improvements',
-      cost: { stars: 8 },
-      requirements: ['mountain'],
-      effects: [
-        { description: 'Star Production', icon: <Star className="w-4 h-4" />, value: '+4 Stars/Turn' },
-        { description: 'Resource Bonus', icon: <Pickaxe className="w-4 h-4" />, value: 'Metal Resources' },
-        { description: 'Technology Boost', icon: <Zap className="w-4 h-4" />, value: '+10% Research' }
-      ],
-      buildTime: 3,
-      icon: <Mountain className="w-6 h-6" />,
-      rarity: 'rare',
-      unlocked: true
-    }
+    }))
   ];
 
   const filteredOptions = buildingOptions

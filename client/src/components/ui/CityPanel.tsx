@@ -181,27 +181,21 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           {/* Tab Navigation */}
           <div className="flex gap-2 mt-4 justify-between">
             <div className="flex gap-2">
-              {(['overview', 'structures', 'units'] as const).map(tab => (
-                <Button
-                  key={tab}
-                  variant={selectedTab === tab ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedTab(tab)}
-                  className="flex items-center gap-2"
-                >
-                  {tab === 'overview' && <Building className="w-4 h-4" />}
-                  {tab === 'structures' && <Hammer className="w-4 h-4" />}
-                  {tab === 'units' && <Users className="w-4 h-4" />}
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </Button>
-              ))}
+              <Button
+                variant="default"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Building className="w-4 h-4" />
+                Overview
+              </Button>
             </div>
             
-            {/* Advanced Building Menu Button */}
+            {/* Construction Hall Button */}
             <Tooltip content={
               <ActionTooltip
-                title="Advanced Construction Hall"
-                description="Access the premium building interface with enhanced visuals, filtering, and detailed information"
+                title="Construction Hall"
+                description="Open the comprehensive building interface with detailed information and visual design"
                 hotkey="B"
               />
             }>
@@ -211,14 +205,68 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                 onClick={() => setShowAdvancedBuildingMenu(true)}
                 className="flex items-center gap-2 bg-gradient-to-r from-purple-600/10 to-blue-600/10 border-purple-500/30 hover:from-purple-600/20 hover:to-blue-600/20"
               >
-                <Sparkles className="w-4 h-4" />
-                Enhanced View
+                <Hammer className="w-4 h-4" />
+                Construction Hall
               </Button>
             </Tooltip>
           </div>
         </CardHeader>
         
         <CardContent className="overflow-y-auto max-h-[calc(90vh-200px)]">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h3 className="font-semibold mb-2">City Information</h3>
+                <div className="space-y-1 text-sm">
+                  <p>Population: {city.population}</p>
+                  <p>Owner: {currentPlayer.name}</p>
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="font-semibold mb-2">Resources</h3>
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-center gap-1">
+                    <Star className="w-3 h-3 text-yellow-500" />
+                    <span>{currentPlayer.stars} Stars</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <Separator />
+            
+            <div>
+              <h3 className="font-semibold mb-2">Current Structures</h3>
+              {cityStructures.length > 0 ? (
+                <div className="grid grid-cols-1 gap-2">
+                  {cityStructures.map(structure => (
+                    <div key={structure.id} className="p-2 border rounded">
+                      <p className="font-medium">{structure.type}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No structures built yet</p>
+              )}
+            </div>
+            
+            <div>
+              <h3 className="font-semibold mb-2">Units in City</h3>
+              {cityUnits.length > 0 ? (
+                <div className="grid grid-cols-1 gap-2">
+                  {cityUnits.map(unit => (
+                    <div key={unit.id} className="p-2 border rounded">
+                      <p className="font-medium">{unit.type}</p>
+                      <p className="text-sm text-gray-600">HP: {unit.currentHp}/{unit.maxHp}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No units in city</p>
+              )}
+            </div>
+          </div>
           {selectedTab === 'overview' && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -383,7 +431,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
         </CardContent>
       </Card>
 
-      {/* Advanced Building Menu */}
+      {/* Construction Hall */}
       {showAdvancedBuildingMenu && (
         <BuildingMenu
           city={city}
@@ -391,13 +439,11 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           gameState={gameState}
           onBuild={(optionId) => {
             console.log('Building:', optionId);
-            // Handle building based on option type
-            if (optionId.startsWith('structure_')) {
-              const structureType = optionId.replace('structure_', '') as StructureType;
-              handleBuildStructure(structureType);
-            } else if (optionId.startsWith('unit_')) {
-              const unitType = optionId.replace('unit_', '') as UnitType;
-              handleRecruitUnit(unitType);
+            // Handle building based on actual game data structure
+            if (Object.values(STRUCTURE_DEFINITIONS).some(s => s.id === optionId)) {
+              handleBuildStructure(optionId as StructureType);
+            } else if (Object.values(UNIT_DEFINITIONS).some(u => u.type === optionId)) {
+              handleRecruitUnit(optionId as UnitType);
             }
             setShowAdvancedBuildingMenu(false);
           }}

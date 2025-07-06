@@ -307,7 +307,8 @@ describe('SaveLoadMenu', () => {
     render(<SaveLoadMenu {...mockProps} />);
     
     
-    const closeButton = screen.getByRole('button', { name: /close/i });
+    // Find the close button (X button without text)
+    const closeButton = screen.getByRole('button', { name: '' });
     fireEvent.click(closeButton);
     
     expect(mockProps.onClose).toHaveBeenCalled();
