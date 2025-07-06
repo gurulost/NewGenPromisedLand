@@ -223,7 +223,16 @@ describe('SaveLoadMenu', () => {
 
     render(<SaveLoadMenu {...mockProps} />);
     
-    const deleteButton = screen.getByRole('button', { name: '' }); // Delete button has no text, only icon
+    // Find the delete button by looking for the trash icon
+    const deleteButton = screen.getByRole('button', { name: /delete/i }) || 
+                        screen.getAllByRole('button').find(btn => 
+                          btn.querySelector('svg')?.classList.contains('lucide-trash2')
+                        );
+    
+    if (!deleteButton) {
+      throw new Error('Delete button not found');
+    }
+    
     fireEvent.click(deleteButton);
     
     await waitFor(() => {
@@ -234,7 +243,16 @@ describe('SaveLoadMenu', () => {
   it('closes menu when close button is clicked', () => {
     render(<SaveLoadMenu {...mockProps} />);
     
-    const closeButton = screen.getByRole('button', { name: '' }); // Close button (X)
+    // Find the close button by looking for the X icon
+    const closeButton = screen.getByRole('button', { name: /close/i }) || 
+                       screen.getAllByRole('button').find(btn => 
+                         btn.querySelector('svg')?.classList.contains('lucide-x')
+                       );
+    
+    if (!closeButton) {
+      throw new Error('Close button not found');
+    }
+    
     fireEvent.click(closeButton);
     
     expect(mockProps.onClose).toHaveBeenCalled();

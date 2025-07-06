@@ -26,7 +26,9 @@ describe('UnitActionsPanel', () => {
         stars: 20,
         researchedTechs: [],
         researchProgress: 0,
-        citiesOwned: []
+        citiesOwned: [],
+        modifiers: [],
+        constructionQueue: []
       }
     ],
     currentPlayerIndex: 0,
@@ -74,7 +76,8 @@ describe('UnitActionsPanel', () => {
     attackRange: 1,
     abilities: ['stealth', 'reconnaissance'],
     level: 1,
-    experience: 0
+    experience: 0,
+    hasAttacked: false
   };
 
   const mockMissionaryUnit: Unit = {
@@ -93,7 +96,8 @@ describe('UnitActionsPanel', () => {
     attackRange: 1,
     abilities: ['heal', 'convert'],
     level: 1,
-    experience: 0
+    experience: 0,
+    hasAttacked: false
   };
 
   const mockProps = {
