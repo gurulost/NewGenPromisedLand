@@ -435,7 +435,7 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
           <UnitModel 
             unit={unit}
             position={{ x: 0, y: -UNIT_HEIGHT + 0.1 }}
-            isPlayerUnit={currentPlayerUnit}
+            isPlayerUnit={gameState?.players[gameState.currentPlayerIndex]?.id === unit.playerId}
           />
           
           {/* Status Effect Visual Indicators */}
