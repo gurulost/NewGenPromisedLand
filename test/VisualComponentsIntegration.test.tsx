@@ -13,6 +13,21 @@ vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: any) => children
 }));
 
+// Mock TooltipSystem
+vi.mock('../client/src/components/ui/TooltipSystem', () => ({
+  Tooltip: ({ children }: any) => children,
+  ActionTooltip: ({ title }: any) => <div>{title}</div>,
+  InfoTooltip: ({ title, content }: any) => <div>{title}: {content}</div>,
+  StarProductionTooltip: ({ totalIncome, breakdown }: any) => (
+    <div>Star Income: {totalIncome}/turn</div>
+  ),
+  FaithSystemTooltip: () => <div>Faith System Info</div>,
+  PrideSystemTooltip: () => <div>Pride System Info</div>,
+  DissentTooltip: () => <div>Dissent System Info</div>,
+  TechnologyTooltip: () => <div>Technology System Info</div>,
+  UnitTooltip: ({ unit, unitDef }: any) => <div>{unitDef.name} Unit</div>
+}));
+
 describe('Visual Components Integration', () => {
   describe('Component Interoperability', () => {
     it('EnhancedButton works with TooltipSystem', async () => {
@@ -97,7 +112,7 @@ describe('Visual Components Integration', () => {
         </EnhancedButton>
       );
 
-      const button = screen.getByRole('button', { name: /disabled action/i });
+      const button = screen.getByRole('button', { name: /disabled button/i });
       expect(button).toBeDisabled();
       expect(button).toHaveAttribute('aria-label', 'Disabled action');
     });
