@@ -1,20 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HexCoordinate } from '../../../shared/types/coordinates';
 
 interface DamageNumber {
   id: string;
   damage: number;
   position: { x: number; y: number };
-  type: 'damage' | 'heal' | 'miss' | 'critical';
+  type: 'damage' | 'heal' | 'miss' | 'critical' | 'block' | 'dodge';
   timestamp: number;
 }
 
 interface CombatEffect {
   id: string;
-  type: 'hit' | 'death' | 'heal' | 'levelup';
+  type: 'hit' | 'death' | 'heal' | 'levelup' | 'battle_start' | 'charge' | 'slash' | 'explosion' | 'shield_block' | 'arrow_shot' | 'magic_cast';
   position: { x: number; y: number };
   timestamp: number;
+  unitType?: string;
+  attackerPosition?: { x: number; y: number };
+}
+
+interface BattleSequence {
+  id: string;
+  attacker: { x: number; y: number; unitType: string };
+  defender: { x: number; y: number; unitType: string };
+  damage: number;
+  sequence: Array<{
+    type: CombatEffect['type'];
+    delay: number;
+    position: { x: number; y: number };
+  }>;
 }
 
 interface CombatEffectsProps {
@@ -53,20 +66,24 @@ export function CombatEffects({ damageNumbers, effects, onEffectComplete }: Comb
 
 function DamageNumberEffect({ damage, onComplete }: { damage: DamageNumber; onComplete: () => void }) {
   useEffect(() => {
-    const timer = setTimeout(onComplete, 2000);
+    const timer = setTimeout(onComplete, 2500);
     return () => clearTimeout(timer);
   }, [onComplete]);
 
   const getColorClass = (type: DamageNumber['type']) => {
     switch (type) {
       case 'damage':
-        return 'text-red-400';
+        return 'text-red-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]';
       case 'critical':
-        return 'text-red-600 font-bold';
+        return 'text-red-600 font-black text-shadow-glow';
       case 'heal':
-        return 'text-green-400';
+        return 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]';
       case 'miss':
-        return 'text-gray-400';
+        return 'text-gray-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]';
+      case 'block':
+        return 'text-blue-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]';
+      case 'dodge':
+        return 'text-yellow-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]';
       default:
         return 'text-white';
     }
@@ -76,8 +93,12 @@ function DamageNumberEffect({ damage, onComplete }: { damage: DamageNumber; onCo
     switch (damage.type) {
       case 'miss':
         return 'MISS';
+      case 'block':
+        return 'BLOCKED';
+      case 'dodge':
+        return 'DODGED';
       case 'critical':
-        return `${damage.damage}!`;
+        return `${damage.damage}! CRITICAL!`;
       default:
         return damage.damage.toString();
     }
@@ -85,48 +106,84 @@ function DamageNumberEffect({ damage, onComplete }: { damage: DamageNumber; onCo
 
   return (
     <motion.div
-      className={`absolute text-2xl font-bold drop-shadow-lg ${getColorClass(damage.type)}`}
+      className={`absolute font-bold drop-shadow-lg ${getColorClass(damage.type)} ${
+        damage.type === 'critical' ? 'text-4xl' : 'text-3xl'
+      }`}
       style={{
         left: damage.position.x,
         top: damage.position.y,
-        transform: 'translate(-50%, -50%)'
+        transform: 'translate(-50%, -50%)',
+        textShadow: damage.type === 'critical' ? '0 0 20px rgba(255,255,0,0.8)' : '0 2px 4px rgba(0,0,0,0.8)'
       }}
       initial={{ 
         opacity: 0, 
-        scale: 0.5, 
-        y: 0 
+        scale: 0.3, 
+        y: 0,
+        rotate: damage.type === 'critical' ? -15 : 0
       }}
       animate={{ 
-        opacity: [0, 1, 1, 0], 
-        scale: [0.5, 1.2, 1, 0.8], 
-        y: [-20, -40, -60, -80] 
+        opacity: [0, 1, 1, 0.8, 0], 
+        scale: damage.type === 'critical' ? [0.3, 1.8, 1.4, 1.2, 0.9] : [0.3, 1.4, 1.1, 1, 0.8], 
+        y: [-10, -30, -50, -70, -90],
+        rotate: damage.type === 'critical' ? [-15, 15, 0, -5, 0] : [0, 3, -2, 1, 0]
       }}
       transition={{ 
-        duration: 2, 
-        times: [0, 0.2, 0.8, 1],
+        duration: 2.5, 
+        times: [0, 0.15, 0.3, 0.7, 1],
         ease: "easeOut" 
       }}
     >
+      {/* Critical Hit Effects */}
       {damage.type === 'critical' && (
+        <>
+          <motion.div
+            className="absolute inset-0 text-yellow-300 text-2xl"
+            initial={{ scale: 2, opacity: 1, rotate: 0 }}
+            animate={{ scale: 4, opacity: 0, rotate: 360 }}
+            transition={{ duration: 0.8 }}
+          >
+            ✨
+          </motion.div>
+          <motion.div
+            className="absolute inset-0 border-4 border-yellow-400 rounded-full"
+            initial={{ scale: 0, opacity: 1 }}
+            animate={{ scale: 6, opacity: 0 }}
+            transition={{ duration: 1 }}
+          />
+        </>
+      )}
+      
+      {/* Block/Dodge Shield Effect */}
+      {(damage.type === 'block' || damage.type === 'dodge') && (
         <motion.div
-          className="absolute inset-0 text-yellow-300"
-          initial={{ scale: 1.5, opacity: 0.8 }}
-          animate={{ scale: 2, opacity: 0 }}
-          transition={{ duration: 0.5 }}
+          className="absolute inset-0 text-blue-400 text-2xl"
+          initial={{ scale: 0.5, opacity: 1 }}
+          animate={{ scale: 2, opacity: 0, x: damage.type === 'dodge' ? 20 : 0 }}
+          transition={{ duration: 1 }}
         >
-          ✨
+          {damage.type === 'block' ? '🛡️' : '💨'}
         </motion.div>
       )}
-      {getDisplayText()}
+
+      <motion.span
+        initial={{ filter: 'blur(2px)' }}
+        animate={{ filter: 'blur(0px)' }}
+        transition={{ duration: 0.3 }}
+      >
+        {getDisplayText()}
+      </motion.span>
     </motion.div>
   );
 }
 
 function CombatEffectAnimation({ effect, onComplete }: { effect: CombatEffect; onComplete: () => void }) {
   useEffect(() => {
-    const timer = setTimeout(onComplete, 1500);
+    const effectDuration = effect.type === 'battle_start' ? 3000 : 
+                          effect.type === 'charge' ? 2000 :
+                          effect.type === 'explosion' ? 2500 : 1500;
+    const timer = setTimeout(onComplete, effectDuration);
     return () => clearTimeout(timer);
-  }, [onComplete]);
+  }, [onComplete, effect.type]);
 
   const renderEffect = () => {
     switch (effect.type) {
@@ -138,6 +195,27 @@ function CombatEffectAnimation({ effect, onComplete }: { effect: CombatEffect; o
         return <HealEffect position={effect.position} />;
       case 'levelup':
         return <LevelUpEffect position={effect.position} />;
+      case 'battle_start':
+        return <BattleStartEffect position={effect.position} />;
+      case 'charge':
+        return <ChargeEffect 
+          position={effect.position} 
+          attackerPosition={effect.attackerPosition}
+          unitType={effect.unitType}
+        />;
+      case 'slash':
+        return <SlashEffect position={effect.position} />;
+      case 'explosion':
+        return <ExplosionEffect position={effect.position} />;
+      case 'shield_block':
+        return <ShieldBlockEffect position={effect.position} />;
+      case 'arrow_shot':
+        return <ArrowShotEffect 
+          position={effect.position}
+          attackerPosition={effect.attackerPosition}
+        />;
+      case 'magic_cast':
+        return <MagicCastEffect position={effect.position} />;
       default:
         return null;
     }
@@ -324,6 +402,451 @@ function LevelUpEffect({ position }: { position: { x: number; y: number } }) {
           ⭐
         </motion.div>
       ))}
+    </motion.div>
+  );
+}
+
+// New Battle Start Effect
+function BattleStartEffect({ position }: { position: { x: number; y: number } }) {
+  return (
+    <motion.div
+      className="relative"
+      initial={{ scale: 0 }}
+      animate={{ scale: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      {/* Screen Shake Simulation */}
+      <motion.div
+        className="absolute inset-0"
+        animate={{ 
+          x: [0, -2, 2, -1, 1, 0],
+          y: [0, 1, -1, 2, -2, 0]
+        }}
+        transition={{ 
+          duration: 0.6,
+          repeat: 2
+        }}
+      >
+        {/* War Drums Circle */}
+        <motion.div
+          className="w-32 h-32 border-8 border-red-600 rounded-full"
+          initial={{ scale: 0, opacity: 1, rotate: 0 }}
+          animate={{ 
+            scale: [0, 1.5, 2.5], 
+            opacity: [1, 0.7, 0],
+            rotate: 360
+          }}
+          transition={{ duration: 2.5 }}
+        />
+        
+        {/* Battle Cry Text */}
+        <motion.div
+          className="absolute inset-0 flex items-center justify-center text-2xl font-black text-red-500"
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ 
+            opacity: [0, 1, 1, 0], 
+            scale: [0.5, 1.2, 1, 0.8]
+          }}
+          transition={{ 
+            duration: 3,
+            times: [0, 0.2, 0.8, 1]
+          }}
+        >
+          ⚔️ BATTLE! ⚔️
+        </motion.div>
+
+        {/* Lightning Strikes */}
+        {[...Array(4)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute w-1 h-20 bg-gradient-to-b from-yellow-300 to-transparent"
+            style={{
+              left: Math.cos(i * 90 * Math.PI / 180) * 50 + 64,
+              top: Math.sin(i * 90 * Math.PI / 180) * 50 + 64,
+              transformOrigin: 'bottom center'
+            }}
+            initial={{ scaleY: 0, opacity: 0 }}
+            animate={{ 
+              scaleY: [0, 1, 0], 
+              opacity: [0, 1, 0]
+            }}
+            transition={{ 
+              duration: 0.3, 
+              delay: 0.5 + i * 0.1,
+              repeat: 2
+            }}
+          />
+        ))}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// Charge Effect
+function ChargeEffect({ 
+  position, 
+  attackerPosition, 
+  unitType 
+}: { 
+  position: { x: number; y: number };
+  attackerPosition?: { x: number; y: number };
+  unitType?: string;
+}) {
+  const startPos = attackerPosition || { x: position.x - 100, y: position.y };
+  
+  return (
+    <motion.div className="relative">
+      {/* Dust Trail */}
+      <motion.div
+        className="absolute w-2 h-40 bg-gradient-to-t from-brown-400 via-brown-300 to-transparent"
+        style={{
+          left: startPos.x,
+          top: startPos.y,
+        }}
+        initial={{ scaleY: 0, opacity: 0 }}
+        animate={{ scaleY: 1, opacity: [0, 0.8, 0] }}
+        transition={{ duration: 1.5 }}
+      />
+      
+      {/* Charging Unit Representation */}
+      <motion.div
+        className="absolute text-4xl"
+        style={{
+          left: startPos.x,
+          top: startPos.y,
+        }}
+        initial={{ x: 0, y: 0, scale: 0.5 }}
+        animate={{ 
+          x: position.x - startPos.x,
+          y: position.y - startPos.y,
+          scale: [0.5, 1.2, 1]
+        }}
+        transition={{ 
+          duration: 1.5,
+          ease: "easeInOut"
+        }}
+      >
+        {unitType === 'spearman' ? '🛡️' : 
+         unitType === 'commander' ? '👑' : 
+         unitType === 'warrior' ? '⚔️' : '🏃‍♂️'}
+      </motion.div>
+
+      {/* Impact Shockwave */}
+      <motion.div
+        className="absolute w-16 h-16 border-4 border-orange-500 rounded-full"
+        style={{
+          left: position.x - 32,
+          top: position.y - 32,
+        }}
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ 
+          scale: [0, 3, 5], 
+          opacity: [0, 1, 0]
+        }}
+        transition={{ 
+          duration: 0.8,
+          delay: 1.2
+        }}
+      />
+    </motion.div>
+  );
+}
+
+// Slash Effect
+function SlashEffect({ position }: { position: { x: number; y: number } }) {
+  return (
+    <motion.div
+      className="relative"
+      style={{
+        left: position.x - 50,
+        top: position.y - 50,
+      }}
+    >
+      {/* Slash Trail */}
+      <motion.div
+        className="absolute w-24 h-2 bg-gradient-to-r from-transparent via-white to-transparent"
+        style={{
+          transformOrigin: 'left center',
+        }}
+        initial={{ 
+          scaleX: 0, 
+          opacity: 0, 
+          rotate: -45 
+        }}
+        animate={{ 
+          scaleX: [0, 1, 0], 
+          opacity: [0, 1, 0],
+          rotate: -45
+        }}
+        transition={{ duration: 0.4 }}
+      />
+      
+      {/* Slash Sparkles */}
+      {[...Array(8)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute w-1 h-1 bg-white rounded-full"
+          style={{
+            left: 20 + i * 8,
+            top: 48 - i * 6,
+          }}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ 
+            scale: [0, 1, 0], 
+            opacity: [0, 1, 0],
+            x: [0, Math.random() * 20 - 10],
+            y: [0, Math.random() * 20 - 10]
+          }}
+          transition={{ 
+            duration: 0.6, 
+            delay: i * 0.05
+          }}
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+// Explosion Effect
+function ExplosionEffect({ position }: { position: { x: number; y: number } }) {
+  return (
+    <motion.div
+      className="relative"
+      style={{
+        left: position.x - 60,
+        top: position.y - 60,
+      }}
+    >
+      {/* Main Explosion */}
+      <motion.div
+        className="w-32 h-32 bg-gradient-radial from-orange-500 via-red-500 to-transparent rounded-full"
+        initial={{ scale: 0, opacity: 1 }}
+        animate={{ 
+          scale: [0, 1.5, 2.5], 
+          opacity: [1, 0.8, 0]
+        }}
+        transition={{ duration: 1.5 }}
+      />
+      
+      {/* Secondary Blast */}
+      <motion.div
+        className="absolute inset-0 w-32 h-32 bg-gradient-radial from-yellow-400 via-orange-400 to-transparent rounded-full"
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ 
+          scale: [0, 1, 2], 
+          opacity: [0, 1, 0]
+        }}
+        transition={{ 
+          duration: 1.2,
+          delay: 0.2
+        }}
+      />
+
+      {/* Debris */}
+      {[...Array(12)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute w-2 h-2 bg-gray-600 rounded-full"
+          style={{
+            left: 64,
+            top: 64,
+          }}
+          initial={{ scale: 0 }}
+          animate={{ 
+            scale: [0, 1, 0.5],
+            x: Math.cos(i * 30 * Math.PI / 180) * (60 + Math.random() * 40),
+            y: Math.sin(i * 30 * Math.PI / 180) * (60 + Math.random() * 40)
+          }}
+          transition={{ 
+            duration: 2,
+            delay: 0.1
+          }}
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+// Shield Block Effect
+function ShieldBlockEffect({ position }: { position: { x: number; y: number } }) {
+  return (
+    <motion.div
+      className="relative"
+      style={{
+        left: position.x - 30,
+        top: position.y - 30,
+      }}
+    >
+      {/* Shield Glow */}
+      <motion.div
+        className="w-16 h-16 bg-gradient-radial from-blue-400 via-cyan-300 to-transparent rounded-full"
+        initial={{ scale: 0, opacity: 1 }}
+        animate={{ 
+          scale: [0, 1.5, 2], 
+          opacity: [1, 0.6, 0]
+        }}
+        transition={{ duration: 1 }}
+      />
+      
+      {/* Shield Icon */}
+      <motion.div
+        className="absolute inset-0 flex items-center justify-center text-3xl"
+        initial={{ scale: 0, rotate: -30 }}
+        animate={{ 
+          scale: [0, 1.3, 1], 
+          rotate: [-30, 10, 0]
+        }}
+        transition={{ duration: 0.8 }}
+      >
+        🛡️
+      </motion.div>
+
+      {/* Block Sparks */}
+      {[...Array(6)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute w-1 h-4 bg-blue-300 rounded-full"
+          style={{
+            left: 32,
+            top: 32,
+            transformOrigin: 'bottom center',
+          }}
+          initial={{ scale: 0, rotate: i * 60 }}
+          animate={{ 
+            scale: [0, 1, 0],
+            x: Math.cos(i * 60 * Math.PI / 180) * 25,
+            y: Math.sin(i * 60 * Math.PI / 180) * 25
+          }}
+          transition={{ 
+            duration: 0.8, 
+            delay: 0.2
+          }}
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+// Arrow Shot Effect
+function ArrowShotEffect({ 
+  position, 
+  attackerPosition 
+}: { 
+  position: { x: number; y: number };
+  attackerPosition?: { x: number; y: number };
+}) {
+  const startPos = attackerPosition || { x: position.x - 150, y: position.y - 50 };
+  
+  return (
+    <motion.div className="relative">
+      {/* Arrow Trail */}
+      <motion.div
+        className="absolute w-1 h-12 bg-gradient-to-t from-brown-600 to-gray-400"
+        style={{
+          left: startPos.x,
+          top: startPos.y,
+          transformOrigin: 'bottom center',
+        }}
+        initial={{ 
+          x: 0, 
+          y: 0, 
+          rotate: Math.atan2(position.y - startPos.y, position.x - startPos.x) * 180 / Math.PI
+        }}
+        animate={{ 
+          x: position.x - startPos.x,
+          y: position.y - startPos.y,
+        }}
+        transition={{ 
+          duration: 0.6,
+          ease: "easeOut"
+        }}
+      />
+
+      {/* Impact Effect */}
+      <motion.div
+        className="absolute w-8 h-8 border-2 border-brown-600 rounded-full"
+        style={{
+          left: position.x - 16,
+          top: position.y - 16,
+        }}
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ 
+          scale: [0, 1.5, 0], 
+          opacity: [0, 1, 0]
+        }}
+        transition={{ 
+          duration: 0.4,
+          delay: 0.5
+        }}
+      />
+    </motion.div>
+  );
+}
+
+// Magic Cast Effect
+function MagicCastEffect({ position }: { position: { x: number; y: number } }) {
+  return (
+    <motion.div
+      className="relative"
+      style={{
+        left: position.x - 40,
+        top: position.y - 40,
+      }}
+    >
+      {/* Magic Circle */}
+      <motion.div
+        className="w-20 h-20 border-4 border-purple-400 rounded-full"
+        style={{
+          borderStyle: 'dashed',
+        }}
+        initial={{ scale: 0, opacity: 0, rotate: 0 }}
+        animate={{ 
+          scale: [0, 1, 1.5], 
+          opacity: [0, 1, 0],
+          rotate: 360
+        }}
+        transition={{ duration: 1.5 }}
+      />
+      
+      {/* Magic Sparkles */}
+      {[...Array(8)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute text-lg"
+          style={{
+            left: Math.cos(i * 45 * Math.PI / 180) * 30 + 40,
+            top: Math.sin(i * 45 * Math.PI / 180) * 30 + 40,
+          }}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ 
+            scale: [0, 1, 0], 
+            opacity: [0, 1, 0],
+            rotate: [0, 180, 360]
+          }}
+          transition={{ 
+            duration: 1.2, 
+            delay: i * 0.1
+          }}
+        >
+          ✨
+        </motion.div>
+      ))}
+
+      {/* Central Magic Burst */}
+      <motion.div
+        className="absolute inset-0 flex items-center justify-center text-2xl"
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ 
+          scale: [0, 1.5, 1], 
+          opacity: [0, 1, 0]
+        }}
+        transition={{ 
+          duration: 1,
+          delay: 0.5
+        }}
+      >
+        🔮
+      </motion.div>
     </motion.div>
   );
 }
