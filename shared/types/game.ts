@@ -111,6 +111,7 @@ export const GameStateSchema = z.object({
     z.object({ type: z.literal('FORMATION_FIGHTING'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
     z.object({ type: z.literal('SIEGE_MODE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
     z.object({ type: z.literal('RALLY_TROOPS'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+    z.object({ type: z.literal('RESEARCH_TECHNOLOGY'), payload: z.object({ playerId: z.string(), technologyId: z.string() }) }),
     z.object({ type: z.string(), payload: z.unknown() }) // Fallback for other actions
   ]).optional(),
   winner: z.string().optional(),

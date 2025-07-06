@@ -78,6 +78,7 @@ export const UnitDefinitionSchema = z.object({
   }).optional(),
   factionSpecific: z.array(z.string()).default([]),
   abilities: z.array(z.string()).default([]),
+  requiredTechnology: z.string().optional(), // Technology required to unlock this unit
 });
 
 export type UnitDefinition = z.infer<typeof UnitDefinitionSchema>;

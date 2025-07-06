@@ -112,13 +112,15 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
 
       case 'missionary':
         if (unitDef.abilities.includes('heal')) {
+          // Check if player has required technology for healing abilities
+          const hasHealingTech = currentPlayer.researchedTechs.includes('spirituality');
           actions.push({
             id: 'heal',
             name: 'Heal Nearby Units',
-            description: 'Restore health to friendly units',
+            description: hasHealingTech ? 'Restore health to friendly units' : 'Requires Spirituality technology',
             icon: <Heart className="w-4 h-4" />,
             cost: '5 Faith',
-            available: currentPlayer.stats.faith >= 5 && !unit.hasAttacked
+            available: hasHealingTech && currentPlayer.stats.faith >= 5 && !unit.hasAttacked
           });
         }
         if (unitDef.abilities.includes('convert')) {

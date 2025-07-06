@@ -527,6 +527,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'RALLY_TROOPS':
       return handleRallyTroops(state, action.payload);
     
+    case 'RESEARCH_TECHNOLOGY':
+      return handleResearchTechnology(state, action.payload);
+    
     case 'HARVEST_RESOURCE':
       return handleHarvestResource(state, action.payload);
     
@@ -1337,6 +1340,60 @@ function handleRallyTroops(
   return {
     ...state,
     units: updatedRallyUnits,
+    players: updatedPlayers
+  };
+}
+
+// Research Technology Handler
+function handleResearchTechnology(
+  state: GameState,
+  payload: { playerId: string; technologyId: string }
+): GameState {
+  const { playerId, technologyId } = payload;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+  
+  const tech = TECHNOLOGIES[technologyId];
+  if (!tech) return state;
+  
+  // Check if tech is already researched
+  if (player.researchedTechs.includes(technologyId)) {
+    return state;
+  }
+  
+  // Verify prerequisites
+  const hasPrerequisites = tech.prerequisites.every(prereqId =>
+    player.researchedTechs.includes(prereqId)
+  );
+  
+  if (!hasPrerequisites) {
+    console.log(`Cannot research ${tech.name}: missing prerequisites`);
+    return state;
+  }
+  
+  // Check cost
+  if (player.stars < tech.cost) {
+    console.log(`Cannot research ${tech.name}: insufficient stars (need ${tech.cost}, have ${player.stars})`);
+    return state;
+  }
+  
+  console.log(`Player ${player.name} researched ${tech.name} for ${tech.cost} stars`);
+  
+  // Update player with new technology
+  const updatedPlayers = state.players.map(p => {
+    if (p.id === playerId) {
+      return {
+        ...p,
+        stars: p.stars - tech.cost,
+        researchedTechs: [...p.researchedTechs, technologyId],
+      };
+    }
+    return p;
+  });
+  
+  return {
+    ...state,
     players: updatedPlayers
   };
 }
