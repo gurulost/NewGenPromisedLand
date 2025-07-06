@@ -62,6 +62,16 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           cost: 'Turn',
           available: true
         });
+        
+        // Harvest action for Polytopia-style resource management
+        actions.push({
+          id: 'harvest_resource',
+          name: 'Harvest Resource',
+          description: 'Harvest forest, mountain, or animals to grow nearby city',
+          icon: <Star className="w-4 h-4" />,
+          cost: 'Movement',
+          available: unit.remainingMovement > 0
+        });
         break;
 
       case 'scout':
@@ -186,6 +196,12 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             playerId: currentPlayer.id
           }
         });
+        break;
+        
+      case 'harvest_resource':
+        // This would open a map interface to select resource tiles
+        console.log('Opening harvest resource interface');
+        setSelectedAction('harvest_resource');
         break;
       
       case 'build_improvement':

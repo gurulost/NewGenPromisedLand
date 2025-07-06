@@ -220,8 +220,13 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               <div>
                 <h3 className="font-semibold mb-2">City Information</h3>
                 <div className="space-y-1 text-sm">
-                  <p>Population: {city.population}</p>
+                  <p>Level: {city.level}</p>
+                  <p>Population: {city.population}/{city.maxPopulation}</p>
+                  <p>Star Production: +{city.starProduction}/turn</p>
                   <p>Owner: {currentPlayer.name}</p>
+                  {city.population >= city.maxPopulation && (
+                    <p className="text-yellow-400 font-bold">Ready to level up!</p>
+                  )}
                 </div>
               </div>
               
