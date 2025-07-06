@@ -131,21 +131,16 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose }: Buil
       category: 'improvements' as const,
       cost: { stars: improvement.cost },
       effects: [
-        ...(improvement.effects.starProduction > 0 ? [{ 
+        ...(improvement.starProduction > 0 ? [{ 
           description: 'Star Production', 
           icon: <Star className="w-4 h-4" />, 
-          value: `+${improvement.effects.starProduction}/turn` 
-        }] : []),
-        ...(improvement.effects.populationGrowth > 0 ? [{ 
-          description: 'Population Growth', 
-          icon: <Users className="w-4 h-4" />, 
-          value: `+${improvement.effects.populationGrowth}/turn` 
+          value: `+${improvement.starProduction}/turn` 
         }] : [])
       ],
-      buildTime: 2,
+      buildTime: improvement.constructionTime,
       icon: <TrendingUp className="w-6 h-6" />,
-      rarity: improvement.effects.starProduction >= 3 ? 'rare' : 'common' as const,
-      unlocked: true
+      rarity: improvement.starProduction >= 3 ? 'rare' : 'common' as const,
+      unlocked: player.researchedTechs.includes(improvement.requiredTech)
     }))
   ];
 
