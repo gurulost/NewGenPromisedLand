@@ -56,10 +56,15 @@ describe('BuildingMenu Component', () => {
         pride: 20,
         internalDissent: 5
       },
-      citiesOwned: ['city1'],
-      unitsOwned: ['unit1'],
+      modifiers: [],
       researchedTechs: ['writing', 'organization'],
-      isEliminated: false
+      researchProgress: 0,
+      citiesOwned: ['city1'],
+      constructionQueue: [],
+      visibilityMask: [],
+      exploredTiles: [],
+      isEliminated: false,
+      turnOrder: 0
     };
 
     mockCity = {

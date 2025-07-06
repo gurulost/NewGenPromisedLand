@@ -51,8 +51,12 @@ describe('UnitActionsPanel', () => {
     movement: 2,
     remainingMovement: 2,
     visionRadius: 1,
+    attackRange: 1,
     status: 'active',
-    hasAttacked: false
+    hasAttacked: false,
+    abilities: ['BUILD_ROAD', 'CLEAR_FOREST', 'HARVEST'],
+    level: 1,
+    experience: 0
   };
 
   const mockScoutUnit: Unit = {
@@ -111,7 +115,7 @@ describe('UnitActionsPanel', () => {
     render(<UnitActionsPanel {...mockProps} />);
     
     expect(screen.getByText('Build Improvement')).toBeInTheDocument();
-    expect(screen.getByText('Construct terrain improvements')).toBeInTheDocument();
+    expect(screen.getByText('Construct terrain improvements (farms, mines, etc.)')).toBeInTheDocument();
   });
 
   it('displays scout-specific actions', () => {
@@ -160,7 +164,7 @@ describe('UnitActionsPanel', () => {
     render(<UnitActionsPanel {...mockProps} />);
     
     expect(screen.getByText('Build Improvement')).toBeInTheDocument();
-    expect(screen.getByText('Construct terrain improvements')).toBeInTheDocument();
+    expect(screen.getByText('Construct terrain improvements (farms, mines, etc.)')).toBeInTheDocument();
     // Cost should be shown as "Turn" for worker improvement action
     expect(screen.getByText('Worker Actions')).toBeInTheDocument();
     expect(screen.getByText('Available Actions')).toBeInTheDocument();

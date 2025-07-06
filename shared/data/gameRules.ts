@@ -189,7 +189,7 @@ export const GAME_RULES: GameRules = {
 
   combat: {
     defaultAttackRange: 1,
-    damageReduction: 1,
+    damageReduction: 0.8,
     fortificationBonus: 2,
     terrainDefenseMultiplier: 1.5,
   },
