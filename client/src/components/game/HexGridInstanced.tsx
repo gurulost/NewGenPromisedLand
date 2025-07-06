@@ -493,9 +493,9 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           if (category === 'units') {
             const unitDef = getUnitDefinition(buildingName as any);
             if (unitDef) {
-              cost.stars = unitDef.cost.stars || 0;
-              cost.faith = unitDef.cost.faith || 0;
-              cost.pride = unitDef.cost.pride || 0;
+              cost.stars = unitDef.cost; // Units have direct cost number
+              cost.faith = unitDef.requirements?.faith || 0;
+              cost.pride = unitDef.requirements?.pride || 0;
             }
           } else if (category === 'improvements') {
             const improvementDef = IMPROVEMENT_DEFINITIONS[buildingName as keyof typeof IMPROVEMENT_DEFINITIONS];

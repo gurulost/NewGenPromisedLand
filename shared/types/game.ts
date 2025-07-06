@@ -48,24 +48,39 @@ export const GameMapSchema = z.object({
 
 export type GameMap = z.infer<typeof GameMapSchema>;
 
-// Construction item for ongoing construction projects
+// Construction item for building queue
 export const ConstructionItemSchema = z.object({
   id: z.string(),
-  type: z.string(), // improvement/structure/unit type
+  type: z.string(),
   category: z.enum(['improvements', 'structures', 'units']),
-  coordinate: HexCoordinateSchema.optional(), // Only for improvements/structures
+  coordinate: HexCoordinateSchema.optional(),
   cityId: z.string(),
   playerId: z.string(),
   turnsRemaining: z.number(),
   totalTurns: z.number(),
   cost: z.object({
-    stars: z.number().optional(),
-    faith: z.number().optional(),
-    pride: z.number().optional(),
+    stars: z.number(),
+    faith: z.number(),
+    pride: z.number(),
   }),
 });
 
 export type ConstructionItem = z.infer<typeof ConstructionItemSchema>;
+
+// Player state with faction, stats, and actions
+export const PlayerStateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  factionId: z.string(),
+  stars: z.number().default(0),
+  stats: GameStatsSchema,
+  modifiers: z.array(z.any()).default([]),
+  researchedTechs: z.array(z.string()).default([]),
+  currentResearch: z.string().optional(),
+  researchProgress: z.number().default(0),
+  citiesOwned: z.array(z.string()).default([]),
+  constructionQueue: z.array(ConstructionItemSchema).default([]),
+});
 
 // Player state
 export const PlayerStateSchema = z.object({

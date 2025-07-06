@@ -81,9 +81,9 @@ function handleStartConstruction(
       console.log(`Unit definition not found for ${buildingType}`);
       return state;
     }
-    cost.stars = unitDef.cost.stars || 0;
-    cost.faith = unitDef.cost.faith || 0;
-    cost.pride = unitDef.cost.pride || 0;
+    cost.stars = unitDef.cost; // Units have direct cost number
+    cost.faith = unitDef.requirements?.faith || 0;
+    cost.pride = unitDef.requirements?.pride || 0;
     buildTime = 1; // Units build quickly
     
     // Special validation for boats - they need coastal access
