@@ -11,6 +11,7 @@ import { usePathfindingWorker } from "../../hooks/usePathfindingWorker";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameDebugger } from "../../utils/gameDebug";
+import { UnitModel } from "./UnitModel";
 import * as THREE from "three";
 
 interface UnitProps {
@@ -91,8 +92,8 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
     }
   });
 
-  // AAA-Quality Unit Model Component
-  const UnitModel = useMemo(() => {
+  // Keep the old procedural model as backup (commented out for now)
+  const ProceeduralUnitModel = useMemo(() => {
     const factionColor = faction?.color || '#888888';
     const metalColor = '#C0C0C0';
     const weaponColor = '#654321';
@@ -430,7 +431,12 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
         <group
           scale={unit.status === 'exhausted' ? [0.7, 0.7, 0.7] : [0.8, 0.8, 0.8]}
         >
-          {UnitModel}
+          {/* Use the new 3D unit model */}
+          <UnitModel 
+            unit={unit}
+            position={{ x: 0, y: -UNIT_HEIGHT + 0.05 }}
+            isPlayerUnit={currentPlayerUnit}
+          />
           
           {/* Status Effect Visual Indicators */}
           {unit.status === 'stealthed' && (

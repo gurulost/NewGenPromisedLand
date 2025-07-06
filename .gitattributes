@@ -4,3 +4,4 @@
 /client/public/models/city_level1.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/city_level2.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/city_level3.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/warrior.glb filter=lfs diff=lfs merge=lfs -text
