@@ -15,8 +15,11 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     switch (unitType) {
       case 'warrior':
         return '/models/warrior.glb';
+      case 'worker':
+      case 'settler':
+        return '/models/settler.glb';
       default:
-        return '/models/warrior.glb'; // Default to warrior for now
+        return '/models/warrior.glb'; // Default to warrior for unknown types
     }
   };
 
@@ -28,8 +31,14 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     const clone = scene.clone();
     
     // Scale the model to fit within a hex tile properly
-    // Units should be smaller than cities but clearly visible
-    const scale = 0.4; // Smaller than cities but visible
+    // Different unit types may need different scaling
+    let scale = 0.4; // Default scale for most units
+    
+    // Adjust scale based on unit type if needed
+    if (unit.type === 'worker' || unit.type === 'settler') {
+      scale = 0.35; // Slightly smaller for civilian units
+    }
+    
     clone.scale.setScalar(scale);
     
     // Adjust materials based on ownership and unit status
@@ -133,5 +142,6 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   );
 }
 
-// Preload the warrior model
+// Preload all unit models
 useGLTF.preload('/models/warrior.glb');
+useGLTF.preload('/models/settler.glb');
