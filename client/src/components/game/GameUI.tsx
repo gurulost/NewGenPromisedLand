@@ -31,6 +31,7 @@ export default function GameUI() {
   
   // Enhanced end turn with transition
   const handleEndTurn = () => {
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
     const nextPlayer = gameState.players[nextPlayerIndex];
     
@@ -39,7 +40,7 @@ export default function GameUI() {
     
     // Complete turn after transition
     setTimeout(() => {
-      endTurn();
+      endTurn(currentPlayer.id); // Pass the current player's ID
       completeTransition();
     }, 1000);
   };
