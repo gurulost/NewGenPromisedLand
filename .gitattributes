@@ -20,3 +20,15 @@
 /client/public/models/scout_nephite.glb filter=lfs diff=lfs merge=lfs -text
 /attached_assets/Village_1751831751478.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/village.glb filter=lfs diff=lfs merge=lfs -text
+/public/models/archer.glb filter=lfs diff=lfs merge=lfs -text
+/public/models/boat.glb filter=lfs diff=lfs merge=lfs -text
+/public/models/city_level1.glb filter=lfs diff=lfs merge=lfs -text
+/public/models/city_level2.glb filter=lfs diff=lfs merge=lfs -text
+/public/models/city_level3.glb filter=lfs diff=lfs merge=lfs -text
+/public/models/missionary.glb filter=lfs diff=lfs merge=lfs -text
+/public/models/scout.glb filter=lfs diff=lfs merge=lfs -text
+/public/models/scout_nephite.glb filter=lfs diff=lfs merge=lfs -text
+/public/models/settler.glb filter=lfs diff=lfs merge=lfs -text
+/public/models/village.glb filter=lfs diff=lfs merge=lfs -text
+/public/models/warrior.glb filter=lfs diff=lfs merge=lfs -text
+/public/models/worker.glb filter=lfs diff=lfs merge=lfs -text
