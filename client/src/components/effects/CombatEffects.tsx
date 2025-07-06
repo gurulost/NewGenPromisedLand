@@ -851,7 +851,7 @@ function MagicCastEffect({ position }: { position: { x: number; y: number } }) {
   );
 }
 
-// Hook for managing combat effects
+// Hook for managing combat effects with enhanced orchestration
 export function useCombatEffects() {
   const [damageNumbers, setDamageNumbers] = useState<DamageNumber[]>([]);
   const [effects, setEffects] = useState<CombatEffect[]>([]);
@@ -867,10 +867,19 @@ export function useCombatEffects() {
 
   const addEffect = (
     type: CombatEffect['type'], 
-    position: { x: number; y: number }
+    position: { x: number; y: number },
+    attackerPosition?: { x: number; y: number },
+    unitType?: string
   ) => {
     const id = `effect-${Date.now()}-${Math.random()}`;
-    setEffects(prev => [...prev, { id, type, position, timestamp: Date.now() }]);
+    setEffects(prev => [...prev, { 
+      id, 
+      type, 
+      position, 
+      attackerPosition,
+      unitType,
+      timestamp: Date.now() 
+    }]);
   };
 
   const removeEffect = (id: string) => {
@@ -878,11 +887,167 @@ export function useCombatEffects() {
     setEffects(prev => prev.filter(e => e.id !== id));
   };
 
+  // Enhanced battle sequence orchestration for cinematic combat
+  const triggerBattleSequence = (
+    attacker: { x: number; y: number; unitType: string },
+    defender: { x: number; y: number; unitType: string },
+    damage: number,
+    combatType: 'melee' | 'ranged' | 'magic' | 'siege' = 'melee'
+  ) => {
+    const midpoint = { 
+      x: (attacker.x + defender.x) / 2, 
+      y: (attacker.y + defender.y) / 2 
+    };
+
+    // Phase 1: Battle Start Announcement (dramatic opening)
+    addEffect('battle_start', midpoint);
+
+    // Phase 2: Attack Animation based on combat type
+    setTimeout(() => {
+      switch (combatType) {
+        case 'melee':
+          addEffect('charge', defender, attacker, attacker.unitType);
+          break;
+        case 'ranged':
+          addEffect('arrow_shot', defender, attacker);
+          break;
+        case 'magic':
+          addEffect('magic_cast', attacker);
+          break;
+        case 'siege':
+          addEffect('explosion', defender);
+          break;
+      }
+    }, 1000); // Dramatic pause before attack
+
+    // Phase 3: Impact and Damage Resolution
+    const impactDelay = combatType === 'melee' ? 2200 : 
+                       combatType === 'ranged' ? 1800 : 
+                       combatType === 'magic' ? 1500 : 1200;
+
+    setTimeout(() => {
+      if (damage > 0) {
+        const isCritical = damage > 15;
+        const isHeavyDamage = damage > 20;
+        
+        // Damage number with enhanced visual feedback
+        addDamageNumber(damage, defender, isCritical ? 'critical' : 'damage');
+
+        // Impact effects based on damage severity
+        if (isHeavyDamage) {
+          addEffect('explosion', defender);
+        } else if (isCritical) {
+          addEffect('hit', defender);
+          addEffect('slash', defender);
+        } else {
+          addEffect('hit', defender);
+        }
+
+        // Additional melee slash effect for sword combat
+        if (combatType === 'melee' && ['warrior', 'commander', 'spearman'].includes(attacker.unitType)) {
+          setTimeout(() => addEffect('slash', defender), 200);
+        }
+      } else {
+        // Miss, block, or dodge scenarios
+        const missType = Math.random() > 0.5 ? 'miss' : 'block';
+        addDamageNumber(0, defender, missType);
+        
+        if (missType === 'block') {
+          addEffect('shield_block', defender);
+        }
+      }
+    }, impactDelay);
+
+    // Phase 4: Death effect if damage is fatal
+    if (damage >= 100) { // Assuming 100+ damage is lethal
+      setTimeout(() => {
+        addEffect('death', defender);
+      }, impactDelay + 500);
+    }
+  };
+
+  // Spell casting with magical effects
+  const triggerSpellEffect = (
+    caster: { x: number; y: number },
+    target: { x: number; y: number },
+    spellType: 'heal' | 'buff' | 'debuff' | 'damage' | 'blessing'
+  ) => {
+    // Magical preparation
+    addEffect('magic_cast', caster);
+
+    // Spell resolution based on type
+    setTimeout(() => {
+      switch (spellType) {
+        case 'heal':
+        case 'blessing':
+          addEffect('heal', target);
+          if (spellType === 'heal') {
+            addDamageNumber(-10, target, 'heal'); // Negative damage = healing
+          }
+          break;
+        case 'damage':
+          addEffect('explosion', target);
+          addDamageNumber(12, target, 'damage');
+          break;
+        case 'buff':
+          addEffect('levelup', target);
+          break;
+        case 'debuff':
+          addEffect('hit', target);
+          break;
+      }
+    }, 1000);
+  };
+
+  // Unit advancement celebration
+  const triggerLevelUp = (position: { x: number; y: number }) => {
+    addEffect('levelup', position);
+  };
+
+  // Defensive maneuvers
+  const triggerDefensiveAction = (
+    position: { x: number; y: number },
+    actionType: 'block' | 'dodge' | 'formation'
+  ) => {
+    if (actionType === 'block' || actionType === 'formation') {
+      addEffect('shield_block', position);
+      addDamageNumber(0, position, 'block');
+    } else {
+      addDamageNumber(0, position, 'dodge');
+    }
+  };
+
+  // Mass battle effects for larger conflicts
+  const triggerMassBattle = (
+    battleCenter: { x: number; y: number },
+    participants: Array<{ x: number; y: number; unitType: string }>
+  ) => {
+    // Epic battle start
+    addEffect('battle_start', battleCenter);
+
+    // Staggered charges from all participants
+    participants.forEach((unit, index) => {
+      setTimeout(() => {
+        addEffect('charge', battleCenter, unit, unit.unitType);
+      }, 1200 + index * 300);
+    });
+
+    // Climactic explosion finish
+    setTimeout(() => {
+      addEffect('explosion', battleCenter);
+    }, 1200 + participants.length * 300 + 1000);
+  };
+
   return {
     damageNumbers,
     effects,
     addDamageNumber,
     addEffect,
-    removeEffect
+    removeEffect,
+    triggerBattleSequence,
+    triggerSpellEffect,
+    triggerLevelUp,
+    triggerDefensiveAction,
+    triggerMassBattle
   };
 }
