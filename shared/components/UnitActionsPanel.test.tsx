@@ -8,6 +8,21 @@ import { GameState } from '../types/game';
 // Mock the useLocalGame hook
 vi.mock('../../client/src/lib/stores/useLocalGame');
 
+// Mock TooltipSystem
+vi.mock('../../client/src/components/ui/TooltipSystem', () => ({
+  Tooltip: ({ children }: any) => children,
+  ActionTooltip: ({ title }: any) => <div>{title}</div>,
+  InfoTooltip: ({ title, content }: any) => <div>{title}: {content}</div>,
+  StarProductionTooltip: ({ totalIncome, breakdown }: any) => (
+    <div>Star Income: {totalIncome}/turn</div>
+  ),
+  FaithSystemTooltip: () => <div>Faith System Info</div>,
+  PrideSystemTooltip: () => <div>Pride System Info</div>,
+  DissentTooltip: () => <div>Dissent System Info</div>,
+  TechnologyTooltip: () => <div>Technology System Info</div>,
+  UnitTooltip: ({ unit, unitDef }: any) => <div>{unitDef.name} Unit</div>
+}));
+
 const mockUseLocalGame = useLocalGame as any;
 
 describe('UnitActionsPanel', () => {
