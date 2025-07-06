@@ -109,7 +109,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     starProduction: 3,
     validTerrain: ['mountain'],
     requiredTech: 'organization',
-    constructionTime: 2
+    constructionTime: 1
   },
   
   forest_camp: {
@@ -131,7 +131,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     starProduction: 4,
     validTerrain: ['plains', 'forest'],
     requiredTech: 'agriculture',
-    constructionTime: 2
+    constructionTime: 1
   },
   
   irrigation: {
@@ -142,7 +142,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     starProduction: 3,
     validTerrain: ['plains', 'desert'],
     requiredTech: 'agriculture',
-    constructionTime: 2
+    constructionTime: 1
   },
   
   workshop: {
@@ -153,7 +153,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     starProduction: 3,
     validTerrain: ['mountain', 'plains'],
     requiredTech: 'bronze_working',
-    constructionTime: 3
+    constructionTime: 1
   },
   
   port: {
@@ -164,7 +164,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     starProduction: 2,
     validTerrain: ['water'],
     requiredTech: 'sailing',
-    constructionTime: 2
+    constructionTime: 1
   },
   
   aqueduct: {
@@ -175,7 +175,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     starProduction: 2,
     validTerrain: ['plains', 'mountain'],
     requiredTech: 'engineering',
-    constructionTime: 3
+    constructionTime: 1
   },
   
   road: {
@@ -213,7 +213,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
     description: 'Center of worship and spiritual guidance',
     cost: 8,
     requiredTech: 'spirituality',
-    constructionTime: 2,
+    constructionTime: 1,
     effects: {
       starProduction: 1,
       unitProduction: 0,
@@ -228,7 +228,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
     description: 'Stores food and supports population growth',
     cost: 10,
     requiredTech: 'agriculture',
-    constructionTime: 2,
+    constructionTime: 1,
     effects: {
       starProduction: 0,
       unitProduction: 0,
@@ -243,7 +243,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
     description: 'Guides ships and enhances naval capabilities',
     cost: 12,
     requiredTech: 'sailing',
-    constructionTime: 2,
+    constructionTime: 1,
     effects: {
       starProduction: 2,
       unitProduction: 1,
@@ -258,7 +258,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
     description: 'Grand religious center with wide influence',
     cost: 25,
     requiredTech: 'priesthood',
-    constructionTime: 4,
+    constructionTime: 1,
     effects: {
       starProduction: 3,
       unitProduction: 0,
@@ -273,7 +273,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
     description: 'Center of learning and knowledge',
     cost: 30,
     requiredTech: 'philosophy',
-    constructionTime: 4,
+    constructionTime: 1,
     effects: {
       starProduction: 4,
       unitProduction: 0,
@@ -288,7 +288,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
     description: 'Repository of knowledge and wisdom',
     cost: 20,
     requiredTech: 'philosophy',
-    constructionTime: 3,
+    constructionTime: 1,
     effects: {
       starProduction: 2,
       unitProduction: 0,
@@ -303,7 +303,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
     description: 'Strong defensive fortification',
     cost: 35,
     requiredTech: 'engineering',
-    constructionTime: 5,
+    constructionTime: 1,
     effects: {
       starProduction: 0,
       unitProduction: 1,
