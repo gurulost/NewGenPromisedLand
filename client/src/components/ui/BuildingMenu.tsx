@@ -122,7 +122,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose }: Buil
         { description: 'Health', icon: <Heart className="w-4 h-4" />, value: `${unit.baseStats.hp} HP` },
         { description: 'Movement', icon: <TrendingUp className="w-4 h-4" />, value: `${unit.baseStats.movement}` }
       ],
-      buildTime: 2,
+      buildTime: 1,
       icon: <Users className="w-6 h-6" />,
       rarity: unit.factionSpecific.length > 0 ? 'rare' : 'common' as const,
       unlocked: unit.factionSpecific.length === 0 || unit.factionSpecific.includes(player.factionId)
@@ -153,7 +153,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose }: Buil
           value: `+${structure.effects.unitProduction}` 
         }] : [])
       ],
-      buildTime: 3,
+      buildTime: 1,
       icon: <Castle className="w-6 h-6" />,
       rarity: structure.effects.starProduction >= 3 ? 'epic' : 'common' as const,
       unlocked: player.researchedTechs.includes(structure.requiredTech)
