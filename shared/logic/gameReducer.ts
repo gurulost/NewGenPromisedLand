@@ -663,10 +663,26 @@ function handleAttackUnit(
   // Check if units are within attack range
   const distance = hexDistance(attacker.coordinate, target.coordinate);
   if (distance > attacker.attackRange) return state;
+  
+  // Cannot target stealthed units unless adjacent
+  if (target.status === 'stealthed' && distance > 1) {
+    return state;
+  }
 
-  // Calculate damage using data-driven modifier system
+  // Calculate damage using data-driven modifier system with status effects
   let attackPower = attacker.attack;
   let defensePower = target.defense;
+  
+  // Apply status effect bonuses
+  if (attacker.status === 'rallied') {
+    attackPower += 2; // Rally bonus
+  }
+  if (attacker.status === 'siege_mode') {
+    attackPower += 3; // Siege mode bonus
+  }
+  if (target.status === 'formation') {
+    defensePower += 2; // Formation defense bonus
+  }
 
   const attackerPlayer = state.players.find(p => p.id === attacker.playerId);
   const targetPlayer = state.players.find(p => p.id === target.playerId);
@@ -708,7 +724,9 @@ function handleAttackUnit(
       return { ...u, hp: newHp };
     }
     if (u.id === payload.attackerId) {
-      return { ...u, hasAttacked: true };
+      // Remove stealth when attacking
+      const newStatus = u.status === 'stealthed' ? 'active' : u.status;
+      return { ...u, hasAttacked: true, status: newStatus };
     }
     return u;
   });
@@ -993,11 +1011,24 @@ function handleEndTurn(
   });
 
   // Reset movement and attack status for next player's units at start of their turn
-  updatedUnits = updatedUnits.map((u: Unit) => 
-    u.playerId === nextPlayer.id 
-      ? { ...u, remainingMovement: u.movement, hasAttacked: false }
-      : u
-  );
+  updatedUnits = updatedUnits.map((u: Unit) => {
+    if (u.playerId === nextPlayer.id) {
+      // Reset movement and attack state for next player
+      const resetUnit = { 
+        ...u, 
+        hasAttacked: false, 
+        remainingMovement: getUnitDefinition(u.type).baseStats.movement 
+      };
+      
+      // Clear temporary status effects (keep permanent ones like formation/siege)
+      if (u.status === 'rallied') {
+        resetUnit.status = 'active';
+      }
+      
+      return resetUnit;
+    }
+    return u;
+  });
 
   // Check for victory conditions
   const winner = checkVictoryConditions(state, updatedPlayers);
