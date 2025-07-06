@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import React from 'react';
 import VictoryScreen from '../../client/src/components/ui/VictoryScreen';
 import { useLocalGame } from '../../client/src/lib/stores/useLocalGame';
 import { GameState } from '../types/game';
@@ -45,7 +44,7 @@ describe('VictoryScreen', () => {
     ],
     currentPlayerIndex: 0,
     turn: 10,
-    phase: 'victory',
+    phase: 'playing',
     map: { width: 8, height: 8, tiles: [] },
     units: [],
     cities: [],
@@ -68,33 +67,29 @@ describe('VictoryScreen', () => {
   });
 
   it('renders victory screen with winner announcement', () => {
-    const component = React.createElement(VictoryScreen, mockProps);
-    render(component);
+    render(<VictoryScreen {...mockProps} />);
     
-    expect(screen.getByText('Victory!')).toBeInTheDocument();
+    expect(screen.getByText('Divine Victory')).toBeInTheDocument();
     expect(screen.getByText('Alice')).toBeInTheDocument();
-    expect(screen.getByText('Nephites')).toBeInTheDocument();
+    expect(screen.getAllByText('Nephites')).toHaveLength(2); // Badge and ranking
   });
 
   it('displays correct victory type', () => {
-    const component = React.createElement(VictoryScreen, mockProps);
-    render(component);
+    render(<VictoryScreen {...mockProps} />);
     
-    expect(screen.getByText('Faith Victory')).toBeInTheDocument();
-    expect(screen.getByText('Through divine inspiration and righteousness!')).toBeInTheDocument();
+    expect(screen.getByText('Divine Victory')).toBeInTheDocument();
+    expect(screen.getByText(/Through unwavering faith and spiritual leadership/)).toBeInTheDocument();
   });
 
   it('shows territorial victory correctly', () => {
-    const component = React.createElement(VictoryScreen, { ...mockProps, victoryType: 'territorial' });
-    render(component);
+    render(<VictoryScreen {...mockProps} victoryType="territorial" />);
     
-    expect(screen.getByText('Territorial Victory')).toBeInTheDocument();
-    expect(screen.getByText('By conquering the promised land!')).toBeInTheDocument();
+    expect(screen.getByText('Territorial Conquest')).toBeInTheDocument();
+    expect(screen.getByText(/By controlling the majority of cities/)).toBeInTheDocument();
   });
 
   it('displays player rankings', () => {
-    const component = React.createElement(VictoryScreen, mockProps);
-    render(component);
+    render(<VictoryScreen {...mockProps} />);
     
     expect(screen.getByText('Final Rankings')).toBeInTheDocument();
     expect(screen.getByText('Alice')).toBeInTheDocument();
@@ -102,17 +97,15 @@ describe('VictoryScreen', () => {
   });
 
   it('shows game statistics', () => {
-    const component = React.createElement(VictoryScreen, mockProps);
-    render(component);
+    render(<VictoryScreen {...mockProps} />);
     
-    expect(screen.getByText('Game Statistics')).toBeInTheDocument();
-    expect(screen.getByText('Turn 10')).toBeInTheDocument();
-    expect(screen.getByText('2 players')).toBeInTheDocument();
+    expect(screen.getByText('Final Statistics')).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument(); // Turn number
+    expect(screen.getByText('100')).toBeInTheDocument(); // Faith stat
   });
 
   it('calls onPlayAgain when Play Again button is clicked', () => {
-    const component = React.createElement(VictoryScreen, mockProps);
-    render(component);
+    render(<VictoryScreen {...mockProps} />);
     
     const playAgainButton = screen.getByText('Play Again');
     fireEvent.click(playAgainButton);
@@ -121,8 +114,7 @@ describe('VictoryScreen', () => {
   });
 
   it('calls onMainMenu when Main Menu button is clicked', () => {
-    const component = React.createElement(VictoryScreen, mockProps);
-    render(component);
+    render(<VictoryScreen {...mockProps} />);
     
     const mainMenuButton = screen.getByText('Main Menu');
     fireEvent.click(mainMenuButton);
@@ -131,26 +123,24 @@ describe('VictoryScreen', () => {
   });
 
   it('displays elimination victory correctly', () => {
-    const component = React.createElement(VictoryScreen, { ...mockProps, victoryType: 'elimination' });
-    render(component);
+    render(<VictoryScreen {...mockProps} victoryType="elimination" />);
     
-    expect(screen.getByText('Elimination Victory')).toBeInTheDocument();
-    expect(screen.getByText('Last faction standing!')).toBeInTheDocument();
+    expect(screen.getByText('Total Domination')).toBeInTheDocument();
+    expect(screen.getByText(/Through strategic warfare and tactical brilliance/)).toBeInTheDocument();
   });
 
   it('shows domination victory correctly', () => {
-    const component = React.createElement(VictoryScreen, { ...mockProps, victoryType: 'domination' });
-    render(component);
+    render(<VictoryScreen {...mockProps} victoryType="domination" />);
     
-    expect(screen.getByText('Domination Victory')).toBeInTheDocument();
-    expect(screen.getByText('Supreme control achieved!')).toBeInTheDocument();
+    expect(screen.getByText('Strategic Supremacy')).toBeInTheDocument();
+    expect(screen.getByText(/Your superior strategy and leadership/)).toBeInTheDocument();
   });
 
   it('displays winner stats correctly', () => {
-    const component = React.createElement(VictoryScreen, mockProps);
-    render(component);
+    render(<VictoryScreen {...mockProps} />);
     
     expect(screen.getByText('100')).toBeInTheDocument(); // Faith stat
     expect(screen.getByText('25')).toBeInTheDocument(); // Stars
+    expect(screen.getByText('30')).toBeInTheDocument(); // Pride stat
   });
 });

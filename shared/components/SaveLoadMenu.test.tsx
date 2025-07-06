@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import React from 'react';
 import SaveLoadMenu from '../../client/src/components/ui/SaveLoadMenu';
 import { useLocalGame } from '../../client/src/lib/stores/useLocalGame';
 import { GameState } from '../types/game';
@@ -79,15 +78,13 @@ describe('SaveLoadMenu', () => {
   });
 
   it('renders save/load menu with title', () => {
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
     
     expect(screen.getByText('Save & Load Game')).toBeInTheDocument();
   });
 
   it('displays save current game section when gameState exists', () => {
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
     
     expect(screen.getByText('Save Current Game')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Enter save name...')).toBeInTheDocument();
@@ -100,15 +97,13 @@ describe('SaveLoadMenu', () => {
       setGameState: vi.fn()
     });
     
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
     
     expect(screen.queryByText('Save Current Game')).not.toBeInTheDocument();
   });
 
   it('enables save button only when save name is entered', () => {
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
     
     const saveButton = screen.getByText('Save');
     const nameInput = screen.getByPlaceholderText('Enter save name...');
@@ -120,8 +115,7 @@ describe('SaveLoadMenu', () => {
   });
 
   it('saves game to localStorage when save button is clicked', async () => {
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
     
     const nameInput = screen.getByPlaceholderText('Enter save name...');
     const saveButton = screen.getByText('Save');
@@ -138,8 +132,7 @@ describe('SaveLoadMenu', () => {
   });
 
   it('displays "No saved games found" when localStorage is empty', () => {
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
     
     expect(screen.getByText('No saved games found')).toBeInTheDocument();
   });
@@ -162,8 +155,8 @@ describe('SaveLoadMenu', () => {
     localStorageMock.key.mockReturnValue('chronicles_save_save_123');
     localStorageMock.getItem.mockReturnValue(JSON.stringify(mockSaveData));
 
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
+    
     
     expect(screen.getByText('Test Save')).toBeInTheDocument();
     expect(screen.getByText('1 players')).toBeInTheDocument();
@@ -195,8 +188,8 @@ describe('SaveLoadMenu', () => {
     localStorageMock.key.mockReturnValue('chronicles_save_save_123');
     localStorageMock.getItem.mockReturnValue(JSON.stringify(mockSaveData));
 
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
+    
     
     // Click on the save to select it
     const saveItem = screen.getByText('Test Save').closest('div');
@@ -213,8 +206,8 @@ describe('SaveLoadMenu', () => {
   });
 
   it('allows saving game with Enter key', async () => {
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
+    
     
     const nameInput = screen.getByPlaceholderText('Enter save name...');
     
@@ -227,8 +220,8 @@ describe('SaveLoadMenu', () => {
   });
 
   it('shows import/export section', () => {
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
+    
     
     expect(screen.getByText('Import/Export')).toBeInTheDocument();
     expect(screen.getByText('Import Save')).toBeInTheDocument();
@@ -252,8 +245,8 @@ describe('SaveLoadMenu', () => {
     localStorageMock.key.mockReturnValue('chronicles_save_save_123');
     localStorageMock.getItem.mockReturnValue(JSON.stringify(mockSaveData));
 
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
+    
     
     expect(screen.queryByText('Export Selected')).not.toBeInTheDocument();
     
@@ -282,8 +275,8 @@ describe('SaveLoadMenu', () => {
     localStorageMock.key.mockReturnValue('chronicles_save_save_123');
     localStorageMock.getItem.mockReturnValue(JSON.stringify(mockSaveData));
 
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
+    
     
     const deleteButton = screen.getAllByRole('button').find(btn => 
       btn.querySelector('svg') && btn.classList.contains('border-red-600')
@@ -303,16 +296,16 @@ describe('SaveLoadMenu', () => {
     localStorageMock.key.mockReturnValue('chronicles_save_corrupt');
     localStorageMock.getItem.mockReturnValue('invalid-json');
 
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
+    
     
     // Should still render without crashing
     expect(screen.getByText('Save & Load Game')).toBeInTheDocument();
   });
 
   it('closes menu when close button is clicked', () => {
-    const component = React.createElement(SaveLoadMenu, mockProps);
-    render(component);
+    render(<SaveLoadMenu {...mockProps} />);
+    
     
     const closeButton = screen.getByRole('button', { name: /close/i });
     fireEvent.click(closeButton);

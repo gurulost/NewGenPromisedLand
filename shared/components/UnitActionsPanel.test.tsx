@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import React from 'react';
 import UnitActionsPanel from '../../client/src/components/ui/UnitActionsPanel';
 import { useLocalGame } from '../../client/src/lib/stores/useLocalGame';
 import { Unit } from '../types/unit';
@@ -102,39 +101,34 @@ describe('UnitActionsPanel', () => {
   });
 
   it('renders unit actions panel with unit info', () => {
-    const component = React.createElement(UnitActionsPanel, mockProps);
-    render(component);
+    const component = <UnitActionsPanel {...mockProps} />;
     
     expect(screen.getByText('Worker Actions')).toBeInTheDocument();
     expect(screen.getByText('Available actions for this unit')).toBeInTheDocument();
   });
 
   it('displays worker-specific actions', () => {
-    const component = React.createElement(UnitActionsPanel, mockProps);
-    render(component);
+    const component = <UnitActionsPanel {...mockProps} />;
     
     expect(screen.getByText('Build Improvement')).toBeInTheDocument();
     expect(screen.getByText('Construct farms, mines, and other improvements')).toBeInTheDocument();
   });
 
   it('displays scout-specific actions', () => {
-    const component = React.createElement(UnitActionsPanel, { ...mockProps, unit: mockScoutUnit });
-    render(component);
+    render(<UnitActionsPanel {...mockProps} unit={mockScoutUnit} />);
     
     expect(screen.getByText('Scout Actions')).toBeInTheDocument();
     expect(screen.getByText('Toggle Stealth')).toBeInTheDocument();
   });
 
   it('displays missionary-specific actions', () => {
-    const component = React.createElement(UnitActionsPanel, { ...mockProps, unit: mockMissionaryUnit });
-    render(component);
+    render(<UnitActionsPanel {...mockProps} unit={mockMissionaryUnit} />);
     
     expect(screen.queryByText('Missionary Actions')).toBeInTheDocument();
   });
 
   it('shows heal action for missionaries with sufficient faith', () => {
-    const component = React.createElement(UnitActionsPanel, { ...mockProps, unit: mockMissionaryUnit });
-    render(component);
+    render(<UnitActionsPanel {...mockProps} unit={mockMissionaryUnit} />);
     
     expect(screen.getByText('Heal Nearby Units')).toBeInTheDocument();
     expect(screen.getByText('Restore health to friendly units nearby')).toBeInTheDocument();
@@ -154,16 +148,14 @@ describe('UnitActionsPanel', () => {
       dispatch: vi.fn()
     });
 
-    const component = React.createElement(UnitActionsPanel, { ...mockProps, unit: mockMissionaryUnit });
-    render(component);
+    render(<UnitActionsPanel {...mockProps} unit={mockMissionaryUnit} />);
     
     const actionButton = screen.getByText('Heal Nearby Units').closest('button');
     expect(actionButton).toHaveClass('opacity-50');
   });
 
   it('shows available actions with costs', () => {
-    const component = React.createElement(UnitActionsPanel, mockProps);
-    render(component);
+    const component = <UnitActionsPanel {...mockProps} />;
     
     expect(screen.getByText('Build Improvement')).toBeInTheDocument();
     expect(screen.getByText('Construct farms, mines, and other improvements')).toBeInTheDocument();
@@ -178,8 +170,7 @@ describe('UnitActionsPanel', () => {
       dispatch: mockDispatch
     });
 
-    const component = React.createElement(UnitActionsPanel, { ...mockProps, unit: mockScoutUnit });
-    render(component);
+    render(<UnitActionsPanel {...mockProps} unit={mockScoutUnit} />);
     
     const stealthButton = screen.getByText('Toggle Stealth');
     fireEvent.click(stealthButton);
@@ -195,8 +186,7 @@ describe('UnitActionsPanel', () => {
   });
 
   it('closes panel when close button is clicked', () => {
-    const component = React.createElement(UnitActionsPanel, mockProps);
-    render(component);
+    const component = <UnitActionsPanel {...mockProps} />;
     
     const closeButton = screen.getByRole('button', { name: /close/i });
     fireEvent.click(closeButton);
@@ -221,8 +211,7 @@ describe('UnitActionsPanel', () => {
       hasAttacked: false
     };
 
-    const component = React.createElement(UnitActionsPanel, { ...mockProps, unit: commanderUnit });
-    render(component);
+    render(<UnitActionsPanel {...mockProps} unit={commanderUnit} />);
     
     expect(screen.getByText('Commander Actions')).toBeInTheDocument();
   });
@@ -244,8 +233,7 @@ describe('UnitActionsPanel', () => {
       hasAttacked: false
     };
 
-    const component = React.createElement(UnitActionsPanel, { ...mockProps, unit: basicWarrior });
-    render(component);
+    render(<UnitActionsPanel {...mockProps} unit={basicWarrior} />);
     
     // Warriors might not have special actions, so check for basic panel
     expect(screen.getByText('Warrior Actions')).toBeInTheDocument();
@@ -258,8 +246,7 @@ describe('UnitActionsPanel', () => {
       dispatch: mockDispatch
     });
 
-    const component = React.createElement(UnitActionsPanel, { ...mockProps, unit: mockMissionaryUnit });
-    render(component);
+    render(<UnitActionsPanel {...mockProps} unit={mockMissionaryUnit} />);
     
     const healButton = screen.getByText('Heal Nearby Units');
     fireEvent.click(healButton);
@@ -275,15 +262,13 @@ describe('UnitActionsPanel', () => {
   });
 
   it('displays action requirements correctly', () => {
-    const component = React.createElement(UnitActionsPanel, { ...mockProps, unit: mockMissionaryUnit });
-    render(component);
+    render(<UnitActionsPanel {...mockProps} unit={mockMissionaryUnit} />);
     
     expect(screen.getByText('5 Faith')).toBeInTheDocument();
   });
 
   it('handles special abilities based on unit type', () => {
-    const component = React.createElement(UnitActionsPanel, { ...mockProps, unit: mockScoutUnit });
-    render(component);
+    render(<UnitActionsPanel {...mockProps} unit={mockScoutUnit} />);
     
     expect(screen.getByText('Extended Vision')).toBeInTheDocument();
     expect(screen.getByText('Reveal large area around scout')).toBeInTheDocument();
