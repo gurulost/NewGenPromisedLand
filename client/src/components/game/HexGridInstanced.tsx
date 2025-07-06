@@ -9,7 +9,7 @@ import { getVisibleTilesInRange, calculateFogOfWarState } from "@shared/utils/li
 import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
-import { IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
+import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
 
 interface HexGridInstancedProps {
   map: GameMap;
@@ -17,10 +17,97 @@ interface HexGridInstancedProps {
 
 const HEX_SIZE = 1;
 
+// Helper functions for construction validation
+function getValidConstructionTiles(gameState: any, buildingType: string, category: string, cityId: string) {
+  const validTiles: string[] = [];
+  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  
+  // Get city for reference
+  const city = gameState.cities?.find((c: any) => c.id === cityId);
+  if (!city) return validTiles;
+  
+  // For each visible tile, check if it's valid for construction
+  gameState.map.tiles.forEach((tile: any) => {
+    if (isValidConstructionTile(gameState, tile.coordinate, buildingType, category, cityId)) {
+      validTiles.push(`${tile.coordinate.q},${tile.coordinate.r}`);
+    }
+  });
+  
+  return validTiles;
+}
+
+function isValidConstructionTile(gameState: any, coordinate: any, buildingType: string, category: string, cityId: string): boolean {
+  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  const city = gameState.cities?.find((c: any) => c.id === cityId);
+  
+  if (!city || !currentPlayer) return false;
+  
+  // Check if tile is explored/visible to current player
+  const tileKey = `${coordinate.q},${coordinate.r}`;
+  if (!currentPlayer.exploredTiles?.includes(tileKey)) return false;
+  
+  // Find the tile
+  const tile = gameState.map.tiles.find((t: any) => 
+    t.coordinate.q === coordinate.q && t.coordinate.r === coordinate.r
+  );
+  if (!tile) return false;
+  
+  // Check if tile already has something built on it
+  const hasUnit = gameState.units?.some((u: any) => 
+    u.coordinate.q === coordinate.q && u.coordinate.r === coordinate.r
+  );
+  const hasImprovement = gameState.improvements?.some((i: any) => 
+    i.coordinate.q === coordinate.q && i.coordinate.r === coordinate.r
+  );
+  const hasStructure = gameState.structures?.some((s: any) => 
+    s.coordinate.q === coordinate.q && s.coordinate.r === coordinate.r
+  );
+  
+  if (category === 'units') {
+    // Units can be placed on:
+    if (buildingType === 'boat') {
+      // Boats need water tiles or adjacent to city
+      return tile.terrain === 'water' || 
+             (tile.coordinate.q === city.coordinate.q && tile.coordinate.r === city.coordinate.r);
+    } else {
+      // Other units need land tiles without obstacles
+      return tile.terrain !== 'water' && !hasUnit && !hasImprovement && !hasStructure;
+    }
+  } else if (category === 'improvements') {
+    // Improvements have terrain requirements
+    if (buildingType === 'forest_camp') {
+      return tile.terrain === 'forest' && !hasImprovement && !hasStructure;
+    } else if (buildingType === 'mine') {
+      return tile.terrain === 'mountain' && !hasImprovement && !hasStructure;
+    } else if (buildingType === 'farm') {
+      return tile.terrain === 'plains' && !hasImprovement && !hasStructure;
+    }
+    // Default: any land tile without obstacles
+    return tile.terrain !== 'water' && !hasImprovement && !hasStructure;
+  } else if (category === 'structures') {
+    // Structures can be built on most land tiles
+    return tile.terrain !== 'water' && !hasImprovement && !hasStructure;
+  }
+  
+  return false;
+}
+
 export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const { gameState, moveUnit } = useLocalGame();
   const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction } = useGameState();
   const { camera, raycaster, gl } = useThree();
+  
+  // Calculate valid construction tiles when in construction mode
+  const validConstructionTiles = useMemo(() => {
+    if (!constructionMode.isActive || !gameState) return [];
+    
+    return getValidConstructionTiles(
+      gameState,
+      constructionMode.buildingType!,
+      constructionMode.buildingCategory!,
+      constructionMode.cityId!
+    );
+  }, [constructionMode, gameState]);
   
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
@@ -109,12 +196,20 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       // Check if tile has been explored before
       const hasBeenExplored = tile.exploredBy?.includes(currentPlayer.id) || false;
       
-      // Check for cities on this tile and override color if found
+      // Check for cities on this tile first
       const cityOnTile = gameState.cities?.find(city =>
         city.coordinate.q === tile.coordinate.q && city.coordinate.r === tile.coordinate.r
       );
       
-      if (cityOnTile && (isCurrentlyVisible || hasBeenExplored)) {
+      // Check for construction mode highlighting first
+      const isValidConstructionTile = validConstructionTiles.includes(tileKey);
+      
+      if (isValidConstructionTile && (isCurrentlyVisible || hasBeenExplored)) {
+        // Valid construction tiles are highlighted in bright green
+        baseColor = [0.2, 1.0, 0.3]; // Bright green for valid construction
+      }
+      // Check for cities on this tile and override color if found
+      else if (cityOnTile && (isCurrentlyVisible || hasBeenExplored)) {
         // Cities are golden/yellow color
         baseColor = [0.9, 0.8, 0.2]; // Bright gold for cities
       }
@@ -127,6 +222,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           Math.min(1.0, baseColor[2] * 1.2)
         ];
       }
+      
       
       if (isCurrentlyVisible) {
         // Visible: Full visibility of terrain and units
@@ -373,6 +469,56 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         // Handle construction mode - tile selection for building
         if (constructionMode.isActive && currentPlayer) {
           console.log('Construction mode: selecting tile for', constructionMode.buildingType);
+          
+          // Validate if this tile is valid for construction
+          const isValidTile = isValidConstructionTile(
+            gameState,
+            clickedTile.coordinate,
+            constructionMode.buildingType!,
+            constructionMode.buildingCategory!,
+            constructionMode.cityId!
+          );
+          
+          if (!isValidTile) {
+            console.log('Invalid construction tile selected');
+            return;
+          }
+          
+          // Show confirmation dialog before spending resources
+          const buildingName = constructionMode.buildingType;
+          const category = constructionMode.buildingCategory;
+          
+          // Get cost for confirmation
+          let cost = { stars: 0, faith: 0, pride: 0 };
+          if (category === 'units') {
+            const unitDef = getUnitDefinition(buildingName as any);
+            if (unitDef) {
+              cost.stars = unitDef.cost.stars || 0;
+              cost.faith = unitDef.cost.faith || 0;
+              cost.pride = unitDef.cost.pride || 0;
+            }
+          } else if (category === 'improvements') {
+            const improvementDef = IMPROVEMENT_DEFINITIONS[buildingName as keyof typeof IMPROVEMENT_DEFINITIONS];
+            if (improvementDef) {
+              cost.stars = improvementDef.cost;
+            }
+          } else if (category === 'structures') {
+            const structureDef = STRUCTURE_DEFINITIONS[buildingName as keyof typeof STRUCTURE_DEFINITIONS];
+            if (structureDef) {
+              cost.stars = structureDef.cost;
+            }
+          }
+          
+          const confirmed = window.confirm(
+            `Build ${buildingName} for ${cost.stars} stars` +
+            (cost.faith > 0 ? `, ${cost.faith} faith` : '') +
+            (cost.pride > 0 ? `, ${cost.pride} pride` : '') +
+            '?'
+          );
+          
+          if (!confirmed) {
+            return;
+          }
           
           // Dispatch construction action
           if (gameState && constructionMode.buildingType && constructionMode.cityId) {
