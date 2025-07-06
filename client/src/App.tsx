@@ -8,6 +8,7 @@ import PlayerSetup from "./components/ui/PlayerSetup";
 import HandoffScreen from "./components/ui/HandoffScreen";
 import GameCanvas from "./components/game/GameCanvas";
 import GameUI from "./components/game/GameUI";
+import { CombatEffectsDemo } from "./components/effects/CombatEffectsDemo";
 import "@fontsource/inter";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,18 @@ const controls = [
 
 function App() {
   const { gamePhase } = useLocalGame();
+
+  // Check for demo routes
+  const isDemoRoute = window.location.hash === '#combat-demo';
+
+  // If demo route, show the demo component
+  if (isDemoRoute) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <CombatEffectsDemo />
+      </QueryClientProvider>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
