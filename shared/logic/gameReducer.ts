@@ -950,15 +950,25 @@ function handleEndTurn(
           // Create new unit at city location
           const city = state.cities?.find(c => c.id === construction.cityId);
           if (city) {
+            const unitDef = getUnitDefinition(construction.type as any);
             const newUnit = {
               id: `unit_${Date.now()}_${Math.random()}`,
+              status: 'active' as const,
               type: construction.type,
               playerId: construction.playerId,
               coordinate: city.coordinate,
-              remainingMovement: getUnitDefinition(construction.type as any).movement,
+              remainingMovement: unitDef.baseStats.movement,
               hasAttacked: false,
-              baseStats: getUnitDefinition(construction.type as any).baseStats,
-              requirements: getUnitDefinition(construction.type as any).requirements,
+              hp: unitDef.baseStats.hp,
+              maxHp: unitDef.baseStats.hp,
+              attack: unitDef.baseStats.attack,
+              defense: unitDef.baseStats.defense,
+              movement: unitDef.baseStats.movement,
+              visionRadius: unitDef.baseStats.visionRadius,
+              attackRange: unitDef.baseStats.attackRange,
+              abilities: unitDef.abilities || [],
+              level: 1,
+              experience: 0,
             };
             updatedUnits.push(newUnit);
           }
