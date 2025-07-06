@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
 import { getUnitDefinition } from "@shared/data/units";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
+import Construction from "./Construction";
 
 export default function MapFeatures() {
   const { gameState } = useLocalGame();
@@ -477,6 +478,16 @@ export default function MapFeatures() {
           </group>
         );
       })}
+      
+      {/* Render ongoing construction */}
+      {currentPlayer && gameState.players.map(player => 
+        player.constructionQueue?.map(construction => (
+          <Construction
+            key={construction.id}
+            construction={construction}
+          />
+        ))
+      )}
     </group>
   );
 }
