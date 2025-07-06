@@ -10,7 +10,7 @@ import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS, type ImprovementType, t
 import { getUnitDefinition, UNIT_DEFINITIONS } from "@shared/data/units";
 import type { UnitType } from "@shared/types/unit";
 import { BuildingMenu } from "./BuildingMenu";
-import { Tooltip, ActionTooltip } from "./TooltipSystem";
+import { ActionTooltip } from "./TooltipSystem";
 
 interface CityPanelProps {
   open: boolean;
