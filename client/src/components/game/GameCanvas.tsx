@@ -11,13 +11,35 @@ import { useGameDebugger } from "../../utils/gameDebug";
 import { hexToPixel } from "@shared/utils/hex";
 import { gsap } from "gsap";
 import * as THREE from "three";
+import { UnitSelectionEffects, useUnitSelection } from "../effects/UnitSelection";
+import { CombatEffects, useCombatEffects } from "../effects/CombatEffects";
+import { calculateReachableTiles } from "@shared/logic/unitLogic";
 
 export default function GameCanvas() {
   const { gameState } = useLocalGame();
-  const { selectedUnit, hoveredTile } = useGameState();
+  const { selectedUnit, hoveredTile, setSelectedUnit } = useGameState();
   const { camera } = useThree();
   const controlsRef = useRef<any>();
   const debug = useGameDebugger();
+  
+  // Enhanced selection and effects
+  const {
+    selectedCoordinate,
+    hoveredCoordinate,
+    validMoveCoordinates,
+    validAttackCoordinates,
+    selectUnit,
+    clearSelection,
+    hoverTile
+  } = useUnitSelection();
+  
+  const {
+    damageNumbers,
+    effects,
+    addDamageNumber,
+    addEffect,
+    removeEffect
+  } = useCombatEffects();
 
   // Setup camera controls - Polytopia style
   useEffect(() => {
@@ -162,9 +184,29 @@ export default function GameCanvas() {
             key={unit.id}
             unit={unit}
             isSelected={selectedUnit?.id === unit.id}
+            onUnitClick={(unit) => {
+              setSelectedUnit(unit);
+              const moveCoords = selectedUnit ? calculateReachableTiles(gameState, selectedUnit.coordinate, selectedUnit.movement) : [];
+              selectUnit(unit.coordinate, moveCoords, []);
+            }}
           />
         ));
       })()}
+
+      {/* Enhanced Unit Selection Effects */}
+      <UnitSelectionEffects
+        selectedCoordinate={selectedCoordinate}
+        hoveredCoordinate={hoveredCoordinate}
+        validMoveCoordinates={validMoveCoordinates}
+        validAttackCoordinates={validAttackCoordinates}
+      />
+
+      {/* Combat Effects */}
+      <CombatEffects
+        damageNumbers={damageNumbers}
+        effects={effects}
+        onEffectComplete={removeEffect}
+      />
       
       {/* Selection indicator */}
       {hoveredTile && (

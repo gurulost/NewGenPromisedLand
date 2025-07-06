@@ -11,15 +11,38 @@ import TechPanel from "../ui/TechPanel";
 import CityPanel from "../ui/CityPanel";
 import VictoryScreen from "../ui/VictoryScreen";
 import SaveLoadMenu from "../ui/SaveLoadMenu";
+import { TurnTransition, useTurnTransition } from "../ui/TurnTransition";
+import { SaveSystem } from "../ui/SaveSystem";
+import { UnitSelectionUI } from "../effects/UnitSelection";
+import { Tooltip, ActionTooltip } from "../ui/TooltipSystem";
 
 export default function GameUI() {
-  const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame } = useLocalGame();
+  const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
   const { selectedUnit, setSelectedUnit } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
+  const [showAdvancedSaveSystem, setShowAdvancedSaveSystem] = useState(false);
+
+  // Turn transition system
+  const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
+  
+  // Enhanced end turn with transition
+  const handleEndTurn = () => {
+    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+    const nextPlayer = gameState.players[nextPlayerIndex];
+    
+    // Start turn transition animation
+    startTransition(nextPlayer);
+    
+    // Complete turn after transition
+    setTimeout(() => {
+      endTurn();
+      completeTransition();
+    }, 1000);
+  };
 
   if (!gameState) return null;
 
@@ -91,9 +114,7 @@ export default function GameUI() {
     }
   }, [gameState]);
 
-  const handleEndTurn = () => {
-    endTurn(currentPlayer.id);
-  };
+  // Remove duplicate - using enhanced version above
 
   const handleUseAbility = (abilityId: string) => {
     useAbility(currentPlayer.id, abilityId);
@@ -182,6 +203,54 @@ export default function GameUI() {
           onClose={() => setShowSaveLoadMenu(false)}
         />
       )}
+
+      {/* Advanced Save System */}
+      {showAdvancedSaveSystem && (
+        <SaveSystem
+          currentGameState={gameState}
+          onLoadGame={(loadedState) => {
+            loadGameState(loadedState);
+            setShowAdvancedSaveSystem(false);
+          }}
+          onClose={() => setShowAdvancedSaveSystem(false)}
+        />
+      )}
+
+      {/* Turn Transition Animation */}
+      <TurnTransition
+        isVisible={isTransitioning}
+        currentPlayer={pendingPlayer || currentPlayer}
+        onComplete={completeTransition}
+      />
+
+      {/* Enhanced Unit Selection UI */}
+      <UnitSelectionUI
+        selectedUnit={selectedUnit}
+        onUnitAction={(action) => {
+          console.log(`Unit action: ${action}`);
+          // Handle unit actions (move, attack, ability)
+        }}
+      />
+
+      {/* Tooltips for UI Elements */}
+      <div className="pointer-events-auto">
+        <Tooltip
+          content={
+            <ActionTooltip
+              title="Advanced Save System"
+              description="Access multiple save slots, auto-save, and import/export functionality"
+              hotkey="Ctrl+S"
+            />
+          }
+        >
+          <button
+            className="fixed top-4 right-4 p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-600 transition-all"
+            onClick={() => setShowAdvancedSaveSystem(true)}
+          >
+            💾 Advanced Save
+          </button>
+        </Tooltip>
+      </div>
     </div>
   );
 }

@@ -27,6 +27,7 @@ interface LocalGameStore {
   useAbility: (playerId: string, abilityId: string) => void;
   dispatch: (action: any) => void;
   resetGame: () => void;
+  loadGameState: (state: GameState) => void;
 }
 
 export const useLocalGame = create<LocalGameStore>((set, get) => ({
@@ -316,6 +317,13 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     set({
       gamePhase: 'menu',
       gameState: null,
+    });
+  },
+
+  loadGameState: (state: GameState) => {
+    set({ 
+      gameState: state,
+      gamePhase: 'playing'
     });
   },
 }));

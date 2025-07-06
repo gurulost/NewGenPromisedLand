@@ -16,12 +16,13 @@ import * as THREE from "three";
 interface UnitProps {
   unit: UnitType;
   isSelected: boolean;
+  onUnitClick?: (unit: UnitType) => void;
 }
 
 const UNIT_HEIGHT = 0.5;
 const HEX_SIZE = 1;
 
-export default function Unit({ unit, isSelected }: UnitProps) {
+export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
   const meshRef = useRef<THREE.Group>(null);
   const { setSelectedUnit, setReachableTiles } = useGameState();
   const { gameState } = useLocalGame();
