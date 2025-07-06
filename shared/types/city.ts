@@ -60,7 +60,9 @@ export const CitySchema = z.object({
   coordinate: HexCoordinateSchema,
   ownerId: z.string().optional(), // undefined = neutral city
   population: z.number().default(1),
-  starProduction: z.number().default(2), // Base star production
+  maxPopulation: z.number().default(4), // Population needed to level up
+  level: z.number().default(1), // City level affects max population and bonuses
+  starProduction: z.number().default(2), // Base star production (increases with level)
   improvements: z.array(z.string()).default([]), // Improvement IDs
   structures: z.array(z.string()).default([]), // Structure IDs
   currentProduction: z.object({
@@ -69,7 +71,7 @@ export const CitySchema = z.object({
     progress: z.number(),
     totalCost: z.number()
   }).optional(), // What the city is currently producing
-  level: z.number().default(1), // City level affects max population and bonuses
+  harvestedResources: z.array(z.string()).default([]), // Resource tile IDs already harvested
 });
 
 export type City = z.infer<typeof CitySchema>;

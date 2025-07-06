@@ -72,32 +72,18 @@ export const PlayerStateSchema = z.object({
   id: z.string(),
   name: z.string(),
   factionId: z.string(),
-  stars: z.number().default(0),
+  stars: z.number().default(10), // Currency for building/recruiting (starting stars)
   stats: GameStatsSchema,
   modifiers: z.array(z.any()).default([]),
-  researchedTechs: z.array(z.string()).default([]),
-  currentResearch: z.string().optional(),
-  researchProgress: z.number().default(0),
-  citiesOwned: z.array(z.string()).default([]),
-  constructionQueue: z.array(ConstructionItemSchema).default([]),
-});
-
-// Player state
-export const PlayerStateSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  factionId: z.string(),
-  stats: GameStatsSchema,
-  visibilityMask: z.array(z.string()).default([]), // Currently visible tiles
-  exploredTiles: z.array(z.string()).default([]), // Previously explored tiles
-  isEliminated: z.boolean().default(false),
-  turnOrder: z.number(),
-  stars: z.number().default(10), // Currency for building/recruiting
   researchedTechs: z.array(z.string()).default([]),
   currentResearch: z.string().optional(), // Tech being researched
   researchProgress: z.number().default(0), // Progress toward current tech
   citiesOwned: z.array(z.string()).default([]), // City IDs owned by player
   constructionQueue: z.array(ConstructionItemSchema).default([]), // Buildings under construction
+  visibilityMask: z.array(z.string()).default([]), // Currently visible tiles
+  exploredTiles: z.array(z.string()).default([]), // Previously explored tiles
+  isEliminated: z.boolean().default(false),
+  turnOrder: z.number(),
 });
 
 export type PlayerState = z.infer<typeof PlayerStateSchema>;
@@ -118,6 +104,7 @@ export const GameStateSchema = z.object({
     z.object({ type: z.literal('MOVE_UNIT'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema }) }),
     z.object({ type: z.literal('ATTACK_UNIT'), payload: z.object({ attackerId: z.string(), targetId: z.string() }) }),
     z.object({ type: z.literal('END_TURN'), payload: z.object({ playerId: z.string() }) }),
+    z.object({ type: z.literal('HARVEST_RESOURCE'), payload: z.object({ unitId: z.string(), resourceCoordinate: HexCoordinateSchema, cityId: z.string() }) }),
     z.object({ type: z.string(), payload: z.unknown() }) // Fallback for other actions
   ]).optional(),
   winner: z.string().optional(),

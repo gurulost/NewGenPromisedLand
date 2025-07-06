@@ -38,14 +38,27 @@ export default function PlayerHUD({
       starProductionBreakdown: []
     };
 
-    // Calculate total star production
-    const cityCount = player.citiesOwned.length;
-    let totalStarProduction = GameRuleHelpers.calculateStarIncome(cityCount);
+    // Enhanced Polytopia-style star production calculation
+    const playerCityObjects = gameState.cities?.filter(city => city.ownerId === player.id) || [];
+    let totalStarProduction = 0;
     
-    const breakdown: Array<{source: string, amount: number}> = [
-      { source: "Base", amount: GAME_RULES.resources.baseStarsPerTurn },
-      { source: `Cities (${cityCount})`, amount: cityCount * GAME_RULES.resources.starsPerCity }
-    ];
+    // Calculate city-based star production with levels
+    const cityStarProduction = playerCityObjects.reduce((sum, city) => sum + city.starProduction, 0);
+    totalStarProduction += cityStarProduction;
+    
+    const breakdown: Array<{source: string, amount: number}> = [];
+    
+    if (playerCityObjects.length > 0) {
+      breakdown.push({ 
+        source: `Cities (${playerCityObjects.length})`, 
+        amount: cityStarProduction 
+      });
+    } else {
+      // Fallback base production if no cities
+      const baseProduction = GAME_RULES.resources.baseStarsPerTurn;
+      totalStarProduction += baseProduction;
+      breakdown.push({ source: "Base", amount: baseProduction });
+    }
 
     // Add improvements
     const playerImprovements = gameState.improvements?.filter(imp => imp.ownerId === player.id) || [];

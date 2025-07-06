@@ -509,6 +509,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'UNIT_ACTION':
       return handleUnitAction(state, action.payload);
     
+    case 'HARVEST_RESOURCE':
+      return handleHarvestResource(state, action.payload);
+    
     default:
       return state;
   }
@@ -829,9 +832,20 @@ function handleEndTurn(
       // Resource generation from cities and improvements using centralized rules
       const playerCities = player.citiesOwned.length;
       
-      // Calculate base income from cities
+      // Calculate base income from cities using Polytopia-style mechanics
       const faithGeneration = GameRuleHelpers.calculateFaithGeneration(playerCities);
-      let starIncome = GameRuleHelpers.calculateStarIncome(playerCities);
+      
+      // Calculate star income based on city levels and production
+      let starIncome = 0;
+      const playerCityObjects = state.cities?.filter(city => city.ownerId === player.id) || [];
+      playerCityObjects.forEach(city => {
+        starIncome += city.starProduction;
+      });
+      
+      // Add base star income if no cities (fallback)
+      if (playerCityObjects.length === 0) {
+        starIncome = GameRuleHelpers.calculateStarIncome(playerCities);
+      }
       
       // Add income from improvements
       const playerImprovements = state.improvements?.filter(imp => imp.ownerId === player.id) || [];
@@ -976,9 +990,89 @@ function handleEndTurn(
     players: updatedPlayers,
     improvements: updatedImprovements,
     structures: updatedStructures,
+    cities: updatedCities,
     currentPlayerIndex: nextPlayerIndex,
     turn: isNewTurn ? state.turn + 1 : state.turn,
     winner
+  };
+}
+
+// Polytopia-style resource harvesting
+function handleHarvestResource(
+  state: GameState,
+  payload: { unitId: string; resourceCoordinate: any; cityId: string }
+): GameState {
+  const { unitId, resourceCoordinate, cityId } = payload;
+  
+  // Find the unit
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit) return state;
+  
+  // Find the city
+  const city = state.cities.find(c => c.id === cityId);
+  if (!city || city.ownerId !== unit.playerId) return state;
+  
+  // Find the resource tile
+  const resourceTile = state.map.tiles.find(tile => 
+    tile.coordinate.q === resourceCoordinate.q &&
+    tile.coordinate.r === resourceCoordinate.r &&
+    (tile.terrain === 'forest' || tile.terrain === 'mountain' || tile.resources?.length)
+  );
+  
+  if (!resourceTile) return state;
+  
+  // Check if resource is within city borders (adjacent to city)
+  const distance = hexDistance(city.coordinate, resourceCoordinate);
+  if (distance > 2) return state; // Cities control tiles within 2 hex distance
+  
+  // Check if resource has already been harvested
+  const resourceId = `${resourceCoordinate.q},${resourceCoordinate.r}`;
+  if (city.harvestedResources.includes(resourceId)) return state;
+  
+  // Check if player has required technology
+  const player = state.players.find(p => p.id === unit.playerId);
+  if (!player) return state;
+  
+  let canHarvest = false;
+  if (resourceTile.terrain === 'forest' && player.researchedTechs.includes('forestry')) {
+    canHarvest = true;
+  } else if (resourceTile.terrain === 'mountain' && player.researchedTechs.includes('mining')) {
+    canHarvest = true;
+  } else if (resourceTile.resources?.includes('animals') && player.researchedTechs.includes('hunting')) {
+    canHarvest = true;
+  }
+  
+  if (!canHarvest) return state;
+  
+  // Harvest the resource - add population to city
+  const updatedCities = state.cities.map(c => {
+    if (c.id === cityId) {
+      const newPopulation = c.population + 1;
+      const shouldLevelUp = newPopulation >= c.maxPopulation;
+      
+      return {
+        ...c,
+        population: shouldLevelUp ? 1 : newPopulation, // Reset to 1 when leveling up
+        level: shouldLevelUp ? c.level + 1 : c.level,
+        maxPopulation: shouldLevelUp ? c.maxPopulation + 2 : c.maxPopulation, // Increase requirement
+        starProduction: shouldLevelUp ? c.starProduction + 1 : c.starProduction, // Increase production
+        harvestedResources: [...c.harvestedResources, resourceId]
+      };
+    }
+    return c;
+  });
+  
+  // Exhaust the unit after harvesting
+  const updatedUnits = state.units.map(u => 
+    u.id === unitId 
+      ? { ...u, remainingMovement: 0 }
+      : u
+  );
+  
+  return {
+    ...state,
+    cities: updatedCities,
+    units: updatedUnits
   };
 }
 
