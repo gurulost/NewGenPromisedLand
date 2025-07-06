@@ -1045,7 +1045,7 @@ function handleEndTurn(
     players: updatedPlayers,
     improvements: updatedImprovements,
     structures: updatedStructures,
-    cities: updatedCities,
+    cities: state.cities,
     currentPlayerIndex: nextPlayerIndex,
     turn: isNewTurn ? state.turn + 1 : state.turn,
     winner
