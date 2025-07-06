@@ -14,7 +14,7 @@ import SaveLoadMenu from "../ui/SaveLoadMenu";
 import { TurnTransition, useTurnTransition } from "../ui/TurnTransition";
 import { SaveSystem } from "../ui/SaveSystem";
 import { UnitSelectionUI } from "../effects/UnitSelection";
-import { Tooltip, ActionTooltip } from "../ui/TooltipSystem";
+import { ActionTooltip } from "../ui/TooltipSystem";
 import type { Unit } from "@shared/types/unit";
 
 export default function GameUI() {
