@@ -45,6 +45,86 @@ function handleResearchTech(
   };
 }
 
+// Start Construction Handler - adds to construction queue
+function handleStartConstruction(
+  state: GameState,
+  payload: { 
+    playerId: string; 
+    buildingType: string; 
+    category: 'improvements' | 'structures' | 'units';
+    coordinate?: any; 
+    cityId: string; 
+  }
+): GameState {
+  const { playerId, buildingType, category, coordinate, cityId } = payload;
+  
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+  
+  // Get building cost and time based on category
+  let cost = { stars: 0, faith: 0, pride: 0 };
+  let buildTime = 1;
+  
+  if (category === 'improvements') {
+    const improvement = IMPROVEMENT_DEFINITIONS[buildingType as keyof typeof IMPROVEMENT_DEFINITIONS];
+    if (!improvement) return state;
+    cost.stars = improvement.cost;
+    buildTime = improvement.constructionTime;
+  } else if (category === 'structures') {
+    const structure = STRUCTURE_DEFINITIONS[buildingType as keyof typeof STRUCTURE_DEFINITIONS];
+    if (!structure) return state;
+    cost.stars = structure.cost;
+    buildTime = 3; // Default build time for structures
+  } else if (category === 'units') {
+    const unitDef = getUnitDefinition(buildingType as any);
+    if (!unitDef) return state;
+    cost.stars = unitDef.cost.stars || 0;
+    cost.faith = unitDef.cost.faith || 0;
+    cost.pride = unitDef.cost.pride || 0;
+    buildTime = 1; // Units build quickly
+  }
+  
+  // Check if player can afford
+  if (player.stars < cost.stars || 
+      player.stats.faith < (cost.faith || 0) || 
+      player.stats.pride < (cost.pride || 0)) {
+    return state;
+  }
+  
+  // Create construction item
+  const constructionId = `${buildingType}_${cityId}_${Date.now()}`;
+  const constructionItem = {
+    id: constructionId,
+    type: buildingType,
+    category,
+    coordinate: coordinate || undefined,
+    cityId,
+    playerId,
+    turnsRemaining: buildTime,
+    totalTurns: buildTime,
+    cost,
+  };
+  
+  // Deduct costs and add to construction queue
+  return {
+    ...state,
+    players: state.players.map(p =>
+      p.id === playerId
+        ? { 
+            ...p, 
+            stars: p.stars - cost.stars,
+            stats: {
+              ...p.stats,
+              faith: p.stats.faith - (cost.faith || 0),
+              pride: p.stats.pride - (cost.pride || 0),
+            },
+            constructionQueue: [...(p.constructionQueue || []), constructionItem]
+          }
+        : p
+    ),
+  };
+}
+
 // Build Improvement Handler
 function handleBuildImprovement(
   state: GameState,
@@ -360,6 +440,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     
     case 'BUILD_IMPROVEMENT':
       return handleBuildImprovement(state, action.payload);
+    
+    case 'START_CONSTRUCTION':
+      return handleStartConstruction(state, action.payload);
     
     case 'BUILD_STRUCTURE':
       return handleBuildStructure(state, action.payload);
@@ -734,13 +817,82 @@ function handleEndTurn(
       
       updatedStats.faith = Math.min(100, updatedStats.faith + faithGeneration);
       
+      // Process construction queue
+      const updatedConstructionQueue = (player.constructionQueue || []).map(item => ({
+        ...item,
+        turnsRemaining: item.turnsRemaining - 1
+      }));
+      
+      // Complete finished constructions
+      const completedConstructions = updatedConstructionQueue.filter(item => item.turnsRemaining <= 0);
+      const ongoingConstructions = updatedConstructionQueue.filter(item => item.turnsRemaining > 0);
+      
       return { 
         ...player, 
         stats: updatedStats,
-        stars: player.stars + starIncome
+        stars: player.stars + starIncome,
+        constructionQueue: ongoingConstructions,
+        completedConstructions // We'll handle this below
       };
     }
     return player;
+  });
+
+  // Process completed constructions and add to game state
+  let updatedUnits = [...state.units];
+  let updatedImprovements = [...(state.improvements || [])];
+  let updatedStructures = [...(state.structures || [])];
+  
+  updatedPlayers.forEach(player => {
+    if ((player as any).completedConstructions) {
+      (player as any).completedConstructions.forEach((construction: any) => {
+        if (construction.category === 'units') {
+          // Create new unit at city location
+          const city = state.cities?.find(c => c.id === construction.cityId);
+          if (city) {
+            const newUnit = {
+              id: `unit_${Date.now()}_${Math.random()}`,
+              type: construction.type,
+              playerId: construction.playerId,
+              coordinate: city.coordinate,
+              remainingMovement: getUnitDefinition(construction.type as any).movement,
+              hasAttacked: false,
+              baseStats: getUnitDefinition(construction.type as any).baseStats,
+              requirements: getUnitDefinition(construction.type as any).requirements,
+            };
+            updatedUnits.push(newUnit);
+          }
+        } else if (construction.category === 'improvements') {
+          // Create new improvement
+          const newImprovement = {
+            id: construction.id,
+            type: construction.type,
+            coordinate: construction.coordinate,
+            ownerId: construction.playerId,
+            starProduction: IMPROVEMENT_DEFINITIONS[construction.type as keyof typeof IMPROVEMENT_DEFINITIONS]?.starProduction || 0,
+            cityId: construction.cityId,
+            constructionTurns: 0,
+          };
+          updatedImprovements.push(newImprovement);
+        } else if (construction.category === 'structures') {
+          // Create new structure
+          const structureDef = STRUCTURE_DEFINITIONS[construction.type as keyof typeof STRUCTURE_DEFINITIONS];
+          const newStructure = {
+            id: construction.id,
+            type: construction.type,
+            coordinate: construction.coordinate,
+            ownerId: construction.playerId,
+            effects: structureDef?.effects || { starProduction: 0, defenseBonus: 0, unitProduction: 0 },
+            cityId: construction.cityId,
+            constructionTurns: 0,
+          };
+          updatedStructures.push(newStructure);
+        }
+      });
+      
+      // Remove completedConstructions from player
+      delete (player as any).completedConstructions;
+    }
   });
 
   // Calculate next player and turn
@@ -771,7 +923,7 @@ function handleEndTurn(
   });
 
   // Reset movement and attack status for next player's units at start of their turn
-  const updatedUnits = state.units.map((u: Unit) => 
+  updatedUnits = updatedUnits.map((u: Unit) => 
     u.playerId === nextPlayer.id 
       ? { ...u, remainingMovement: u.movement, hasAttacked: false }
       : u
@@ -784,6 +936,8 @@ function handleEndTurn(
     ...state,
     units: updatedUnits,
     players: updatedPlayers,
+    improvements: updatedImprovements,
+    structures: updatedStructures,
     currentPlayerIndex: nextPlayerIndex,
     turn: isNewTurn ? state.turn + 1 : state.turn,
     winner

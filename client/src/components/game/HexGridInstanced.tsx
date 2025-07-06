@@ -9,6 +9,7 @@ import { getVisibleTilesInRange, calculateFogOfWarState } from "@shared/utils/li
 import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
+import { IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 
 interface HexGridInstancedProps {
   map: GameMap;
@@ -18,7 +19,7 @@ const HEX_SIZE = 1;
 
 export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const { gameState, moveUnit } = useLocalGame();
-  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles } = useGameState();
+  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction } = useGameState();
   const { camera, raycaster, gl } = useThree();
   
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -368,6 +369,32 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         );
         
         const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+        
+        // Handle construction mode - tile selection for building
+        if (constructionMode.isActive && currentPlayer) {
+          console.log('Construction mode: selecting tile for', constructionMode.buildingType);
+          
+          // Dispatch construction action
+          if (gameState && constructionMode.buildingType && constructionMode.cityId) {
+            const { dispatch } = useLocalGame.getState();
+            
+            dispatch({
+              type: 'START_CONSTRUCTION',
+              payload: {
+                playerId: currentPlayer.id,
+                buildingType: constructionMode.buildingType,
+                category: constructionMode.buildingCategory!,
+                coordinate: clickedTile.coordinate,
+                cityId: constructionMode.cityId,
+              },
+            });
+            
+            // Exit construction mode
+            cancelConstruction();
+          }
+          
+          return; // Exit early, don't handle unit clicks in construction mode
+        }
         
         if (unitOnTile && currentPlayer) {
           // If clicking on a unit

@@ -4,6 +4,7 @@ import { Button } from "./button";
 import { Badge } from "./badge";
 import { Separator } from "./separator";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
+import { useGameState } from "../../lib/stores/useGameState";
 import { Star, Building, Sword, Hammer, Users, Sparkles } from "lucide-react";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS, type ImprovementType, type StructureType } from "@shared/types/city";
 import { getUnitDefinition, UNIT_DEFINITIONS } from "@shared/data/units";
@@ -19,6 +20,7 @@ interface CityPanelProps {
 
 export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
   const { gameState, dispatch } = useLocalGame();
+  const { startConstruction } = useGameState();
   const [selectedTab, setSelectedTab] = useState<'overview' | 'structures' | 'units' | 'improvements'>('overview');
   const [showAdvancedBuildingMenu, setShowAdvancedBuildingMenu] = useState(false);
   
@@ -438,14 +440,24 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           player={currentPlayer}
           gameState={gameState}
           onBuild={(optionId) => {
-            console.log('Building:', optionId);
-            // Handle building based on actual game data structure
+            console.log('Starting construction:', optionId);
+            // Determine building category and start construction mode
+            let category: 'improvements' | 'structures' | 'units';
+            
             if (Object.values(STRUCTURE_DEFINITIONS).some(s => s.id === optionId)) {
-              handleBuildStructure(optionId as StructureType);
+              category = 'structures';
             } else if (Object.values(UNIT_DEFINITIONS).some(u => u.type === optionId)) {
-              handleRecruitUnit(optionId as UnitType);
+              category = 'units';
+            } else {
+              category = 'improvements';
             }
+            
+            // Start construction mode for tile selection
+            startConstruction(optionId, category, city.id, currentPlayer.id);
             setShowAdvancedBuildingMenu(false);
+            
+            // Show instruction message
+            console.log(`Select a tile to build ${optionId}`);
           }}
           onClose={() => setShowAdvancedBuildingMenu(false)}
         />

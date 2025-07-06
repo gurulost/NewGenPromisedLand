@@ -48,6 +48,25 @@ export const GameMapSchema = z.object({
 
 export type GameMap = z.infer<typeof GameMapSchema>;
 
+// Construction item for ongoing construction projects
+export const ConstructionItemSchema = z.object({
+  id: z.string(),
+  type: z.string(), // improvement/structure/unit type
+  category: z.enum(['improvements', 'structures', 'units']),
+  coordinate: HexCoordinateSchema.optional(), // Only for improvements/structures
+  cityId: z.string(),
+  playerId: z.string(),
+  turnsRemaining: z.number(),
+  totalTurns: z.number(),
+  cost: z.object({
+    stars: z.number().optional(),
+    faith: z.number().optional(),
+    pride: z.number().optional(),
+  }),
+});
+
+export type ConstructionItem = z.infer<typeof ConstructionItemSchema>;
+
 // Player state
 export const PlayerStateSchema = z.object({
   id: z.string(),
@@ -63,6 +82,7 @@ export const PlayerStateSchema = z.object({
   currentResearch: z.string().optional(), // Tech being researched
   researchProgress: z.number().default(0), // Progress toward current tech
   citiesOwned: z.array(z.string()).default([]), // City IDs owned by player
+  constructionQueue: z.array(ConstructionItemSchema).default([]), // Buildings under construction
 });
 
 export type PlayerState = z.infer<typeof PlayerStateSchema>;
@@ -146,6 +166,16 @@ export const GameActionSchema = z.discriminatedUnion('type', [
       playerId: z.string(),
       coordinate: HexCoordinateSchema,
       improvementType: z.string(),
+      cityId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('START_CONSTRUCTION'),
+    payload: z.object({
+      playerId: z.string(),
+      buildingType: z.string(),
+      category: z.enum(['improvements', 'structures', 'units']),
+      coordinate: HexCoordinateSchema.optional(),
       cityId: z.string(),
     }),
   }),
