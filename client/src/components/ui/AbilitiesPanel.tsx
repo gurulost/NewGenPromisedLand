@@ -33,17 +33,14 @@ export function AbilitiesPanel({ currentPlayer, gameState, onActivateAbility }: 
   const availableAbilities = useMemo(() => {
     if (!factionData) return [];
     
-    return factionData.abilities.map(abilityId => {
-      const ability = ABILITIES[abilityId];
-      if (!ability) return null;
-
+    return factionData.abilities.map(ability => {
       // Check if ability is unlocked by technology
       const isUnlocked = !ability.requirements || Object.entries(ability.requirements).every(([resource, cost]) => {
         return currentPlayer.stats[resource as keyof typeof currentPlayer.stats] >= cost;
       });
 
       // Check if player can afford the ability
-      const canAfford = currentPlayer.stars >= (ability.requirements?.stars || 0);
+      const canAfford = currentPlayer.stars >= (ability.cost || 0);
 
       // Check cooldown (simplified - in real game this would track per-ability cooldowns)
       const isOnCooldown = false; // TODO: Implement proper cooldown tracking

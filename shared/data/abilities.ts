@@ -1,3 +1,5 @@
+import { FACTIONS } from "./factions";
+
 export interface AbilityDefinition {
   id: string;
   name: string;
@@ -163,6 +165,7 @@ export const getAbility = (id: string): AbilityDefinition | undefined => {
 };
 
 export const getFactionAbilities = (factionId: string): AbilityDefinition[] => {
-  // This would be extended to return faction-specific abilities
-  return Object.values(ABILITIES).filter(ability => ability.type === 'faction');
+  // Return the abilities directly from the faction data structure
+  const faction = Object.values(FACTIONS).find(f => f.id === factionId);
+  return faction?.abilities || [];
 };
