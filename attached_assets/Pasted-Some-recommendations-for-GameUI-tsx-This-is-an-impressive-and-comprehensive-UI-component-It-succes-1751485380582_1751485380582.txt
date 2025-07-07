@@ -1,36 +1,0 @@
-Some recommendations for GameUI.tsx
-
-This is an impressive and comprehensive UI component. It successfully brings together all the different pieces of game state and player actions into a functional and well-laid-out Heads-Up Display (HUD). The design is classic for a strategy game and covers all the essential player needs.
-The main challenges with a component this large are long-term maintainability and performance. The feedback below is focused on addressing those points.
-
-Highest-Impact Improvements
-
-These two changes will provide the biggest benefits for the project's health and performance.
-1. Decompose into Smaller Components (for Maintainability):
-    * The Issue: GameUI.tsx is currently a "mega-component" that handles more than 15 different UI elements and their associated logic. While everything is well-organized with comments, a single file this large becomes difficult to debug and maintain over time.
-    * The Improvement: Break this component down into smaller, more focused child components. Each major UI panel should become its own component that receives the necessary data as props.
-        * The top-left player info card could become <PlayerHUD />.
-        * The bottom-left selected unit card could become <SelectedUnitPanel />.
-        * The bottom-right combat options could become <CombatPanel />.
-        * The faction abilities list could become <AbilitiesPanel />.
-    * This refactoring is the #1 priority for long-term health. It will make your codebase much cleaner, easier to navigate, and allow you to work on individual UI pieces without affecting the others.
-2. Memoize Expensive Calculations (for Performance):
-    * The Issue: The getAttackableEnemies function performs a relatively complex calculation that involves filtering and iterating over the list of all units in the game. Because it's called directly in the component body, this expensive calculation is re-run on every single render of the GameUI, even if nothing relevant to combat has changed. This can lead to UI lag.
-    * The Improvement: Wrap the result of this function call in a useMemo hook. This ensures the calculation only runs when its dependencies (the selected unit or the list of all units) actually change.
-        * Example: TypeScript  const attackableEnemies = useMemo(() => {
-        *   if (!selectedUnit) return [];
-        *   return getAttackableEnemies(selectedUnit);
-        * }, [selectedUnit, gameState?.units]); // Recalculates only when these change
-        *    
-
-Strengths & What's Done Well
-
-* Comprehensive UI: You've successfully designed and implemented nearly every UI element a player would need, from player stats and action buttons to contextual panels for combat and unit info.
-* Solid State Management: The component does an excellent job of using the different state management hooks for their intended purpose. It correctly separates local UI state (useState), shared interaction state (useGameState), and the core game state (useLocalGame).
-* Good UX Features: Integrating keyboard controls via useKeyboardControls (T for end turn, Esc to deselect) is a fantastic touch that greatly improves the player experience. The responsive design considerations are also a huge plus.
-
-Minor Suggestions & Refinements
-
-* Data-Driven Vision: In getAttackableEnemies, the vision check uses a hardcoded visionDistance <= 2. This should be made data-driven by pulling the vision radius from the friendly unit's data definition.
-* Multi-City Management: The "Cities" button currently finds the first city a player owns. As you expand, consider having this button open a list of all owned cities, allowing the player to choose which one to manage.
-This is a fantastic piece of work that pulls the entire game together. By breaking it down into smaller components and memoizing expensive logic, you'll ensure it remains both performant and easy to work on as you add even more features.
