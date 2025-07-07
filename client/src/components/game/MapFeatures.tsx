@@ -8,10 +8,11 @@ import { getUnitDefinition } from "@shared/data/units";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
 import Construction from "./Construction";
 import { CityModel } from "./CityModel";
+import { getVillageModelPath } from "../../utils/modelManager";
 
 // Village Model Component
 function VillageModel({ position, owner }: { position: { x: number; y: number }; owner?: string }) {
-  const { scene } = useGLTF("/attached_assets/Village_1751831751478.glb");
+  const { scene } = useGLTF(getVillageModelPath());
   
   // Get color based on ownership
   const getOwnershipColor = (owner?: string) => {
@@ -36,6 +37,8 @@ function VillageModel({ position, owner }: { position: { x: number; y: number };
     </group>
   );
 }
+
+// Model preloading is now handled by the centralized modelManager.ts
 
 export default function MapFeatures() {
   const { gameState } = useLocalGame();

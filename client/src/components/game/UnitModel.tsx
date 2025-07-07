@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { Unit } from '@shared/types/unit';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
+import { getUnitModelPath } from '../../utils/modelManager';
 
 interface UnitModelProps {
   unit: Unit;
@@ -17,39 +18,9 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   const player = gameState?.players.find(p => p.id === unit.playerId);
   const playerFaction = player?.factionId;
   
-  // Determine which upgraded 3D model to load based on unit type
-  // All factions now use the same high-quality models consistently
-  const getModelPath = (unitType: string) => {
-    switch (unitType) {
-      case 'warrior':
-      case 'spearman':
-      case 'commander':
-      case 'stripling_warrior':
-        return '/attached_assets/0-2_1751822119779.glb'; // High-quality warrior model
-      case 'worker':
-      case 'settler':
-        return '/attached_assets/Worker_1751829936748.glb'; // Latest worker model
-      case 'scout':
-      case 'archer':
-      case 'wilderness_hunter':
-        return '/attached_assets/Fun Scout_1751831308185.glb'; // High-quality scout model
-      case 'missionary':
-      case 'royal_envoy':
-        return '/attached_assets/Fun Scout_1751831308185.glb'; // Use scout model for missionaries temporarily
-      case 'boat':
-        return '/attached_assets/0-2_1751822119779.glb'; // Use warrior model for boats temporarily
-      case 'catapult':
-      case 'ancient_giant':
-        return '/attached_assets/0-2_1751822119779.glb'; // Use warrior model for siege units temporarily
-      case 'guard':
-      case 'peacekeeping_guard':
-        return '/attached_assets/0-2_1751822119779.glb'; // Use warrior model for guards
-      default:
-        return '/attached_assets/0-2_1751822119779.glb'; // Default to warrior model
-    }
-  };
+  // Using centralized model manager for consistent high-quality 3D models across all factions
 
-  const modelPath = getModelPath(unit.type);
+  const modelPath = getUnitModelPath(unit.type);
   const { scene } = useGLTF(modelPath);
   
   // Clone the scene to avoid modifying the original
@@ -172,7 +143,4 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   );
 }
 
-// Preload all upgraded 3D unit models
-useGLTF.preload('/attached_assets/0-2_1751822119779.glb'); // Warrior model
-useGLTF.preload('/attached_assets/Worker_1751829936748.glb'); // Worker model  
-useGLTF.preload('/attached_assets/Fun Scout_1751831308185.glb'); // Scout model
+// Model preloading is now handled by the centralized modelManager.ts
