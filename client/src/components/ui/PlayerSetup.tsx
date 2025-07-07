@@ -77,8 +77,9 @@ export default function PlayerSetup() {
   };
 
   return (
-    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
-      <Card className="w-full max-w-2xl bg-black/80 border-amber-600/50 text-white">
+    <div className="w-full h-full bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4 overflow-y-auto">
+      <div className="min-h-full flex items-center justify-center py-8">
+        <Card className="w-full max-w-2xl bg-black/80 border-amber-600/50 text-white">
         <CardHeader>
           <CardTitle className="text-2xl font-cinzel text-amber-400 text-center font-semibold tracking-wide">
             Local Game Setup
@@ -224,6 +225,7 @@ export default function PlayerSetup() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
