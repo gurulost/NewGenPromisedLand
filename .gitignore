@@ -4,3 +4,17 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Large assets and generated files
+attached_assets/
+*.glb.bak
+test-results*.json
+full-test-results.json
+complete-test-output.txt
+generated-icon.png
+
+# Temporary and development files
+*.tmp
+*.temp
+.cache/
+.build/
