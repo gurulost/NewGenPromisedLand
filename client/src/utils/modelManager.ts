@@ -10,12 +10,18 @@ export const MODEL_PATHS = {
     warrior: '/attached_assets/0-2_1751822119779.glb',
     worker: '/attached_assets/Worker_1751829936748.glb',
     scout: '/attached_assets/Fun Scout_1751831308185.glb',
-    // Fallback to public models for units not yet upgraded
-    missionary: '/models/missionary.glb',
-    spearman: '/models/warrior.glb', // Use warrior model for spearman
-    boat: '/models/boat.glb',
-    catapult: '/models/warrior.glb', // Use warrior model for catapult
-    commander: '/models/warrior.glb', // Use warrior model for commander
+    // Use upgraded models for all unit types for consistency
+    spearman: '/attached_assets/0-2_1751822119779.glb', // Use warrior model
+    commander: '/attached_assets/0-2_1751822119779.glb', // Use warrior model  
+    stripling_warrior: '/attached_assets/0-2_1751822119779.glb', // Use warrior model
+    guard: '/attached_assets/0-2_1751822119779.glb', // Use warrior model
+    peacekeeping_guard: '/attached_assets/0-2_1751822119779.glb', // Use warrior model
+    ancient_giant: '/attached_assets/0-2_1751822119779.glb', // Use warrior model
+    wilderness_hunter: '/attached_assets/Fun Scout_1751831308185.glb', // Use scout model
+    royal_envoy: '/attached_assets/Fun Scout_1751831308185.glb', // Use scout model
+    missionary: '/attached_assets/Fun Scout_1751831308185.glb', // Use scout model temporarily
+    boat: '/models/boat.glb', // Keep existing boat model
+    catapult: '/attached_assets/0-2_1751822119779.glb', // Use warrior model
   },
   // Village models
   village: '/attached_assets/Village_1751831751478.glb',
