@@ -31,8 +31,12 @@ export default function GameUI() {
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
   
-  // Enhanced end turn with transition
+  if (!gameState) return null;
+
+  // Enhanced end turn with transition  
   const handleEndTurn = () => {
+    if (!gameState) return;
+    
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
     const nextPlayer = gameState.players[nextPlayerIndex];
@@ -46,8 +50,6 @@ export default function GameUI() {
       completeTransition();
     }, 1000);
   };
-
-  if (!gameState) return null;
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const faction = getFaction(currentPlayer.factionId as any);
@@ -174,16 +176,16 @@ export default function GameUI() {
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10">
-      {/* Construction Mode Indicator */}
+      {/* Construction Mode Indicator - Positioned in top-right corner */}
       {constructionMode.isActive && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-auto z-50">
-          <div className="bg-black/80 text-white px-6 py-4 rounded-lg border-2 border-yellow-400 shadow-lg">
+        <div className="absolute top-4 right-4 pointer-events-auto z-50">
+          <div className="bg-black/90 text-white px-4 py-3 rounded-lg border-2 border-yellow-400 shadow-lg backdrop-blur-sm max-w-xs">
             <div className="text-center">
-              <h3 className="text-lg font-bold mb-2">Construction Mode</h3>
-              <p className="mb-3">Select a tile to build: <span className="font-semibold text-yellow-300">{constructionMode.buildingType}</span></p>
+              <h3 className="text-sm font-bold mb-1">Construction Mode</h3>
+              <p className="text-xs mb-2">Select a tile to build: <span className="font-semibold text-yellow-300">{constructionMode.buildingType}</span></p>
               <button 
                 onClick={cancelConstruction}
-                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white font-medium"
+                className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-xs text-white font-medium transition-colors"
               >
                 Cancel
               </button>
