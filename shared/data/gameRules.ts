@@ -85,6 +85,17 @@ export interface GameRules {
       prideBoost: number;
       declareWar: number;
       formAlliance: number;
+      titleOfLiberty: number;
+      covenantOfPeace: number;
+      divineProtection: number;
+      enlightenment: number;
+      divineWard: number;
+    };
+    conversionResistance: {
+      baseDifficulty: number;
+      faithDifferentialWeight: number;
+      maxSuccessChance: number;
+      minSuccessChance: number;
     };
   };
 
@@ -184,6 +195,17 @@ export const GAME_RULES: GameRules = {
       prideBoost: 5,
       declareWar: 15,
       formAlliance: 10,
+      titleOfLiberty: 30, // High cost for powerful faction ability
+      covenantOfPeace: 15, // Faith cost per conversion attempt
+      divineProtection: 20, // Faith cost for damage reduction
+      enlightenment: 50, // Very high cost for free technology
+      divineWard: 10, // Moderate cost for status immunity
+    },
+    conversionResistance: {
+      baseDifficulty: 50, // Base 50% success chance
+      faithDifferentialWeight: 5, // Each point of faith difference adds/subtracts 5%
+      maxSuccessChance: 90, // Cap at 90% success
+      minSuccessChance: 10, // Minimum 10% chance even with massive faith disadvantage
     },
   },
 
