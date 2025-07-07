@@ -261,7 +261,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                   {cityUnits.map(unit => (
                     <div key={unit.id} className="p-2 border rounded">
                       <p className="font-medium">{unit.type}</p>
-                      <p className="text-sm text-gray-600">HP: {unit.currentHp}/{unit.maxHp}</p>
+                      <p className="text-sm text-gray-600">HP: {unit.hp}/{unit.maxHp}</p>
                     </div>
                   ))}
                 </div>
@@ -462,6 +462,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
             console.log(`Starting tile selection for ${optionId}`);
             startConstruction(optionId, category, city.id, currentPlayer.id);
             setShowAdvancedBuildingMenu(false);
+            // Close the main city panel to show the map clearly
+            onClose();
           }}
           onClose={() => setShowAdvancedBuildingMenu(false)}
         />
