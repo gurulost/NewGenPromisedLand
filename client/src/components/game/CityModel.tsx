@@ -1,7 +1,8 @@
 import { useGLTF } from '@react-three/drei';
 import { useMemo } from 'react';
 import * as THREE from 'three';
-import type { City } from '@shared/types/game';
+import type { City } from '@shared/types/city';
+import { getCityModelPath } from '../../utils/modelManager';
 
 interface CityModelProps {
   city: City;
@@ -10,10 +11,8 @@ interface CityModelProps {
 }
 
 export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
-  // Determine which model to load based on city level
-  const modelPath = city.level >= 3 ? '/models/city_level3.glb' : 
-                   city.level >= 2 ? '/models/city_level2.glb' : 
-                   '/models/city_level1.glb';
+  // Use centralized model manager for consistent model loading
+  const modelPath = getCityModelPath(city.level);
   const { scene } = useGLTF(modelPath);
   
   // Clone the scene to avoid modifying the original
