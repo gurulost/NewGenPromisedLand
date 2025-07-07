@@ -7,24 +7,24 @@ import { useGLTF } from '@react-three/drei';
 export const MODEL_PATHS = {
   // Upgraded unit models from attached assets
   units: {
-    warrior: '/attached_assets/0-2_1751822119779.glb',
-    worker: '/attached_assets/Worker_1751829936748.glb',
-    scout: '/attached_assets/Fun Scout_1751831308185.glb',
+    warrior: '/models/warrior_upgraded.glb',
+    worker: '/models/worker_upgraded.glb',
+    scout: '/models/scout_upgraded.glb',
     // Use upgraded models for all unit types for consistency
-    spearman: '/attached_assets/0-2_1751822119779.glb', // Use warrior model
-    commander: '/attached_assets/0-2_1751822119779.glb', // Use warrior model  
-    stripling_warrior: '/attached_assets/0-2_1751822119779.glb', // Use warrior model
-    guard: '/attached_assets/0-2_1751822119779.glb', // Use warrior model
-    peacekeeping_guard: '/attached_assets/0-2_1751822119779.glb', // Use warrior model
-    ancient_giant: '/attached_assets/0-2_1751822119779.glb', // Use warrior model
-    wilderness_hunter: '/attached_assets/Fun Scout_1751831308185.glb', // Use scout model
-    royal_envoy: '/attached_assets/Fun Scout_1751831308185.glb', // Use scout model
-    missionary: '/attached_assets/Fun Scout_1751831308185.glb', // Use scout model temporarily
+    spearman: '/models/warrior_upgraded.glb', // Use warrior model
+    commander: '/models/warrior_upgraded.glb', // Use warrior model  
+    stripling_warrior: '/models/warrior_upgraded.glb', // Use warrior model
+    guard: '/models/warrior_upgraded.glb', // Use warrior model
+    peacekeeping_guard: '/models/warrior_upgraded.glb', // Use warrior model
+    ancient_giant: '/models/warrior_upgraded.glb', // Use warrior model
+    wilderness_hunter: '/models/scout_upgraded.glb', // Use scout model
+    royal_envoy: '/models/scout_upgraded.glb', // Use scout model
+    missionary: '/models/scout_upgraded.glb', // Use scout model temporarily
     boat: '/models/boat.glb', // Keep existing boat model
-    catapult: '/attached_assets/0-2_1751822119779.glb', // Use warrior model
+    catapult: '/models/warrior_upgraded.glb', // Use warrior model
   },
   // Village models
-  village: '/attached_assets/Village_1751831751478.glb',
+  village: '/models/village_upgraded.glb',
   // City models (existing ones are fine)
   cities: {
     level1: '/models/city_level1.glb',
