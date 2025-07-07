@@ -36,3 +36,8 @@
 /public/models/village_upgraded.glb filter=lfs diff=lfs merge=lfs -text
 /public/models/warrior_upgraded.glb filter=lfs diff=lfs merge=lfs -text
 /public/models/worker_upgraded.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/scout.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/scout_upgraded.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/village_upgraded.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/warrior_upgraded.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/worker_upgraded.glb filter=lfs diff=lfs merge=lfs -text
