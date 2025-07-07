@@ -7,24 +7,24 @@ import { useGLTF } from '@react-three/drei';
 export const MODEL_PATHS = {
   // Upgraded unit models from attached assets
   units: {
-    warrior: '/models/warrior_upgraded.glb',
-    worker: '/models/worker_upgraded.glb',
-    scout: '/models/scout_upgraded.glb',
-    // Use upgraded models for all unit types for consistency
-    spearman: '/models/warrior_upgraded.glb', // Use warrior model
-    commander: '/models/warrior_upgraded.glb', // Use warrior model  
-    stripling_warrior: '/models/warrior_upgraded.glb', // Use warrior model
-    guard: '/models/warrior_upgraded.glb', // Use warrior model
-    peacekeeping_guard: '/models/warrior_upgraded.glb', // Use warrior model
-    ancient_giant: '/models/warrior_upgraded.glb', // Use warrior model
-    wilderness_hunter: '/models/scout_upgraded.glb', // Use scout model
-    royal_envoy: '/models/scout_upgraded.glb', // Use scout model
-    missionary: '/models/scout_upgraded.glb', // Use scout model temporarily
+    warrior: '/models/warrior.glb',
+    worker: '/models/worker.glb',
+    scout: '/models/scout.glb',
+    // Use standard models for all unit types for consistency
+    spearman: '/models/warrior.glb', // Use warrior model
+    commander: '/models/warrior.glb', // Use warrior model  
+    stripling_warrior: '/models/warrior.glb', // Use warrior model
+    guard: '/models/warrior.glb', // Use warrior model
+    peacekeeping_guard: '/models/warrior.glb', // Use warrior model
+    ancient_giant: '/models/warrior.glb', // Use warrior model
+    wilderness_hunter: '/models/scout.glb', // Use scout model
+    royal_envoy: '/models/scout.glb', // Use scout model
+    missionary: '/models/scout.glb', // Use scout model temporarily
     boat: '/models/boat.glb', // Keep existing boat model
-    catapult: '/models/warrior_upgraded.glb', // Use warrior model
+    catapult: '/models/warrior.glb', // Use warrior model
   },
   // Village models
-  village: '/models/village_upgraded.glb',
+  village: '/models/village.glb',
   // City models (existing ones are fine)
   cities: {
     level1: '/models/city_level1.glb',
