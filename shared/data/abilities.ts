@@ -207,5 +207,13 @@ export const getAbility = (id: string): AbilityDefinition | undefined => {
 export const getFactionAbilities = (factionId: string): AbilityDefinition[] => {
   // Return the abilities directly from the faction data structure
   const faction = Object.values(FACTIONS).find(f => f.id === factionId);
-  return faction?.abilities || [];
+  return faction?.abilities.map(ability => ({
+    id: ability.id,
+    name: ability.name,
+    description: ability.description,
+    effect: ability.description, // Use description as effect for compatibility
+    type: 'faction' as const,
+    cooldown: ability.cooldown,
+    requirements: ability.requirements
+  })) || [];
 };

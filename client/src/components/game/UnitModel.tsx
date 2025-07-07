@@ -1,7 +1,7 @@
 import { useGLTF } from '@react-three/drei';
 import { useMemo } from 'react';
 import * as THREE from 'three';
-import type { Unit } from '@shared/types/game';
+import type { Unit } from '@shared/types/unit';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
 
 interface UnitModelProps {
@@ -17,32 +17,39 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   const player = gameState?.players.find(p => p.id === unit.playerId);
   const playerFaction = player?.factionId;
   
-  // Determine which model to load based on unit type and faction
-  const getModelPath = (unitType: string, factionId?: string) => {
+  // Determine which upgraded 3D model to load based on unit type
+  // All factions now use the same high-quality models consistently
+  const getModelPath = (unitType: string) => {
     switch (unitType) {
       case 'warrior':
-        return '/models/warrior.glb';
+      case 'spearman':
+      case 'commander':
+      case 'stripling_warrior':
+        return '/attached_assets/0-2_1751822119779.glb'; // High-quality warrior model
       case 'worker':
-        return '/models/worker.glb';
       case 'settler':
-        return '/models/settler.glb';
+        return '/attached_assets/Worker_1751829936748.glb'; // Latest worker model
       case 'scout':
-        // Use the new scout model for Nephite-aligned factions
-        if (factionId === 'NEPHITES' || factionId === 'ANTI_NEPHI_LEHIES' || factionId === 'MULEKITES') {
-          return '/models/scout_nephite.glb';
-        }
-        // Fall back to archer model for other factions
-        return '/models/archer.glb';
       case 'archer':
-        return '/models/archer.glb';
+      case 'wilderness_hunter':
+        return '/attached_assets/Fun Scout_1751831308185.glb'; // High-quality scout model
       case 'missionary':
-        return '/models/missionary.glb';
+      case 'royal_envoy':
+        return '/attached_assets/Fun Scout_1751831308185.glb'; // Use scout model for missionaries temporarily
+      case 'boat':
+        return '/attached_assets/0-2_1751822119779.glb'; // Use warrior model for boats temporarily
+      case 'catapult':
+      case 'ancient_giant':
+        return '/attached_assets/0-2_1751822119779.glb'; // Use warrior model for siege units temporarily
+      case 'guard':
+      case 'peacekeeping_guard':
+        return '/attached_assets/0-2_1751822119779.glb'; // Use warrior model for guards
       default:
-        return '/models/warrior.glb'; // Default to warrior for unknown types
+        return '/attached_assets/0-2_1751822119779.glb'; // Default to warrior model
     }
   };
 
-  const modelPath = getModelPath(unit.type, playerFaction);
+  const modelPath = getModelPath(unit.type);
   const { scene } = useGLTF(modelPath);
   
   // Clone the scene to avoid modifying the original
@@ -54,11 +61,11 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     let scale = 0.4; // Default scale for most units
     
     // Adjust scale based on unit type if needed
-    if (unit.type === 'worker' || unit.type === 'settler') {
+    if (unit.type === 'worker') {
       scale = 0.35; // Slightly smaller for civilian units
-    } else if (unit.type === 'scout' || unit.type === 'archer') {
+    } else if (unit.type === 'scout' || unit.type === 'wilderness_hunter') {
       scale = 0.38; // Medium scale for ranged units
-    } else if (unit.type === 'missionary') {
+    } else if (unit.type === 'missionary' || unit.type === 'royal_envoy') {
       scale = 0.37; // Special scale for religious units
     }
     
@@ -91,7 +98,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
           }
           
           // Add status-based effects
-          if (unit.status === 'stealth') {
+          if (unit.status === 'stealthed') {
             material.transparent = true;
             material.opacity = 0.6;
           } else if (unit.status === 'siege_mode') {
@@ -122,7 +129,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
           <sphereGeometry args={[0.05]} />
           <meshBasicMaterial 
             color={
-              unit.status === 'stealth' ? "#9333EA" :
+              unit.status === 'stealthed' ? "#9333EA" :
               unit.status === 'siege_mode' ? "#F59E0B" :
               unit.status === 'formation' ? "#3B82F6" :
               unit.status === 'rallied' ? "#10B981" :
@@ -165,10 +172,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   );
 }
 
-// Preload all unit models
-useGLTF.preload('/models/warrior.glb');
-useGLTF.preload('/models/worker.glb');
-useGLTF.preload('/models/settler.glb');
-useGLTF.preload('/models/archer.glb');
-useGLTF.preload('/models/missionary.glb');
-useGLTF.preload('/models/scout_nephite.glb');
+// Preload all upgraded 3D unit models
+useGLTF.preload('/attached_assets/0-2_1751822119779.glb'); // Warrior model
+useGLTF.preload('/attached_assets/Worker_1751829936748.glb'); // Worker model  
+useGLTF.preload('/attached_assets/Fun Scout_1751831308185.glb'); // Scout model

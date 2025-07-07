@@ -11,7 +11,7 @@ import { CityModel } from "./CityModel";
 
 // Village Model Component
 function VillageModel({ position, owner }: { position: { x: number; y: number }; owner?: string }) {
-  const { scene } = useGLTF("/models/village.glb");
+  const { scene } = useGLTF("/attached_assets/Village_1751831751478.glb");
   
   // Get color based on ownership
   const getOwnershipColor = (owner?: string) => {
