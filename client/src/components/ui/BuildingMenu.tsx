@@ -57,9 +57,10 @@ interface BuildingMenuProps {
   gameState: GameState;
   onBuild: (optionId: string) => void;
   onClose: () => void;
+  onShowCities?: () => void;
 }
 
-export function BuildingMenu({ city, player, gameState, onBuild, onClose }: BuildingMenuProps) {
+export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShowCities }: BuildingMenuProps) {
   const [selectedCategory, setSelectedCategory] = useState<'units' | 'structures' | 'improvements'>('units');
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -275,6 +276,17 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose }: Buil
                 <span className="text-white font-semibold">{player.stats.internalDissent}</span>
                 <InfoTooltip content={<DissentTooltip />} />
               </div>
+              
+              {/* Cities Button */}
+              {onShowCities && (
+                <button
+                  onClick={onShowCities}
+                  className="ml-4 px-4 py-2 bg-blue-600/20 border border-blue-400/50 text-blue-100 hover:bg-blue-600/40 transition-colors rounded-lg flex items-center gap-2"
+                >
+                  <Home className="w-4 h-4" />
+                  Cities
+                </button>
+              )}
               
               <button
                 onClick={onClose}

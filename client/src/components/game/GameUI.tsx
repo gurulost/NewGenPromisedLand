@@ -9,12 +9,15 @@ import CombatPanel from "../ui/CombatPanel";
 import { AbilitiesPanel } from "../ui/AbilitiesPanel";
 import TechPanel from "../ui/TechPanel";
 import CityPanel from "../ui/CityPanel";
+import { BuildingMenu } from "../ui/BuildingMenu";
 import VictoryScreen from "../ui/VictoryScreen";
 import SaveLoadMenu from "../ui/SaveLoadMenu";
 import { TurnTransition, useTurnTransition } from "../ui/TurnTransition";
 import { SaveSystem } from "../ui/SaveSystem";
 import { UnitSelectionUI } from "../effects/UnitSelection";
 import { ActionTooltip } from "../ui/TooltipSystem";
+import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
+import { UNIT_DEFINITIONS } from "@shared/data/units";
 import type { Unit } from "@shared/types/unit";
 
 export default function GameUI() {
@@ -23,6 +26,7 @@ export default function GameUI() {
   const [subscribeKeys] = useKeyboardControls();
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
+  const [showConstructionHall, setShowConstructionHall] = useState(false);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
   const [showAdvancedSaveSystem, setShowAdvancedSaveSystem] = useState(false);
@@ -174,6 +178,16 @@ export default function GameUI() {
     }
   };
 
+  const handleShowConstructionHall = () => {
+    const playerCity = gameState.cities?.find(city => 
+      currentPlayer.citiesOwned.includes(city.id)
+    );
+    if (playerCity) {
+      setSelectedCityId(playerCity.id);
+      setShowConstructionHall(true);
+    }
+  };
+
   return (
     <div className="absolute inset-0 pointer-events-none z-10">
       {/* Construction Mode Indicator - Positioned in top-right corner */}
@@ -199,7 +213,7 @@ export default function GameUI() {
         player={currentPlayer}
         faction={faction}
         onShowTechPanel={() => setShowTechPanel(true)}
-        onShowCityPanel={handleShowCityPanel}
+        onShowConstructionHall={handleShowConstructionHall}
         onEndTurn={handleEndTurn}
       />
 
@@ -239,6 +253,39 @@ export default function GameUI() {
           open={showCityPanel}
           onClose={() => setShowCityPanel(false)}
           cityId={selectedCityId as string}
+        />
+      )}
+
+      {/* Construction Hall */}
+      {showConstructionHall && selectedCityId && (
+        <BuildingMenu
+          city={gameState.cities?.find(c => c.id === selectedCityId)!}
+          player={currentPlayer}
+          gameState={gameState}
+          onBuild={(optionId) => {
+            // Handle construction logic
+            console.log('Starting construction:', optionId);
+            // Determine building category
+            let category: 'improvements' | 'structures' | 'units';
+            
+            if (Object.values(STRUCTURE_DEFINITIONS).some(s => s.id === optionId)) {
+              category = 'structures';
+            } else if (Object.values(UNIT_DEFINITIONS).some(u => u.type === optionId)) {
+              category = 'units';
+            } else {
+              category = 'improvements';
+            }
+            
+            // Use the game state construction system
+            const { startConstruction } = useGameState.getState();
+            startConstruction(optionId, category, selectedCityId, currentPlayer.id);
+            setShowConstructionHall(false);
+          }}
+          onClose={() => setShowConstructionHall(false)}
+          onShowCities={() => {
+            setShowConstructionHall(false);
+            setShowCityPanel(true);
+          }}
         />
       )}
 
