@@ -344,82 +344,96 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           </div>
         </div>
         
-        {/* Side Panel for Selected Tech */}
+        {/* Centered Modal for Selected Tech */}
         {selectedTech && (
-          <div className="absolute top-0 right-0 w-80 h-full bg-gradient-to-b from-slate-800 to-slate-900 border-l border-slate-600/50 p-6 overflow-y-auto">
-            <div className="mb-4">
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => setSelectedTech(null)}
-                className="text-slate-300 hover:text-white mb-4"
-              >
-                ← Back to Tree
-              </Button>
-              
-              <div className="space-y-4">
-                <div>
-                  <h2 className="font-cinzel text-xl font-bold text-white mb-2">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="w-full max-w-2xl mx-4 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-slate-600/50 shadow-2xl overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-slate-600/50 p-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-cinzel text-3xl font-bold text-white">
                     {TECHNOLOGIES[selectedTech].name}
                   </h2>
-                  <p className="text-slate-300 text-sm leading-relaxed">
-                    {TECHNOLOGIES[selectedTech].description}
-                  </p>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setSelectedTech(null)}
+                    className="text-slate-300 hover:text-white hover:bg-slate-700/50 px-4 py-2 rounded-lg"
+                  >
+                    ← Back to Tree
+                  </Button>
                 </div>
-                
-                {/* Prerequisites */}
-                {TECHNOLOGIES[selectedTech].prerequisites.length > 0 && (
+              </div>
+
+              {/* Content */}
+              <div className="p-6 max-h-96 overflow-y-auto">
+                <div className="space-y-6">
+                  {/* Description */}
                   <div>
-                    <h3 className="font-semibold text-white mb-2">Prerequisites:</h3>
-                    <div className="space-y-1">
-                      {TECHNOLOGIES[selectedTech].prerequisites.map((prereqId: string) => (
-                        <div key={prereqId} className="flex items-center gap-2 text-sm">
-                          {techStatuses[prereqId] === 'researched' ? 
-                            <CheckCircle className="w-4 h-4 text-green-400" /> :
-                            <Lock className="w-4 h-4 text-red-400" />
-                          }
-                          <span className={techStatuses[prereqId] === 'researched' ? 'text-green-300' : 'text-red-300'}>
-                            {TECHNOLOGIES[prereqId]?.name}
-                          </span>
+                    <p className="text-slate-200 text-lg leading-relaxed">
+                      {TECHNOLOGIES[selectedTech].description}
+                    </p>
+                  </div>
+                  
+                  {/* Prerequisites */}
+                  {TECHNOLOGIES[selectedTech].prerequisites.length > 0 && (
+                    <div>
+                      <h3 className="font-cinzel font-semibold text-white text-xl mb-3">Prerequisites:</h3>
+                      <div className="grid grid-cols-1 gap-2">
+                        {TECHNOLOGIES[selectedTech].prerequisites.map((prereqId: string) => (
+                          <div key={prereqId} className="flex items-center gap-3 p-3 bg-slate-700/30 rounded-lg">
+                            {techStatuses[prereqId] === 'researched' ? 
+                              <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" /> :
+                              <Lock className="w-5 h-5 text-red-400 flex-shrink-0" />
+                            }
+                            <span className={`font-medium ${techStatuses[prereqId] === 'researched' ? 'text-green-300' : 'text-red-300'}`}>
+                              {TECHNOLOGIES[prereqId]?.name}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Unlocks */}
+                  <div>
+                    <h3 className="font-cinzel font-semibold text-white text-xl mb-3">Unlocks:</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {TECHNOLOGIES[selectedTech].unlocks.units?.map((unit: string) => (
+                        <div key={unit} className="flex items-center gap-2 p-3 bg-blue-500/20 border border-blue-500/30 rounded-lg">
+                          <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                          <span className="text-blue-300 font-medium">Unit: {unit}</span>
+                        </div>
+                      ))}
+                      {TECHNOLOGIES[selectedTech].unlocks.improvements?.map((improvement: string) => (
+                        <div key={improvement} className="flex items-center gap-2 p-3 bg-green-500/20 border border-green-500/30 rounded-lg">
+                          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                          <span className="text-green-300 font-medium">Improvement: {improvement}</span>
+                        </div>
+                      ))}
+                      {TECHNOLOGIES[selectedTech].unlocks.structures?.map((structure: string) => (
+                        <div key={structure} className="flex items-center gap-2 p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
+                          <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                          <span className="text-yellow-300 font-medium">Structure: {structure}</span>
                         </div>
                       ))}
                     </div>
                   </div>
-                )}
-                
-                {/* Unlocks */}
-                <div>
-                  <h3 className="font-semibold text-white mb-2">Unlocks:</h3>
-                  <div className="space-y-2">
-                    {TECHNOLOGIES[selectedTech].unlocks.units?.map((unit: string) => (
-                      <Badge key={unit} variant="outline" className="text-blue-300 border-blue-500/50">
-                        Unit: {unit}
-                      </Badge>
-                    ))}
-                    {TECHNOLOGIES[selectedTech].unlocks.improvements?.map((improvement: string) => (
-                      <Badge key={improvement} variant="outline" className="text-green-300 border-green-500/50">
-                        Improvement: {improvement}
-                      </Badge>
-                    ))}
-                    {TECHNOLOGIES[selectedTech].unlocks.structures?.map((structure: string) => (
-                      <Badge key={structure} variant="outline" className="text-yellow-300 border-yellow-500/50">
-                        Structure: {structure}
-                      </Badge>
-                    ))}
-                  </div>
                 </div>
-                
-                {/* Research Button */}
-                {techStatuses[selectedTech] === 'available' && (
+              </div>
+
+              {/* Footer with Research Button */}
+              {techStatuses[selectedTech] === 'available' && (
+                <div className="border-t border-slate-600/50 p-6">
                   <Button
                     onClick={() => handleResearchTech(selectedTech)}
                     disabled={currentPlayer.stars < calculateResearchCost(TECHNOLOGIES[selectedTech], researchedCount)}
-                    className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                    className="w-full py-4 text-lg font-semibold bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700"
                   >
                     Research for {calculateResearchCost(TECHNOLOGIES[selectedTech], researchedCount)} Stars
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         )}
