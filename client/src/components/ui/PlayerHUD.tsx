@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Progress } from "./progress";
 import { Button } from "./button";
-import { Star, Book, Building, TrendingUp, Info } from "lucide-react";
+import { Star, Book, Building, TrendingUp, Info, Hammer } from "lucide-react";
 import type { PlayerState, GameState } from "@shared/types/game";
 import type { Faction } from "@shared/types/faction";
 import { GAME_RULES, GameRuleHelpers } from "@shared/data/gameRules";
@@ -14,7 +14,7 @@ interface PlayerHUDProps {
   player: PlayerState;
   faction: Faction;
   onShowTechPanel: () => void;
-  onShowCityPanel: () => void;
+  onShowConstructionHall: () => void;
   onEndTurn: () => void;
 }
 
@@ -22,7 +22,7 @@ export default function PlayerHUD({
   player, 
   faction, 
   onShowTechPanel, 
-  onShowCityPanel, 
+  onShowConstructionHall, 
   onEndTurn 
 }: PlayerHUDProps) {
   const { gameState } = useLocalGame();
@@ -216,10 +216,10 @@ export default function PlayerHUD({
                 variant="outline"
                 size="sm"
                 className="flex-1 bg-green-600/20 border-green-400 text-green-100 hover:bg-green-600/40"
-                onClick={onShowCityPanel}
+                onClick={onShowConstructionHall}
               >
-                <Building className="w-4 h-4 mr-1" />
-                Cities
+                <Hammer className="w-4 h-4 mr-1" />
+                Construction Hall
               </Button>
             </div>
             
