@@ -54,12 +54,12 @@ export default function GameCanvas() {
       
       // Set zoom limits based on map size - fix terrain disappearing
       const mapSize = Math.max(gameState.map.width || 10, gameState.map.height || 10);
-      controlsRef.current.minDistance = 3; // Allow closer zoom but not too close
+      controlsRef.current.minDistance = 5; // Prevent getting too close to terrain
       controlsRef.current.maxDistance = mapSize * 4; // Prevent too far zoom
       
       // Fix camera clipping planes to prevent terrain disappearing
-      camera.near = 0.1;
-      camera.far = mapSize * 10;
+      camera.near = 0.5; // Increase near plane to prevent clipping
+      camera.far = mapSize * 15; // Increase far plane for better coverage
       camera.updateProjectionMatrix();
       
       // Position camera near current player's starting area
