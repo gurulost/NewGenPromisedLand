@@ -35,6 +35,7 @@ export const MODEL_PATHS = {
   resources: {
     fruit: '/models/fruit.glb',
     stone: '/models/stone.glb',
+    game: '/models/game.glb',
   }
 };
 
@@ -83,6 +84,9 @@ export const getResourceModelPath = (resourceType: string): string | null => {
       return MODEL_PATHS.resources.fruit;
     case 'stone':
       return MODEL_PATHS.resources.stone;
+    case 'game':
+    case 'animal':
+      return MODEL_PATHS.resources.game;
     default:
       return null; // Return null for resources without 3D models (will use procedural)
   }
