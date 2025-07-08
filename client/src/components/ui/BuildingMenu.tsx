@@ -228,7 +228,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto">
       <motion.div
         className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border-2 border-slate-600 w-[1200px] h-[800px] overflow-hidden shadow-2xl"
         initial={{ scale: 0.8, opacity: 0, y: 50 }}
