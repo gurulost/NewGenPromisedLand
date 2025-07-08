@@ -60,6 +60,30 @@ function FruitModel({ position }: { position: { x: number; y: number } }) {
   );
 }
 
+// Stone Model Component
+function StoneModel({ position }: { position: { x: number; y: number } }) {
+  const modelPath = getResourceModelPath('stone');
+  
+  if (!modelPath) {
+    // Fallback to procedural boxes if model not available
+    return (
+      <group>
+        <Box position={[position.x, 0.09, position.y]} args={[0.12, 0.15, 0.12]}>
+          <meshStandardMaterial color="#696969" />
+        </Box>
+      </group>
+    );
+  }
+  
+  const { scene } = useGLTF(modelPath);
+  
+  return (
+    <group position={[position.x, 0.05, position.y]} scale={[0.5, 0.5, 0.5]}>
+      <primitive object={scene.clone()} />
+    </group>
+  );
+}
+
 // Model preloading is now handled by the centralized modelManager.ts
 
 export default function MapFeatures() {
@@ -201,20 +225,7 @@ export default function MapFeatures() {
           </group>
         );
       case 'stone':
-        return (
-          <group key={`stone-${key}`}>
-            {/* Rock formation */}
-            <Box position={[position.x, y + 0.05, position.y - 0.3]} args={[0.12, 0.15, 0.12]}>
-              <meshStandardMaterial color="#696969" /> {/* Gray */}
-            </Box>
-            <Box position={[position.x + 0.1, y + 0.02, position.y - 0.2]} args={[0.08, 0.1, 0.08]}>
-              <meshStandardMaterial color="#778899" /> {/* Light slate gray */}
-            </Box>
-            <Box position={[position.x - 0.1, y + 0.03, position.y - 0.35]} args={[0.06, 0.08, 0.06]}>
-              <meshStandardMaterial color="#2F4F4F" /> {/* Dark slate gray */}
-            </Box>
-          </group>
-        );
+        return <StoneModel key={`stone-${key}`} position={position} />;
       case 'animal':
       case 'game':
         return (
