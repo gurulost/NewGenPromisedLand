@@ -110,7 +110,7 @@ export default function PlayerHUD({
   return (
     <div className="absolute top-4 left-4 space-y-4 pointer-events-auto">
       {/* Current Player Info */}
-      <Card className="w-64 bg-black/80 border-white/20">
+      <Card className="w-72 bg-black/80 border-white/20">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-white font-cinzel text-lg font-semibold tracking-wide">
             <div 
@@ -198,16 +198,16 @@ export default function PlayerHUD({
           
           {/* Action Buttons */}
           <div className="space-y-2">
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <div className="relative">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 bg-blue-600/20 border-blue-400 text-blue-100 hover:bg-blue-600/40"
+                  className="w-full bg-blue-600/20 border-blue-400 text-blue-100 hover:bg-blue-600/40 text-xs px-2 py-2"
                   onClick={onShowTechPanel}
                 >
-                  <Book className="w-4 h-4 mr-1" />
-                  Research
+                  <Book className="w-3 h-3 mr-1 flex-shrink-0" />
+                  <span>Research</span>
                 </Button>
                 <InfoTooltip content={<TechnologyTooltip />} />
               </div>
@@ -215,11 +215,13 @@ export default function PlayerHUD({
               <Button
                 variant="outline"
                 size="sm"
-                className="flex-1 bg-green-600/20 border-green-400 text-green-100 hover:bg-green-600/40"
+                className="w-full bg-green-600/20 border-green-400 text-green-100 hover:bg-green-600/40 text-xs px-2 py-2 h-auto"
                 onClick={onShowConstructionHall}
               >
-                <Hammer className="w-4 h-4 mr-1" />
-                Construction Hall
+                <div className="flex flex-col items-center justify-center">
+                  <Hammer className="w-3 h-3 mb-1" />
+                  <span className="text-xs leading-tight">Construction Hall</span>
+                </div>
               </Button>
             </div>
             
