@@ -30,6 +30,10 @@ export const MODEL_PATHS = {
     level1: '/models/city_level1.glb',
     level2: '/models/city_level2.glb',
     level3: '/models/city_level3.glb',
+  },
+  // Resource models
+  resources: {
+    fruit: '/models/fruit.glb',
   }
 };
 
@@ -45,6 +49,11 @@ export const preloadAllModels = () => {
   
   // Preload city models
   Object.values(MODEL_PATHS.cities).forEach(path => {
+    useGLTF.preload(path);
+  });
+  
+  // Preload resource models
+  Object.values(MODEL_PATHS.resources).forEach(path => {
     useGLTF.preload(path);
   });
 };
@@ -64,6 +73,16 @@ export const getCityModelPath = (level: number): string => {
   if (level >= 3) return MODEL_PATHS.cities.level3;
   if (level >= 2) return MODEL_PATHS.cities.level2;
   return MODEL_PATHS.cities.level1;
+};
+
+// Get resource model path
+export const getResourceModelPath = (resourceType: string): string | null => {
+  switch (resourceType) {
+    case 'fruit':
+      return MODEL_PATHS.resources.fruit;
+    default:
+      return null; // Return null for resources without 3D models (will use procedural)
+  }
 };
 
 // Initialize model preloading

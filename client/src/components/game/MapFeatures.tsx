@@ -8,7 +8,7 @@ import { getUnitDefinition } from "@shared/data/units";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
 import Construction from "./Construction";
 import { CityModel } from "./CityModel";
-import { getVillageModelPath } from "../../utils/modelManager";
+import { getVillageModelPath, getResourceModelPath } from "../../utils/modelManager";
 
 // Village Model Component
 function VillageModel({ position, owner }: { position: { x: number; y: number }; owner?: string }) {
@@ -34,6 +34,28 @@ function VillageModel({ position, owner }: { position: { x: number; y: number };
           <meshStandardMaterial color="#8B4513" />
         </Cylinder>
       </group>
+    </group>
+  );
+}
+
+// Fruit Model Component
+function FruitModel({ position }: { position: { x: number; y: number } }) {
+  const modelPath = getResourceModelPath('fruit');
+  
+  if (!modelPath) {
+    // Fallback to procedural sphere if model not available
+    return (
+      <Sphere position={[position.x, 0.05, position.y]} args={[0.06]}>
+        <meshStandardMaterial color="#90EE90" />
+      </Sphere>
+    );
+  }
+  
+  const { scene } = useGLTF(modelPath);
+  
+  return (
+    <group position={[position.x, 0.05, position.y]} scale={[0.4, 0.4, 0.4]}>
+      <primitive object={scene.clone()} />
     </group>
   );
 }
@@ -145,6 +167,8 @@ export default function MapFeatures() {
     const y = 0.05; // Slight elevation above ground
     
     switch (resource) {
+      case 'fruit':
+        return <FruitModel key={`fruit-${key}`} position={position} />;
       case 'food':
         return (
           <group key={`food-${key}`}>
@@ -188,6 +212,42 @@ export default function MapFeatures() {
             </Box>
             <Box position={[position.x - 0.1, y + 0.03, position.y - 0.35]} args={[0.06, 0.08, 0.06]}>
               <meshStandardMaterial color="#2F4F4F" /> {/* Dark slate gray */}
+            </Box>
+          </group>
+        );
+      case 'animal':
+      case 'game':
+        return (
+          <group key={`animal-${key}`}>
+            {/* Animal representation - small brown creature */}
+            <Box position={[position.x, y + 0.03, position.y]} args={[0.1, 0.06, 0.15]}>
+              <meshStandardMaterial color="#8B4513" /> {/* Brown body */}
+            </Box>
+            {/* Head */}
+            <Box position={[position.x, y + 0.05, position.y + 0.1]} args={[0.06, 0.04, 0.08]}>
+              <meshStandardMaterial color="#A0522D" />
+            </Box>
+            {/* Legs */}
+            <Cylinder position={[position.x - 0.03, y, position.y - 0.05]} args={[0.01, 0.01, 0.03]}>
+              <meshStandardMaterial color="#654321" />
+            </Cylinder>
+            <Cylinder position={[position.x + 0.03, y, position.y - 0.05]} args={[0.01, 0.01, 0.03]}>
+              <meshStandardMaterial color="#654321" />
+            </Cylinder>
+          </group>
+        );
+      case 'metal':
+        return (
+          <group key={`metal-${key}`}>
+            {/* Metallic ore deposits */}
+            <Box position={[position.x, y + 0.04, position.y]} args={[0.08, 0.12, 0.08]} rotation={[0, Math.PI/4, 0]}>
+              <meshStandardMaterial color="#C0C0C0" metalness={0.9} roughness={0.1} /> {/* Shiny silver */}
+            </Box>
+            <Box position={[position.x + 0.06, y + 0.02, position.y - 0.06]} args={[0.05, 0.08, 0.05]} rotation={[0, Math.PI/6, 0]}>
+              <meshStandardMaterial color="#B87333" metalness={0.8} roughness={0.2} /> {/* Bronze */}
+            </Box>
+            <Box position={[position.x - 0.05, y + 0.01, position.y + 0.05]} args={[0.04, 0.06, 0.04]} rotation={[0, -Math.PI/8, 0]}>
+              <meshStandardMaterial color="#708090" metalness={0.7} roughness={0.3} /> {/* Slate gray */}
             </Box>
           </group>
         );
