@@ -108,6 +108,30 @@ function GameModel({ position }: { position: { x: number; y: number } }) {
   );
 }
 
+// Metal/Ore Model Component
+function MetalModel({ position }: { position: { x: number; y: number } }) {
+  const modelPath = getResourceModelPath('metal');
+  
+  if (!modelPath) {
+    // Fallback to procedural metal if model not available
+    return (
+      <group>
+        <Box position={[position.x, 0.09, position.y]} args={[0.08, 0.12, 0.08]} rotation={[0, Math.PI/4, 0]}>
+          <meshStandardMaterial color="#C0C0C0" metalness={0.9} roughness={0.1} />
+        </Box>
+      </group>
+    );
+  }
+  
+  const { scene } = useGLTF(modelPath);
+  
+  return (
+    <group position={[position.x, 0.05, position.y]} scale={[0.5, 0.5, 0.5]}>
+      <primitive object={scene.clone()} />
+    </group>
+  );
+}
+
 // Model preloading is now handled by the centralized modelManager.ts
 
 export default function MapFeatures() {
@@ -254,20 +278,7 @@ export default function MapFeatures() {
       case 'game':
         return <GameModel key={`game-${key}`} position={position} />;
       case 'metal':
-        return (
-          <group key={`metal-${key}`}>
-            {/* Metallic ore deposits */}
-            <Box position={[position.x, y + 0.04, position.y]} args={[0.08, 0.12, 0.08]} rotation={[0, Math.PI/4, 0]}>
-              <meshStandardMaterial color="#C0C0C0" metalness={0.9} roughness={0.1} /> {/* Shiny silver */}
-            </Box>
-            <Box position={[position.x + 0.06, y + 0.02, position.y - 0.06]} args={[0.05, 0.08, 0.05]} rotation={[0, Math.PI/6, 0]}>
-              <meshStandardMaterial color="#B87333" metalness={0.8} roughness={0.2} /> {/* Bronze */}
-            </Box>
-            <Box position={[position.x - 0.05, y + 0.01, position.y + 0.05]} args={[0.04, 0.06, 0.04]} rotation={[0, -Math.PI/8, 0]}>
-              <meshStandardMaterial color="#708090" metalness={0.7} roughness={0.3} /> {/* Slate gray */}
-            </Box>
-          </group>
-        );
+        return <MetalModel key={`metal-${key}`} position={position} />;
       case 'gold':
         return (
           <group key={`gold-${key}`}>
