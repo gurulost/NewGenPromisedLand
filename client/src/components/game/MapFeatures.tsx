@@ -84,6 +84,30 @@ function StoneModel({ position }: { position: { x: number; y: number } }) {
   );
 }
 
+// Game/Animal Model Component
+function GameModel({ position }: { position: { x: number; y: number } }) {
+  const modelPath = getResourceModelPath('game');
+  
+  if (!modelPath) {
+    // Fallback to procedural animal if model not available
+    return (
+      <group>
+        <Box position={[position.x, 0.08, position.y]} args={[0.1, 0.06, 0.15]}>
+          <meshStandardMaterial color="#8B4513" />
+        </Box>
+      </group>
+    );
+  }
+  
+  const { scene } = useGLTF(modelPath);
+  
+  return (
+    <group position={[position.x, 0.05, position.y]} scale={[0.6, 0.6, 0.6]}>
+      <primitive object={scene.clone()} />
+    </group>
+  );
+}
+
 // Model preloading is now handled by the centralized modelManager.ts
 
 export default function MapFeatures() {
@@ -228,25 +252,7 @@ export default function MapFeatures() {
         return <StoneModel key={`stone-${key}`} position={position} />;
       case 'animal':
       case 'game':
-        return (
-          <group key={`animal-${key}`}>
-            {/* Animal representation - small brown creature */}
-            <Box position={[position.x, y + 0.03, position.y]} args={[0.1, 0.06, 0.15]}>
-              <meshStandardMaterial color="#8B4513" /> {/* Brown body */}
-            </Box>
-            {/* Head */}
-            <Box position={[position.x, y + 0.05, position.y + 0.1]} args={[0.06, 0.04, 0.08]}>
-              <meshStandardMaterial color="#A0522D" />
-            </Box>
-            {/* Legs */}
-            <Cylinder position={[position.x - 0.03, y, position.y - 0.05]} args={[0.01, 0.01, 0.03]}>
-              <meshStandardMaterial color="#654321" />
-            </Cylinder>
-            <Cylinder position={[position.x + 0.03, y, position.y - 0.05]} args={[0.01, 0.01, 0.03]}>
-              <meshStandardMaterial color="#654321" />
-            </Cylinder>
-          </group>
-        );
+        return <GameModel key={`game-${key}`} position={position} />;
       case 'metal':
         return (
           <group key={`metal-${key}`}>
