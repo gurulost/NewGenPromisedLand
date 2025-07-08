@@ -431,6 +431,10 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     mesh.instanceMatrix.needsUpdate = true;
     mesh.count = count;
     
+    // Force bounds computation to prevent culling issues
+    mesh.computeBoundingSphere();
+    mesh.computeBoundingBox();
+    
   }, [tileInstanceData]);
 
   // Handle interactions with proper raycasting for instanced rendering
@@ -617,6 +621,8 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         args={[hexGeometry, shaderMaterial, map.tiles.length]}
         onClick={handleClick}
         onPointerMove={handlePointerMove}
+        frustumCulled={false}
+        renderOrder={0}
       />
       
       {/* Fog of War Clouds Layer */}
