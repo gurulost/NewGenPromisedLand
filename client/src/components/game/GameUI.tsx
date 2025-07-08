@@ -337,21 +337,15 @@ export default function GameUI() {
         onUnitAction={handleUnitAction}
       />
 
-      {/* Tooltips for UI Elements */}
+      {/* Save System Button */}
       <div className="pointer-events-auto">
-        <div className="relative">
-          <button
-            className="fixed top-4 right-4 p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-600 transition-all"
-            onClick={() => setShowAdvancedSaveSystem(true)}
-          >
-            💾 Advanced Save
-          </button>
-          <ActionTooltip
-            title="Advanced Save System"
-            description="Access multiple save slots, auto-save, and import/export functionality"
-            hotkey="Ctrl+S"
-          />
-        </div>
+        <button
+          className="fixed top-4 right-4 p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-600 transition-all"
+          onClick={() => setShowAdvancedSaveSystem(true)}
+          title="Advanced Save System"
+        >
+          💾 Advanced Save
+        </button>
       </div>
     </div>
   );

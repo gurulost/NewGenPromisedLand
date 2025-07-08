@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 import { Badge } from "./badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip";
-import { Star, Clock, Target, Zap, Heart, Shield, Swords, Eye } from "lucide-react";
+import { Star, Clock, Target, Zap, Heart, Shield, Swords, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { ABILITIES } from "@shared/data/abilities";
 import { FACTIONS } from "@shared/data/factions";
 import type { PlayerState } from "@shared/types/game";
@@ -27,6 +27,7 @@ export function AbilitiesPanel({ currentPlayer, gameState, onActivateAbility }: 
     targetType: null,
     instruction: ''
   });
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Get faction-specific abilities
   const factionData = FACTIONS[currentPlayer.factionId];
@@ -118,11 +119,21 @@ export function AbilitiesPanel({ currentPlayer, gameState, onActivateAbility }: 
 
   return (
     <TooltipProvider>
-      <Card className="w-80 bg-purple-950/90 border-purple-800 overflow-hidden">
+      <Card className={`${isCollapsed ? 'w-64' : 'w-80'} bg-purple-950/90 border-purple-800 overflow-hidden transition-all duration-300`}>
         <CardHeader className="pb-3">
-          <CardTitle className="text-white font-cinzel font-semibold tracking-wide flex items-center gap-2">
-            <Zap className="w-4 h-4" />
-            {factionData.name} Abilities
+          <CardTitle className="text-white font-cinzel font-semibold tracking-wide flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              {factionData.name} Abilities
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="h-6 w-6 p-0 text-purple-300 hover:text-white hover:bg-purple-800/50"
+            >
+              {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            </Button>
           </CardTitle>
           
           {targetingState.abilityId && (
@@ -142,7 +153,8 @@ export function AbilitiesPanel({ currentPlayer, gameState, onActivateAbility }: 
           )}
         </CardHeader>
         
-        <CardContent className="space-y-3">
+        {!isCollapsed && (
+          <CardContent className="space-y-3">
           {/* Resource Display */}
           <div className="grid grid-cols-3 gap-2 text-xs">
             <div className="text-center">
@@ -241,7 +253,8 @@ export function AbilitiesPanel({ currentPlayer, gameState, onActivateAbility }: 
               No abilities available
             </div>
           )}
-        </CardContent>
+          </CardContent>
+        )}
       </Card>
     </TooltipProvider>
   );
