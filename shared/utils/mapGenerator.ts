@@ -626,9 +626,9 @@ export class MapGenerator {
       grain_patch: 18,       // 18% (main field resource)
       food: 18,             // 18% (fruit orchard equivalent)
       
-      // Forest tiles (38% of land) - Inner city rates  
-      wild_goats: 9,        // 9% (reduced to make room for timber)
-      timber_grove: 10,     // 10% (timber grove resource - chop vs sawmill choice)
+      // Forest tiles (38% of land) - Inner city rates (animals moved to plains)
+      wild_goats: 0,        // 0% (animals only spawn on plains)
+      timber_grove: 19,     // 19% (increased timber concentration on forests)
       
       // Mountain tiles (14% of land) - Inner city rates
       stone: 6,             // 6% (basic ore vein)
@@ -651,8 +651,8 @@ export class MapGenerator {
       // Basic resources that reward expansion and exploration
       grain_patch: 2,       // 2% (rare grain patches in wilderness)
       food: 1,              // 1% (wild fruit)
-      wild_goats: 3,        // 3% (wilderness animals)
-      timber_grove: 4,      // 4% (virgin forests)
+      wild_goats: 3,        // 3% (wilderness animals on plains only)
+      timber_grove: 4,      // 4% (virgin forests on forest terrain only)
       stone: 1,             // 1% (surface ore)
       gold: 0.5,            // 0.5% (very rare wilderness gold)
       
@@ -673,9 +673,9 @@ export class MapGenerator {
       grain_patch: 6,       // 6% (reduced from 18%)
       food: 6,              // 6% (reduced from 18%)
       
-      // Forest tiles - Outer city rates
-      wild_goats: 3,        // 3% (reduced to make room for timber)
-      timber_grove: 3,      // 3% (outer forest timber groves)
+      // Forest tiles - Outer city rates (animals moved to plains)
+      wild_goats: 0,        // 0% (animals only on plains)
+      timber_grove: 6,      // 6% (increased timber on forests)
       
       // Mountain tiles - Outer city rates  
       stone: 2,             // 2% (basic ore vein)
@@ -698,7 +698,6 @@ export class MapGenerator {
     if (terrain === 'water') {
       const roll = this.rng.nextInt(1, 100);
       if (roll <= 50) { // 50% of shallow water gets Fish Shoals
-        console.log(`Water tile spawning fishing_shoal (terrain: ${terrain})`);
         return 'fishing_shoal';
       }
       return null; // Empty water
@@ -721,12 +720,14 @@ export class MapGenerator {
         terrains: ['plains'] // Fruit orchard on fields
       },
       
-      // Forest tiles (38% of land): wild_goats and timber_grove
+      // Plains tiles: grain_patch, fruit, and wild_goats (animals prefer open plains)
       { 
         type: 'wild_goats', 
         rate: spawnTable.wild_goats, 
-        terrains: ['forest'] // Forest only
+        terrains: ['plains'] // Plains only - animals graze in open areas
       },
+      
+      // Forest tiles (38% of land): timber_grove only
       { 
         type: 'timber_grove', 
         rate: spawnTable.timber_grove, 
@@ -758,7 +759,6 @@ export class MapGenerator {
       
       // Check if we rolled for this resource AND terrain is suitable
       if (roll <= cumulative && resource.terrains.includes(terrain)) {
-        console.log(`Spawning ${resource.type} on ${terrain} terrain`);
         return resource.type;
       }
     }
