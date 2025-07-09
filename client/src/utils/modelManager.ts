@@ -19,8 +19,8 @@ export const MODEL_PATHS = {
     ancient_giant: '/models/warrior.glb', // Use warrior model
     wilderness_hunter: '/models/scout.glb', // Use scout model
     royal_envoy: '/models/scout.glb', // Use scout model
-    missionary: '/models/scout.glb', // Use scout model temporarily
-    boat: '/models/boat.glb', // Keep existing boat model
+    missionary: '/models/missionary.glb', // Upgraded missionary model
+    boat: '/models/boat.glb', // Upgraded boat model
     catapult: '/models/warrior.glb', // Use warrior model
   },
   // Village models
