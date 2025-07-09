@@ -585,7 +585,7 @@ export default function MapFeatures() {
         return renderImprovement(improvement, position, `${improvement.id}-${impKey}`);
       })}
       
-      {/* Render Forest Trees on ALL Forest Tiles (Polytopia-style) */}
+      {/* Render Forest Trees on Forest Tiles WITHOUT Timber Groves (Polytopia-style) */}
       {gameState.map.tiles.filter(tile => {
         const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
         const isVisible = visibleTiles.has(tileKey) || exploredTiles.has(tileKey);
@@ -599,15 +599,16 @@ export default function MapFeatures() {
           imp.coordinate.q === tile.coordinate.q && imp.coordinate.r === tile.coordinate.r
         );
         
-        if (hasImprovement) return null; // Don't render trees on improved tiles
+        // Check if this tile has timber grove resource (don't render generic trees on timber groves)
+        const hasTimberGrove = tile.resources.includes('timber_grove');
+        
+        if (hasImprovement || hasTimberGrove) return null; // Don't render generic trees on improved tiles or timber groves
         
         return renderForestTrees(position, tileKey);
       })}
 
-      {/* Render Resources on Non-Forest Tiles */}
+      {/* Render Resources on All Tiles (including Forest Resources like Timber Groves) */}
       {visibleTilesWithFeatures.map(tile => {
-        if (tile.terrain === 'forest') return null; // Forest trees handled separately
-        
         const position = hexToPixel(tile.coordinate, 1);
         const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
         
