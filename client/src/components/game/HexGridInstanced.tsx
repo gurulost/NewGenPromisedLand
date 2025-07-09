@@ -117,6 +117,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const forestTexture = useLoader(TextureLoader, "/textures/mesoamerican_forest.png");
   const mountainTexture = useLoader(TextureLoader, "/textures/mesoamerican_mountain.png");
   const waterTexture = useLoader(TextureLoader, "/textures/mesoamerican_water.png");
+  const desertTexture = useLoader(TextureLoader, "/textures/mesoamerican_desert.png");
   const grassTexture = useLoader(TextureLoader, "/textures/grass.png");
   const sandTexture = useLoader(TextureLoader, "/textures/sand.jpg");
   const woodTexture = useLoader(TextureLoader, "/textures/wood.jpg");
@@ -299,6 +300,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         uniform sampler2D forestTexture;
         uniform sampler2D mountainTexture;
         uniform sampler2D waterTexture;
+        uniform sampler2D desertTexture;
         uniform sampler2D grassTexture;
         uniform sampler2D sandTexture;
         uniform sampler2D woodTexture;
@@ -345,7 +347,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             } else if (vTextureId < 4.5) {
               textureColor = texture2D(waterTexture, vUv).rgb;
             } else if (vTextureId < 5.5) {
-              textureColor = texture2D(sandTexture, vUv).rgb;
+              textureColor = texture2D(desertTexture, vUv).rgb;
             } else if (vTextureId < 6.5) {
               textureColor = texture2D(woodTexture, vUv).rgb;
             }
@@ -399,13 +401,14 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         forestTexture: { value: forestTexture },
         mountainTexture: { value: mountainTexture },
         waterTexture: { value: waterTexture },
+        desertTexture: { value: desertTexture },
         grassTexture: { value: grassTexture },
         sandTexture: { value: sandTexture },
         woodTexture: { value: woodTexture },
         time: { value: 0.0 }
       }
     });
-  }, [plainsTexture, forestTexture, mountainTexture, waterTexture, grassTexture, sandTexture, woodTexture]);
+  }, [plainsTexture, forestTexture, mountainTexture, waterTexture, desertTexture, grassTexture, sandTexture, woodTexture]);
 
   // Animate the cloud fog of war
   useFrame((state) => {
@@ -672,7 +675,7 @@ function getTextureId(terrain: string): number {
     case 'forest': return 2; // mesoamerican forest texture
     case 'mountain': return 3; // mesoamerican mountain texture
     case 'water': return 4; // mesoamerican water texture
-    case 'desert': return 5; // sand texture
+    case 'desert': return 5; // mesoamerican desert texture
     case 'swamp': return 6; // wood texture
     default: return 0; // no texture
   }
