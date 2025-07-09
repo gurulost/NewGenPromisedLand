@@ -43,6 +43,12 @@ Successfully resolved all **7 critical issues** from the production bug bash rep
 
 ## 🔧 Code Quality Improvements
 
+### Critical Performance Fix
+- **Fixed major performance bottleneck** in terrain generation
+- **Eliminated redundant calculations** - selectTerrainFromProbabilities was recalculating capital positions 256 times
+- **Optimized function signature** to accept capitalPositions parameter
+- **Massive performance improvement** especially for larger map sizes
+
 ### Dead Code Elimination
 - **Removed 300+ lines** of unused code
 - **6 unused functions deleted**:
