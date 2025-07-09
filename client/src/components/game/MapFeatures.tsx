@@ -218,7 +218,7 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
       case 'grain_patch':
         return { model: 'fruit', scale: 0.6 }; // Agricultural elements
       case 'ore_vein':
-        return { model: 'metal', scale: 0.5 }; // Ore/mineral elements
+        return { model: 'ore_vein', scale: 0.6 }; // New ore vein model for unified ore system
       case 'fishing_shoal':
         return { model: 'fishing_shoal', scale: 0.42 }; // Marine elements
       case 'sea_beast':
@@ -231,7 +231,7 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
   };
 
   const config = getModelForElement(elementId);
-  const modelPath = getResourceModelPath(config.model as 'fruit' | 'stone' | 'game' | 'metal' | 'jaredite_ruins');
+  const modelPath = getResourceModelPath(config.model as 'fruit' | 'stone' | 'game' | 'metal' | 'jaredite_ruins' | 'ore_vein');
   
   if (!modelPath) {
     // Fallback to procedural geometry
