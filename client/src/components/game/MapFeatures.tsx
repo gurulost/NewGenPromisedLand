@@ -25,11 +25,11 @@ function VillageModel({ position, owner }: { position: { x: number; y: number };
       <GroundedModel
         src={getVillageModelPath()}
         position={{ x: 0, y: 0 }}
-        scale={0.6}
+        scale={0.95}
         tileY={0}
       />
       {/* Village ownership indicator - small flag */}
-      <group position={[0, 1.2, 0]}>
+      <group position={[0, 1.6, 0]}>
         <Cylinder args={[0.15, 0.15, 0.1]} position={[0, 0, 0]}>
           <meshStandardMaterial color={getOwnershipColor(owner)} />
         </Cylinder>
