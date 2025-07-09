@@ -47,3 +47,4 @@
 /client/public/models/terrain_mountain.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/terrain_plains.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/terrain_water.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/stripling_warrior.glb filter=lfs diff=lfs merge=lfs -text

@@ -30,6 +30,8 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
       return 0.6; // Increased for ranged units
     } else if (unit.type === 'missionary' || unit.type === 'royal_envoy') {
       return 0.58; // Increased for religious units
+    } else if (unit.type === 'stripling_warrior') {
+      return 0.7; // Slightly larger for elite Nephite warriors
     }
     return 0.65; // Increased default scale for most units
   }, [unit.type]);

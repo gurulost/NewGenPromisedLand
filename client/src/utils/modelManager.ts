@@ -14,7 +14,7 @@ export const MODEL_PATHS = {
     // Use standard models for all unit types for consistency
     spearman: '/models/warrior.glb', // Use warrior model
     commander: '/models/warrior.glb', // Use warrior model  
-    stripling_warrior: '/models/warrior.glb', // Use warrior model
+    stripling_warrior: '/models/stripling_warrior.glb', // Upgraded stripling warrior model
     guard: '/models/warrior.glb', // Use warrior model
     peacekeeping_guard: '/models/warrior.glb', // Use warrior model
     ancient_giant: '/models/warrior.glb', // Use warrior model
