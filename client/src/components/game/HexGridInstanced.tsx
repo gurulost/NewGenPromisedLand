@@ -372,15 +372,15 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
               borderColor = vec3(0.4, 0.6, 0.3); // Dark green for swamp
             }
             
-            // Create hex border with terrain-specific color
-            float border = hexBorder(vUv, 0.04);
+            // Create hex border with terrain-specific color - wider and more visible
+            float border = hexBorder(vUv, 0.08);
             
             // Use pure texture color for beautiful clear textures
             texColor = textureColor;
             
-            // Add colored transparent border
+            // Add colored transparent border - more prominent
             if (border > 0.5) {
-              texColor = mix(texColor, borderColor, 0.6); // 60% border color, 40% texture
+              texColor = mix(texColor, borderColor, 0.8); // 80% border color, 20% texture
             }
           }
           
