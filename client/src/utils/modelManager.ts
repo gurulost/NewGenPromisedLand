@@ -23,6 +23,7 @@ export const MODEL_PATHS = {
     missionary: '/models/missionary.glb', // Upgraded missionary model
     boat: '/models/boat.glb', // Upgraded boat model
     catapult: '/models/warrior.glb', // Use warrior model
+    cavalry: '/models/cavalry.glb', // Upgraded cavalry model (war elephant)
   },
   // Village models
   village: '/models/village.glb', // Upgraded village model
