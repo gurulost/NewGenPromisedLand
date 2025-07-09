@@ -134,6 +134,34 @@ function MetalModel({ position }: { position: { x: number; y: number } }) {
   );
 }
 
+// Forest Canopy Model Component for Timber Groves
+function ForestCanopyModel({ position }: { position: { x: number; y: number } }) {
+  const modelPath = getResourceModelPath('timber_grove');
+  
+  if (!modelPath) {
+    // Fallback to procedural tree if model not available
+    return (
+      <group>
+        <Cylinder position={[position.x, 0.1, position.y]} args={[0.03, 0.03, 0.2]}>
+          <meshStandardMaterial color="#8B4513" />
+        </Cylinder>
+        <Sphere position={[position.x, 0.25, position.y]} args={[0.12]}>
+          <meshStandardMaterial color="#228B22" />
+        </Sphere>
+      </group>
+    );
+  }
+  
+  return (
+    <GroundedModel
+      src={modelPath}
+      position={position}
+      scale={1.0}
+      tileY={0}
+    />
+  );
+}
+
 // World Element Model Components
 function WorldElementModel({ elementId, position }: { elementId: string; position: { x: number; y: number } }) {
   // Use existing resource models for world elements with appropriate fallbacks
@@ -298,19 +326,19 @@ export default function MapFeatures() {
       case 'gold':
         return <MetalModel key={`gold-${key}`} position={position} />;
       
-      // World Elements - Book of Mormon themed resources
+      // World Elements - Book of Mormon themed resources with terrain-appropriate models
       case 'timber_grove':
-        return <GameModel key={`timber-${key}`} position={position} />; // Use tree model
+        return <ForestCanopyModel key={`timber-${key}`} position={position} />; // Use forest canopy model for timber
       case 'wild_goats':
-        return <GameModel key={`goats-${key}`} position={position} />; // Use animal model
+        return <GameModel key={`goats-${key}`} position={position} />; // Animal model for plains creatures
       case 'grain_patch':
-        return <FruitModel key={`grain-${key}`} position={position} />; // Use fruit model for crops
+        return <FruitModel key={`grain-${key}`} position={position} />; // Fruit model represents crops/grain
       case 'fishing_shoal':
-        return <StoneModel key={`fish-${key}`} position={position} />; // Coral reef/rocky shoals where fish gather
+        return <StoneModel key={`fish-${key}`} position={position} />; // Stone model represents coral/rocky fishing areas
       case 'sea_beast':
-        return <GameModel key={`whale-${key}`} position={position} />; // Use large creature model
+        return <GameModel key={`whale-${key}`} position={position} />; // Large creature model for sea beasts
       case 'jaredite_ruins':
-        return <StoneModel key={`ruins-${key}`} position={position} />; // Use stone model for ruins
+        return <StoneModel key={`ruins-${key}`} position={position} />; // Stone model for ancient ruins
       
       default:
         return null;
