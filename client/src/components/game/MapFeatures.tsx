@@ -136,13 +136,23 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
   };
 
   const config = getModelForElement(elementId);
-  const modelPath = getResourceModelPath(config.model as 'fruit' | 'stone' | 'game' | 'metal' | 'jaredite_ruins' | 'ore_vein');
+  const modelPath = getResourceModelPath(config.model);
   
   if (!modelPath) {
-    // Fallback to procedural geometry
+    // Fallback to procedural geometry with element-specific colors
+    const colors = {
+      timber_grove: "#228B22", // Forest green
+      wild_goats: "#D2691E",   // Saddle brown
+      grain_patch: "#FFD700",  // Gold
+      ore_vein: "#696969",     // Dim gray
+      fishing_shoal: "#00CED1", // Dark turquoise
+      sea_beast: "#4682B4",    // Steel blue
+      jaredite_ruins: "#8B4513" // Saddle brown
+    };
+    
     return (
-      <Box position={[position.x, 0.08, position.y]} args={[0.08, 0.08, 0.08]} scale={config.scale}>
-        <meshStandardMaterial color="#90EE90" />
+      <Box position={[position.x, 0.08, position.y]} args={[0.12, 0.12, 0.12]} scale={config.scale}>
+        <meshStandardMaterial color={colors[elementId as keyof typeof colors] || "#90EE90"} />
       </Box>
     );
   }

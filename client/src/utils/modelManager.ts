@@ -33,16 +33,19 @@ export const MODEL_PATHS = {
     level2: '/models/city_level2.glb',
     level3: '/models/city_level3.glb',
   },
-  // Resource models
+  // Resource models - Unified World Elements System
   resources: {
-    fruit: '/models/fruit.glb?v=2',
+    // Legacy models for backward compatibility
+    fruit: '/models/fruit.glb',
     stone: '/models/stone.glb',
     game: '/models/game.glb',
     metal: '/models/metal.glb',
-    forest_canopy: '/models/forest_canopy.glb', // New enchanted forest model
-    fish_shoal: '/models/fish_shoal.glb', // New fish shoal model for water resources
-    jaredite_ruins: '/models/jaredite_ruins.glb?v=2', // New Jaredite ruins model
-    ore_vein: '/models/ore_vein.glb?v=2', // New ore vein model for unified ore system
+    
+    // New unified world elements models
+    timber_grove: '/models/forest_canopy.glb', // Enchanted forest model for timber groves
+    fishing_shoal: '/models/fish_shoal.glb', // Fish shoal model for water resources
+    jaredite_ruins: '/models/jaredite_ruins.glb', // Jaredite ruins model
+    ore_vein: '/models/ore_vein.glb', // Ore vein model for unified ore system
   }
 };
 
@@ -87,33 +90,35 @@ export const getCityModelPath = (level: number): string => {
 // Get resource model path for unified world elements system
 export const getResourceModelPath = (resourceType: string): string | null => {
   switch (resourceType) {
-    // Unified World Elements System - Only scripture-themed resources
+    // Unified World Elements System - Scripture-themed resources
     case 'timber_grove':
-      return MODEL_PATHS.resources.forest_canopy;
+      return MODEL_PATHS.resources.timber_grove;
     case 'wild_goats':
     case 'sea_beast':
       return MODEL_PATHS.resources.game; // Animal model for creatures
     case 'grain_patch':
-      return MODEL_PATHS.resources.fruit; // Fruit model represents agricultural products
+      return MODEL_PATHS.resources.fruit; // Agricultural products
     case 'ore_vein':
-      return MODEL_PATHS.resources.ore_vein; // New ore vein model for unified ore system
+      return MODEL_PATHS.resources.ore_vein;
     case 'fishing_shoal':
-      return MODEL_PATHS.resources.fish_shoal;
+      return MODEL_PATHS.resources.fishing_shoal;
     case 'jaredite_ruins':
       return MODEL_PATHS.resources.jaredite_ruins;
-
+    
+    // Legacy resources for backward compatibility
+    case 'fruit':
+      return MODEL_PATHS.resources.fruit;
+    case 'stone':
+      return MODEL_PATHS.resources.stone;
+    case 'game':
+      return MODEL_PATHS.resources.game;
+    case 'metal':
+      return MODEL_PATHS.resources.metal;
+    
     default:
-      return null; // Return null for resources without 3D models (will use procedural)
+      return null;
   }
 };
 
 // Initialize model preloading
 preloadAllModels();
-
-// Force preload new models to bypass cache
-if (typeof window !== 'undefined') {
-  setTimeout(() => {
-    useGLTF.preload('/models/jaredite_ruins.glb?v=2');
-    useGLTF.preload('/models/ore_vein.glb?v=2');
-  }, 100);
-}
