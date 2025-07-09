@@ -112,14 +112,10 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   
-  // Load Ancient Mesoamerican textures - phenomenally beautiful and distinct
-  const plainsTexture = useLoader(TextureLoader, "/textures/mesoamerican_plains.jpg");
-  const forestTexture = useLoader(TextureLoader, "/textures/mesoamerican_forest.jpg"); 
-  const mountainTexture = useLoader(TextureLoader, "/textures/mesoamerican_mountain.jpg");
-  const waterTexture = useLoader(TextureLoader, "/textures/mesoamerican_water.jpg");
-  const desertTexture = useLoader(TextureLoader, "/textures/mesoamerican_desert.jpg");
-  const swampTexture = useLoader(TextureLoader, "/textures/mesoamerican_swamp.jpg");
-  const hillTexture = useLoader(TextureLoader, "/textures/mesoamerican_hill.jpg");
+  // Load textures
+  const grassTexture = useLoader(TextureLoader, "/textures/grass.png");
+  const sandTexture = useLoader(TextureLoader, "/textures/sand.jpg");
+  const woodTexture = useLoader(TextureLoader, "/textures/wood.jpg");
 
   // Get current player and memoized visibility calculations
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
@@ -295,13 +291,9 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         }
       `,
       fragmentShader: `
-        uniform sampler2D plainsTexture;
-        uniform sampler2D forestTexture;
-        uniform sampler2D mountainTexture;
-        uniform sampler2D waterTexture;
-        uniform sampler2D desertTexture;
-        uniform sampler2D swampTexture;
-        uniform sampler2D hillTexture;
+        uniform sampler2D grassTexture;
+        uniform sampler2D sandTexture;
+        uniform sampler2D woodTexture;
         uniform float time;
         
         varying vec3 vColor;
@@ -332,28 +324,20 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         void main() {
           vec3 texColor = vColor;
           
-          // Apply authentic Mesoamerican textures for visible/explored tiles
+          // Apply texture if textureId is valid (for visible/explored tiles)
           if (vTextureId > 0.5 && vOpacity > 0.1) {
             vec3 textureColor = vec3(1.0);
             
-            if (vTextureId < 1.5) {        // Plains - grassy fields with ancient agricultural terraces
-              textureColor = texture2D(plainsTexture, vUv).rgb;
-            } else if (vTextureId < 2.5) { // Forest - dense jungle canopy with cecropia trees
-              textureColor = texture2D(forestTexture, vUv).rgb;
-            } else if (vTextureId < 3.5) { // Mountain - volcanic stone and obsidian
-              textureColor = texture2D(mountainTexture, vUv).rgb;
-            } else if (vTextureId < 4.5) { // Water - cenotes and jade-colored lagoons
-              textureColor = texture2D(waterTexture, vUv).rgb;
-            } else if (vTextureId < 5.5) { // Desert - red clay and cactus landscape
-              textureColor = texture2D(desertTexture, vUv).rgb;
-            } else if (vTextureId < 6.5) { // Swamp - mangrove wetlands with moss
-              textureColor = texture2D(swampTexture, vUv).rgb;
-            } else if (vTextureId < 7.5) { // Hill - terraced slopes with native vegetation
-              textureColor = texture2D(hillTexture, vUv).rgb;
+            if (vTextureId < 1.5) {
+              textureColor = texture2D(grassTexture, vUv).rgb;
+            } else if (vTextureId < 2.5) {
+              textureColor = texture2D(sandTexture, vUv).rgb;
+            } else if (vTextureId < 3.5) {
+              textureColor = texture2D(woodTexture, vUv).rgb;
             }
             
-            // Enhanced blending for more vibrant terrain
-            texColor = mix(texColor, texColor * textureColor * 1.2, vOpacity * 0.8);
+            // Blend texture with base color for fog of war effect
+            texColor = mix(texColor, texColor * textureColor, vOpacity);
           }
           
           // Create beautiful cloud-like fog for unexplored areas
@@ -397,17 +381,13 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         }
       `,
       uniforms: {
-        plainsTexture: { value: plainsTexture },
-        forestTexture: { value: forestTexture },
-        mountainTexture: { value: mountainTexture },
-        waterTexture: { value: waterTexture },
-        desertTexture: { value: desertTexture },
-        swampTexture: { value: swampTexture },
-        hillTexture: { value: hillTexture },
+        grassTexture: { value: grassTexture },
+        sandTexture: { value: sandTexture },
+        woodTexture: { value: woodTexture },
         time: { value: 0.0 }
       }
     });
-  }, [plainsTexture, forestTexture, mountainTexture, waterTexture, desertTexture, swampTexture, hillTexture]);
+  }, [grassTexture, sandTexture, woodTexture]);
 
   // Animate the cloud fog of war
   useFrame((state) => {
@@ -655,30 +635,26 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   );
 }
 
-// Helper functions - Ancient Mesoamerican terrain system
+// Helper functions
 function getTerrainColor(terrain: string): [number, number, number] {
   switch (terrain) {
-    case 'water': return [0.18, 0.55, 0.78]; // Jade-tinted cenote water
-    case 'mountain': return [0.32, 0.28, 0.25]; // Volcanic obsidian stone
-    case 'forest': return [0.12, 0.45, 0.15]; // Dense jungle green
-    case 'desert': return [0.85, 0.45, 0.25]; // Red clay and terracotta
-    case 'swamp': return [0.28, 0.35, 0.18]; // Mangrove moss green
-    case 'hill': return [0.55, 0.48, 0.35]; // Terraced earth tones
+    case 'water': return [0.15, 0.39, 0.93]; // #2563eb
+    case 'mountain': return [0.42, 0.45, 0.50]; // #6b7280
+    case 'forest': return [0.09, 0.64, 0.29]; // #16a34a
+    case 'desert': return [0.96, 0.62, 0.04]; // #f59e0b
+    case 'swamp': return [0.30, 0.11, 0.58]; // #4c1d95
     case 'plains':
-    default: return [0.45, 0.68, 0.28]; // Agricultural highland green
+    default: return [0.13, 0.77, 0.37]; // #22c55e
   }
 }
 
 function getTextureId(terrain: string): number {
   switch (terrain) {
-    case 'plains': return 1;   // Ancient agricultural terraces
-    case 'forest': return 2;   // Dense Mesoamerican jungle
-    case 'mountain': return 3; // Volcanic obsidian peaks
-    case 'water': return 4;    // Sacred cenotes and lagoons
-    case 'desert': return 5;   // Red clay and cactus desert
-    case 'swamp': return 6;    // Mangrove wetlands
-    case 'hill': return 7;     // Terraced hillsides
-    default: return 0;         // No texture
+    case 'plains':
+    case 'forest': return 1; // grass texture
+    case 'desert': return 2; // sand texture
+    case 'swamp': return 3; // wood texture
+    default: return 0; // no texture
   }
 }
 
