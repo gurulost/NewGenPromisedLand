@@ -224,14 +224,14 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
       case 'sea_beast':
         return { model: 'game', scale: 1.2 }; // Large creature elements
       case 'jaredite_ruins':
-        return { model: 'stone', scale: 1.0 }; // Archaeological elements
+        return { model: 'jaredite_ruins', scale: 0.8 }; // New archaeological elements model
       default:
         return { model: 'fruit', scale: 0.6 };
     }
   };
 
   const config = getModelForElement(elementId);
-  const modelPath = getResourceModelPath(config.model as 'fruit' | 'stone' | 'game' | 'metal');
+  const modelPath = getResourceModelPath(config.model as 'fruit' | 'stone' | 'game' | 'metal' | 'jaredite_ruins');
   
   if (!modelPath) {
     // Fallback to procedural geometry

@@ -41,6 +41,7 @@ export const MODEL_PATHS = {
     metal: '/models/metal.glb',
     forest_canopy: '/models/forest_canopy.glb', // New enchanted forest model
     fish_shoal: '/models/fish_shoal.glb', // New fish shoal model for water resources
+    jaredite_ruins: '/models/jaredite_ruins.glb', // New Jaredite ruins model
   }
 };
 
@@ -102,6 +103,9 @@ export const getResourceModelPath = (resourceType: string): string | null => {
     case 'fishing_shoal':
     case 'fish':
       return MODEL_PATHS.resources.fish_shoal;
+    case 'jaredite_ruins':
+    case 'ruins':
+      return MODEL_PATHS.resources.jaredite_ruins;
 
     default:
       return null; // Return null for resources without 3D models (will use procedural)
