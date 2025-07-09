@@ -54,7 +54,7 @@ function FruitModel({ position }: { position: { x: number; y: number } }) {
   const { scene } = useGLTF(modelPath);
   
   return (
-    <group position={[position.x, 0.05, position.y]} scale={[0.4, 0.4, 0.4]}>
+    <group position={[position.x, 0.05, position.y]} scale={[0.6, 0.6, 0.6]}>
       <primitive object={scene.clone()} />
     </group>
   );
