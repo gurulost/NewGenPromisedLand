@@ -25,7 +25,7 @@ export const MODEL_PATHS = {
     catapult: '/models/warrior.glb', // Use warrior model
   },
   // Village models
-  village: '/models/village.glb',
+  village: '/models/village.glb', // Upgraded village model
   // City models (existing ones are fine)
   cities: {
     level1: '/models/city_level1.glb',
