@@ -16,8 +16,10 @@ import { TurnTransition, useTurnTransition } from "../ui/TurnTransition";
 import { SaveSystem } from "../ui/SaveSystem";
 import { UnitSelectionUI } from "../effects/UnitSelection";
 import { ActionTooltip } from "../ui/TooltipSystem";
+import { WorldElementPanel } from "../ui/WorldElementPanel";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
+import { getWorldElement, WORLD_ELEMENTS } from "../../../../shared/data/worldElements";
 import type { Unit } from "@shared/types/unit";
 
 export default function GameUI() {
@@ -31,6 +33,10 @@ export default function GameUI() {
   const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
   const [showAdvancedSaveSystem, setShowAdvancedSaveSystem] = useState(false);
   const [hoveredEnemy, setHoveredEnemy] = useState<Unit | null>(null);
+  const [selectedWorldElement, setSelectedWorldElement] = useState<{
+    elementId: string;
+    coordinate: { q: number; r: number; s: number };
+  } | null>(null);
 
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
@@ -96,6 +102,47 @@ export default function GameUI() {
     );
     return unsubscribe;
   }, [subscribeKeys]);
+
+  // Handle world element actions
+  const handleWorldElementAction = (actionType: 'harvest' | 'build') => {
+    if (!selectedWorldElement) return;
+    
+    const action = {
+      type: actionType === 'harvest' ? 'WORLD_ELEMENT_HARVEST' : 'WORLD_ELEMENT_BUILD',
+      payload: {
+        playerId: currentPlayer.id,
+        elementId: selectedWorldElement.elementId,
+        coordinate: selectedWorldElement.coordinate
+      }
+    } as any;
+    
+    // Dispatch the action through the game reducer
+    useLocalGame.getState().dispatch(action);
+    setSelectedWorldElement(null);
+  };
+
+  // Detect clicks on world element tiles
+  useEffect(() => {
+    const handleTileClick = (event: any) => {
+      if (event.detail?.coordinate && event.detail?.resources) {
+        const { coordinate, resources } = event.detail;
+        
+        // Check if any resource is a world element
+        for (const resource of resources) {
+          if (WORLD_ELEMENTS[resource]) {
+            setSelectedWorldElement({
+              elementId: resource,
+              coordinate
+            });
+            return;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('tileClick', handleTileClick);
+    return () => window.removeEventListener('tileClick', handleTileClick);
+  }, []);
 
   // Check for victory conditions
   useEffect(() => {
@@ -310,6 +357,20 @@ export default function GameUI() {
         <SaveLoadMenu
           onClose={() => setShowSaveLoadMenu(false)}
         />
+      )}
+
+      {/* World Element Panel */}
+      {selectedWorldElement && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <WorldElementPanel
+            gameState={gameState}
+            playerId={currentPlayer.id}
+            elementId={selectedWorldElement.elementId}
+            coordinate={selectedWorldElement.coordinate}
+            onAction={handleWorldElementAction}
+            onClose={() => setSelectedWorldElement(null)}
+          />
+        </div>
       )}
 
       {/* Advanced Save System */}

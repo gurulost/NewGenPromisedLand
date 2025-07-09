@@ -10,6 +10,8 @@ import { ABILITIES, AbilityDefinition } from "../data/abilities";
 import { getFaction } from "../data/factions";
 import { executeUnitAction } from "./unitActions";
 import { executeAbility } from "./abilitySystem";
+import { executeElementHarvest, executeElementBuild } from "./worldElementActions";
+import { HexCoordinate } from "../types/coordinates";
 
 // Tech Research Handler
 function handleResearchTech(
@@ -454,6 +456,33 @@ function handleCaptureVillage(
   };
 }
 
+// World Element Action Handlers
+function handleWorldElementHarvest(
+  state: GameState,
+  payload: { playerId: string; elementId: string; coordinate: HexCoordinate }
+): GameState {
+  const result = executeElementHarvest(state, payload.playerId, payload.elementId, payload.coordinate);
+  
+  if (result.success && result.newState) {
+    return result.newState;
+  }
+  
+  return state;
+}
+
+function handleWorldElementBuild(
+  state: GameState,
+  payload: { playerId: string; elementId: string; coordinate: HexCoordinate }
+): GameState {
+  const result = executeElementBuild(state, payload.playerId, payload.elementId, payload.coordinate);
+  
+  if (result.success && result.newState) {
+    return result.newState;
+  }
+  
+  return state;
+}
+
 // Recruit Unit Handler
 function handleRecruitUnit(
   state: GameState,
@@ -618,6 +647,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     
     case 'BUILD_ROAD':
       return handleBuildRoad(state, action.payload);
+    
+    case 'WORLD_ELEMENT_HARVEST':
+      return handleWorldElementHarvest(state, action.payload);
+    
+    case 'WORLD_ELEMENT_BUILD':
+      return handleWorldElementBuild(state, action.payload);
     
     default:
       return state;
