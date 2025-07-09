@@ -182,7 +182,10 @@ export default function GameCanvas() {
       {/* Fog for atmosphere - adjusted for map size to prevent darkening on zoom */}
       <fog attach="fog" args={["#0f172a", mapSize * 3, mapSize * 12]} />
       
-      {/* Beautiful 3D Terrain Tiles - Using optimized GLB models */}
+      {/* Grid - Using Instanced Rendering for Performance */}
+      <HexGridInstanced map={gameState.map} />
+      
+      {/* 3D Terrain Models - Overlaid on hex grid for visual enhancement */}
       <TerrainGrid map={gameState.map} />
       
       {/* Map Features - Cities, Ruins, and other structures */}
