@@ -243,21 +243,7 @@ export default function MapFeatures() {
       case 'food':
         return <FruitModel key={`fruit-${key}`} position={position} />;
       case 'wood':
-        return (
-          <group key={`wood-${key}`}>
-            {/* Tree representation */}
-            <Cylinder position={[position.x + 0.3, y + 0.1, position.y]} args={[0.04, 0.06, 0.2]} rotation={[0, 0, 0]}>
-              <meshStandardMaterial color="#8B4513" /> {/* Brown trunk */}
-            </Cylinder>
-            <Sphere position={[position.x + 0.3, y + 0.25, position.y]} args={[0.15]}>
-              <meshStandardMaterial color="#228B22" /> {/* Green foliage */}
-            </Sphere>
-            {/* Additional logs */}
-            <Cylinder position={[position.x + 0.2, y, position.y + 0.15]} args={[0.03, 0.03, 0.12]} rotation={[0, 0, Math.PI/6]}>
-              <meshStandardMaterial color="#A0522D" />
-            </Cylinder>
-          </group>
-        );
+        return <GameModel key={`wood-${key}`} position={position} />;
       case 'stone':
         return <StoneModel key={`stone-${key}`} position={position} />;
       case 'animal':
@@ -266,20 +252,7 @@ export default function MapFeatures() {
       case 'metal':
         return <MetalModel key={`metal-${key}`} position={position} />;
       case 'gold':
-        return (
-          <group key={`gold-${key}`}>
-            {/* Gold deposits with sparkle effect */}
-            <Sphere position={[position.x, y + 0.03, position.y + 0.3]} args={[0.06]}>
-              <meshStandardMaterial color="#FFD700" metalness={0.8} roughness={0.2} /> {/* Shiny gold */}
-            </Sphere>
-            <Sphere position={[position.x + 0.08, y + 0.02, position.y + 0.25]} args={[0.04]}>
-              <meshStandardMaterial color="#FFA500" metalness={0.7} roughness={0.3} />
-            </Sphere>
-            <Sphere position={[position.x - 0.06, y + 0.01, position.y + 0.35]} args={[0.03]}>
-              <meshStandardMaterial color="#FFB347" metalness={0.6} roughness={0.4} />
-            </Sphere>
-          </group>
-        );
+        return <MetalModel key={`gold-${key}`} position={position} />;
       default:
         return null;
     }
