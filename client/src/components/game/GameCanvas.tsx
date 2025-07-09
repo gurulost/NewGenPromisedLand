@@ -210,6 +210,12 @@ export default function GameCanvas() {
               setSelectedUnit(unit);
               // Calculate movement coordinates for the clicked unit
               const moveCoords = calculateReachableTiles(gameState, unit.coordinate, unit.remainingMovement);
+              console.log('🎯 Unit clicked - setting movement indicators:', {
+                unitId: unit.id,
+                remainingMovement: unit.remainingMovement,
+                moveCoords: moveCoords.length,
+                coordinates: moveCoords
+              });
               selectUnit(unit.coordinate, moveCoords, []);
             }}
           />

@@ -30,13 +30,16 @@ export function UnitSelectionEffects({
       )}
 
       {/* Movement Range Indicators */}
-      {validMoveCoordinates.map((coord, index) => (
-        <MovementIndicator 
-          key={`move-${coord.q}-${coord.r}-${coord.s}`}
-          coordinate={coord}
-          delay={index * 0.05}
-        />
-      ))}
+      {validMoveCoordinates.map((coord, index) => {
+        console.log('🎯 Rendering movement indicator for:', coord, 'at index:', index);
+        return (
+          <MovementIndicator 
+            key={`move-${coord.q}-${coord.r}-${coord.s}`}
+            coordinate={coord}
+            delay={index * 0.05}
+          />
+        );
+      })}
 
       {/* Attack Range Indicators */}
       {validAttackCoordinates.map((coord, index) => (
