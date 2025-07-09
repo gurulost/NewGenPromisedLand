@@ -208,7 +208,8 @@ export default function GameCanvas() {
             isSelected={selectedUnit?.id === unit.id}
             onUnitClick={(unit) => {
               setSelectedUnit(unit);
-              const moveCoords = selectedUnit ? calculateReachableTiles(gameState, selectedUnit.coordinate, selectedUnit.movement) : [];
+              // Calculate movement coordinates for the clicked unit
+              const moveCoords = calculateReachableTiles(gameState, unit.coordinate, unit.remainingMovement);
               selectUnit(unit.coordinate, moveCoords, []);
             }}
           />

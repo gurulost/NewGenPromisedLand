@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
@@ -113,37 +113,77 @@ function MovementIndicator({
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const outerRingRef = useRef<THREE.Mesh>(null);
+  const outerMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
 
   const hexPosition = coordinateToWorldPosition(coordinate);
 
   useFrame((state) => {
-    if (!materialRef.current || !meshRef.current) return;
+    if (!materialRef.current || !meshRef.current || !outerMaterialRef.current || !outerRingRef.current) return;
 
     const time = state.clock.getElapsedTime() + delay;
     
-    // Gentle pulsing animation
-    const pulse = 0.4 + Math.sin(time * 2) * 0.2;
-    materialRef.current.opacity = pulse;
+    // Elegant pulsing animation with wave effect
+    const pulse = 0.5 + Math.sin(time * 2.5) * 0.3;
+    const outerPulse = 0.2 + Math.sin(time * 3 + 0.5) * 0.2;
     
-    // Slight scale animation
-    const scale = 1 + Math.sin(time * 1.5) * 0.1;
+    materialRef.current.opacity = pulse;
+    outerMaterialRef.current.opacity = outerPulse;
+    
+    // Gentle scale animation with offset
+    const scale = 1 + Math.sin(time * 1.8) * 0.15;
+    const outerScale = 1 + Math.sin(time * 2.2 + 1) * 0.1;
+    
     meshRef.current.scale.setScalar(scale);
+    outerRingRef.current.scale.setScalar(outerScale);
+    
+    // Subtle rotation for elegance
+    outerRingRef.current.rotation.z = time * 0.3;
   });
 
   return (
-    <mesh
-      ref={meshRef}
-      position={[hexPosition.x, 0.01, hexPosition.z]}
-      rotation={[Math.PI / 2, 0, 0]}
-    >
-      <circleGeometry args={[0.6, 16]} />
-      <meshBasicMaterial
-        ref={materialRef}
-        color="#00FF7F"
-        transparent
-        opacity={0.4}
-      />
-    </mesh>
+    <group position={[hexPosition.x, 0.03, hexPosition.z]}>
+      {/* Main movement indicator */}
+      <mesh
+        ref={meshRef}
+        rotation={[Math.PI / 2, 0, 0]}
+      >
+        <circleGeometry args={[0.7, 32]} />
+        <meshBasicMaterial
+          ref={materialRef}
+          color="#00E5FF"
+          transparent
+          opacity={0.5}
+        />
+      </mesh>
+      
+      {/* Outer elegant ring */}
+      <mesh
+        ref={outerRingRef}
+        rotation={[Math.PI / 2, 0, 0]}
+      >
+        <ringGeometry args={[0.8, 1.0, 32]} />
+        <meshBasicMaterial
+          ref={outerMaterialRef}
+          color="#40E0D0"
+          transparent
+          opacity={0.2}
+        />
+      </mesh>
+      
+      {/* Hexagonal border for precision */}
+      <mesh
+        position={[0, 0.001, 0]}
+        rotation={[Math.PI / 2, 0, 0]}
+      >
+        <ringGeometry args={[0.85, 0.95, 6]} />
+        <meshBasicMaterial
+          color="#FFFFFF"
+          transparent
+          opacity={0.6}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -302,10 +342,10 @@ function coordinateToWorldPosition(coordinate: HexCoordinate): { x: number; z: n
 
 // Hook for managing unit selection state
 export function useUnitSelection() {
-  const [selectedCoordinate, setSelectedCoordinate] = React.useState<HexCoordinate | null>(null);
-  const [hoveredCoordinate, setHoveredCoordinate] = React.useState<HexCoordinate | null>(null);
-  const [validMoveCoordinates, setValidMoveCoordinates] = React.useState<HexCoordinate[]>([]);
-  const [validAttackCoordinates, setValidAttackCoordinates] = React.useState<HexCoordinate[]>([]);
+  const [selectedCoordinate, setSelectedCoordinate] = useState<HexCoordinate | null>(null);
+  const [hoveredCoordinate, setHoveredCoordinate] = useState<HexCoordinate | null>(null);
+  const [validMoveCoordinates, setValidMoveCoordinates] = useState<HexCoordinate[]>([]);
+  const [validAttackCoordinates, setValidAttackCoordinates] = useState<HexCoordinate[]>([]);
 
   const selectUnit = (coordinate: HexCoordinate, moveCoords: HexCoordinate[] = [], attackCoords: HexCoordinate[] = []) => {
     setSelectedCoordinate(coordinate);
