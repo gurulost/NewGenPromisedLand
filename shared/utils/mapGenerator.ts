@@ -698,6 +698,7 @@ export class MapGenerator {
     if (terrain === 'water') {
       const roll = this.rng.nextInt(1, 100);
       if (roll <= 50) { // 50% of shallow water gets Fish Shoals
+        console.log(`Water tile spawning fishing_shoal (terrain: ${terrain})`);
         return 'fishing_shoal';
       }
       return null; // Empty water
@@ -757,6 +758,7 @@ export class MapGenerator {
       
       // Check if we rolled for this resource AND terrain is suitable
       if (roll <= cumulative && resource.terrains.includes(terrain)) {
+        console.log(`Spawning ${resource.type} on ${terrain} terrain`);
         return resource.type;
       }
     }
