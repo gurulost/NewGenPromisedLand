@@ -493,8 +493,8 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
         </mesh>
       )}
 
-      {/* Health bar */}
-      <group position={[0, UNIT_HEIGHT * 2 + 0.3, 0]}>
+      {/* Health bar - positioned well above the unit */}
+      <group position={[0, 0.8, 0]}>
         {/* Background */}
         <mesh position={[0, 0, 0]}>
           <planeGeometry args={[0.6, 0.08]} />
@@ -508,10 +508,10 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
         </mesh>
       </group>
 
-      {/* Unit type label */}
+      {/* Unit type label - positioned above health bar */}
       <Text
-        position={[0, UNIT_HEIGHT * 2 + 0.6, 0]}
-        fontSize={0.2}
+        position={[0, 1.0, 0]}
+        fontSize={0.18}
         color="white"
         anchorX="center"
         anchorY="middle"
@@ -519,11 +519,11 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
         {unit.type.replace('_', ' ').toUpperCase()}
       </Text>
 
-      {/* Movement indicator for selected unit */}
+      {/* Movement indicator for selected unit - positioned above label */}
       {isSelected && unit.remainingMovement > 0 && (
         <Text
-          position={[0, UNIT_HEIGHT * 2 + 0.8, 0]}
-          fontSize={0.15}
+          position={[0, 1.2, 0]}
+          fontSize={0.14}
           color="#60a5fa"
           anchorX="center"
           anchorY="middle"
