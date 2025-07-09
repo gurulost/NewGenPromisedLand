@@ -194,8 +194,8 @@ export class MapGenerator {
     // Step 5: Place capturable villages (AFTER terrain is generated)
     this.placeVillages(tiles, mapRadius, capitalPositions);
     
-    // Step 6: Place resources in zones around cities
-    this.placeZonedResources(tiles);
+    // Step 6: Place resources strategically (city zones + wilderness)
+    this.placeResourcesStrategically(tiles);
     
     // Step 7: Place special features
     this.placeSpecialFeatures(tiles, capitalPositions);
@@ -379,7 +379,11 @@ export class MapGenerator {
    * Apply tribal homeland modifiers using authentic Polytopia cascading system
    * Order: mountain → forest → fields (plains calculated as remainder)
    */
-  private applyPolytopiaTribalModifiers(base: any, modifiers: TribalSpawnModifiers, influence: number): any {
+  private applyPolytopiaTribalModifiers(
+    base: { mountain: number; forest: number; plains: number }, 
+    modifiers: TribalSpawnModifiers, 
+    influence: number
+  ): { mountain: number; forest: number; plains: number } {
     // Step 1: Apply mountain modifier first (Polytopia order)
     let mountain = base.mountain;
     const mountainMod = 1 + (modifiers.mountain - 1) * influence;
@@ -410,8 +414,9 @@ export class MapGenerator {
     let waterChance = distanceFromCenter > 0.8 ? 0.4 : 0.15;
     
     // Apply tribal water modifier if near capitals
-    for (let i = 0; i < this.config.playerCount; i++) {
-      const capitalPos = this.getCapitalPosition(i);
+    const capitalPositions = this.generateCapitalSpawns(Math.min(this.config.width, this.config.height));
+    for (let i = 0; i < this.config.playerCount && i < capitalPositions.length; i++) {
+      const capitalPos = capitalPositions[i];
       if (capitalPos) {
         const distance = hexDistance(coord, capitalPos);
         if (distance <= 4) {
@@ -438,71 +443,9 @@ export class MapGenerator {
     return 'plains';
   }
 
-  /**
-   * Step 6: Place resources in zones around cities with tribal modifiers
-   */
-  private placeZonedResources(tiles: Tile[]): void {
-    const cityTiles = tiles.filter(tile => tile.hasCity);
-    // Use the existing capital positions from the map generation
-    const capitalPositions = cityTiles.filter(city => 
-      this.playerFactions.some((_, i) => {
-        const expectedCapital = this.getCapitalPosition(i);
-        return expectedCapital && 
-               city.coordinate.q === expectedCapital.q && 
-               city.coordinate.r === expectedCapital.r;
-      })
-    ).map(city => city.coordinate);
-    
-    for (const tile of tiles) {
-      // Only place resources within 2-tile radius of cities
-      const nearbyCity = cityTiles.find(cityTile => 
-        hexDistance(tile.coordinate, cityTile.coordinate) <= 2
-      );
-      
-      if (!nearbyCity || tile.hasCity) continue;
-      
-      const distance = hexDistance(tile.coordinate, nearbyCity.coordinate);
-      const isInnerCity = distance === 1;
-      
-      // Get base spawn rates based on distance
-      let spawnRates = isInnerCity ? this.getInnerCitySpawnTable() : this.getOuterCitySpawnTable();
-      
-      // Apply tribal homeland modifiers if this city is near a capital
-      for (let i = 0; i < capitalPositions.length; i++) {
-        const distanceFromCapital = hexDistance(nearbyCity.coordinate, capitalPositions[i]);
-        if (distanceFromCapital <= 4) {
-          const factionId = this.playerFactions[i] as FactionId;
-          const modifiers = TRIBAL_SPAWN_MODIFIERS[factionId];
-          
-          if (modifiers) {
-            // Apply tribal resource modifiers
-            const influence = Math.max(0, 1 - distanceFromCapital / 4);
-            spawnRates = this.applyTribalResourceModifiers(spawnRates, modifiers, influence);
-          }
-        }
-      }
-      
-      const resource = this.getResourceFromTable(spawnRates, tile.terrain);
-      if (resource) {
-        tile.resources = [resource];
-      }
-    }
-  }
 
-  /**
-   * Helper to get expected capital position for a player
-   */
-  private getCapitalPosition(playerIndex: number): HexCoordinate | null {
-    const mapRadius = Math.min(this.config.width, this.config.height);
-    const angle = (playerIndex / this.config.playerCount) * 2 * Math.PI;
-    const spawnRadius = Math.floor(mapRadius * 0.6);
-    
-    const q = Math.round(spawnRadius * Math.cos(angle));
-    const r = Math.round(spawnRadius * Math.sin(angle));
-    const s = -q - r;
-    
-    return { q, r, s };
-  }
+
+
 
   /**
    * Apply tribal homeland modifiers to resource spawn rates
@@ -557,46 +500,6 @@ export class MapGenerator {
         // Log tribal lore for debugging
         console.log(`${factionId} homeland: ${modifiers.lore}`);
       }
-    }
-  }
-
-  private generateTerrain(q: number, r: number, mapRadius: number): TerrainType {
-    const distanceFromCenter = Math.sqrt(q * q + r * r);
-    const normalizedDistance = distanceFromCenter / mapRadius;
-
-    // Multiple noise octaves for realistic terrain
-    const scale1 = 0.1;  // Large features
-    const scale2 = 0.3;  // Medium features
-    const scale3 = 0.6;  // Small details
-
-    const noise1 = this.noise2D(q * scale1, r * scale1) * 0.6;
-    const noise2 = this.noise2D(q * scale2, r * scale2) * 0.3;
-    const noise3 = this.noise2D(q * scale3, r * scale3) * 0.1;
-    
-    const combinedNoise = noise1 + noise2 + noise3;
-
-    // Center bias - make center more accessible
-    const centerBias = Math.max(0, 1 - normalizedDistance);
-    const adjustedNoise = combinedNoise + (centerBias * 0.4);
-
-    // Edge bias - more obstacles at edges
-    const edgeBias = Math.max(0, normalizedDistance - 0.7) * 0.3;
-
-    const finalValue = adjustedNoise - edgeBias;
-
-    // Convert to terrain types with strategic distribution
-    if (finalValue < -0.3) {
-      return 'water';
-    } else if (finalValue < -0.1) {
-      return 'swamp';
-    } else if (finalValue < 0.2) {
-      return 'plains';
-    } else if (finalValue < 0.5) {
-      return 'forest';
-    } else if (finalValue < 0.7) {
-      return 'desert';
-    } else {
-      return 'mountain';
     }
   }
 
@@ -817,126 +720,8 @@ export class MapGenerator {
     return null;
   }
 
+  
 
-  
-  /**
-   * Create balanced map sectors for player starting positions
-   */
-  private createMapSectors(mapRadius: number, playerCount: number): Array<{center: HexCoordinate, radius: number}> {
-    const sectors: Array<{center: HexCoordinate, radius: number}> = [];
-    const sectorRadius = Math.floor(mapRadius * 0.6); // Sectors in inner 60% of map
-    
-    for (let i = 0; i < playerCount; i++) {
-      const angle = (i / playerCount) * 2 * Math.PI;
-      const centerQ = Math.round(sectorRadius * Math.cos(angle));
-      const centerR = Math.round(sectorRadius * Math.sin(angle));
-      const centerS = -centerQ - centerR;
-      
-      sectors.push({
-        center: { q: centerQ, r: centerR, s: centerS },
-        radius: Math.floor(mapRadius / Math.max(2, playerCount - 1))
-      });
-    }
-    
-    return sectors;
-  }
-  
-  /**
-   * Find the best location for a city within a sector (or anywhere if no sector)
-   */
-  private findBestCityLocation(
-    tiles: Tile[], 
-    sector: {center: HexCoordinate, radius: number} | null,
-    existingCities: HexCoordinate[], 
-    mapRadius: number
-  ): HexCoordinate | null {
-    const candidates: Array<{coordinate: HexCoordinate, score: number}> = [];
-    const minCityDistance = 4; // Minimum distance between cities
-    
-    for (const tile of tiles) {
-      // Check if tile is in sector (if sector specified)
-      if (sector) {
-        const distanceFromSectorCenter = hexDistance(tile.coordinate, sector.center);
-        if (distanceFromSectorCenter > sector.radius) continue;
-      }
-      
-      // Only suitable terrain
-      if (tile.terrain !== 'plains' && tile.terrain !== 'forest') continue;
-      if (tile.hasCity) continue;
-      
-      // Check minimum distance from existing cities
-      const tooClose = existingCities.some(cityCoord => 
-        hexDistance(tile.coordinate, cityCoord) < minCityDistance
-      );
-      if (tooClose) continue;
-      
-      // Score based on terrain quality and resource potential nearby
-      let score = this.scoreCityLocation(tile, tiles, mapRadius);
-      
-      // Prefer locations closer to sector center (if sector specified)
-      if (sector) {
-        const distanceFromCenter = hexDistance(tile.coordinate, sector.center);
-        score += Math.max(0, (sector.radius - distanceFromCenter)) * 0.1;
-      }
-      
-      candidates.push({ coordinate: tile.coordinate, score });
-    }
-    
-    // Sort by score and pick the best location
-    candidates.sort((a, b) => b.score - a.score);
-    return candidates.length > 0 ? candidates[0].coordinate : null;
-  }
-  
-  /**
-   * Score a potential city location based on surrounding terrain and strategic value
-   */
-  private scoreCityLocation(centerTile: Tile, allTiles: Tile[], mapRadius: number): number {
-    let score = 0;
-    
-    // Base score for terrain type
-    if (centerTile.terrain === 'plains') score += 10;
-    if (centerTile.terrain === 'forest') score += 8;
-    
-    // Analyze surrounding tiles (within 2 hex radius)
-    for (const tile of allTiles) {
-      const distance = hexDistance(centerTile.coordinate, tile.coordinate);
-      if (distance > 2) continue;
-      
-      // Prefer diverse, workable terrain nearby
-      switch (tile.terrain) {
-        case 'plains':
-          score += distance === 1 ? 3 : 1; // Adjacent plains very valuable
-          break;
-        case 'forest':
-          score += distance === 1 ? 2 : 1; // Good for wood/food
-          break;
-        case 'desert':
-          score += 0.5; // Can provide gold but harsh
-          break;
-        case 'mountain':
-          score += distance === 1 ? 0 : 1; // Not adjacent, but can provide stone
-          break;
-        case 'water':
-          score -= distance === 1 ? 2 : 0; // Adjacent water is problematic
-          break;
-      }
-    }
-    
-    // Distance from map edge (prefer not too close to edge)
-    const distanceFromCenter = Math.sqrt(
-      centerTile.coordinate.q ** 2 + centerTile.coordinate.r ** 2
-    );
-    const normalizedDistance = distanceFromCenter / mapRadius;
-    
-    // Optimal distance is 30-70% from center
-    if (normalizedDistance >= 0.3 && normalizedDistance <= 0.7) {
-      score += 5;
-    } else if (normalizedDistance > 0.8) {
-      score -= 3; // Too close to edge
-    }
-    
-    return score;
-  }
 
   // Static convenience method
   static generateBalancedMap(playerCount: number, seed?: number): GameMap {
