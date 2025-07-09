@@ -235,6 +235,9 @@ export class MapGenerator {
     // Step 6: Place resources strategically (city zones + wilderness)
     this.placeResourcesStrategically(tiles);
     
+    // Step 6.5: Guarantee opening-ring harvest opportunities (safety pass)
+    this.guaranteeCapitalHarvestOpportunities(tiles, capitalPositions);
+    
     // Step 7: Place special features
     this.placeSpecialFeatures(tiles, capitalPositions);
 
@@ -522,6 +525,62 @@ export class MapGenerator {
   }
 
   /**
+   * Step 6.5: Guarantee opening-ring harvest opportunities (safety pass)
+   * After terrain and resources are populated, run safety pass to ensure
+   * each capital has at least 2 harvestable resources within 2 tiles
+   */
+  private guaranteeCapitalHarvestOpportunities(tiles: Tile[], capitalPositions: HexCoordinate[]): void {
+    for (const capitalPos of capitalPositions) {
+      // Count harvestable resources within 2 tiles of capital
+      const nearbyTiles = tiles.filter(tile => 
+        hexDistance(tile.coordinate, capitalPos) <= 2 && 
+        !tile.hasCity
+      );
+      
+      const harvestableCount = nearbyTiles.reduce((count, tile) => {
+        const hasHarvestable = tile.resources.some(resource => 
+          ['grain_patch', 'wild_goats', 'timber_grove', 'ore_vein'].includes(resource)
+        );
+        return count + (hasHarvestable ? 1 : 0);
+      }, 0);
+      
+      // If less than 2 harvestable resources, upgrade empty tiles
+      if (harvestableCount < 2) {
+        const needed = 2 - harvestableCount;
+        const upgradableEmptyTiles = nearbyTiles.filter(tile => 
+          tile.resources.length === 0 && // Empty tiles only
+          ['plains', 'forest', 'mountain'].includes(tile.terrain) // Land tiles only
+        );
+        
+        // Randomly select tiles to upgrade
+        const shuffled = [...upgradableEmptyTiles].sort(() => this.rng.next() - 0.5);
+        
+        for (let i = 0; i < Math.min(needed, shuffled.length); i++) {
+          const tile = shuffled[i];
+          
+          // Add appropriate harvestable resource based on terrain
+          let resourceToAdd: string;
+          switch (tile.terrain) {
+            case 'plains':
+              resourceToAdd = this.rng.next() < 0.7 ? 'grain_patch' : 'wild_goats';
+              break;
+            case 'forest':
+              resourceToAdd = 'timber_grove';
+              break;
+            case 'mountain':
+              resourceToAdd = 'ore_vein';
+              break;
+            default:
+              resourceToAdd = 'grain_patch'; // Fallback
+          }
+          
+          tile.resources.push(resourceToAdd);
+        }
+      }
+    }
+  }
+
+  /**
    * Step 7: Place special tribal features (currently none defined)
    */
   private placeSpecialFeatures(tiles: Tile[], capitalPositions: HexCoordinate[]): void {
@@ -611,26 +670,28 @@ export class MapGenerator {
   }
   
   /**
-   * Inner city spawn rates using authentic Polytopia percentages
-   * Terrain-based resource distribution per blueprint
+   * Inner city spawn rates using authentic Polytopia percentages per blueprint
+   * Field tiles: 48% -> Grain Patch 36%, Empty 12%
+   * Forest tiles: 38% -> Wild Goats 10%, Timber Grove 9%, Empty 19%
+   * Mountain tiles: 14% -> Ore Vein 11%, Empty 3%
    */
   private getInnerCitySpawnTable(): ResourceSpawnRate {
     return {
-      // Field tiles (48% of land) - Inner city rates - boosted for guaranteed population
-      grain_patch: 22,       // 22% (boosted for guaranteed pop opportunities)
-      wild_goats: 22,        // 22% (boosted for guaranteed pop opportunities)
+      // Field tiles (48% of land) - Inner city rates
+      grain_patch: 36,       // 36% of field tiles per blueprint
+      wild_goats: 10,        // 10% of forest tiles per blueprint (but spawns on plains too)
       
-      // Forest tiles (38% of land) - Inner city rates - boosted for guaranteed population
-      timber_grove: 22,      // 22% (boosted for guaranteed pop opportunities)
+      // Forest tiles (38% of land) - Inner city rates  
+      timber_grove: 9,       // 9% of forest tiles per blueprint
       
       // Mountain tiles (14% of land) - Inner city rates - unified ore system
-      ore_vein: 11,          // 11% (replaces stone + gold with unified ore system)
+      ore_vein: 11,          // 11% of mountain tiles per blueprint
       
       // Water-only resources
       fishing_shoal: 0,     // Water terrain only
       sea_beast: 0,         // Deep water only
       jaredite_ruins: 4,    // Standard ruins count (4-23 based on map size)
-      empty: 19             // Remaining empty tiles (reduced due to higher resource rates)
+      empty: 30             // Remaining empty tiles (12% fields + 19% forest + 3% mountain = 34% total empty)
     };
   }
   
@@ -655,25 +716,28 @@ export class MapGenerator {
   }
 
   /**
-   * Outer city spawn rates (reduced concentration per Polytopia)
+   * Outer city spawn rates per blueprint specifications
+   * Field tiles: 48% -> Grain Patch 12%, Empty 36%
+   * Forest tiles: 38% -> Wild Goats 3%, Timber Grove 3%, Empty 32%
+   * Mountain tiles: 14% -> Ore Vein 3%, Empty 11%
    */
   private getOuterCitySpawnTable(): ResourceSpawnRate {
     return {
-      // Field tiles - Outer city rates (reduced from inner)
-      grain_patch: 6,       // 6% (reduced from 22%)
-      wild_goats: 3,        // 3% (animals on plains terrain only)
+      // Field tiles - Outer city rates per blueprint
+      grain_patch: 12,      // 12% of field tiles per blueprint
+      wild_goats: 3,        // 3% of forest tiles per blueprint (but spawns on plains too)
       
-      // Forest tiles - Outer city rates
-      timber_grove: 6,      // 6% (timber groves on forest terrain only)
+      // Forest tiles - Outer city rates per blueprint
+      timber_grove: 3,      // 3% of forest tiles per blueprint
       
       // Mountain tiles - Outer city rates - unified ore system
-      ore_vein: 3,          // 3% (replaces stone + gold with unified ore system)
+      ore_vein: 3,          // 3% of mountain tiles per blueprint
       
       // Water-only resources
       fishing_shoal: 0,     // Water terrain only
       sea_beast: 0,         // Deep water only
       jaredite_ruins: 4,    // Standard ruins distribution
-      empty: 78             // Majority empty in outer zones
+      empty: 75             // Majority empty in outer zones (36% fields + 32% forest + 11% mountain = 79% total empty)
     };
   }
   
