@@ -92,8 +92,8 @@ export const TRIBAL_SPAWN_MODIFIERS: Record<FactionId, TribalSpawnModifiers> = {
     forest: 1.0,        // Neutral forest
     grainField: 1.0,    // Auto-calculated
     wildAnimal: 1.0,    // Neutral animals
-    water: 1.5,         // 1.5× water
-    fish: 1.5,          // 1.5× fish
+    water: 2.0,         // 2.0× water (increased for better water identity)
+    fish: 1.8,          // 1.8× fish (increased for river traders)
     ruins: 1.2,         // 1.2× ruins
     lore: "River-valley traders with access to waterways and ancient ruins"
   },
@@ -406,8 +406,8 @@ export class MapGenerator {
     const noiseValue = this.noise2D(coord.q * 0.1, coord.r * 0.1);
     const distanceFromCenter = Math.sqrt(coord.q ** 2 + coord.r ** 2) / mapRadius;
     
-    // Base edge effects (more water near edges)
-    let waterChance = distanceFromCenter > 0.8 ? 0.3 : 0.1;
+    // Base edge effects (more water near edges) - increased for better Mulekite support
+    let waterChance = distanceFromCenter > 0.8 ? 0.4 : 0.15;
     
     // Apply tribal water modifier if near capitals
     for (let i = 0; i < this.config.playerCount; i++) {
@@ -601,8 +601,8 @@ export class MapGenerator {
   }
 
   /**
-   * Strategic resource placement using the 2-tile radius rule around cities
-   * Resources only spawn within 2 hex tiles of cities, with higher rates adjacent to cities
+   * Strategic resource placement with wilderness exemptions for key resources
+   * Basic resources (timber, goats, grain, ore) can spawn beyond city radius to reward expansion
    */
   private placeResourcesStrategically(tiles: Tile[]): void {
     // 1. Identify all city coordinates
@@ -611,8 +611,8 @@ export class MapGenerator {
     
     const cityCoordinates = cityTiles.map(tile => tile.coordinate);
     
-    // 2. Identify all spawnable tiles (within 2-tile radius of cities)
-    const spawnableTiles = tiles.filter(tile => {
+    // 2. Identify spawnable tiles - different rules for different resource types
+    const nearCityTiles = tiles.filter(tile => {
       if (tile.hasCity) return false; // Don't place on city tiles
       
       for (const cityCoord of cityCoordinates) {
@@ -623,8 +623,21 @@ export class MapGenerator {
       return false;
     });
     
-    // 3. Place resources using distance-based spawn tables
-    spawnableTiles.forEach(tile => {
+    // 3. All wilderness tiles for exempt resources (timber, goats, grain, ore)
+    const wildernessTiles = tiles.filter(tile => {
+      if (tile.hasCity) return false; // Don't place on city tiles
+      
+      // Check if far enough from any city (3+ tiles away for true wilderness)
+      for (const cityCoord of cityCoordinates) {
+        if (hexDistance(tile.coordinate, cityCoord) < 3) {
+          return false;
+        }
+      }
+      return true;
+    });
+    
+    // 4. Place city-area resources using distance-based spawn tables
+    nearCityTiles.forEach(tile => {
       const distanceToNearestCity = Math.min(
         ...cityCoordinates.map(cityCoord => hexDistance(tile.coordinate, cityCoord))
       );
@@ -643,6 +656,16 @@ export class MapGenerator {
         tile.resources.push(resourceToSpawn);
       }
     });
+    
+    // 5. Place wilderness resources (exempt from city radius restriction)
+    wildernessTiles.forEach(tile => {
+      const wildernessSpawnTable = this.getWildernessSpawnTable();
+      const resourceToSpawn = this.getResourceFromTable(wildernessSpawnTable, tile.terrain);
+      
+      if (resourceToSpawn) {
+        tile.resources.push(resourceToSpawn);
+      }
+    });
   }
   
   /**
@@ -656,12 +679,12 @@ export class MapGenerator {
       food: 18,             // 18% (fruit orchard equivalent)
       
       // Forest tiles (38% of land) - Inner city rates  
-      wild_goats: 19,       // 19% (filled forest resource)
-      timber_grove: 0,      // Use empty forest, no timber resource spawn
+      wild_goats: 9,        // 9% (reduced to make room for timber)
+      timber_grove: 10,     // 10% (timber grove resource - chop vs sawmill choice)
       
       // Mountain tiles (14% of land) - Inner city rates
-      stone: 11,            // 11% (ore vein)
-      gold: 0,              // Simplified - no separate gold
+      stone: 6,             // 6% (basic ore vein)
+      gold: 5,              // 5% (precious metal - separate gold resource)
       
       // Water-only resources
       fishing_shoal: 0,     // Water terrain only
@@ -672,6 +695,28 @@ export class MapGenerator {
   }
   
   /**
+   * Wilderness spawn rates for tiles beyond city influence
+   * Only basic expansion resources: timber, goats, grain, ore
+   */
+  private getWildernessSpawnTable(): ResourceSpawnRate {
+    return {
+      // Basic resources that reward expansion and exploration
+      grain_patch: 2,       // 2% (rare grain patches in wilderness)
+      food: 1,              // 1% (wild fruit)
+      wild_goats: 3,        // 3% (wilderness animals)
+      timber_grove: 4,      // 4% (virgin forests)
+      stone: 1,             // 1% (surface ore)
+      gold: 0.5,            // 0.5% (very rare wilderness gold)
+      
+      // No special/rare resources in wilderness
+      fishing_shoal: 0,     // Water only
+      sea_beast: 0,         // Deep water only  
+      jaredite_ruins: 0,    // No ruins in pure wilderness
+      empty: 88.5           // Mostly empty wilderness
+    };
+  }
+
+  /**
    * Outer city spawn rates (reduced concentration per Polytopia)
    */
   private getOuterCitySpawnTable(): ResourceSpawnRate {
@@ -681,12 +726,12 @@ export class MapGenerator {
       food: 6,              // 6% (reduced from 18%)
       
       // Forest tiles - Outer city rates
-      wild_goats: 6,        // 6% (reduced from 19%)
-      timber_grove: 0,      // Use empty forest
+      wild_goats: 3,        // 3% (reduced to make room for timber)
+      timber_grove: 3,      // 3% (outer forest timber groves)
       
       // Mountain tiles - Outer city rates  
-      stone: 3,             // 3% (reduced from 11%)
-      gold: 0,              // No gold spawns
+      stone: 2,             // 2% (basic ore vein)
+      gold: 1,              // 1% (rare precious metal in outer zones)
       
       // Water-only resources
       fishing_shoal: 0,     // Water terrain only
@@ -727,18 +772,28 @@ export class MapGenerator {
         terrains: ['plains'] // Fruit orchard on fields
       },
       
-      // Forest tiles (38% of land): wild_goats (filled forest resource)
+      // Forest tiles (38% of land): wild_goats and timber_grove
       { 
         type: 'wild_goats', 
         rate: spawnTable.wild_goats, 
         terrains: ['forest'] // Forest only
       },
+      { 
+        type: 'timber_grove', 
+        rate: spawnTable.timber_grove, 
+        terrains: ['forest'] // Forest only - chop vs sawmill choice
+      },
       
-      // Mountain tiles (14% of land): ore vein (stone)
+      // Mountain tiles (14% of land): ore veins (stone and gold)
       { 
         type: 'stone', 
         rate: spawnTable.stone, 
         terrains: ['mountain'] // Mountain only
+      },
+      { 
+        type: 'gold', 
+        rate: spawnTable.gold, 
+        terrains: ['mountain'] // Mountain only - precious metal
       },
       
       // Ruins spawn on any land terrain
