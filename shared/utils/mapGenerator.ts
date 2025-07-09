@@ -2,6 +2,15 @@ import { createNoise2D } from 'simplex-noise';
 import type { GameMap, Tile, TerrainType, HexCoordinate, FactionId } from '@shared/types/game';
 import { hexDistance } from './hex';
 
+/**
+ * Type definitions for map generation
+ */
+interface TerrainProbabilities {
+  mountain: number;
+  forest: number;
+  plains: number;
+}
+
 export class SeededRandom {
   private seed: number;
 
@@ -49,6 +58,37 @@ export const MAP_SIZE_CONFIGS: Record<MapSize, MapSizeConfig> = {
   large: { tiles: 324, dimensions: 18, maxPlayers: 8, name: 'Large' },
   huge: { tiles: 400, dimensions: 20, maxPlayers: 8, name: 'Huge' }
 };
+
+/**
+ * Map Generation Constants
+ * Centralized configuration for all map generation parameters
+ */
+const MAP_GENERATION_CONSTANTS = {
+  // Tribal homeland influence
+  TRIBAL_HOMELAND_RADIUS: 4,           // Tiles from capital where tribal modifiers apply
+  TRIBAL_INFLUENCE_FALLOFF: 4,         // Distance divisor for influence calculation
+  
+  // Capital placement
+  CAPITAL_SPAWN_RADIUS_RATIO: 0.6,     // Ratio of map radius for capital placement
+  
+  // City and village spacing
+  CITY_MIN_DISTANCE: 6,                // Minimum distance between cities
+  VILLAGE_MIN_DISTANCE: 2,             // Minimum distance between villages
+  MAP_EDGE_BUFFER: 2,                  // Buffer distance from map edge
+  
+  // Water generation
+  WATER_EDGE_THRESHOLD: 0.8,           // Distance ratio for increased water at edges
+  WATER_EDGE_CHANCE: 0.4,              // Water probability at map edges
+  WATER_CENTER_CHANCE: 0.15,           // Water probability in center
+  
+  // Resource placement
+  INNER_CITY_RADIUS: 1,                // Adjacent to city
+  OUTER_CITY_RADIUS: 2,                // Two tiles from city
+  WILDERNESS_MIN_DISTANCE: 3,          // Minimum distance from city for wilderness resources
+  
+  // Village density
+  VILLAGE_DENSITY_RATIO: 25,           // Tiles per village (tiles.length / 25 = 4% density)
+} as const;
 
 /**
  * Tribal Homeland Generation System
@@ -217,7 +257,7 @@ export class MapGenerator {
     // Create balanced quadrants for player spawning
     for (let i = 0; i < playerCount; i++) {
       const angle = (i / playerCount) * 2 * Math.PI;
-      const spawnRadius = Math.floor(mapRadius * 0.6); // 60% from center
+      const spawnRadius = Math.floor(mapRadius * MAP_GENERATION_CONSTANTS.CAPITAL_SPAWN_RADIUS_RATIO);
       
       const q = Math.round(spawnRadius * Math.cos(angle));
       const r = Math.round(spawnRadius * Math.sin(angle));
@@ -252,7 +292,7 @@ export class MapGenerator {
       
       // Check distance from existing cities
       const tooClose = [...capitalPositions].some(cityPos => 
-        hexDistance(candidate.coordinate, cityPos) < 6
+        hexDistance(candidate.coordinate, cityPos) < MAP_GENERATION_CONSTANTS.CITY_MIN_DISTANCE
       );
       
       if (!candidate.hasCity && !tooClose) {
@@ -279,7 +319,7 @@ export class MapGenerator {
     
     // Pass 3: Post-terrain villages (universal pass)
     // Keep adding villages until no legal tile remains, with soft cap
-    const maxVillages = Math.floor(tiles.length / 25); // ~4% of land tiles like Polytopia (was 8% = /15)
+    const maxVillages = Math.floor(tiles.length / MAP_GENERATION_CONSTANTS.VILLAGE_DENSITY_RATIO); // ~4% of land tiles like Polytopia
     let villagesPlaced = 0;
     let attempts = 0;
     const maxAttempts = tiles.length * 2; // Prevent infinite loops
@@ -320,18 +360,18 @@ export class MapGenerator {
     
     // Must be ≥ 2 tiles inside map edge (Polytopia rule)
     const distanceFromCenter = Math.sqrt(tile.coordinate.q ** 2 + tile.coordinate.r ** 2);
-    if (distanceFromCenter > mapRadius - 2) return false;
+    if (distanceFromCenter > mapRadius - MAP_GENERATION_CONSTANTS.MAP_EDGE_BUFFER) return false;
     
     // Must be ≥ 2 tiles from any existing village (Polytopia spacing rule)
     for (const villagePos of existingVillages) {
-      if (hexDistance(tile.coordinate, villagePos) < 2) {
+      if (hexDistance(tile.coordinate, villagePos) < MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE) {
         return false;
       }
     }
     
     // Must be ≥ 2 tiles from any capital (prevent blocking starting areas)
     for (const capitalPos of capitalPositions) {
-      if (hexDistance(tile.coordinate, capitalPos) < 2) {
+      if (hexDistance(tile.coordinate, capitalPos) < MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE) {
         return false;
       }
     }
@@ -358,13 +398,13 @@ export class MapGenerator {
       // Check if this tile is within a tribal homeland (4-tile radius from capitals)
       for (let i = 0; i < capitalPositions.length; i++) {
         const distance = hexDistance(tile.coordinate, capitalPositions[i]);
-        if (distance <= 4) {
+        if (distance <= MAP_GENERATION_CONSTANTS.TRIBAL_HOMELAND_RADIUS) {
           const factionId = this.playerFactions[i] as FactionId;
           const modifiers = TRIBAL_SPAWN_MODIFIERS[factionId];
           
           if (modifiers) {
             // Apply tribal homeland modifiers with distance falloff
-            const influence = Math.max(0, 1 - distance / 4); // Stronger influence closer to capital
+            const influence = Math.max(0, 1 - distance / MAP_GENERATION_CONSTANTS.TRIBAL_INFLUENCE_FALLOFF); // Stronger influence closer to capital
             terrainProbs = this.applyPolytopiaTribalModifiers(terrainProbs, modifiers, influence);
           }
         }
@@ -380,10 +420,10 @@ export class MapGenerator {
    * Order: mountain → forest → fields (plains calculated as remainder)
    */
   private applyPolytopiaTribalModifiers(
-    base: { mountain: number; forest: number; plains: number }, 
+    base: TerrainProbabilities, 
     modifiers: TribalSpawnModifiers, 
     influence: number
-  ): { mountain: number; forest: number; plains: number } {
+  ): TerrainProbabilities {
     // Step 1: Apply mountain modifier first (Polytopia order)
     let mountain = base.mountain;
     const mountainMod = 1 + (modifiers.mountain - 1) * influence;
@@ -405,13 +445,14 @@ export class MapGenerator {
    * Select terrain based on probabilities and noise
    * Includes tribal water modifier for coast generation
    */
-  private selectTerrainFromProbabilities(coord: HexCoordinate, probs: any, mapRadius: number): TerrainType {
+  private selectTerrainFromProbabilities(coord: HexCoordinate, probs: TerrainProbabilities, mapRadius: number): TerrainType {
     // Use noise to add variation
     const noiseValue = this.noise2D(coord.q * 0.1, coord.r * 0.1);
     const distanceFromCenter = Math.sqrt(coord.q ** 2 + coord.r ** 2) / mapRadius;
     
     // Base edge effects (more water near edges) - increased for better Mulekite support
-    let waterChance = distanceFromCenter > 0.8 ? 0.4 : 0.15;
+    let waterChance = distanceFromCenter > MAP_GENERATION_CONSTANTS.WATER_EDGE_THRESHOLD ? 
+      MAP_GENERATION_CONSTANTS.WATER_EDGE_CHANCE : MAP_GENERATION_CONSTANTS.WATER_CENTER_CHANCE;
     
     // Apply tribal water modifier if near capitals
     const capitalPositions = this.generateCapitalSpawns(Math.min(this.config.width, this.config.height));
@@ -419,12 +460,12 @@ export class MapGenerator {
       const capitalPos = capitalPositions[i];
       if (capitalPos) {
         const distance = hexDistance(coord, capitalPos);
-        if (distance <= 4) {
+        if (distance <= MAP_GENERATION_CONSTANTS.TRIBAL_HOMELAND_RADIUS) {
           const factionId = this.playerFactions[i] as FactionId;
           const modifiers = TRIBAL_SPAWN_MODIFIERS[factionId];
           
           if (modifiers) {
-            const influence = Math.max(0, 1 - distance / 4);
+            const influence = Math.max(0, 1 - distance / MAP_GENERATION_CONSTANTS.TRIBAL_INFLUENCE_FALLOFF);
             const waterMod = 1 + (modifiers.water - 1) * influence;
             waterChance *= waterMod;
           }
@@ -519,7 +560,7 @@ export class MapGenerator {
       if (tile.hasCity) return false; // Don't place on city tiles
       
       for (const cityCoord of cityCoordinates) {
-        if (hexDistance(tile.coordinate, cityCoord) <= 2) {
+        if (hexDistance(tile.coordinate, cityCoord) <= MAP_GENERATION_CONSTANTS.OUTER_CITY_RADIUS) {
           return true;
         }
       }
@@ -532,7 +573,7 @@ export class MapGenerator {
       
       // Check if far enough from any city (3+ tiles away for true wilderness)
       for (const cityCoord of cityCoordinates) {
-        if (hexDistance(tile.coordinate, cityCoord) < 3) {
+        if (hexDistance(tile.coordinate, cityCoord) < MAP_GENERATION_CONSTANTS.WILDERNESS_MIN_DISTANCE) {
           return false;
         }
       }
@@ -546,7 +587,7 @@ export class MapGenerator {
       );
       
       let spawnTable: ResourceSpawnRate;
-      if (distanceToNearestCity === 1) {
+      if (distanceToNearestCity === MAP_GENERATION_CONSTANTS.INNER_CITY_RADIUS) {
         spawnTable = this.getInnerCitySpawnTable(); // Adjacent to city
       } else {
         spawnTable = this.getOuterCitySpawnTable(); // 2 tiles from city
