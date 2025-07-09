@@ -117,7 +117,7 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
   const getModelForElement = (elementId: string) => {
     switch (elementId) {
       case 'timber_grove':
-        return { model: 'timber_grove', scale: 1.0 }; // Use new forest canopy model
+        return { model: 'timber_grove', scale: 0.15 }; // Use new forest canopy model - much smaller
       case 'wild_goats':
         return { model: 'game', scale: 0.7 }; // Animal elements
       case 'grain_patch':

@@ -667,6 +667,74 @@ export class MapGenerator {
         tile.resources.push(resourceToSpawn);
       }
     });
+    
+    // 6. Guarantee harvest opportunities safety pass per blueprint
+    this.guaranteeCapitalHarvestOpportunities(tiles, cityCoordinates);
+  }
+  
+  /**
+   * Guarantee each capital has at least 2 harvestable resources within 2 tiles
+   * Per blueprint: "randomly upgrade empty field/forest/mountain tiles until count == 2"
+   */
+  private guaranteeCapitalHarvestOpportunities(tiles: Tile[], capitalPositions: HexCoordinate[]): void {
+    const harvestableTypes = ['grain_patch', 'wild_goats', 'timber_grove', 'ore_vein'];
+    
+    for (const capitalPos of capitalPositions) {
+      // Count harvestable resources within 2 tiles
+      const nearbyTiles = tiles.filter(tile => {
+        const distance = hexDistance(tile.coordinate, capitalPos);
+        return distance <= 2 && distance > 0; // Within 2 tiles but not on capital
+      });
+      
+      let harvestableCount = 0;
+      nearbyTiles.forEach(tile => {
+        tile.resources.forEach(resource => {
+          if (harvestableTypes.includes(resource)) {
+            harvestableCount++;
+          }
+        });
+      });
+      
+      // If less than 2 harvestable resources, upgrade empty tiles
+      if (harvestableCount < 2) {
+        const upgradableTargets = nearbyTiles.filter(tile => {
+          // Must be empty and suitable terrain
+          if (tile.resources.length > 0) return false;
+          if (tile.terrain === 'water') return false;
+          return true;
+        });
+        
+        // Shuffle for randomness
+        for (let i = upgradableTargets.length - 1; i > 0; i--) {
+          const j = Math.floor(this.rng.next() * (i + 1));
+          [upgradableTargets[i], upgradableTargets[j]] = [upgradableTargets[j], upgradableTargets[i]];
+        }
+        
+        // Upgrade tiles until we have 2 harvestable resources
+        let upgraded = 0;
+        const needed = 2 - harvestableCount;
+        
+        for (const tile of upgradableTargets) {
+          if (upgraded >= needed) break;
+          
+          let resourceToAdd = '';
+          
+          // Add terrain-appropriate resource
+          if (tile.terrain === 'plains') {
+            resourceToAdd = this.rng.next() < 0.6 ? 'grain_patch' : 'wild_goats';
+          } else if (tile.terrain === 'forest') {
+            resourceToAdd = this.rng.next() < 0.5 ? 'timber_grove' : 'wild_goats';
+          } else if (tile.terrain === 'mountain') {
+            resourceToAdd = 'ore_vein';
+          }
+          
+          if (resourceToAdd) {
+            tile.resources.push(resourceToAdd);
+            upgraded++;
+          }
+        }
+      }
+    }
   }
   
   /**

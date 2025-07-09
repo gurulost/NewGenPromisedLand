@@ -84,9 +84,9 @@ function executeHarvestAction(
   unit: Unit,
   hex: any
 ): UnitActionResult {
-  // Check if tile has harvestable resources
-  const harvestableResources = ['fruit', 'game', 'fish', 'ruins'];
-  if (!harvestableResources.includes(hex.terrain) && !hex.resource) {
+  // Check if tile has harvestable world elements - unified system
+  const harvestableResources = ['timber_grove', 'wild_goats', 'grain_patch', 'ore_vein', 'fishing_shoal', 'sea_beast', 'jaredite_ruins'];
+  if (!hex.resources || !hex.resources.some(r => harvestableResources.includes(r))) {
     return { success: false, message: "No harvestable resources on this tile" };
   }
 
@@ -114,10 +114,12 @@ function executeHarvestAction(
     }
   }
 
-  // Apply harvest bonus based on resource type
-  const harvestBonus = hex.terrain === 'fruit' ? 3 : 
-                      hex.terrain === 'game' ? 2 : 
-                      hex.terrain === 'fish' ? 2 : 1;
+  // Apply harvest bonus based on unified world element system
+  const resource = hex.resources.find(r => harvestableResources.includes(r));
+  const harvestBonus = resource === 'grain_patch' ? 2 : 
+                      resource === 'timber_grove' ? 1 : 
+                      resource === 'wild_goats' ? 1 : 
+                      resource === 'ore_vein' ? 1 : 1;
 
   const newState = {
     ...state,
