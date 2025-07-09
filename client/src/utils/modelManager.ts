@@ -37,6 +37,7 @@ export const MODEL_PATHS = {
     stone: '/models/stone.glb',
     game: '/models/game.glb',
     metal: '/models/metal.glb',
+    forest_canopy: '/models/forest_canopy.glb', // New enchanted forest model
   }
 };
 
@@ -92,6 +93,9 @@ export const getResourceModelPath = (resourceType: string): string | null => {
     case 'metal':
     case 'gold': // Map gold to metal model (both are metallic)
       return MODEL_PATHS.resources.metal;
+    case 'forest_canopy':
+    case 'timber_grove': // Map timber grove to new forest model
+      return MODEL_PATHS.resources.forest_canopy;
 
     default:
       return null; // Return null for resources without 3D models (will use procedural)
