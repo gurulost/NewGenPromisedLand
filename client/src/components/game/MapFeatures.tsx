@@ -132,6 +132,50 @@ function MetalModel({ position }: { position: { x: number; y: number } }) {
   );
 }
 
+// World Element Model Components
+function WorldElementModel({ elementId, position }: { elementId: string; position: { x: number; y: number } }) {
+  // Use existing resource models for world elements with appropriate fallbacks
+  const getModelForElement = (elementId: string) => {
+    switch (elementId) {
+      case 'timber_grove':
+        return { model: 'fruit', color: '#4a5c3a', scale: 0.8 }; // Green-brown for timber
+      case 'wild_goats':
+        return { model: 'game', color: '#8B4513', scale: 0.7 }; // Brown for goats
+      case 'grain_patch':
+        return { model: 'fruit', color: '#DAA520', scale: 0.6 }; // Golden for grain
+      case 'fishing_shoal':
+        return { model: 'fruit', color: '#4682B4', scale: 0.5 }; // Blue for fish
+      case 'sea_beast':
+        return { model: 'game', color: '#2F4F4F', scale: 1.2 }; // Dark gray for sea beast
+      case 'jaredite_ruins':
+        return { model: 'stone', color: '#696969', scale: 1.0 }; // Gray for ruins
+      default:
+        return { model: 'fruit', color: '#90EE90', scale: 0.6 };
+    }
+  };
+
+  const config = getModelForElement(elementId);
+  const modelPath = getResourceModelPath(config.model as any);
+  
+  if (!modelPath) {
+    // Fallback to procedural geometry
+    return (
+      <Box position={[position.x, 0.05, position.y]} args={[0.08, 0.08, 0.08]} scale={config.scale}>
+        <meshStandardMaterial color={config.color} />
+      </Box>
+    );
+  }
+  
+  const { scene } = useGLTF(modelPath);
+  
+  return (
+    <group position={[position.x, 0.05, position.y]} scale={[config.scale, config.scale, config.scale]}>
+      <primitive object={scene.clone()} />
+      <meshStandardMaterial color={config.color} />
+    </group>
+  );
+}
+
 // Model preloading is now handled by the centralized modelManager.ts
 
 export default function MapFeatures() {
