@@ -9,11 +9,10 @@ import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/ci
 import Construction from "./Construction";
 import { CityModel } from "./CityModel";
 import { getVillageModelPath, getResourceModelPath } from "../../utils/modelManager";
+import { GroundedModel } from "./GroundedModel";
 
 // Village Model Component
 function VillageModel({ position, owner }: { position: { x: number; y: number }; owner?: string }) {
-  const { scene } = useGLTF(getVillageModelPath());
-  
   // Get color based on ownership
   const getOwnershipColor = (owner?: string) => {
     if (!owner || owner === 'neutral') return '#888888'; // Gray for neutral
@@ -22,8 +21,13 @@ function VillageModel({ position, owner }: { position: { x: number; y: number };
   };
   
   return (
-    <group position={[position.x, 0, position.y]} scale={[0.6, 0.6, 0.6]}>
-      <primitive object={scene.clone()} position={[0, 0.4, 0]} />
+    <group position={[position.x, 0, position.y]}>
+      <GroundedModel
+        src={getVillageModelPath()}
+        position={{ x: 0, y: 0 }}
+        scale={0.6}
+        tileY={0}
+      />
       {/* Village ownership indicator - small flag */}
       <group position={[0, 1.2, 0]}>
         <Cylinder args={[0.15, 0.15, 0.1]} position={[0, 0, 0]}>
@@ -51,12 +55,13 @@ function FruitModel({ position }: { position: { x: number; y: number } }) {
     );
   }
   
-  const { scene } = useGLTF(modelPath);
-  
   return (
-    <group position={[position.x, 0.05, position.y]} scale={[0.6, 0.6, 0.6]}>
-      <primitive object={scene.clone()} />
-    </group>
+    <GroundedModel
+      src={modelPath}
+      position={position}
+      scale={0.6}
+      tileY={0}
+    />
   );
 }
 
@@ -67,20 +72,19 @@ function StoneModel({ position }: { position: { x: number; y: number } }) {
   if (!modelPath) {
     // Fallback to procedural boxes if model not available
     return (
-      <group>
-        <Box position={[position.x, 0.15, position.y]} args={[0.12, 0.15, 0.12]}>
-          <meshStandardMaterial color="#696969" />
-        </Box>
-      </group>
+      <Box position={[position.x, 0.15, position.y]} args={[0.12, 0.15, 0.12]}>
+        <meshStandardMaterial color="#696969" />
+      </Box>
     );
   }
   
-  const { scene } = useGLTF(modelPath);
-  
   return (
-    <group position={[position.x, 0, position.y]} scale={[0.5, 0.5, 0.5]}>
-      <primitive object={scene.clone()} position={[0, 0.25, 0]} />
-    </group>
+    <GroundedModel
+      src={modelPath}
+      position={position}
+      scale={0.5}
+      tileY={0}
+    />
   );
 }
 
@@ -91,20 +95,19 @@ function GameModel({ position }: { position: { x: number; y: number } }) {
   if (!modelPath) {
     // Fallback to procedural animal if model not available
     return (
-      <group>
-        <Box position={[position.x, 0.08, position.y]} args={[0.1, 0.06, 0.15]}>
-          <meshStandardMaterial color="#8B4513" />
-        </Box>
-      </group>
+      <Box position={[position.x, 0.08, position.y]} args={[0.1, 0.06, 0.15]}>
+        <meshStandardMaterial color="#8B4513" />
+      </Box>
     );
   }
   
-  const { scene } = useGLTF(modelPath);
-  
   return (
-    <group position={[position.x, 0, position.y]} scale={[0.6, 0.6, 0.6]}>
-      <primitive object={scene.clone()} position={[0, 0.3, 0]} />
-    </group>
+    <GroundedModel
+      src={modelPath}
+      position={position}
+      scale={0.6}
+      tileY={0}
+    />
   );
 }
 
@@ -115,20 +118,19 @@ function MetalModel({ position }: { position: { x: number; y: number } }) {
   if (!modelPath) {
     // Fallback to procedural metal if model not available
     return (
-      <group>
-        <Box position={[position.x, 0.12, position.y]} args={[0.08, 0.12, 0.08]} rotation={[0, Math.PI/4, 0]}>
-          <meshStandardMaterial color="#C0C0C0" metalness={0.9} roughness={0.1} />
-        </Box>
-      </group>
+      <Box position={[position.x, 0.12, position.y]} args={[0.08, 0.12, 0.08]} rotation={[0, Math.PI/4, 0]}>
+        <meshStandardMaterial color="#C0C0C0" metalness={0.9} roughness={0.1} />
+      </Box>
     );
   }
   
-  const { scene } = useGLTF(modelPath);
-  
   return (
-    <group position={[position.x, 0, position.y]} scale={[0.5, 0.5, 0.5]}>
-      <primitive object={scene.clone()} position={[0, 0.25, 0]} />
-    </group>
+    <GroundedModel
+      src={modelPath}
+      position={position}
+      scale={0.5}
+      tileY={0}
+    />
   );
 }
 

@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import type { Unit } from '@shared/types/unit';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
 import { getUnitModelPath } from '../../utils/modelManager';
+import { GroundedModel } from './GroundedModel';
 
 interface UnitModelProps {
   unit: Unit;
@@ -17,30 +18,25 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   // Get the player's faction to determine which model variant to use
   const player = gameState?.players.find(p => p.id === unit.playerId);
   const playerFaction = player?.factionId;
-  
-  // Using centralized model manager for consistent high-quality 3D models across all factions
 
   const modelPath = getUnitModelPath(unit.type);
   const { scene } = useGLTF(modelPath);
   
-  // Clone the scene to avoid modifying the original
+  // Calculate unit scale based on type
+  const unitScale = useMemo(() => {
+    if (unit.type === 'worker') {
+      return 0.35; // Slightly smaller for civilian units
+    } else if (unit.type === 'scout' || unit.type === 'wilderness_hunter') {
+      return 0.38; // Medium scale for ranged units
+    } else if (unit.type === 'missionary' || unit.type === 'royal_envoy') {
+      return 0.37; // Special scale for religious units
+    }
+    return 0.4; // Default scale for most units
+  }, [unit.type]);
+  
+  // Clone and modify the scene for materials and status effects
   const clonedScene = useMemo(() => {
     const clone = scene.clone();
-    
-    // Scale the model to fit within a hex tile properly
-    // Different unit types may need different scaling
-    let scale = 0.4; // Default scale for most units
-    
-    // Adjust scale based on unit type if needed
-    if (unit.type === 'worker') {
-      scale = 0.35; // Slightly smaller for civilian units
-    } else if (unit.type === 'scout' || unit.type === 'wilderness_hunter') {
-      scale = 0.38; // Medium scale for ranged units
-    } else if (unit.type === 'missionary' || unit.type === 'royal_envoy') {
-      scale = 0.37; // Special scale for religious units
-    }
-    
-    clone.scale.setScalar(scale);
     
     // Adjust materials based on ownership and unit status
     clone.traverse((child) => {
@@ -90,9 +86,17 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     return clone;
   }, [scene, isPlayerUnit, unit.status]);
   
+  // Apply auto-grounding to the cloned scene
+  const groundedScene = useMemo(() => {
+    const box = new THREE.Box3().setFromObject(clonedScene);
+    const bottomShift = -box.min.y;
+    clonedScene.position.set(0, bottomShift, 0);
+    return clonedScene;
+  }, [clonedScene]);
+  
   return (
     <group position={[position.x, 0, position.y]}>
-      <primitive object={clonedScene} position={[0, 0.2, 0]} />
+      <primitive object={groundedScene} scale={[unitScale, unitScale, unitScale]} />
       
       {/* Unit status indicators */}
       {unit.status !== 'active' && (
