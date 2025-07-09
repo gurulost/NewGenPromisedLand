@@ -396,14 +396,33 @@ export class MapGenerator {
 
   /**
    * Select terrain based on probabilities and noise
+   * Includes tribal water modifier for coast generation
    */
   private selectTerrainFromProbabilities(coord: HexCoordinate, probs: any, mapRadius: number): TerrainType {
     // Use noise to add variation
     const noiseValue = this.noise2D(coord.q * 0.1, coord.r * 0.1);
     const distanceFromCenter = Math.sqrt(coord.q ** 2 + coord.r ** 2) / mapRadius;
     
-    // Add some edge effects (more water near edges)
+    // Base edge effects (more water near edges)
     let waterChance = distanceFromCenter > 0.8 ? 0.3 : 0.1;
+    
+    // Apply tribal water modifier if near capitals
+    for (let i = 0; i < this.config.playerCount; i++) {
+      const capitalPos = this.getCapitalPosition(i);
+      if (capitalPos) {
+        const distance = hexDistance(coord, capitalPos);
+        if (distance <= 4) {
+          const factionId = this.playerFactions[i] as FactionId;
+          const modifiers = TRIBAL_SPAWN_MODIFIERS[factionId];
+          
+          if (modifiers) {
+            const influence = Math.max(0, 1 - distance / 4);
+            const waterMod = 1 + (modifiers.water - 1) * influence;
+            waterChance *= waterMod;
+          }
+        }
+      }
+    }
     
     const rand = this.rng.next() + noiseValue * 0.3;
     
@@ -421,7 +440,15 @@ export class MapGenerator {
    */
   private placeZonedResources(tiles: Tile[]): void {
     const cityTiles = tiles.filter(tile => tile.hasCity);
-    const capitalPositions = this.generateCapitalSpawns(Math.min(this.config.width, this.config.height));
+    // Use the existing capital positions from the map generation
+    const capitalPositions = cityTiles.filter(city => 
+      this.playerFactions.some((_, i) => {
+        const expectedCapital = this.getCapitalPosition(i);
+        return expectedCapital && 
+               city.coordinate.q === expectedCapital.q && 
+               city.coordinate.r === expectedCapital.r;
+      })
+    ).map(city => city.coordinate);
     
     for (const tile of tiles) {
       // Only place resources within 2-tile radius of cities
@@ -460,6 +487,21 @@ export class MapGenerator {
   }
 
   /**
+   * Helper to get expected capital position for a player
+   */
+  private getCapitalPosition(playerIndex: number): HexCoordinate | null {
+    const mapRadius = Math.min(this.config.width, this.config.height);
+    const angle = (playerIndex / this.config.playerCount) * 2 * Math.PI;
+    const spawnRadius = Math.floor(mapRadius * 0.6);
+    
+    const q = Math.round(spawnRadius * Math.cos(angle));
+    const r = Math.round(spawnRadius * Math.sin(angle));
+    const s = -q - r;
+    
+    return { q, r, s };
+  }
+
+  /**
    * Apply tribal homeland modifiers to resource spawn rates
    * Water, fish, wild animals, and ruins are applied independently
    */
@@ -475,42 +517,42 @@ export class MapGenerator {
     const ruinsMod = 1 + (modifiers.ruins - 1) * influence;
     const fishMod = 1 + (modifiers.fish - 1) * influence;
     
-    // Apply modifiers to world elements
+    // Apply modifiers to world elements and traditional resources
     modified.wild_goats = Math.round(modified.wild_goats * wildAnimalMod);
     modified.jaredite_ruins = Math.round(modified.jaredite_ruins * ruinsMod);
     modified.fishing_shoal = Math.round(modified.fishing_shoal * fishMod);
     modified.sea_beast = Math.round(modified.sea_beast * fishMod);
+    
+    // Also apply to traditional animal resources
+    modified.food = Math.round(modified.food * wildAnimalMod); // Food includes hunted animals
     
     // Clamp values to reasonable ranges
     modified.wild_goats = Math.max(0, Math.min(30, modified.wild_goats));
     modified.jaredite_ruins = Math.max(0, Math.min(25, modified.jaredite_ruins));
     modified.fishing_shoal = Math.max(0, Math.min(20, modified.fishing_shoal));
     modified.sea_beast = Math.max(0, Math.min(15, modified.sea_beast));
+    modified.food = Math.max(0, Math.min(25, modified.food));
     
     return modified;
   }
 
   /**
-   * Step 6: Place special faction features
+   * Step 7: Place special tribal features (currently none defined)
    */
   private placeSpecialFeatures(tiles: Tile[], capitalPositions: HexCoordinate[]): void {
+    // Tribal system uses resource modifiers instead of special features
+    // This method is kept for future expansion if needed
+    
     for (let i = 0; i < capitalPositions.length; i++) {
-      const faction = this.playerFactions[i];
-      const modifiers = FACTION_TERRAIN_MODIFIERS[faction];
+      const factionId = this.playerFactions[i] as FactionId;
+      const modifiers = TRIBAL_SPAWN_MODIFIERS[factionId];
       
-      if (modifiers?.specialFeatures) {
-        for (const feature of modifiers.specialFeatures) {
-          // Find a suitable tile near the capital for special features
-          const nearbyTiles = tiles.filter(tile => {
-            const distance = hexDistance(tile.coordinate, capitalPositions[i]);
-            return distance >= 2 && distance <= 4 && !tile.hasCity && tile.resources.length === 0;
-          });
-          
-          if (nearbyTiles.length > 0) {
-            const chosenTile = this.rng.choice(nearbyTiles);
-            chosenTile.resources = [feature];
-          }
-        }
+      // Future: Add any special tribal features here
+      // For now, all tribal bonuses are handled through spawn rate modifiers
+      
+      if (modifiers && modifiers.lore) {
+        // Log tribal lore for debugging
+        console.log(`${factionId} homeland: ${modifiers.lore}`);
       }
     }
   }
