@@ -251,6 +251,21 @@ export default function MapFeatures() {
         return <MetalModel key={`metal-${key}`} position={position} />;
       case 'gold':
         return <MetalModel key={`gold-${key}`} position={position} />;
+      
+      // World Elements - Book of Mormon themed resources
+      case 'timber_grove':
+        return <GameModel key={`timber-${key}`} position={position} />; // Use tree model
+      case 'wild_goats':
+        return <GameModel key={`goats-${key}`} position={position} />; // Use animal model
+      case 'grain_patch':
+        return <FruitModel key={`grain-${key}`} position={position} />; // Use fruit model for crops
+      case 'fishing_shoal':
+        return <FruitModel key={`fish-${key}`} position={position} />; // Temporary fish representation
+      case 'sea_beast':
+        return <GameModel key={`whale-${key}`} position={position} />; // Use large creature model
+      case 'jaredite_ruins':
+        return <StoneModel key={`ruins-${key}`} position={position} />; // Use stone model for ruins
+      
       default:
         return null;
     }

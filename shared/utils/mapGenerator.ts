@@ -102,6 +102,13 @@ interface ResourceSpawnRate {
   food: number;
   stone: number;
   gold: number;
+  // World Elements
+  timber_grove: number;
+  wild_goats: number;
+  grain_patch: number;
+  fishing_shoal: number;
+  sea_beast: number;
+  jaredite_ruins: number;
   empty: number;
 }
 
@@ -515,10 +522,16 @@ export class MapGenerator {
    */
   private getInnerCitySpawnTable(): ResourceSpawnRate {
     return {
-      food: 40,  // 40%
-      stone: 25, // 25%
-      gold: 20,  // 20%
-      empty: 15  // 15%
+      food: 20,          // 20%
+      stone: 15,         // 15%
+      gold: 10,          // 10%
+      timber_grove: 15,  // 15%
+      wild_goats: 12,    // 12%
+      grain_patch: 16,   // 16%
+      fishing_shoal: 0,  // 0% (water only)
+      sea_beast: 0,      // 0% (deep water only)
+      jaredite_ruins: 7, // 7%
+      empty: 5           // 5%
     };
   }
   
@@ -527,10 +540,16 @@ export class MapGenerator {
    */
   private getOuterCitySpawnTable(): ResourceSpawnRate {
     return {
-      food: 15,  // 15%
-      stone: 15, // 15%
-      gold: 10,  // 10%
-      empty: 60  // 60%
+      food: 8,           // 8%
+      stone: 10,         // 10%
+      gold: 5,           // 5%
+      timber_grove: 12,  // 12%
+      wild_goats: 8,     // 8%
+      grain_patch: 10,   // 10%
+      fishing_shoal: 0,  // 0% (water only)
+      sea_beast: 0,      // 0% (deep water only)
+      jaredite_ruins: 7, // 7%
+      empty: 40          // 40%
     };
   }
   
@@ -548,7 +567,6 @@ export class MapGenerator {
         rate: spawnTable.food, 
         terrains: ['plains', 'forest'] 
       },
-
       { 
         type: 'stone', 
         rate: spawnTable.stone, 
@@ -557,7 +575,38 @@ export class MapGenerator {
       { 
         type: 'gold', 
         rate: spawnTable.gold, 
-        terrains: ['mountain', 'desert'] 
+        terrains: ['mountain', 'desert', 'plains'] 
+      },
+      // World Elements
+      { 
+        type: 'timber_grove', 
+        rate: spawnTable.timber_grove, 
+        terrains: ['forest', 'hill'] 
+      },
+      { 
+        type: 'wild_goats', 
+        rate: spawnTable.wild_goats, 
+        terrains: ['plains', 'hill'] 
+      },
+      { 
+        type: 'grain_patch', 
+        rate: spawnTable.grain_patch, 
+        terrains: ['plains', 'forest'] 
+      },
+      { 
+        type: 'fishing_shoal', 
+        rate: spawnTable.fishing_shoal, 
+        terrains: ['water'] 
+      },
+      { 
+        type: 'sea_beast', 
+        rate: spawnTable.sea_beast, 
+        terrains: ['water'] // Will be limited to deep water in post-processing
+      },
+      { 
+        type: 'jaredite_ruins', 
+        rate: spawnTable.jaredite_ruins, 
+        terrains: ['plains', 'desert', 'forest', 'hill'] 
       }
     ];
     

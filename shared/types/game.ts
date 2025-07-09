@@ -198,6 +198,22 @@ export const GameActionSchema = z.discriminatedUnion('type', [
     }),
   }),
   z.object({
+    type: z.literal('WORLD_ELEMENT_HARVEST'),
+    payload: z.object({
+      playerId: z.string(),
+      elementId: z.string(),
+      coordinate: HexCoordinateSchema,
+    }),
+  }),
+  z.object({
+    type: z.literal('WORLD_ELEMENT_BUILD'),
+    payload: z.object({
+      playerId: z.string(),
+      elementId: z.string(),
+      coordinate: HexCoordinateSchema,
+    }),
+  }),
+  z.object({
     type: z.literal('HEAL_UNIT'),
     payload: z.object({
       unitId: z.string(),
