@@ -324,21 +324,22 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           return value;
         }
         
-        // Function to create hex border
+        // Function to create hex border matching actual hex geometry
         float hexBorder(vec2 uv, float borderWidth) {
           // Convert UV to centered coordinates
           vec2 pos = (uv - 0.5) * 2.0;
           
-          // Create hexagon shape using distance field
-          float angle = atan(pos.y, pos.x);
+          // Rotate by 30 degrees to match the hex geometry orientation
+          // Our hex geometry is rotated by PI/6 (30 degrees) to align flat-top to north
+          float angle = atan(pos.y, pos.x) + 0.5236; // Add PI/6 (30 degrees)
           float radius = length(pos);
           
-          // Hexagon distance field
+          // Hexagon distance field with proper 60-degree segments
           float hexDist = cos(floor(0.5 + angle / 1.047198) * 1.047198 - angle) * radius;
           
           // Create border by checking distance from edge
-          float outerHex = step(hexDist, 0.85);
-          float innerHex = step(hexDist, 0.85 - borderWidth);
+          float outerHex = step(hexDist, 0.9);
+          float innerHex = step(hexDist, 0.9 - borderWidth);
           
           return outerHex - innerHex;
         }
