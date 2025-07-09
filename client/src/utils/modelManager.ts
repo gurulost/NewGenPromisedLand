@@ -40,6 +40,7 @@ export const MODEL_PATHS = {
     game: '/models/game.glb',
     metal: '/models/metal.glb',
     forest_canopy: '/models/forest_canopy.glb', // New enchanted forest model
+    fish_shoal: '/models/fish_shoal.glb', // New fish shoal model for water resources
   }
 };
 
@@ -98,6 +99,9 @@ export const getResourceModelPath = (resourceType: string): string | null => {
     case 'forest_canopy':
     case 'timber_grove': // Map timber grove to new forest model
       return MODEL_PATHS.resources.forest_canopy;
+    case 'fishing_shoal':
+    case 'fish':
+      return MODEL_PATHS.resources.fish_shoal;
 
     default:
       return null; // Return null for resources without 3D models (will use procedural)
