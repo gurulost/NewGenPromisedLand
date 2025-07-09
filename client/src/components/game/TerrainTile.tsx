@@ -56,25 +56,25 @@ function TerrainFallback({ terrain, position, color, opacity }: {
     
     switch (terrain) {
       case 'mountain':
-        // Create mountain peaks - more compact for overlay
-        const mountainGeometry = new THREE.ConeGeometry(0.6, 1.0, 6);
-        mountainGeometry.translate(0, 0.5, 0);
+        // Create subtle mountain peaks - much smaller for overlay effect
+        const mountainGeometry = new THREE.ConeGeometry(0.3, 0.4, 6);
+        mountainGeometry.translate(0, 0.2, 0);
         return mountainGeometry;
         
       case 'forest':
-        // Forest canopy - cluster of small trees
+        // Forest canopy - cluster of very small trees
         const forestGeometry = new THREE.BufferGeometry();
         const positions: number[] = [];
         const normals: number[] = [];
         
-        // Create 3 small tree cones
+        // Create 3 tiny tree cones
         for (let i = 0; i < 3; i++) {
-          const treeGeometry = new THREE.ConeGeometry(0.15, 0.5, 5);
+          const treeGeometry = new THREE.ConeGeometry(0.08, 0.25, 5);
           const angle = (i / 3) * Math.PI * 2;
-          const radius = 0.2;
+          const radius = 0.15;
           treeGeometry.translate(
             Math.cos(angle) * radius,
-            0.25,
+            0.125,
             Math.sin(angle) * radius
           );
           
@@ -94,10 +94,10 @@ function TerrainFallback({ terrain, position, color, opacity }: {
         return forestGeometry;
         
       case 'hill':
-        // Create gentle rolling hills - smaller for overlay
-        const hillGeometry = new THREE.SphereGeometry(0.7, 8, 4);
-        hillGeometry.scale(1, 0.2, 1);
-        hillGeometry.translate(0, 0.1, 0);
+        // Create gentle rolling hills - much more subtle
+        const hillGeometry = new THREE.SphereGeometry(0.5, 8, 4);
+        hillGeometry.scale(1, 0.15, 1);
+        hillGeometry.translate(0, 0.075, 0);
         return hillGeometry;
         
       case 'water':
@@ -113,14 +113,14 @@ function TerrainFallback({ terrain, position, color, opacity }: {
         const grassPositions: number[] = [];
         const grassNormals: number[] = [];
         
-        // Add small grass details - very minimal
-        for (let i = 0; i < 5; i++) {
-          const grassBlade = new THREE.ConeGeometry(0.05, 0.1, 3);
+        // Add tiny grass details - extremely minimal
+        for (let i = 0; i < 3; i++) {
+          const grassBlade = new THREE.ConeGeometry(0.02, 0.04, 3);
           const angle = Math.random() * Math.PI * 2;
-          const radius = Math.random() * 0.4;
+          const radius = Math.random() * 0.3;
           grassBlade.translate(
             Math.cos(angle) * radius,
-            0.05,
+            0.02,
             Math.sin(angle) * radius
           );
           
