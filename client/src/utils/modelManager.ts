@@ -41,8 +41,8 @@ export const MODEL_PATHS = {
     metal: '/models/metal.glb',
     forest_canopy: '/models/forest_canopy.glb', // New enchanted forest model
     fish_shoal: '/models/fish_shoal.glb', // New fish shoal model for water resources
-    jaredite_ruins: '/models/jaredite_ruins.glb', // New Jaredite ruins model
-    ore_vein: '/models/ore_vein.glb', // New ore vein model for unified ore system
+    jaredite_ruins: '/models/jaredite_ruins.glb?v=2', // New Jaredite ruins model
+    ore_vein: '/models/ore_vein.glb?v=2', // New ore vein model for unified ore system
   }
 };
 
@@ -117,3 +117,11 @@ export const getResourceModelPath = (resourceType: string): string | null => {
 
 // Initialize model preloading
 preloadAllModels();
+
+// Force preload new models to bypass cache
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    useGLTF.preload('/models/jaredite_ruins.glb?v=2');
+    useGLTF.preload('/models/ore_vein.glb?v=2');
+  }, 100);
+}
