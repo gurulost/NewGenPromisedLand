@@ -359,9 +359,9 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
               textureColor = texture2D(forestTexture, vUv).rgb;
               borderColor = vec3(0.2, 0.8, 0.2); // Green for forest
             } else if (vTextureId < 3.5) {
-              // Rotate mountain texture 120 degrees clockwise for better appearance
+              // Rotate mountain texture 150 degrees clockwise for better appearance
               vec2 rotatedUv = vUv - 0.5; // Center the UV
-              float angle = -2.094395; // 120 degrees clockwise in radians
+              float angle = -2.617994; // 150 degrees clockwise in radians
               float cosAngle = cos(angle);
               float sinAngle = sin(angle);
               vec2 mountainUv = vec2(
