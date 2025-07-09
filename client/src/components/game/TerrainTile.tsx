@@ -101,8 +101,10 @@ function TerrainFallback({ terrain, position, color, opacity }: {
         return hillGeometry;
         
       case 'water':
-        // Don't render water overlay - let hex grid handle water rendering
-        return new THREE.BufferGeometry(); // Empty geometry
+        // Create beautiful hexagonal water surface
+        const waterGeometry = new THREE.CylinderGeometry(0.95, 0.95, 0.02, 6);
+        waterGeometry.translate(0, 0.01, 0); // Slightly above hex grid
+        return waterGeometry;
         
       default:
         // Plains - subtle grass tufts or small details
@@ -149,7 +151,19 @@ function TerrainFallback({ terrain, position, color, opacity }: {
     // Add special material properties for water
     if (terrain === 'water') {
       mat.transparent = true;
-      mat.opacity = Math.min(opacity, 0.8);
+      mat.opacity = Math.min(opacity, 0.7);
+      mat.color.setRGB(0.4, 0.7, 0.9); // Beautiful water blue
+      // Add subtle metallic reflection for water
+      if (mat instanceof THREE.MeshLambertMaterial) {
+        const waterMat = new THREE.MeshPhongMaterial({
+          color: new THREE.Color(0.4, 0.7, 0.9),
+          transparent: true,
+          opacity: Math.min(opacity, 0.7),
+          shininess: 100,
+          specular: 0x4499ff
+        });
+        return waterMat;
+      }
     }
     
     return mat;
