@@ -398,10 +398,10 @@ export default function GameUI() {
         onUnitAction={handleUnitAction}
       />
 
-      {/* Save System Button */}
+      {/* Save System Button - Bottom Right */}
       <div className="pointer-events-auto">
         <button
-          className="fixed top-4 right-4 p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-600 transition-all"
+          className="fixed bottom-6 right-6 p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-600 transition-all shadow-lg"
           onClick={() => setShowAdvancedSaveSystem(true)}
           title="Advanced Save System"
         >

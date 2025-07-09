@@ -171,8 +171,19 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto">
-      <Card className="w-[700px] max-h-[80vh] overflow-hidden bg-slate-900 border-slate-600">
+    <div 
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto"
+      onClick={(e) => {
+        // Close menu if clicking on backdrop
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <Card 
+        className="w-[700px] max-h-[80vh] overflow-hidden bg-slate-900 border-slate-600"
+        onClick={(e) => e.stopPropagation()} // Prevent clicks inside card from closing menu
+      >
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-3 text-white font-cinzel">
