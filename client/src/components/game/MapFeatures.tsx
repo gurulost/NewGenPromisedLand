@@ -22,7 +22,7 @@ function VillageModel({ position, owner }: { position: { x: number; y: number };
   };
   
   return (
-    <group position={[position.x, 0.1, position.y]} scale={[0.6, 0.6, 0.6]}>
+    <group position={[position.x, 0.25, position.y]} scale={[0.6, 0.6, 0.6]}>
       <primitive object={scene.clone()} />
       {/* Village ownership indicator - small flag */}
       <group position={[0, 1.2, 0]}>
@@ -45,7 +45,7 @@ function FruitModel({ position }: { position: { x: number; y: number } }) {
   if (!modelPath) {
     // Fallback to procedural sphere if model not available
     return (
-      <Sphere position={[position.x, 0.05, position.y]} args={[0.06]}>
+      <Sphere position={[position.x, 0.2, position.y]} args={[0.06]}>
         <meshStandardMaterial color="#90EE90" />
       </Sphere>
     );
@@ -68,7 +68,7 @@ function StoneModel({ position }: { position: { x: number; y: number } }) {
     // Fallback to procedural boxes if model not available
     return (
       <group>
-        <Box position={[position.x, 0.09, position.y]} args={[0.12, 0.15, 0.12]}>
+        <Box position={[position.x, 0.25, position.y]} args={[0.12, 0.15, 0.12]}>
           <meshStandardMaterial color="#696969" />
         </Box>
       </group>
@@ -78,7 +78,7 @@ function StoneModel({ position }: { position: { x: number; y: number } }) {
   const { scene } = useGLTF(modelPath);
   
   return (
-    <group position={[position.x, 0.05, position.y]} scale={[0.5, 0.5, 0.5]}>
+    <group position={[position.x, 0.2, position.y]} scale={[0.5, 0.5, 0.5]}>
       <primitive object={scene.clone()} />
     </group>
   );
@@ -92,7 +92,7 @@ function GameModel({ position }: { position: { x: number; y: number } }) {
     // Fallback to procedural animal if model not available
     return (
       <group>
-        <Box position={[position.x, 0.08, position.y]} args={[0.1, 0.06, 0.15]}>
+        <Box position={[position.x, 0.22, position.y]} args={[0.1, 0.06, 0.15]}>
           <meshStandardMaterial color="#8B4513" />
         </Box>
       </group>
@@ -102,7 +102,7 @@ function GameModel({ position }: { position: { x: number; y: number } }) {
   const { scene } = useGLTF(modelPath);
   
   return (
-    <group position={[position.x, 0.05, position.y]} scale={[0.6, 0.6, 0.6]}>
+    <group position={[position.x, 0.2, position.y]} scale={[0.6, 0.6, 0.6]}>
       <primitive object={scene.clone()} />
     </group>
   );
@@ -116,7 +116,7 @@ function MetalModel({ position }: { position: { x: number; y: number } }) {
     // Fallback to procedural metal if model not available
     return (
       <group>
-        <Box position={[position.x, 0.09, position.y]} args={[0.08, 0.12, 0.08]} rotation={[0, Math.PI/4, 0]}>
+        <Box position={[position.x, 0.25, position.y]} args={[0.08, 0.12, 0.08]} rotation={[0, Math.PI/4, 0]}>
           <meshStandardMaterial color="#C0C0C0" metalness={0.9} roughness={0.1} />
         </Box>
       </group>
@@ -126,7 +126,7 @@ function MetalModel({ position }: { position: { x: number; y: number } }) {
   const { scene } = useGLTF(modelPath);
   
   return (
-    <group position={[position.x, 0.05, position.y]} scale={[0.5, 0.5, 0.5]}>
+    <group position={[position.x, 0.2, position.y]} scale={[0.5, 0.5, 0.5]}>
       <primitive object={scene.clone()} />
     </group>
   );
@@ -160,7 +160,7 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
   if (!modelPath) {
     // Fallback to procedural geometry
     return (
-      <Box position={[position.x, 0.05, position.y]} args={[0.08, 0.08, 0.08]} scale={config.scale}>
+      <Box position={[position.x, 0.25, position.y]} args={[0.08, 0.08, 0.08]} scale={config.scale}>
         <meshStandardMaterial color={config.color} />
       </Box>
     );
@@ -169,7 +169,7 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
   const { scene } = useGLTF(modelPath);
   
   return (
-    <group position={[position.x, 0.05, position.y]} scale={[config.scale, config.scale, config.scale]}>
+    <group position={[position.x, 0.25, position.y]} scale={[config.scale, config.scale, config.scale]}>
       <primitive object={scene.clone()} />
       <meshStandardMaterial color={config.color} />
     </group>
@@ -280,7 +280,7 @@ export default function MapFeatures() {
   
   // Function to render resource models with enhanced visuals
   const renderResource = (resource: string, position: { x: number; y: number }, key: string) => {
-    const y = 0.05; // Slight elevation above ground
+    const y = 0.2; // Proper elevation above hex tiles
     
     switch (resource) {
       case 'fruit':
@@ -322,7 +322,7 @@ export default function MapFeatures() {
 
   // Function to render improvement models
   const renderImprovement = (improvement: any, position: { x: number; y: number }, key: string) => {
-    const y = 0.1; // Elevated above ground
+    const y = 0.3; // Properly elevated above hex tiles
     
     switch (improvement.type) {
       case 'farm':
@@ -456,7 +456,7 @@ export default function MapFeatures() {
     const offsetDistance = 0.4;
     const x = cityPosition.x + Math.cos(offsetAngle) * offsetDistance;
     const z = cityPosition.y + Math.sin(offsetAngle) * offsetDistance;
-    const y = 0.2;
+    const y = 0.4;
     
     switch (structure.type) {
       case 'temple':
