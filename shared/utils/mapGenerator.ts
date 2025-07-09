@@ -1,5 +1,5 @@
 import { createNoise2D } from 'simplex-noise';
-import type { GameMap, Tile, TerrainType, HexCoordinate } from '@shared/types/game';
+import type { GameMap, Tile, TerrainType, HexCoordinate, FactionId } from '@shared/types/game';
 import { hexDistance } from './hex';
 
 export class SeededRandom {
@@ -50,51 +50,82 @@ export const MAP_SIZE_CONFIGS: Record<MapSize, MapSizeConfig> = {
   huge: { tiles: 400, dimensions: 20, maxPlayers: 8, name: 'Huge' }
 };
 
-interface FactionTerrainModifiers {
-  mountainMod: number;
-  forestMod: number;
-  resourceMods: {
-    metal: number;
-    animal: number;
-    fruit: number;
-    crop: number;
-    fish?: number;
-    water?: number;
-  };
-  specialFeatures?: string[];
+/**
+ * Tribal Homeland Generation System
+ * Each tribe begins on a procedurally generated homeland tilted toward their cultural resources
+ * Uses Polytopia-style multipliers with proper order of operations for consistent tile mix
+ */
+interface TribalSpawnModifiers {
+  mountain: number;    // Applied first - affects food tiles inversely
+  forest: number;      // Applied second - only affects remaining field share
+  grainField: number;  // Calculated automatically = 100% - mountain - forest
+  wildAnimal: number;  // Applied independently to overlay tiles
+  water: number;       // Applied independently to coast tiles
+  fish: number;        // Applied independently to water tiles
+  ruins: number;       // Applied independently to overlay tiles
+  lore: string;        // Cultural background for this tribe
 }
 
-export const FACTION_TERRAIN_MODIFIERS: Record<string, FactionTerrainModifiers> = {
+export const TRIBAL_SPAWN_MODIFIERS: Record<FactionId, TribalSpawnModifiers> = {
   NEPHITES: {
-    mountainMod: 1.5,
-    forestMod: 0.8,
-    resourceMods: { metal: 1.5, animal: 1.0, fruit: 1.0, crop: 1.0 },
-    specialFeatures: ['Sacred Grove']
+    mountain: 0.8,
+    forest: 1.0,
+    grainField: 1.2,
+    wildAnimal: 0.8,
+    water: 1.0,
+    fish: 1.0,
+    ruins: 1.0,
+    lore: "Agriculturally focused, city-building people (Alma 50); extra fertile fields accelerate peaceful booming while slightly fewer mountains keep starts flexible."
   },
   LAMANITES: {
-    mountainMod: 0.8,
-    forestMod: 1.5,
-    resourceMods: { metal: 1.0, animal: 2.0, fruit: 0.5, crop: 0.0 }
+    mountain: 0.8,
+    forest: 1.5,
+    grainField: 0.5,
+    wildAnimal: 1.5,
+    water: 1.0,
+    fish: 1.0,
+    ruins: 1.0,
+    lore: "Dwelt in the wilderness and lived by the chase (Enos 1:20); dense forests and abundant game fuel aggressive early hunts."
   },
   MULEKITES: {
-    mountainMod: 0.5,
-    forestMod: 0.8,
-    resourceMods: { metal: 1.0, animal: 1.0, fruit: 1.5, crop: 1.0, fish: 1.5, water: 1.5 }
-  },
-  ZORAMITES: {
-    mountainMod: 1.2,
-    forestMod: 0.5,
-    resourceMods: { metal: 2.0, animal: 1.0, fruit: 0.5, crop: 1.0 }
+    mountain: 0.5,
+    forest: 0.8,
+    grainField: 1.3,
+    wildAnimal: 1.0,
+    water: 1.5,
+    fish: 1.5,
+    ruins: 1.2,
+    lore: "River-valley traders along the Sidon (Omni 1:16); plentiful waterways and fish support commerce, extra ruins from Jaredite encounters."
   },
   ANTI_NEPHI_LEHIES: {
-    mountainMod: 0.5,
-    forestMod: 1.2,
-    resourceMods: { metal: 0.1, animal: 0.1, fruit: 1.0, crop: 2.0 }
+    mountain: 0.6,
+    forest: 0.9,
+    grainField: 1.5,
+    wildAnimal: 1.5,
+    water: 1.0,
+    fish: 1.0,
+    ruins: 1.0,
+    lore: "Peaceful herders in Jershon (Alma 27); rich pastures enable tall, defensive play while fewer mountains reduce rush-mining incentives."
+  },
+  ZORAMITES: {
+    mountain: 1.5,
+    forest: 0.5,
+    grainField: 0.7,
+    wildAnimal: 0.5,
+    water: 0.8,
+    fish: 0.8,
+    ruins: 1.0,
+    lore: "Proud, stark land of Antionum (Alma 31); rocky starts suit defensive Pride strategies, but limited food pushes expansion."
   },
   JAREDITES: {
-    mountainMod: 1.0,
-    forestMod: 1.0,
-    resourceMods: { metal: 1.0, animal: 1.0, fruit: 1.0, crop: 1.0 }
+    mountain: 1.5,
+    forest: 1.0,
+    grainField: 0.8,
+    wildAnimal: 1.2,
+    water: 0.8,
+    fish: 0.8,
+    ruins: 2.0,
+    lore: "Ancient civilization with many herds and flocks (Ether 13); rugged highlands and double ruins for exploring their fallen empire."
   }
 };
 
@@ -281,52 +312,55 @@ export class MapGenerator {
   }
 
   /**
-   * Step 5: Generate faction-biased terrain using cascading modifiers
+   * Step 5: Generate terrain with tribal homeland modifiers
+   * Uses Polytopia-style cascading modifiers with proper order of operations
    */
   private generateFactionBiasedTerrain(tiles: Tile[], mapRadius: number, capitalPositions: HexCoordinate[]): void {
-    // Base terrain percentages
+    // Base terrain distribution (neutral/Luxidoor settings)
     const baseTerrain = {
-      mountain: 0.14,  // 14%
-      forest: 0.38,    // 38%
-      plains: 0.48     // 48% (fields)
+      mountain: 0.25,
+      forest: 0.35,
+      plains: 0.40  // This represents grain fields
     };
-
+    
     for (const tile of tiles) {
-      // Determine which faction influences this tile (if any)
-      let influencingFaction = null;
-      let minDistance = Infinity;
+      // Default terrain generation
+      let terrainProbs = { ...baseTerrain };
       
+      // Check if this tile is within a tribal homeland (4-tile radius from capitals)
       for (let i = 0; i < capitalPositions.length; i++) {
         const distance = hexDistance(tile.coordinate, capitalPositions[i]);
-        if (distance < Math.floor(mapRadius * 0.4) && distance < minDistance) {
-          minDistance = distance;
-          influencingFaction = this.playerFactions[i];
+        if (distance <= 4) {
+          const factionId = this.playerFactions[i] as FactionId;
+          const modifiers = TRIBAL_SPAWN_MODIFIERS[factionId];
+          
+          if (modifiers) {
+            // Apply tribal homeland modifiers with distance falloff
+            const influence = Math.max(0, 1 - distance / 4); // Stronger influence closer to capital
+            terrainProbs = this.applyTribalModifiers(terrainProbs, modifiers, influence);
+          }
         }
       }
-
-      // Apply faction modifiers if within influence range
-      let terrainProbs = { ...baseTerrain };
-      if (influencingFaction && FACTION_TERRAIN_MODIFIERS[influencingFaction]) {
-        terrainProbs = this.applyCascadingModifiers(baseTerrain, FACTION_TERRAIN_MODIFIERS[influencingFaction]);
-      }
-
-      // Generate terrain based on noise and modified probabilities
+      
+      // Generate terrain based on modified probabilities
       tile.terrain = this.selectTerrainFromProbabilities(tile.coordinate, terrainProbs, mapRadius);
     }
   }
 
   /**
-   * Apply cascading terrain modifiers as specified
+   * Apply tribal homeland modifiers using Polytopia's cascading system
+   * Order of operations: mountain → forest → plains (calculated automatically)
    */
-  private applyCascadingModifiers(base: any, modifiers: FactionTerrainModifiers): any {
+  private applyTribalModifiers(base: any, modifiers: TribalSpawnModifiers, influence: number): any {
     // Step 1: Start with base percentages
     let mountain = base.mountain;
     let forest = base.forest;
     let plains = base.plains;
 
-    // Step 2: Apply mountain modifier
+    // Step 2: Apply mountain modifier first
+    const mountainMod = 1 + (modifiers.mountain - 1) * influence;
     const originalMountain = mountain;
-    mountain = Math.min(0.8, Math.max(0.05, mountain * modifiers.mountainMod)); // Clamp between 5-80%
+    mountain = Math.min(0.8, Math.max(0.05, mountain * mountainMod)); // Clamp between 5-80%
     const mountainDelta = mountain - originalMountain;
     
     // Subtract delta proportionally from original forest and plains
@@ -336,15 +370,20 @@ export class MapGenerator {
       plains -= mountainDelta * (base.plains / originalTotal);
     }
 
-    // Step 3: Apply forest modifier to newly adjusted forest percentage
-    const newForest = Math.min(0.8, Math.max(0.05, forest * modifiers.forestMod));
+    // Step 3: Apply forest modifier second
+    const forestMod = 1 + (modifiers.forest - 1) * influence;
+    const newForest = Math.min(0.8, Math.max(0.05, forest * forestMod));
     const forestDelta = newForest - forest;
     
-    // Subtract forest delta only from plains
+    // Subtract forest delta only from plains (grain fields)
     plains -= forestDelta;
     forest = newForest;
 
-    // Step 4: Ensure valid percentages
+    // Step 4: Plains (grain fields) are whatever is left
+    // This ensures the map still sums to 100% and implements the grainField modifier indirectly
+    plains = Math.max(0.05, plains);
+
+    // Step 5: Ensure valid percentages
     const total = mountain + forest + plains;
     if (total > 0) {
       mountain /= total;
@@ -378,10 +417,11 @@ export class MapGenerator {
   }
 
   /**
-   * Step 5: Place resources in zones around cities with faction modifiers
+   * Step 6: Place resources in zones around cities with tribal modifiers
    */
   private placeZonedResources(tiles: Tile[]): void {
     const cityTiles = tiles.filter(tile => tile.hasCity);
+    const capitalPositions = this.generateCapitalSpawns(Math.min(this.config.width, this.config.height));
     
     for (const tile of tiles) {
       // Only place resources within 2-tile radius of cities
@@ -394,17 +434,60 @@ export class MapGenerator {
       const distance = hexDistance(tile.coordinate, nearbyCity.coordinate);
       const isInnerCity = distance === 1;
       
-      // Get spawn rates based on distance
-      const spawnRates = isInnerCity ? this.getInnerCitySpawnTable() : this.getOuterCitySpawnTable();
+      // Get base spawn rates based on distance
+      let spawnRates = isInnerCity ? this.getInnerCitySpawnTable() : this.getOuterCitySpawnTable();
       
-      // Apply faction resource modifiers if applicable
-      // TODO: Implement faction-specific resource modifiers based on nearby capital
+      // Apply tribal homeland modifiers if this city is near a capital
+      for (let i = 0; i < capitalPositions.length; i++) {
+        const distanceFromCapital = hexDistance(nearbyCity.coordinate, capitalPositions[i]);
+        if (distanceFromCapital <= 4) {
+          const factionId = this.playerFactions[i] as FactionId;
+          const modifiers = TRIBAL_SPAWN_MODIFIERS[factionId];
+          
+          if (modifiers) {
+            // Apply tribal resource modifiers
+            const influence = Math.max(0, 1 - distanceFromCapital / 4);
+            spawnRates = this.applyTribalResourceModifiers(spawnRates, modifiers, influence);
+          }
+        }
+      }
       
       const resource = this.getResourceFromTable(spawnRates, tile.terrain);
       if (resource) {
         tile.resources = [resource];
       }
     }
+  }
+
+  /**
+   * Apply tribal homeland modifiers to resource spawn rates
+   * Water, fish, wild animals, and ruins are applied independently
+   */
+  private applyTribalResourceModifiers(
+    baseRates: ResourceSpawnRate, 
+    modifiers: TribalSpawnModifiers, 
+    influence: number
+  ): ResourceSpawnRate {
+    const modified = { ...baseRates };
+    
+    // Apply independent modifiers (these don't affect land terrain balance)
+    const wildAnimalMod = 1 + (modifiers.wildAnimal - 1) * influence;
+    const ruinsMod = 1 + (modifiers.ruins - 1) * influence;
+    const fishMod = 1 + (modifiers.fish - 1) * influence;
+    
+    // Apply modifiers to world elements
+    modified.wild_goats = Math.round(modified.wild_goats * wildAnimalMod);
+    modified.jaredite_ruins = Math.round(modified.jaredite_ruins * ruinsMod);
+    modified.fishing_shoal = Math.round(modified.fishing_shoal * fishMod);
+    modified.sea_beast = Math.round(modified.sea_beast * fishMod);
+    
+    // Clamp values to reasonable ranges
+    modified.wild_goats = Math.max(0, Math.min(30, modified.wild_goats));
+    modified.jaredite_ruins = Math.max(0, Math.min(25, modified.jaredite_ruins));
+    modified.fishing_shoal = Math.max(0, Math.min(20, modified.fishing_shoal));
+    modified.sea_beast = Math.max(0, Math.min(15, modified.sea_beast));
+    
+    return modified;
   }
 
   /**
