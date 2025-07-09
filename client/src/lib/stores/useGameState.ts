@@ -16,6 +16,10 @@ interface GameStateStore {
     playerId: string | null;
   };
   
+  // Movement and attack modes
+  isMovementMode: boolean;
+  isAttackMode: boolean;
+  
   setSelectedUnit: (unit: Unit | null) => void;
   setHoveredTile: (tile: { x: number; z: number; tile: Tile } | null) => void;
   setReachableTiles: (tiles: string[]) => void;
@@ -23,6 +27,10 @@ interface GameStateStore {
   // Construction actions
   startConstruction: (buildingType: string, category: 'improvements' | 'structures' | 'units', cityId: string, playerId: string) => void;
   cancelConstruction: () => void;
+  
+  // Movement and attack mode actions
+  setMovementMode: (enabled: boolean) => void;
+  setAttackMode: (enabled: boolean) => void;
 }
 
 export const useGameState = create<GameStateStore>((set) => ({
@@ -38,7 +46,10 @@ export const useGameState = create<GameStateStore>((set) => ({
     playerId: null,
   },
   
-  setSelectedUnit: (unit) => set({ selectedUnit: unit }),
+  isMovementMode: false,
+  isAttackMode: false,
+  
+  setSelectedUnit: (unit) => set({ selectedUnit: unit, isMovementMode: false, isAttackMode: false }),
   setHoveredTile: (tile) => set({ hoveredTile: tile }),
   setReachableTiles: (tiles) => set({ reachableTiles: tiles }),
   
@@ -51,6 +62,8 @@ export const useGameState = create<GameStateStore>((set) => ({
       playerId,
     },
     selectedUnit: null, // Clear unit selection when starting construction
+    isMovementMode: false,
+    isAttackMode: false,
   }),
   
   cancelConstruction: () => set({
@@ -62,4 +75,7 @@ export const useGameState = create<GameStateStore>((set) => ({
       playerId: null,
     },
   }),
+  
+  setMovementMode: (enabled) => set({ isMovementMode: enabled, isAttackMode: enabled ? false : false }),
+  setAttackMode: (enabled) => set({ isAttackMode: enabled, isMovementMode: enabled ? false : false }),
 }));

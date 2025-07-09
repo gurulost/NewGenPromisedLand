@@ -5,6 +5,7 @@ import { Button } from "./button";
 import { Badge } from "./badge";
 import { Separator } from "./separator";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
+import { useGameState } from "../../lib/stores/useGameState";
 import { getUnitDefinition } from "@shared/data/units";
 import type { Unit } from "@shared/types/unit";
 import { 
@@ -20,7 +21,9 @@ interface SelectedUnitPanelProps {
 
 export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
   const { gameState } = useLocalGame();
+  const { setMovementMode, setAttackMode } = useGameState();
   const [showActionsPanel, setShowActionsPanel] = useState(false);
+  
   // Memoize unit definition lookup and calculated stats
   const unitStats = useMemo(() => {
     const unitDef = getUnitDefinition(unit.type);
@@ -114,63 +117,36 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
             </div>
           )}
 
-          {/* Unit Actions */}
-          <div className="space-y-2">
+          {/* Main Action Buttons */}
+          <div className="grid grid-cols-3 gap-2">
             <Button
-              onClick={() => setShowActionsPanel(true)}
-              className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white"
+              onClick={() => setAttackMode(true)}
+              className="bg-red-600 hover:bg-red-700 text-white"
               size="sm"
+              disabled={unit.hasAttacked}
             >
-              <Settings className="w-4 h-4 mr-2" />
-              Unit Actions
+              <Target className="w-4 h-4 mr-1" />
+              Attack
+            </Button>
+            
+            <Button
+              onClick={() => setMovementMode(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              size="sm"
+              disabled={unit.remainingMovement === 0}
+            >
+              <Move className="w-4 h-4 mr-1" />
+              Move
             </Button>
 
-            {/* Quick Action Buttons */}
-            <div className="grid grid-cols-2 gap-1">
-              {unit.type === 'scout' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs bg-slate-800/50 border-slate-600 text-slate-300"
-                >
-                  <Eye className="w-3 h-3 mr-1" />
-                  Stealth
-                </Button>
-              )}
-
-              {unit.type === 'missionary' && gameState && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs bg-slate-800/50 border-slate-600 text-slate-300"
-                >
-                  <Heart className="w-3 h-3 mr-1" />
-                  Heal
-                </Button>
-              )}
-
-              {unit.type === 'catapult' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs bg-slate-800/50 border-slate-600 text-slate-300"
-                >
-                  <Bomb className="w-3 h-3 mr-1" />
-                  Setup
-                </Button>
-              )}
-
-              {unit.type === 'commander' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs bg-slate-800/50 border-slate-600 text-slate-300"
-                >
-                  <Crown className="w-3 h-3 mr-1" />
-                  Rally
-                </Button>
-              )}
-            </div>
+            <Button
+              onClick={() => setShowActionsPanel(true)}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+              size="sm"
+            >
+              <Sparkles className="w-4 h-4 mr-1" />
+              Ability
+            </Button>
           </div>
         </CardContent>
       </Card>

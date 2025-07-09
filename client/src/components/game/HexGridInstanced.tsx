@@ -94,7 +94,7 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
 
 export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const { gameState, moveUnit } = useLocalGame();
-  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction } = useGameState();
+  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction, isMovementMode, setMovementMode } = useGameState();
   const { camera, raycaster, gl } = useThree();
   
   // Calculate valid construction tiles when in construction mode
@@ -608,32 +608,34 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         if (unitOnTile && currentPlayer) {
           // If clicking on a unit
           if (unitOnTile.playerId === currentPlayer.id) {
-            // Select own unit
+            // Select own unit (but don't show movement tiles yet)
             console.log('Unit clicked:', unitOnTile.id, 'Current player:', currentPlayer.id, 'Unit player:', unitOnTile.playerId);
             setSelectedUnit(unitOnTile);
-            
-            // Calculate reachable tiles for the selected unit
-            if (gameState) {
-              const reachableCoords = calculateReachableTiles(gameState, unitOnTile.coordinate, unitOnTile.remainingMovement);
-              const reachableKeys = reachableCoords.map(coord => `${coord.q},${coord.r}`);
-              console.log('Calculating reachable tiles for unit:', unitOnTile.id, 'Movement:', unitOnTile.remainingMovement);
-              console.log('Reachable tiles:', reachableKeys);
-              setReachableTiles(reachableKeys);
-            }
+            // Exit any previous modes
+            setMovementMode(false);
           } else if (selectedUnit && selectedUnit.playerId === currentPlayer.id) {
             // Attack enemy unit if we have a unit selected
             // This would need attack logic implementation
             console.log('Attack target clicked:', unitOnTile.id);
           }
-        } else if (selectedUnit && selectedUnit.playerId === currentPlayer?.id) {
-          // Move selected unit to empty tile
+        } else if (selectedUnit && selectedUnit.playerId === currentPlayer?.id && isMovementMode) {
+          // Move selected unit to empty tile only if in movement mode
           const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
           
           if (reachableTiles.includes(tileKey)) {
             console.log('Moving unit to:', clickedTile.coordinate);
             moveUnit(selectedUnit.id, clickedTile.coordinate);
+            // Exit movement mode after moving
+            setMovementMode(false);
           } else {
             console.log('Tile not reachable');
+          }
+        } else if (!unitOnTile) {
+          // Clicked on empty tile - exit movement mode and deselect
+          console.log('Clicked on empty tile - exiting movement mode');
+          setMovementMode(false);
+          if (!isMovementMode) {
+            setSelectedUnit(null);
           }
         }
       }

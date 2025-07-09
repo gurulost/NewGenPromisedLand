@@ -24,7 +24,7 @@ import type { Unit } from "@shared/types/unit";
 
 export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
-  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction } = useGameState();
+  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isMovementMode, isAttackMode, setMovementMode, setAttackMode } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
@@ -203,10 +203,12 @@ export default function GameUI() {
       case 'attack':
         // Enter attack mode - show attack indicators
         console.log('Attack mode activated');
+        setAttackMode(true);
         break;
       case 'move':
         // Enter move mode - show movement indicators  
         console.log('Move mode activated');
+        setMovementMode(true);
         break;
       case 'ability':
         // Use unit ability

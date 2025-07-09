@@ -18,7 +18,7 @@ import { calculateReachableTiles } from "@shared/logic/unitLogic";
 
 export default function GameCanvas() {
   const { gameState } = useLocalGame();
-  const { selectedUnit, hoveredTile, setSelectedUnit } = useGameState();
+  const { selectedUnit, hoveredTile, setSelectedUnit, isMovementMode, setMovementMode } = useGameState();
   const { camera } = useThree();
   const controlsRef = useRef<any>();
   const debug = useGameDebugger();
@@ -208,15 +208,8 @@ export default function GameCanvas() {
             isSelected={selectedUnit?.id === unit.id}
             onUnitClick={(unit) => {
               setSelectedUnit(unit);
-              // Calculate movement coordinates for the clicked unit
-              const moveCoords = calculateReachableTiles(gameState, unit.coordinate, unit.remainingMovement);
-              console.log('🎯 Unit clicked - setting movement indicators:', {
-                unitId: unit.id,
-                remainingMovement: unit.remainingMovement,
-                moveCoords: moveCoords.length,
-                coordinates: moveCoords
-              });
-              selectUnit(unit.coordinate, moveCoords, []);
+              // Only show selection, don't show movement tiles yet
+              selectUnit(unit.coordinate, [], []);
             }}
           />
         ));
