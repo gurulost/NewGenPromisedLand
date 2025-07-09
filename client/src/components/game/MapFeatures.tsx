@@ -1,6 +1,6 @@
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { hexToPixel } from "@shared/utils/hex";
-import { Box, Cylinder, Sphere, Cone, Torus, useGLTF } from "@react-three/drei";
+import { Box, Cylinder, Sphere, Cone, Torus, useGLTF, Html } from "@react-three/drei";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useMemo } from "react";
 import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
@@ -10,6 +10,18 @@ import Construction from "./Construction";
 import { CityModel } from "./CityModel";
 import { getVillageModelPath, getResourceModelPath } from "../../utils/modelManager";
 import { GroundedModel } from "./GroundedModel";
+import { 
+  InfoTooltip, 
+  StoneResourceTooltip, 
+  FruitResourceTooltip, 
+  GameResourceTooltip, 
+  MetalResourceTooltip,
+  TimberGroveTooltip,
+  WildGoatsTooltip,
+  GrainPatchTooltip,
+  FishingShoalTooltip,
+  JarediteRuinsTooltip 
+} from '../ui/TooltipSystem';
 
 // Village Model Component
 function VillageModel({ position, owner }: { position: { x: number; y: number }; owner?: string }) {
@@ -237,6 +249,59 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
   );
 }
 
+// Resource with Info Tooltip Component
+function ResourceWithTooltip({ 
+  children, 
+  resourceType, 
+  position 
+}: { 
+  children: React.ReactNode; 
+  resourceType: string; 
+  position: { x: number; y: number; }; 
+}) {
+  const getTooltipContent = (type: string) => {
+    switch (type) {
+      case 'stone':
+        return <StoneResourceTooltip />;
+      case 'fruit':
+      case 'food':
+        return <FruitResourceTooltip />;
+      case 'animal':
+      case 'game':
+        return <GameResourceTooltip />;
+      case 'metal':
+      case 'gold':
+        return <MetalResourceTooltip />;
+      case 'timber_grove':
+        return <TimberGroveTooltip />;
+      case 'wild_goats':
+        return <WildGoatsTooltip />;
+      case 'grain_patch':
+        return <GrainPatchTooltip />;
+      case 'fishing_shoal':
+        return <FishingShoalTooltip />;
+      case 'sea_beast':
+        return <GameResourceTooltip />; // Use animal tooltip for sea beasts
+      case 'jaredite_ruins':
+        return <JarediteRuinsTooltip />;
+      default:
+        return <div>Resource information not available</div>;
+    }
+  };
+
+  return (
+    <group>
+      {children}
+      {/* Info button positioned above the resource using Html from drei */}
+      <Html position={[position.x + 0.3, 0.5, position.y + 0.3]} style={{ pointerEvents: 'auto' }}>
+        <div className="relative">
+          <InfoTooltip content={getTooltipContent(resourceType)} />
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 // Model preloading is now handled by the centralized modelManager.ts
 
 export default function MapFeatures() {
@@ -339,41 +404,56 @@ export default function MapFeatures() {
   
   if (!gameState) return null;
   
-  // Function to render resource models with enhanced visuals
+  // Function to render resource models with enhanced visuals and tooltips
   const renderResource = (resource: string, position: { x: number; y: number }, key: string) => {
     const y = 0.2; // Proper elevation above hex tiles
     
-    switch (resource) {
-      case 'fruit':
-      case 'food':
-        return <FruitModel key={`fruit-${key}`} position={position} />;
-      case 'stone':
-        return <StoneModel key={`stone-${key}`} position={position} />;
-      case 'animal':
-      case 'game':
-        return <GameModel key={`game-${key}`} position={position} />;
-      case 'metal':
-        return <MetalModel key={`metal-${key}`} position={position} />;
-      case 'gold':
-        return <MetalModel key={`gold-${key}`} position={position} />;
-      
-      // World Elements - Book of Mormon themed resources with terrain-appropriate models
-      case 'timber_grove':
-        return <ForestCanopyModel key={`timber-${key}`} position={position} />; // Use forest canopy model for timber
-      case 'wild_goats':
-        return <GameModel key={`goats-${key}`} position={position} />; // Animal model for plains creatures
-      case 'grain_patch':
-        return <FruitModel key={`grain-${key}`} position={position} />; // Fruit model represents crops/grain
-      case 'fishing_shoal':
-        return <FishShoalModel key={`fish-${key}`} position={position} />; // New fish shoal 3D model
-      case 'sea_beast':
-        return <GameModel key={`whale-${key}`} position={position} />; // Large creature model for sea beasts
-      case 'jaredite_ruins':
-        return <StoneModel key={`ruins-${key}`} position={position} />; // Stone model for ancient ruins
-      
-      default:
-        return null;
-    }
+    const getResourceModel = (resource: string) => {
+      switch (resource) {
+        case 'fruit':
+        case 'food':
+          return <FruitModel position={position} />;
+        case 'stone':
+          return <StoneModel position={position} />;
+        case 'animal':
+        case 'game':
+          return <GameModel position={position} />;
+        case 'metal':
+          return <MetalModel position={position} />;
+        case 'gold':
+          return <MetalModel position={position} />;
+        
+        // World Elements - Book of Mormon themed resources with terrain-appropriate models
+        case 'timber_grove':
+          return <ForestCanopyModel position={position} />; // Use forest canopy model for timber
+        case 'wild_goats':
+          return <GameModel position={position} />; // Animal model for plains creatures
+        case 'grain_patch':
+          return <FruitModel position={position} />; // Fruit model represents crops/grain
+        case 'fishing_shoal':
+          return <FishShoalModel position={position} />; // New fish shoal 3D model
+        case 'sea_beast':
+          return <GameModel position={position} />; // Large creature model for sea beasts
+        case 'jaredite_ruins':
+          return <StoneModel position={position} />; // Stone model for ancient ruins
+        
+        default:
+          return null;
+      }
+    };
+
+    const model = getResourceModel(resource);
+    if (!model) return null;
+
+    return (
+      <ResourceWithTooltip 
+        key={`resource-${key}`} 
+        resourceType={resource} 
+        position={position}
+      >
+        {model}
+      </ResourceWithTooltip>
+    );
   };
 
   // Function to render forest trees (Polytopia-style: ALL forests have trees)
