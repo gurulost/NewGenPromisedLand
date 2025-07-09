@@ -33,7 +33,7 @@ export const MODEL_PATHS = {
   },
   // Resource models
   resources: {
-    fruit: '/models/fruit.glb',
+    fruit: '/models/fruit.glb?v=2',
     stone: '/models/stone.glb',
     game: '/models/game.glb',
     metal: '/models/metal.glb',
