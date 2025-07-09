@@ -187,7 +187,7 @@ function FishShoalModel({ position }: { position: { x: number; y: number } }) {
     <GroundedModel
       src={modelPath}
       position={position}
-      scale={0.7}
+      scale={0.42}
       tileY={0}
     />
   );
@@ -205,7 +205,7 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
       case 'grain_patch':
         return { model: 'fruit', scale: 0.6 }; // Agricultural elements
       case 'fishing_shoal':
-        return { model: 'fishing_shoal', scale: 0.7 }; // Marine elements
+        return { model: 'fishing_shoal', scale: 0.42 }; // Marine elements
       case 'sea_beast':
         return { model: 'game', scale: 1.2 }; // Large creature elements
       case 'jaredite_ruins':
