@@ -20,7 +20,8 @@ import {
   WildGoatsTooltip,
   GrainPatchTooltip,
   FishingShoalTooltip,
-  JarediteRuinsTooltip 
+  JarediteRuinsTooltip,
+  OreVeinTooltip 
 } from '../ui/TooltipSystem';
 
 // Village Model Component
@@ -261,23 +262,15 @@ function ResourceWithTooltip({
 }) {
   const getTooltipContent = (type: string) => {
     switch (type) {
-      case 'stone':
-        return <StoneResourceTooltip />;
-      case 'fruit':
-      case 'food':
-        return <FruitResourceTooltip />;
-      case 'animal':
-      case 'game':
-        return <GameResourceTooltip />;
-      case 'metal':
-      case 'gold':
-        return <MetalResourceTooltip />;
+      // Unified World Elements System - All resources now provide moral choices
       case 'timber_grove':
         return <TimberGroveTooltip />;
       case 'wild_goats':
         return <WildGoatsTooltip />;
       case 'grain_patch':
         return <GrainPatchTooltip />;
+      case 'ore_vein':
+        return <OreVeinTooltip />; // Use ore vein tooltip for unified ore system
       case 'fishing_shoal':
         return <FishingShoalTooltip />;
       case 'sea_beast':
@@ -410,26 +403,15 @@ export default function MapFeatures() {
     
     const getResourceModel = (resource: string) => {
       switch (resource) {
-        case 'fruit':
-        case 'food':
-          return <FruitModel position={position} />;
-        case 'stone':
-          return <StoneModel position={position} />;
-        case 'animal':
-        case 'game':
-          return <GameModel position={position} />;
-        case 'metal':
-          return <MetalModel position={position} />;
-        case 'gold':
-          return <MetalModel position={position} />;
-        
-        // World Elements - Book of Mormon themed resources with terrain-appropriate models
+        // Unified World Elements System - All resources now provide moral choices
         case 'timber_grove':
           return <ForestCanopyModel position={position} />; // Use forest canopy model for timber
         case 'wild_goats':
           return <GameModel position={position} />; // Animal model for plains creatures
         case 'grain_patch':
           return <FruitModel position={position} />; // Fruit model represents crops/grain
+        case 'ore_vein':
+          return <MetalModel position={position} />; // Metal model for ore veins (replaces stone/gold)
         case 'fishing_shoal':
           return <FishShoalModel position={position} />; // New fish shoal 3D model
         case 'sea_beast':

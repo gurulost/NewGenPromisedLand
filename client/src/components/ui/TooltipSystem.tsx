@@ -624,3 +624,26 @@ export function JarediteRuinsTooltip() {
     </div>
   );
 }
+
+export function OreVeinTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-blue-400">Ore Vein</div>
+      <div className="text-xs text-slate-300">
+        Precious metals and ores present a choice between immediate extraction and sustainable mining.
+      </div>
+      <div className="text-xs space-y-1">
+        <div className="text-red-300">• Quick Option: Tap the Vein</div>
+        <div>  - Gain +1 population, +2 stars</div>
+        <div>  - +1 Pride, +1 Dissent (moral cost)</div>
+        <div>  - No technology requirement</div>
+        <div>  - Tile becomes empty mountain</div>
+        <div className="text-green-300">• Sustainable Option: Build Mine</div>
+        <div>  - Costs 5 stars, requires Mining tech</div>
+        <div>  - +1 Population, +1 star per turn</div>
+        <div>  - +1 Faith (spiritual benefit)</div>
+        <div>  - Permanent improvement</div>
+      </div>
+    </div>
+  );
+}

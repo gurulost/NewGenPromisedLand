@@ -170,13 +170,11 @@ export const TRIBAL_SPAWN_MODIFIERS: Record<FactionId, TribalSpawnModifiers> = {
 };
 
 interface ResourceSpawnRate {
-  food: number;
-  stone: number;
-  gold: number;
-  // World Elements
+  // Unified World Elements System - All resources now provide moral choices
   timber_grove: number;
   wild_goats: number;
   grain_patch: number;
+  ore_vein: number;         // Replaces stone + gold with unified ore system
   fishing_shoal: number;
   sea_beast: number;
   jaredite_ruins: number;
@@ -622,23 +620,21 @@ export class MapGenerator {
    */
   private getInnerCitySpawnTable(): ResourceSpawnRate {
     return {
-      // Field tiles (48% of land) - Inner city rates
-      grain_patch: 18,       // 18% (main field resource)
-      food: 18,             // 18% (fruit orchard equivalent)
-      wild_goats: 9,        // 9% (animals on plains terrain only)
+      // Field tiles (48% of land) - Inner city rates - boosted for guaranteed population
+      grain_patch: 22,       // 22% (boosted for guaranteed pop opportunities)
+      wild_goats: 22,        // 22% (boosted for guaranteed pop opportunities)
       
-      // Forest tiles (38% of land) - Inner city rates
-      timber_grove: 19,     // 19% (timber groves on forest terrain only)
+      // Forest tiles (38% of land) - Inner city rates - boosted for guaranteed population
+      timber_grove: 22,      // 22% (boosted for guaranteed pop opportunities)
       
-      // Mountain tiles (14% of land) - Inner city rates
-      stone: 6,             // 6% (basic ore vein)
-      gold: 5,              // 5% (precious metal - separate gold resource)
+      // Mountain tiles (14% of land) - Inner city rates - unified ore system
+      ore_vein: 11,          // 11% (replaces stone + gold with unified ore system)
       
       // Water-only resources
       fishing_shoal: 0,     // Water terrain only
       sea_beast: 0,         // Deep water only
       jaredite_ruins: 4,    // Standard ruins count (4-23 based on map size)
-      empty: 30             // Remaining empty tiles
+      empty: 19             // Remaining empty tiles (reduced due to higher resource rates)
     };
   }
   
@@ -650,17 +646,15 @@ export class MapGenerator {
     return {
       // Basic resources that reward expansion and exploration
       grain_patch: 2,       // 2% (rare grain patches in wilderness)
-      food: 1,              // 1% (wild fruit)
       wild_goats: 3,        // 3% (wilderness animals on plains only)
       timber_grove: 4,      // 4% (virgin forests on forest terrain only)
-      stone: 1,             // 1% (surface ore)
-      gold: 0.5,            // 0.5% (very rare wilderness gold)
+      ore_vein: 1.5,        // 1.5% (replaces stone + gold with unified ore system)
       
       // No special/rare resources in wilderness
       fishing_shoal: 0,     // Water only
       sea_beast: 0,         // Deep water only  
       jaredite_ruins: 0,    // No ruins in pure wilderness
-      empty: 88.5           // Mostly empty wilderness
+      empty: 89.5           // Mostly empty wilderness
     };
   }
 
@@ -669,23 +663,21 @@ export class MapGenerator {
    */
   private getOuterCitySpawnTable(): ResourceSpawnRate {
     return {
-      // Field tiles - Outer city rates (reduced)
-      grain_patch: 6,       // 6% (reduced from 18%)
-      food: 6,              // 6% (reduced from 18%)
+      // Field tiles - Outer city rates (reduced from inner)
+      grain_patch: 6,       // 6% (reduced from 22%)
       wild_goats: 3,        // 3% (animals on plains terrain only)
       
       // Forest tiles - Outer city rates
       timber_grove: 6,      // 6% (timber groves on forest terrain only)
       
-      // Mountain tiles - Outer city rates  
-      stone: 2,             // 2% (basic ore vein)
-      gold: 1,              // 1% (rare precious metal in outer zones)
+      // Mountain tiles - Outer city rates - unified ore system
+      ore_vein: 3,          // 3% (replaces stone + gold with unified ore system)
       
       // Water-only resources
       fishing_shoal: 0,     // Water terrain only
       sea_beast: 0,         // Deep water only
       jaredite_ruins: 4,    // Standard ruins distribution
-      empty: 75             // Majority empty in outer zones
+      empty: 78             // Majority empty in outer zones
     };
   }
   
@@ -708,19 +700,12 @@ export class MapGenerator {
     let cumulative = 0;
     
     const resourceChecks = [
-      // Field tiles (48% of land): grain_patch, fruit orchard
+      // Field tiles (48% of land): grain_patch and wild_goats (animals prefer open plains)
       { 
         type: 'grain_patch', 
         rate: spawnTable.grain_patch, 
         terrains: ['plains'] // Fields only
       },
-      { 
-        type: 'food', 
-        rate: spawnTable.food, 
-        terrains: ['plains'] // Fruit orchard on fields
-      },
-      
-      // Plains tiles: grain_patch, fruit, and wild_goats (animals prefer open plains)
       { 
         type: 'wild_goats', 
         rate: spawnTable.wild_goats, 
@@ -734,16 +719,11 @@ export class MapGenerator {
         terrains: ['forest'] // Forest only - chop vs sawmill choice
       },
       
-      // Mountain tiles (14% of land): ore veins (stone and gold)
+      // Mountain tiles (14% of land): unified ore system
       { 
-        type: 'stone', 
-        rate: spawnTable.stone, 
-        terrains: ['mountain'] // Mountain only
-      },
-      { 
-        type: 'gold', 
-        rate: spawnTable.gold, 
-        terrains: ['mountain'] // Mountain only - precious metal
+        type: 'ore_vein', 
+        rate: spawnTable.ore_vein, 
+        terrains: ['mountain'] // Mountain only - tap vs mine choice
       },
       
       // Ruins spawn on any land terrain
