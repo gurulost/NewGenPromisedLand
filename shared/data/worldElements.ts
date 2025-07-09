@@ -172,6 +172,41 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
     notes: 'Matches Polytopia fruit/crop → farm → windmill chain'
   },
 
+  ore_vein: {
+    elementId: 'ore_vein',
+    displayName: 'Ore Vein',
+    description: 'Precious metal veins as described in Helaman 6:11',
+    scriptureRef: 'Hel. 6:11',
+    terrain: ['mountain'],
+    spawnWeight: 1.0,
+    immediateAction: {
+      name: 'Tap the Vein',
+      starsDelta: 2,
+      faithDelta: 0,
+      prideDelta: 1,
+      dissentDelta: 1,
+      popDelta: 1, // Population boost for unified system
+      tileTransform: 'mountain'
+    },
+    longTermBuild: {
+      name: 'Mine',
+      costStars: 5,
+      effectPermanent: {
+        popDelta: 1,
+        starsPerTurn: 1
+      },
+      faithDelta: 1,
+      prideDelta: 0,
+      dissentDelta: 0
+    },
+    techPrerequisite: 'mining',
+    assetTileset: 'tiles/feature_ore_vein.png',
+    assetStructure: 'structures/mine.png',
+    uiTooltipHarvest: 'Tap for 2★ and 1 Pop (raises Pride & Dissent)',
+    uiTooltipBuild: 'Spend 5★ for Mine (+1 Pop, +1★/turn, +1 Faith)',
+    notes: 'Replaces metal resource - mountain-based population boost'
+  },
+
   fishing_shoal: {
     elementId: 'fishing_shoal',
     displayName: 'Fishing Shoal',
@@ -242,41 +277,6 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
     uiTooltipHarvest: 'Harvest for 10★ (Pride +3, Dissent +3)',
     uiTooltipBuild: '5★ Platform (+2 Pop, +2 Faith)',
     notes: 'Whale vs platform trade-off exactly preserved'
-  },
-
-  ore_vein: {
-    elementId: 'ore_vein',
-    displayName: 'Ore Vein',
-    description: 'Precious metals and ores found in the mountains (Helaman 6:11)',
-    scriptureRef: 'Hel. 6:11',
-    terrain: ['mountain'],
-    spawnWeight: 1.0,
-    immediateAction: {
-      name: 'Tap the Vein',
-      starsDelta: 2,
-      faithDelta: 0,
-      prideDelta: 1,
-      dissentDelta: 1,
-      popDelta: 1, // Population boost for unified system
-      tileTransform: 'mountain' // Stays mountain after harvest
-    },
-    longTermBuild: {
-      name: 'Mine',
-      costStars: 5,
-      effectPermanent: {
-        popDelta: 1,
-        starsPerTurn: 1
-      },
-      faithDelta: 1,
-      prideDelta: 0,
-      dissentDelta: 0
-    },
-    techPrerequisite: 'mining', // Tech required for building, not harvesting
-    assetTileset: 'tiles/feature_ore_vein.png',
-    assetStructure: 'structures/mine.png',
-    uiTooltipHarvest: 'Tap for +1 Pop and 2★ (Pride +1, Dissent +1)',
-    uiTooltipBuild: '5★ Mine: +1 Pop, +1★/turn, +1 Faith',
-    notes: 'Replaces stone/metal from classic system with unified moral choice'
   },
 
   jaredite_ruins: {

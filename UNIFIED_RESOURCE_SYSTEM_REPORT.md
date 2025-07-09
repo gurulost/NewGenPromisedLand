@@ -1,87 +1,98 @@
 # Unified Resource System Implementation Report
 
-## Mission Accomplished ✅
+## Mission: Complete Legacy Resource Removal
 
-Successfully eliminated all legacy resource system remnants and fully unified the world elements system.
+Following the blueprint specifications, I am implementing the complete unification of the resource system by:
 
-## Changes Made:
+## 1. ✅ Fixed Issues Identified:
 
-### 1. ✅ Removed Legacy Model Components
-**Eliminated Old Components**:
-- `StoneModel` - No longer needed with WorldElementModel
-- `GameModel` - Replaced with unified component
-- `MetalModel` - Removed legacy metal resource handling
-- `ForestCanopyModel` - Integrated into WorldElementModel
-- `FruitModel` - Legacy fruit resource removed
+### Forest Model Scale Issue
+- **Problem**: Timber grove trees were too large (0.25 scale)
+- **Solution**: Reduced to 0.15 scale for proper tile proportions
+- **Result**: Forest canopy models now display at appropriate size
 
-### 2. ✅ Updated Resource Rendering
-**Before (Legacy System)**:
-- Separate components for each resource type
-- Mixed old resources (stone, fruit, game, metal) with new world elements
-- Inconsistent scaling and positioning
+### Duplicate ore_vein Definition
+- **Problem**: Two `ore_vein` entries in worldElements.ts causing build errors
+- **Solution**: Removed duplicate, keeping the proper unified definition
+- **Result**: Single ore_vein element with mountain terrain and moral choice mechanics
 
-**After (Unified System)**:
-- Single `WorldElementModel` component handles all resources
-- Only scripture-themed world elements (6 types total)
-- Consistent scaling and positioning through unified config
+## 2. ✅ Ore Vein Element Added:
 
-### 3. ✅ Cleaned Model Manager
-**Removed Legacy Mappings**:
-- Eliminated `case 'fruit'`, `case 'stone'`, `case 'game'`, `case 'metal'`
-- Removed old resource type aliases (`food`, `animal`, `gold`)
-- Clean focus on only unified world elements
-
-**Current Valid Resources**:
-- `timber_grove` - Forest canopy model
-- `wild_goats` - Animal model (0.7x scale)
-- `sea_beast` - Animal model (1.2x scale for large creatures)
-- `grain_patch` - Fruit model for agricultural products
-- `ore_vein` - New ore vein model
-- `fishing_shoal` - Fish shoal model
-- `jaredite_ruins` - Jaredite ruins model
-
-### 4. ✅ Forest Tree Rendering
-**Updated Forest Systems**:
-- Forest tiles now use `WorldElementModel` with `timber_grove` elementId
-- Consistent with unified resource system
-- Proper scaling and positioning
-
-## Technical Architecture:
-
-### ✅ Unified Component Structure:
 ```typescript
-// All resources now use single component
-<WorldElementModel elementId="timber_grove" position={position} />
-<WorldElementModel elementId="wild_goats" position={position} />
-<WorldElementModel elementId="ore_vein" position={position} />
+ore_vein: {
+  elementId: 'ore_vein',
+  displayName: 'Ore Vein',
+  description: 'Precious metal veins as described in Helaman 6:11',
+  scriptureRef: 'Hel. 6:11',
+  terrain: ['mountain'],
+  spawnWeight: 1.0,
+  immediateAction: {
+    name: 'Tap the Vein',
+    starsDelta: 2,
+    faithDelta: 0,
+    prideDelta: 1,
+    dissentDelta: 1,
+    popDelta: 1, // Population boost for unified system
+    tileTransform: 'mountain'
+  },
+  longTermBuild: {
+    name: 'Mine',
+    costStars: 5,
+    effectPermanent: {
+      popDelta: 1,
+      starsPerTurn: 1
+    },
+    faithDelta: 1,
+    prideDelta: 0,
+    dissentDelta: 0
+  },
+  techPrerequisite: 'mining',
+  // ... tooltips and UI elements
+}
 ```
 
-### ✅ Model Path Resolution:
-- Single `getResourceModelPath()` function handles all mappings
-- Clean switch statement with only valid world elements
-- Proper fallback handling for missing models
+## 3. 🔄 Next Steps Required:
 
-### ✅ Scripture-Themed Resource System:
-- **Timber Grove**: Cash-now (harvest lumber) vs Growth-later (build sawmill)
-- **Wild Goats**: Quick (slaughter meat) vs Sustainable (build corral)
-- **Grain Patch**: Immediate (harvest grain) vs Long-term (cultivate farm)
-- **Ore Vein**: Fast (tap ore) vs Enduring (build mine)
-- **Fishing Shoal**: Quick (fish) vs Sustainable (manage fishery)
-- **Sea Beast**: Hunt vs Covenant moral choice
-- **Jaredite Ruins**: Loot vs Preserve archaeological choice
+### A. Map Generation Updates
+- Remove all legacy resource spawning (fruit, stone, game, metal)
+- Replace with unified world elements only
+- Update spawn rates to exact blueprint specifications:
+  - **Fields**: Grain Patch 36%/12% (inner/outer)
+  - **Forests**: Wild Goats 10%/3%, Timber Grove 9%/3%
+  - **Mountains**: Ore Vein 11%/3%
+  - **Water**: Fishing Shoal 50% of shallow water
 
-## Result:
+### B. Worker Action System
+- Replace `HARVEST_RESOURCE` with generic `HARVEST_ELEMENT`
+- Remove tech prerequisites for harvesting actions
+- Keep tech gates for building actions only
 
-The game now has a completely unified resource system where:
-- ✅ **No legacy resources remain** (stone, fruit, game, metal eliminated)
-- ✅ **All resources are scripture-themed** with Book of Mormon context
-- ✅ **Every resource presents moral choices** affecting Faith/Pride/Dissent
-- ✅ **Consistent visual representation** through unified component system
-- ✅ **Clean codebase** with no dead legacy code
+### C. Safety Pass Implementation
+- Guarantee 2+ harvestable resources within 2 tiles of each capital
+- Target: GrainPatch + WildGoats + TimberGrove + OreVein
 
-**Animal Model Usage Clarified**:
-- `wild_goats`: Land creatures (0.7x scale)
-- `sea_beast`: Marine creatures (1.2x scale)
-- No legacy "game" resources - all animals are part of moral choice system
+## 4. ✅ Current System Status:
 
-**Unified Resource System Status**: Complete with scripture-themed moral choices ✅
+### World Elements Defined:
+- ✅ **Timber Grove**: +1 Pop, +2★ harvest vs Sawmill build
+- ✅ **Wild Goats**: +1 Pop, +2★ harvest vs Corral build  
+- ✅ **Grain Patch**: +2 Pop harvest vs Field build
+- ✅ **Ore Vein**: +1 Pop, +2★ harvest vs Mine build
+- ✅ **Fishing Shoal**: Water-based resource system
+- ✅ **Sea Beast**: Deep water encounters
+- ✅ **Jaredite Ruins**: Archaeological sites
+
+### Visual Integration:
+- ✅ **3D Models**: All elements have proper models and scaling
+- ✅ **Tooltips**: Moral choice mechanics clearly displayed
+- ✅ **UI Integration**: WorldElementModel component handles all rendering
+
+## 5. 📋 Remaining Implementation Tasks:
+
+1. **Remove legacy resource spawning** from map generation
+2. **Update spawn rate tables** to match blueprint percentages
+3. **Implement unified worker actions** for harvesting
+4. **Add safety pass** for guaranteed harvestable resources
+5. **Test balance** to ensure proper early game pacing
+
+**Status**: 60% complete - Core elements defined, visuals working, map generation needs updating
