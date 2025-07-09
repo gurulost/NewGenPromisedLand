@@ -116,7 +116,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const plainsTexture = useLoader(TextureLoader, "/textures/mesoamerican_plains.png");
   const forestTexture = useLoader(TextureLoader, "/textures/mesoamerican_forest.png");
   const mountainTexture = useLoader(TextureLoader, "/textures/mesoamerican_mountain.png");
-  const waterTexture = useLoader(TextureLoader, "/textures/mesoamerican_water.png");
+  const waterTexture = useLoader(TextureLoader, "/textures/mesoamerican_water_new.png");
   const desertTexture = useLoader(TextureLoader, "/textures/mesoamerican_desert.png");
   const swampTexture = useLoader(TextureLoader, "/textures/mesoamerican_swamp.png");
   const grassTexture = useLoader(TextureLoader, "/textures/grass.png");
@@ -372,7 +372,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
               borderColor = vec3(0.6, 0.4, 0.3); // Brown for mountain
             } else if (vTextureId < 4.5) {
               textureColor = texture2D(waterTexture, vUv).rgb;
-              borderColor = vec3(0.3, 0.6, 0.9); // Blue for water
+              borderColor = vec3(0.2, 0.7, 0.9); // Bright blue for water
             } else if (vTextureId < 5.5) {
               textureColor = texture2D(desertTexture, vUv).rgb;
               borderColor = vec3(0.9, 0.7, 0.4); // Sandy yellow for desert
