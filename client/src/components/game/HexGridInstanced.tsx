@@ -141,7 +141,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       // Show all tiles clearly when no game state (for debugging)
       map.tiles.forEach((tile, index) => {
         const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
-        const baseColor = getTerrainColor(tile.terrain);
+        const baseColor: [number, number, number] = [1.0, 1.0, 1.0]; // Pure white for texture clarity
         instanceData.push({
           position: [pixelPos.x, 0.1, pixelPos.y], // y becomes z in 3D space, slightly above ground
           color: baseColor,
@@ -194,7 +194,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       let textureId: number;
       
       // Apply three-tiered fog of war system
-      let baseColor = getTerrainColor(tile.terrain);
+      let baseColor: [number, number, number] = [1.0, 1.0, 1.0]; // Default to white (no color tinting)
       
       // Check if tile is currently visible
       const isCurrentlyVisible = gameState.visibility?.[currentPlayer.id]?.has(tileKey) || false;
@@ -219,14 +219,9 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         // Cities are golden/yellow color
         baseColor = [0.9, 0.8, 0.2]; // Bright gold for cities
       }
-      // Check for resources on this tile and slightly modify color
-      else if (tile.resources.length > 0 && (isCurrentlyVisible || hasBeenExplored)) {
-        // Enhance tile color to indicate resources are present
-        baseColor = [
-          Math.min(1.0, baseColor[0] * 1.2), // Brighten the existing color
-          Math.min(1.0, baseColor[1] * 1.2),
-          Math.min(1.0, baseColor[2] * 1.2)
-        ];
+      // For all other tiles, use pure white to let textures show clearly
+      else {
+        baseColor = [1.0, 1.0, 1.0]; // Pure white - no color tinting
       }
       
       
@@ -236,13 +231,9 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         opacity = 1.0;
         textureId = getTextureId(tile.terrain);
       } else if (hasBeenExplored) {
-        // Explored: Terrain visible but dimmed (memory state)
-        color = [
-          baseColor[0] * 0.6,
-          baseColor[1] * 0.6,
-          baseColor[2] * 0.6
-        ];
-        opacity = 0.7;
+        // Explored: Terrain visible but slightly dimmed (memory state)
+        color = baseColor; // Keep pure white for texture clarity
+        opacity = 0.85; // Increased from 0.7 to 0.85 for better visibility
         textureId = getTextureId(tile.terrain);
       } else {
         // Unexplored: Show darker base terrain (clouds will be added as separate layer)
@@ -333,29 +324,63 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           return value;
         }
         
+        // Function to create hex border
+        float hexBorder(vec2 uv, float borderWidth) {
+          // Convert UV to centered coordinates
+          vec2 pos = (uv - 0.5) * 2.0;
+          
+          // Create hexagon shape using distance field
+          float angle = atan(pos.y, pos.x);
+          float radius = length(pos);
+          
+          // Hexagon distance field
+          float hexDist = cos(floor(0.5 + angle / 1.047198) * 1.047198 - angle) * radius;
+          
+          // Create border by checking distance from edge
+          float outerHex = step(hexDist, 0.85);
+          float innerHex = step(hexDist, 0.85 - borderWidth);
+          
+          return outerHex - innerHex;
+        }
+        
         void main() {
           vec3 texColor = vColor;
           
           // Apply texture if textureId is valid (for visible/explored tiles)
           if (vTextureId > 0.5 && vOpacity > 0.1) {
             vec3 textureColor = vec3(1.0);
+            vec3 borderColor = vec3(0.5, 0.5, 0.5); // Default gray border
             
             if (vTextureId < 1.5) {
               textureColor = texture2D(plainsTexture, vUv).rgb;
+              borderColor = vec3(0.8, 0.9, 0.4); // Light green for plains
             } else if (vTextureId < 2.5) {
               textureColor = texture2D(forestTexture, vUv).rgb;
+              borderColor = vec3(0.2, 0.8, 0.2); // Green for forest
             } else if (vTextureId < 3.5) {
               textureColor = texture2D(mountainTexture, vUv).rgb;
+              borderColor = vec3(0.6, 0.4, 0.3); // Brown for mountain
             } else if (vTextureId < 4.5) {
               textureColor = texture2D(waterTexture, vUv).rgb;
+              borderColor = vec3(0.3, 0.6, 0.9); // Blue for water
             } else if (vTextureId < 5.5) {
               textureColor = texture2D(desertTexture, vUv).rgb;
+              borderColor = vec3(0.9, 0.7, 0.4); // Sandy yellow for desert
             } else if (vTextureId < 6.5) {
               textureColor = texture2D(swampTexture, vUv).rgb;
+              borderColor = vec3(0.4, 0.6, 0.3); // Dark green for swamp
             }
             
-            // Blend texture with base color for fog of war effect
-            texColor = mix(texColor, texColor * textureColor, vOpacity);
+            // Create hex border with terrain-specific color
+            float border = hexBorder(vUv, 0.04);
+            
+            // Use pure texture color for beautiful clear textures
+            texColor = textureColor;
+            
+            // Add colored transparent border
+            if (border > 0.5) {
+              texColor = mix(texColor, borderColor, 0.6); // 60% border color, 40% texture
+            }
           }
           
           // Create beautiful cloud-like fog for unexplored areas
@@ -387,9 +412,9 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           }
           // Explored but not visible tiles - subtle fog
           else if (vOpacity < 1.0 && vOpacity > 0.2) {
-            // Add a subtle blue-gray tint to indicate fog of war
+            // Add a very subtle blue-gray tint to indicate fog of war while preserving texture clarity
             vec3 fogColor = vec3(0.4, 0.5, 0.6);
-            texColor = mix(texColor, fogColor, 0.15);
+            texColor = mix(texColor, fogColor, 0.08); // Reduced from 0.15 to 0.08 for better texture visibility
             gl_FragColor = vec4(texColor, vOpacity);
           }
           // Fully visible tiles
