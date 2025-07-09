@@ -240,22 +240,8 @@ export default function MapFeatures() {
     
     switch (resource) {
       case 'fruit':
-        return <FruitModel key={`fruit-${key}`} position={position} />;
       case 'food':
-        return (
-          <group key={`food-${key}`}>
-            {/* Multiple small food items clustered together */}
-            <Sphere position={[position.x - 0.2, y, position.y + 0.1]} args={[0.06]}>
-              <meshStandardMaterial color="#90EE90" /> {/* Light green */}
-            </Sphere>
-            <Sphere position={[position.x - 0.3, y, position.y - 0.1]} args={[0.05]}>
-              <meshStandardMaterial color="#32CD32" /> {/* Lime green */}
-            </Sphere>
-            <Sphere position={[position.x - 0.1, y, position.y]} args={[0.04]}>
-              <meshStandardMaterial color="#228B22" /> {/* Forest green */}
-            </Sphere>
-          </group>
-        );
+        return <FruitModel key={`fruit-${key}`} position={position} />;
       case 'wood':
         return (
           <group key={`wood-${key}`}>
