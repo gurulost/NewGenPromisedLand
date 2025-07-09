@@ -5,6 +5,7 @@ import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { getVisibleUnits } from "@shared/logic/unitLogic";
 import HexGridInstanced from "./HexGridInstanced";
+import TerrainGrid from "./TerrainGrid";
 import Unit from "./Unit";
 import MapFeatures from "./MapFeatures";
 import { useGameDebugger } from "../../utils/gameDebug";
@@ -181,8 +182,8 @@ export default function GameCanvas() {
       {/* Fog for atmosphere - adjusted for map size to prevent darkening on zoom */}
       <fog attach="fog" args={["#0f172a", mapSize * 3, mapSize * 12]} />
       
-      {/* Grid - Using Instanced Rendering for Performance */}
-      <HexGridInstanced map={gameState.map} />
+      {/* Beautiful 3D Terrain Tiles - Using optimized GLB models */}
+      <TerrainGrid map={gameState.map} />
       
       {/* Map Features - Cities, Ruins, and other structures */}
       <MapFeatures />
