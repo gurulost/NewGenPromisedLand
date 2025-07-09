@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { City } from '@shared/types/city';
 import { getCityModelPath } from '../../utils/modelManager';
+import { GroundedModel } from './GroundedModel';
 
 interface CityModelProps {
   city: City;
@@ -15,24 +16,20 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
   const modelPath = getCityModelPath(city.level);
   const { scene } = useGLTF(modelPath);
   
-  // Clone the scene to avoid modifying the original
+  // Calculate city scale based on level
+  const cityScale = useMemo(() => {
+    if (city.level >= 3) {
+      return 2.4; // Three tiles wide
+    } else if (city.level >= 2) {
+      return 0.9; // Medium city
+    } else {
+      return 0.8; // Small city
+    }
+  }, [city.level]);
+  
+  // Clone and modify the scene for materials and colors
   const clonedScene = useMemo(() => {
     const clone = scene.clone();
-    
-    // Scale the model based on city level
-    // Level 1: 0.8 scale (fits in 1 tile)
-    // Level 2: 0.9 scale (slightly larger, still 1 tile)
-    // Level 3+: 2.4 scale (spans 3 tiles wide, HEX_SIZE = 1, so 3 * 0.8 = 2.4)
-    let levelScale;
-    if (city.level >= 3) {
-      levelScale = 2.4; // Three tiles wide
-    } else if (city.level >= 2) {
-      levelScale = 0.9; // Medium city
-    } else {
-      levelScale = 0.8; // Small city
-    }
-    
-    clone.scale.setScalar(levelScale);
     
     // Ensure proper materials and colors based on ownership
     clone.traverse((child) => {
@@ -68,9 +65,17 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
     return clone;
   }, [scene, isPlayerCity, city.level]);
   
+  // Apply auto-grounding to the cloned scene
+  const groundedScene = useMemo(() => {
+    const box = new THREE.Box3().setFromObject(clonedScene);
+    const bottomShift = -box.min.y;
+    clonedScene.position.set(0, bottomShift, 0);
+    return clonedScene;
+  }, [clonedScene]);
+  
   return (
     <group position={[position.x, 0, position.y]}>
-      <primitive object={clonedScene} position={[0, 0.3, 0]} />
+      <primitive object={groundedScene} scale={[cityScale, cityScale, cityScale]} />
       
       {/* City level indicator - floating text above the model */}
       <mesh position={[0, city.level >= 3 ? 2.0 : 1.2, 0]}>
