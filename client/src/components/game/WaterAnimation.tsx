@@ -105,6 +105,7 @@ export default function WaterAnimation({ map }: WaterAnimationProps) {
         <mesh
           key={`water-${coordinate.q}-${coordinate.r}`}
           position={position}
+          rotation={[0, Math.PI / 6, 0]} // Rotate 30 degrees to align with hex grid
         >
           <cylinderGeometry args={[0.95, 0.95, 0.02, 6]} />
           <shaderMaterial
