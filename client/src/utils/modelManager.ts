@@ -84,31 +84,23 @@ export const getCityModelPath = (level: number): string => {
   return MODEL_PATHS.cities.level1;
 };
 
-// Get resource model path
+// Get resource model path for unified world elements system
 export const getResourceModelPath = (resourceType: string): string | null => {
   switch (resourceType) {
-    case 'fruit':
-    case 'food':
-      return MODEL_PATHS.resources.fruit;
-    case 'stone':
-      return MODEL_PATHS.resources.stone;
-    case 'game':
-    case 'animal':
-      return MODEL_PATHS.resources.game;
-    case 'metal':
-    case 'gold': // Map gold to metal model (both are metallic)
-      return MODEL_PATHS.resources.metal;
-    case 'forest_canopy':
-    case 'timber_grove': // Map timber grove to new forest model
+    // Unified World Elements System - Only scripture-themed resources
+    case 'timber_grove':
       return MODEL_PATHS.resources.forest_canopy;
+    case 'wild_goats':
+    case 'sea_beast':
+      return MODEL_PATHS.resources.game; // Animal model for creatures
+    case 'grain_patch':
+      return MODEL_PATHS.resources.fruit; // Fruit model represents agricultural products
+    case 'ore_vein':
+      return MODEL_PATHS.resources.ore_vein; // New ore vein model for unified ore system
     case 'fishing_shoal':
-    case 'fish':
       return MODEL_PATHS.resources.fish_shoal;
     case 'jaredite_ruins':
-    case 'ruins':
       return MODEL_PATHS.resources.jaredite_ruins;
-    case 'ore_vein':
-      return MODEL_PATHS.resources.ore_vein;
 
     default:
       return null; // Return null for resources without 3D models (will use procedural)

@@ -78,102 +78,7 @@ function FruitModel({ position }: { position: { x: number; y: number } }) {
   );
 }
 
-// Stone Model Component (used for Jaredite Ruins)
-function StoneModel({ position }: { position: { x: number; y: number } }) {
-  const modelPath = getResourceModelPath('stone');
-  
-  if (!modelPath) {
-    // Fallback to procedural boxes if model not available
-    return (
-      <Box position={[position.x, 0.15, position.y]} args={[0.12, 0.15, 0.12]}>
-        <meshStandardMaterial color="#696969" />
-      </Box>
-    );
-  }
-  
-  return (
-    <GroundedModel
-      src={modelPath}
-      position={position}
-      scale={0.5}
-      tileY={0}
-    />
-  );
-}
-
-// Game/Animal Model Component
-function GameModel({ position }: { position: { x: number; y: number } }) {
-  const modelPath = getResourceModelPath('game');
-  
-  if (!modelPath) {
-    // Fallback to procedural animal if model not available
-    return (
-      <Box position={[position.x, 0.08, position.y]} args={[0.1, 0.06, 0.15]}>
-        <meshStandardMaterial color="#8B4513" />
-      </Box>
-    );
-  }
-  
-  return (
-    <GroundedModel
-      src={modelPath}
-      position={position}
-      scale={0.3}
-      tileY={0}
-    />
-  );
-}
-
-// Metal/Ore Model Component (used for Ore Veins)
-function MetalModel({ position }: { position: { x: number; y: number } }) {
-  const modelPath = getResourceModelPath('metal');
-  
-  if (!modelPath) {
-    // Fallback to procedural metal if model not available
-    return (
-      <Box position={[position.x, 0.12, position.y]} args={[0.08, 0.12, 0.08]} rotation={[0, Math.PI/4, 0]}>
-        <meshStandardMaterial color="#C0C0C0" metalness={0.9} roughness={0.1} />
-      </Box>
-    );
-  }
-  
-  return (
-    <GroundedModel
-      src={modelPath}
-      position={position}
-      scale={0.5}
-      tileY={0}
-    />
-  );
-}
-
-// Forest Canopy Model Component for Timber Groves
-function ForestCanopyModel({ position }: { position: { x: number; y: number } }) {
-  const modelPath = getResourceModelPath('timber_grove');
-  
-  if (!modelPath) {
-    // Fallback to procedural tree if model not available
-    return (
-      <group>
-        <Cylinder position={[position.x, 0.1, position.y]} args={[0.03, 0.03, 0.2]}>
-          <meshStandardMaterial color="#8B4513" />
-        </Cylinder>
-        <Sphere position={[position.x, 0.25, position.y]} args={[0.12]}>
-          <meshStandardMaterial color="#228B22" />
-        </Sphere>
-      </group>
-    );
-  }
-  
-  return (
-    <GroundedModel
-      src={modelPath}
-      position={position}
-      scale={0.25}
-      tileY={0}
-    />
-  );
-}
+// Legacy model components removed - now using unified WorldElementModel
 
 // Fish Shoal Model Component for Water Resources
 function FishShoalModel({ position }: { position: { x: number; y: number } }) {
@@ -407,19 +312,19 @@ export default function MapFeatures() {
       switch (resource) {
         // Unified World Elements System - All resources now provide moral choices
         case 'timber_grove':
-          return <ForestCanopyModel position={position} />; // Use forest canopy model for timber
+          return <WorldElementModel elementId="timber_grove" position={position} />; 
         case 'wild_goats':
-          return <GameModel position={position} />; // Animal model for plains creatures
+          return <WorldElementModel elementId="wild_goats" position={position} />; 
         case 'grain_patch':
-          return <FruitModel position={position} />; // Fruit model represents crops/grain
+          return <WorldElementModel elementId="grain_patch" position={position} />; 
         case 'ore_vein':
-          return <MetalModel position={position} />; // Metal model for ore veins (replaces stone/gold)
+          return <WorldElementModel elementId="ore_vein" position={position} />; 
         case 'fishing_shoal':
-          return <FishShoalModel position={position} />; // New fish shoal 3D model
+          return <WorldElementModel elementId="fishing_shoal" position={position} />; 
         case 'sea_beast':
-          return <GameModel position={position} />; // Large creature model for sea beasts
+          return <WorldElementModel elementId="sea_beast" position={position} />; 
         case 'jaredite_ruins':
-          return <StoneModel position={position} />; // Stone model for ancient ruins
+          return <WorldElementModel elementId="jaredite_ruins" position={position} />; 
         
         default:
           return null;
@@ -442,7 +347,7 @@ export default function MapFeatures() {
 
   // Function to render forest trees (Polytopia-style: ALL forests have trees)
   const renderForestTrees = (position: { x: number; y: number }, key: string) => {
-    return <GameModel key={`forest-${key}`} position={position} />;
+    return <WorldElementModel key={`forest-${key}`} elementId="timber_grove" position={position} />;
   };
 
   // Function to render improvement models
