@@ -263,52 +263,80 @@ export class MapGenerator {
   }
 
   /**
-   * Step 4: Place capturable villages with Book of Mormon themes
+   * Step 4: Place capturable villages using Polytopia's three-pass system
+   * Pass 1: Suburbs (future expansion - skipped for now)
+   * Pass 2: Pre-terrain villages (future expansion - skipped for now) 
+   * Pass 3: Post-terrain villages (main implementation)
    */
   private placeVillages(tiles: Tile[], mapRadius: number, capitalPositions: HexCoordinate[]): void {
-    // Village spawn configuration
-    const VILLAGE_SPAWN_CHANCE = 0.08; // 8% chance per tile
-    const MIN_DISTANCE_BETWEEN_VILLAGES = 3;
-    const MIN_DISTANCE_FROM_CITIES = 4; // Don't place too close to cities
+    const placedVillages: HexCoordinate[] = [];
     
-    // Get all existing city positions (capitals + neutral cities)
-    const cityTiles = tiles.filter(tile => tile.hasCity);
-    const allCityPositions = [...capitalPositions, ...cityTiles.map(t => t.coordinate)];
+    // Pass 1: Suburbs (around capitals)
+    // Skipped for initial implementation - can add later for water-heavy maps
     
-    // Find valid tiles for village placement
-    const validTiles = tiles.filter(tile => {
-      // Don't place on cities or water
-      if (tile.hasCity || tile.terrain === 'water') return false;
-      
-      // Don't place on map edges (too close to boundary)
-      const distanceFromCenter = Math.sqrt(tile.coordinate.q ** 2 + tile.coordinate.r ** 2);
-      if (distanceFromCenter > mapRadius * 0.85) return false;
-      
-      // Check distance from cities
-      const tooCloseToCity = allCityPositions.some(cityPos => 
-        hexDistance(tile.coordinate, cityPos) < MIN_DISTANCE_FROM_CITIES
-      );
-      if (tooCloseToCity) return false;
-      
-      return true;
-    });
+    // Pass 2: Pre-terrain villages 
+    // Skipped for initial implementation - mainly for archipelago/water maps
     
-    // Place villages with distance constraints
-    for (const tile of validTiles) {
-      if (this.rng.next() < VILLAGE_SPAWN_CHANCE) {
-        // Check distance from existing villages
-        const existingVillages = tiles.filter(t => t.feature === 'village');
-        const tooCloseToVillage = existingVillages.some(villageT => 
-          hexDistance(tile.coordinate, villageT.coordinate) < MIN_DISTANCE_BETWEEN_VILLAGES
-        );
-        
-        if (!tooCloseToVillage) {
-          tile.feature = 'village';
-        }
+    // Pass 3: Post-terrain villages (universal pass)
+    // Keep adding villages until no legal tile remains, with soft cap
+    const maxVillages = Math.floor(tiles.length / 15); // ~4% of land tiles like Polytopia
+    let villagesPlaced = 0;
+    let attempts = 0;
+    const maxAttempts = tiles.length * 2; // Prevent infinite loops
+    
+    while (villagesPlaced < maxVillages && attempts < maxAttempts) {
+      attempts++;
+      
+      // Pick random tile
+      const candidateTile = tiles[Math.floor(this.rng.next() * tiles.length)];
+      
+      if (this.isValidVillageLocation(candidateTile, capitalPositions, placedVillages, mapRadius)) {
+        candidateTile.feature = 'village';
+        placedVillages.push(candidateTile.coordinate);
+        villagesPlaced++;
       }
     }
     
-    console.log(`Generated ${tiles.filter(t => t.feature === 'village').length} villages on map`);
+    console.log(`Generated ${villagesPlaced} villages on map (${placedVillages.length} total)`);
+  }
+
+  /**
+   * Check if a tile is valid for village placement using Polytopia spacing rules
+   */
+  private isValidVillageLocation(
+    tile: Tile, 
+    capitalPositions: HexCoordinate[], 
+    existingVillages: HexCoordinate[], 
+    mapRadius: number
+  ): boolean {
+    // Must be land (not water)
+    if (tile.terrain === 'water') return false;
+    
+    // Can't place on cities
+    if (tile.hasCity) return false;
+    
+    // Already has a village
+    if (tile.feature === 'village') return false;
+    
+    // Must be ≥ 2 tiles inside map edge (Polytopia rule)
+    const distanceFromCenter = Math.sqrt(tile.coordinate.q ** 2 + tile.coordinate.r ** 2);
+    if (distanceFromCenter > mapRadius - 2) return false;
+    
+    // Must be ≥ 2 tiles from any existing village (Polytopia spacing rule)
+    for (const villagePos of existingVillages) {
+      if (hexDistance(tile.coordinate, villagePos) < 2) {
+        return false;
+      }
+    }
+    
+    // Must be ≥ 2 tiles from any capital (prevent blocking starting areas)
+    for (const capitalPos of capitalPositions) {
+      if (hexDistance(tile.coordinate, capitalPos) < 2) {
+        return false;
+      }
+    }
+    
+    return true;
   }
 
   /**
