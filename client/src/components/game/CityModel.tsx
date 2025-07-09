@@ -69,8 +69,8 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
   }, [scene, isPlayerCity, city.level]);
   
   return (
-    <group position={[position.x, 0.3, position.y]}>
-      <primitive object={clonedScene} />
+    <group position={[position.x, 0, position.y]}>
+      <primitive object={clonedScene} position={[0, 0.3, 0]} />
       
       {/* City level indicator - floating text above the model */}
       <mesh position={[0, city.level >= 3 ? 2.0 : 1.2, 0]}>
