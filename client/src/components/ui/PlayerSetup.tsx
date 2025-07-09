@@ -77,7 +77,15 @@ export default function PlayerSetup() {
   };
 
   return (
-    <div className="w-full h-full bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4 overflow-y-auto">
+    <div 
+      className="w-full h-full p-4 overflow-y-auto"
+      style={{
+        backgroundImage: 'url(/images/mesoamerican_background.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
       <div className="min-h-full flex items-center justify-center py-8">
         <Card className="w-full max-w-2xl bg-black/80 border-amber-600/50 text-white">
         <CardHeader>
