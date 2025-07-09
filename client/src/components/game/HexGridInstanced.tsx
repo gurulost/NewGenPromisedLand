@@ -113,6 +113,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   
   // Load textures
+  const plainsTexture = useLoader(TextureLoader, "/textures/mesoamerican_plains.png");
   const grassTexture = useLoader(TextureLoader, "/textures/grass.png");
   const sandTexture = useLoader(TextureLoader, "/textures/sand.jpg");
   const woodTexture = useLoader(TextureLoader, "/textures/wood.jpg");
@@ -291,6 +292,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         }
       `,
       fragmentShader: `
+        uniform sampler2D plainsTexture;
         uniform sampler2D grassTexture;
         uniform sampler2D sandTexture;
         uniform sampler2D woodTexture;
@@ -329,10 +331,12 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             vec3 textureColor = vec3(1.0);
             
             if (vTextureId < 1.5) {
-              textureColor = texture2D(grassTexture, vUv).rgb;
+              textureColor = texture2D(plainsTexture, vUv).rgb;
             } else if (vTextureId < 2.5) {
-              textureColor = texture2D(sandTexture, vUv).rgb;
+              textureColor = texture2D(grassTexture, vUv).rgb;
             } else if (vTextureId < 3.5) {
+              textureColor = texture2D(sandTexture, vUv).rgb;
+            } else if (vTextureId < 4.5) {
               textureColor = texture2D(woodTexture, vUv).rgb;
             }
             
@@ -381,13 +385,14 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         }
       `,
       uniforms: {
+        plainsTexture: { value: plainsTexture },
         grassTexture: { value: grassTexture },
         sandTexture: { value: sandTexture },
         woodTexture: { value: woodTexture },
         time: { value: 0.0 }
       }
     });
-  }, [grassTexture, sandTexture, woodTexture]);
+  }, [plainsTexture, grassTexture, sandTexture, woodTexture]);
 
   // Animate the cloud fog of war
   useFrame((state) => {
@@ -650,10 +655,10 @@ function getTerrainColor(terrain: string): [number, number, number] {
 
 function getTextureId(terrain: string): number {
   switch (terrain) {
-    case 'plains':
-    case 'forest': return 1; // grass texture
-    case 'desert': return 2; // sand texture
-    case 'swamp': return 3; // wood texture
+    case 'plains': return 1; // mesoamerican plains texture
+    case 'forest': return 2; // grass texture (for forest ground)
+    case 'desert': return 3; // sand texture
+    case 'swamp': return 4; // wood texture
     default: return 0; // no texture
   }
 }
