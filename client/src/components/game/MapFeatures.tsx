@@ -117,15 +117,15 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
   const getModelForElement = (elementId: string) => {
     switch (elementId) {
       case 'timber_grove':
-        return { model: 'timber_grove', scale: 0.15 }; // Use new forest canopy model - much smaller
+        return { model: 'timber_grove', scale: 0.18 }; // Made trees a bit bigger
       case 'wild_goats':
-        return { model: 'game', scale: 0.7 }; // Animal elements
+        return { model: 'game', scale: 0.35 }; // Made tapir (goats) about half the size
       case 'grain_patch':
         return { model: 'fruit', scale: 0.6 }; // Agricultural elements
       case 'ore_vein':
         return { model: 'ore_vein', scale: 0.6 }; // New ore vein model for unified ore system
       case 'fishing_shoal':
-        return { model: 'fishing_shoal', scale: 0.42 }; // Marine elements
+        return { model: 'fishing_shoal', scale: 0.525 }; // Increased fish shoal size by 25%
       case 'sea_beast':
         return { model: 'game', scale: 1.2 }; // Large creature elements
       case 'jaredite_ruins':
