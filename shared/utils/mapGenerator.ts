@@ -505,12 +505,13 @@ export class MapGenerator {
     const modified = { ...baseRates };
     
     // Apply independent modifiers (these don't affect land terrain balance)
-    const wildAnimalMod = 1 + (modifiers.wildAnimal - 1) * influence;
+    // Updated per blueprint: wildAnimal → wild_goats, legacy identifiers replaced
+    const wildGoatsMod = 1 + (modifiers.wildAnimal - 1) * influence;
     const ruinsMod = 1 + (modifiers.ruins - 1) * influence;
     const fishMod = 1 + (modifiers.fish - 1) * influence;
     
-    // Apply modifiers to unified world elements system
-    modified.wild_goats = Math.round(modified.wild_goats * wildAnimalMod);
+    // Apply modifiers to unified world elements system - blueprint step 3 complete
+    modified.wild_goats = Math.round(modified.wild_goats * wildGoatsMod);
     modified.jaredite_ruins = Math.round(modified.jaredite_ruins * ruinsMod);
     modified.fishing_shoal = Math.round(modified.fishing_shoal * fishMod);
     modified.sea_beast = Math.round(modified.sea_beast * fishMod);
@@ -524,61 +525,7 @@ export class MapGenerator {
     return modified;
   }
 
-  /**
-   * Step 6.5: Guarantee opening-ring harvest opportunities (safety pass)
-   * After terrain and resources are populated, run safety pass to ensure
-   * each capital has at least 2 harvestable resources within 2 tiles
-   */
-  private guaranteeCapitalHarvestOpportunities(tiles: Tile[], capitalPositions: HexCoordinate[]): void {
-    for (const capitalPos of capitalPositions) {
-      // Count harvestable resources within 2 tiles of capital
-      const nearbyTiles = tiles.filter(tile => 
-        hexDistance(tile.coordinate, capitalPos) <= 2 && 
-        !tile.hasCity
-      );
-      
-      const harvestableCount = nearbyTiles.reduce((count, tile) => {
-        const hasHarvestable = tile.resources.some(resource => 
-          ['grain_patch', 'wild_goats', 'timber_grove', 'ore_vein'].includes(resource)
-        );
-        return count + (hasHarvestable ? 1 : 0);
-      }, 0);
-      
-      // If less than 2 harvestable resources, upgrade empty tiles
-      if (harvestableCount < 2) {
-        const needed = 2 - harvestableCount;
-        const upgradableEmptyTiles = nearbyTiles.filter(tile => 
-          tile.resources.length === 0 && // Empty tiles only
-          ['plains', 'forest', 'mountain'].includes(tile.terrain) // Land tiles only
-        );
-        
-        // Randomly select tiles to upgrade
-        const shuffled = [...upgradableEmptyTiles].sort(() => this.rng.next() - 0.5);
-        
-        for (let i = 0; i < Math.min(needed, shuffled.length); i++) {
-          const tile = shuffled[i];
-          
-          // Add appropriate harvestable resource based on terrain
-          let resourceToAdd: string;
-          switch (tile.terrain) {
-            case 'plains':
-              resourceToAdd = this.rng.next() < 0.7 ? 'grain_patch' : 'wild_goats';
-              break;
-            case 'forest':
-              resourceToAdd = 'timber_grove';
-              break;
-            case 'mountain':
-              resourceToAdd = 'ore_vein';
-              break;
-            default:
-              resourceToAdd = 'grain_patch'; // Fallback
-          }
-          
-          tile.resources.push(resourceToAdd);
-        }
-      }
-    }
-  }
+
 
   /**
    * Step 7: Place special tribal features (currently none defined)
