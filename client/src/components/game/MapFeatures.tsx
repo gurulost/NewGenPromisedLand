@@ -22,8 +22,8 @@ function VillageModel({ position, owner }: { position: { x: number; y: number };
   };
   
   return (
-    <group position={[position.x, 0.25, position.y]} scale={[0.6, 0.6, 0.6]}>
-      <primitive object={scene.clone()} />
+    <group position={[position.x, 0, position.y]} scale={[0.6, 0.6, 0.6]}>
+      <primitive object={scene.clone()} position={[0, 0.4, 0]} />
       {/* Village ownership indicator - small flag */}
       <group position={[0, 1.2, 0]}>
         <Cylinder args={[0.15, 0.15, 0.1]} position={[0, 0, 0]}>
@@ -45,7 +45,7 @@ function FruitModel({ position }: { position: { x: number; y: number } }) {
   if (!modelPath) {
     // Fallback to procedural sphere if model not available
     return (
-      <Sphere position={[position.x, 0.2, position.y]} args={[0.06]}>
+      <Sphere position={[position.x, 0.06, position.y]} args={[0.06]}>
         <meshStandardMaterial color="#90EE90" />
       </Sphere>
     );
@@ -68,7 +68,7 @@ function StoneModel({ position }: { position: { x: number; y: number } }) {
     // Fallback to procedural boxes if model not available
     return (
       <group>
-        <Box position={[position.x, 0.25, position.y]} args={[0.12, 0.15, 0.12]}>
+        <Box position={[position.x, 0.15, position.y]} args={[0.12, 0.15, 0.12]}>
           <meshStandardMaterial color="#696969" />
         </Box>
       </group>
@@ -78,8 +78,8 @@ function StoneModel({ position }: { position: { x: number; y: number } }) {
   const { scene } = useGLTF(modelPath);
   
   return (
-    <group position={[position.x, 0.2, position.y]} scale={[0.5, 0.5, 0.5]}>
-      <primitive object={scene.clone()} />
+    <group position={[position.x, 0, position.y]} scale={[0.5, 0.5, 0.5]}>
+      <primitive object={scene.clone()} position={[0, 0.25, 0]} />
     </group>
   );
 }
@@ -92,7 +92,7 @@ function GameModel({ position }: { position: { x: number; y: number } }) {
     // Fallback to procedural animal if model not available
     return (
       <group>
-        <Box position={[position.x, 0.22, position.y]} args={[0.1, 0.06, 0.15]}>
+        <Box position={[position.x, 0.08, position.y]} args={[0.1, 0.06, 0.15]}>
           <meshStandardMaterial color="#8B4513" />
         </Box>
       </group>
@@ -102,8 +102,8 @@ function GameModel({ position }: { position: { x: number; y: number } }) {
   const { scene } = useGLTF(modelPath);
   
   return (
-    <group position={[position.x, 0.2, position.y]} scale={[0.6, 0.6, 0.6]}>
-      <primitive object={scene.clone()} />
+    <group position={[position.x, 0, position.y]} scale={[0.6, 0.6, 0.6]}>
+      <primitive object={scene.clone()} position={[0, 0.3, 0]} />
     </group>
   );
 }
@@ -116,7 +116,7 @@ function MetalModel({ position }: { position: { x: number; y: number } }) {
     // Fallback to procedural metal if model not available
     return (
       <group>
-        <Box position={[position.x, 0.25, position.y]} args={[0.08, 0.12, 0.08]} rotation={[0, Math.PI/4, 0]}>
+        <Box position={[position.x, 0.12, position.y]} args={[0.08, 0.12, 0.08]} rotation={[0, Math.PI/4, 0]}>
           <meshStandardMaterial color="#C0C0C0" metalness={0.9} roughness={0.1} />
         </Box>
       </group>
@@ -126,8 +126,8 @@ function MetalModel({ position }: { position: { x: number; y: number } }) {
   const { scene } = useGLTF(modelPath);
   
   return (
-    <group position={[position.x, 0.2, position.y]} scale={[0.5, 0.5, 0.5]}>
-      <primitive object={scene.clone()} />
+    <group position={[position.x, 0, position.y]} scale={[0.5, 0.5, 0.5]}>
+      <primitive object={scene.clone()} position={[0, 0.25, 0]} />
     </group>
   );
 }
@@ -160,7 +160,7 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
   if (!modelPath) {
     // Fallback to procedural geometry
     return (
-      <Box position={[position.x, 0.25, position.y]} args={[0.08, 0.08, 0.08]} scale={config.scale}>
+      <Box position={[position.x, 0.08, position.y]} args={[0.08, 0.08, 0.08]} scale={config.scale}>
         <meshStandardMaterial color={config.color} />
       </Box>
     );
@@ -169,8 +169,8 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
   const { scene } = useGLTF(modelPath);
   
   return (
-    <group position={[position.x, 0.25, position.y]} scale={[config.scale, config.scale, config.scale]}>
-      <primitive object={scene.clone()} />
+    <group position={[position.x, 0, position.y]} scale={[config.scale, config.scale, config.scale]}>
+      <primitive object={scene.clone()} position={[0, 0.2, 0]} />
       <meshStandardMaterial color={config.color} />
     </group>
   );
