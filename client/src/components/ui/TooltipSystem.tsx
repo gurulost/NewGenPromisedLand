@@ -436,3 +436,191 @@ export function DissentTooltip() {
     </div>
   );
 }
+
+// Resource-specific tooltips
+export function StoneResourceTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-gray-300">Stone Resource</div>
+      <div className="text-xs text-slate-300">
+        Stone deposits found in mountain terrain provide essential building materials.
+      </div>
+      <div className="text-xs space-y-1">
+        <div className="text-yellow-300">• Worker Action: Harvest Stone</div>
+        <div>• Requires Mining technology</div>
+        <div>• Gives +1 population to nearest city</div>
+        <div>• Worker must be within 2 tiles of friendly city</div>
+        <div>• Consumes worker's movement for the turn</div>
+        <div>• Tile becomes empty plains after harvest</div>
+      </div>
+    </div>
+  );
+}
+
+export function FruitResourceTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-green-300">Fruit Resource</div>
+      <div className="text-xs text-slate-300">
+        Wild fruit orchards provide abundant food for growing populations.
+      </div>
+      <div className="text-xs space-y-1">
+        <div className="text-yellow-300">• Worker Action: Harvest Fruit</div>
+        <div>• No technology requirement</div>
+        <div>• Gives +3 population to nearest city</div>
+        <div>• Worker must be within 2 tiles of friendly city</div>
+        <div>• Consumes worker's movement for the turn</div>
+        <div>• Tile becomes empty plains after harvest</div>
+      </div>
+    </div>
+  );
+}
+
+export function GameResourceTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-amber-300">Animal Resource</div>
+      <div className="text-xs text-slate-300">
+        Wild animals provide meat and materials for expanding settlements.
+      </div>
+      <div className="text-xs space-y-1">
+        <div className="text-yellow-300">• Worker Action: Hunt Animals</div>
+        <div>• Requires Hunting technology</div>
+        <div>• Gives +2 population to nearest city</div>
+        <div>• Worker must be within 2 tiles of friendly city</div>
+        <div>• Consumes worker's movement for the turn</div>
+        <div>• Tile becomes empty plains after harvest</div>
+      </div>
+    </div>
+  );
+}
+
+export function MetalResourceTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-blue-300">Metal Resource</div>
+      <div className="text-xs text-slate-300">
+        Precious metal deposits provide valuable materials for tools and trade.
+      </div>
+      <div className="text-xs space-y-1">
+        <div className="text-yellow-300">• Worker Action: Mine Metal</div>
+        <div>• Requires Mining technology</div>
+        <div>• Gives +1 population to nearest city</div>
+        <div>• Worker must be within 2 tiles of friendly city</div>
+        <div>• Consumes worker's movement for the turn</div>
+        <div>• Tile becomes empty plains after harvest</div>
+      </div>
+    </div>
+  );
+}
+
+export function TimberGroveTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-green-400">Timber Grove</div>
+      <div className="text-xs text-slate-300">
+        Sacred groves offer a moral choice between quick profit and sustainable growth.
+      </div>
+      <div className="text-xs space-y-1">
+        <div className="text-red-300">• Quick Option: Harvest Lumber</div>
+        <div>  - Gain 2 stars immediately</div>
+        <div>  - +1 Pride, +1 Dissent (moral cost)</div>
+        <div>  - Tile becomes empty plains</div>
+        <div className="text-green-300">• Sustainable Option: Build Sawmill</div>
+        <div>  - Costs 5 stars, requires Woodcraft tech</div>
+        <div>  - +1 Population, +1 star per turn</div>
+        <div>  - +1 Faith (spiritual benefit)</div>
+        <div>  - Permanent improvement</div>
+      </div>
+    </div>
+  );
+}
+
+export function WildGoatsTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-amber-400">Wild Goats</div>
+      <div className="text-xs text-slate-300">
+        Herds of goats present a choice between immediate sustenance and long-term husbandry.
+      </div>
+      <div className="text-xs space-y-1">
+        <div className="text-red-300">• Quick Option: Slaughter for Meat</div>
+        <div>  - Gain 2 stars immediately</div>
+        <div>  - +1 Pride, +1 Dissent (moral cost)</div>
+        <div>  - Tile becomes empty plains</div>
+        <div className="text-green-300">• Sustainable Option: Build Corral</div>
+        <div>  - Costs 5 stars, requires Husbandry tech</div>
+        <div>  - +1 Population, +1 star per turn</div>
+        <div>  - +1 Faith (stewardship benefit)</div>
+        <div>  - Permanent improvement</div>
+      </div>
+    </div>
+  );
+}
+
+export function GrainPatchTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-yellow-400">Grain Patch</div>
+      <div className="text-xs text-slate-300">
+        Wild grains offer choices between immediate harvest and agricultural development.
+      </div>
+      <div className="text-xs space-y-1">
+        <div className="text-red-300">• Quick Option: Gather Harvest</div>
+        <div>  - Gain 1 population immediately</div>
+        <div>  - +1 Pride, +1 Dissent (exploitation)</div>
+        <div>  - Tile becomes empty plains</div>
+        <div className="text-green-300">• Sustainable Option: Build Field</div>
+        <div>  - Costs 5 stars, requires Agriculture tech</div>
+        <div>  - +2 Population permanently</div>
+        <div>  - +1 Faith (cultivation blessing)</div>
+        <div>  - Can upgrade to Granary (+1 star/turn)</div>
+      </div>
+    </div>
+  );
+}
+
+export function FishingShoalTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-blue-400">Fishing Shoal</div>
+      <div className="text-xs text-slate-300">
+        Rich fishing grounds that require technology and infrastructure to utilize.
+      </div>
+      <div className="text-xs space-y-1">
+        <div className="text-yellow-300">• No immediate harvest option</div>
+        <div className="text-green-300">• Build Option: Fishing Jetty</div>
+        <div>  - Costs 2 stars, requires Seafaring tech</div>
+        <div>  - +1 Population boost</div>
+        <div>  - No ongoing star production</div>
+        <div className="text-purple-300">• Upgrade: Harbor (with Trade tech)</div>
+        <div>  - No additional cost</div>
+        <div>  - +2 stars per turn permanently</div>
+        <div>• Spawns on 50% of water tiles</div>
+        <div>• Mulekites get enhanced spawn rates (1.5x-2.0x)</div>
+      </div>
+    </div>
+  );
+}
+
+export function JarediteRuinsTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-purple-400">Jaredite Ruins</div>
+      <div className="text-xs text-slate-300">
+        Ancient ruins left by the Jaredite civilization, full of mysteries and treasures.
+      </div>
+      <div className="text-xs space-y-1">
+        <div className="text-yellow-300">• Exploration Action: Investigate Ruins</div>
+        <div>• Random rewards when explored:</div>
+        <div>  - Ancient technology knowledge</div>
+        <div>  - Population refugees joining your city</div>
+        <div>  - Star treasure caches</div>
+        <div>  - Elite warrior units</div>
+        <div>  - Map vision revealing nearby areas</div>
+        <div>• Ruins disappear after exploration</div>
+        <div>• Higher spawn rates near Jaredite tribal lands</div>
+      </div>
+    </div>
+  );
+}
