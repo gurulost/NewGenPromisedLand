@@ -156,7 +156,7 @@ function ForestCanopyModel({ position }: { position: { x: number; y: number } })
     <GroundedModel
       src={modelPath}
       position={position}
-      scale={1.0}
+      scale={0.4}
       tileY={0}
     />
   );
