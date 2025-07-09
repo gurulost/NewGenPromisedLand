@@ -16,14 +16,14 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
   const modelPath = getCityModelPath(city.level);
   const { scene } = useGLTF(modelPath);
   
-  // Calculate city scale based on level
+  // Calculate city scale based on level - increased sizes to fill hex tiles
   const cityScale = useMemo(() => {
     if (city.level >= 3) {
-      return 2.4; // Three tiles wide
+      return 2.8; // Large city spanning multiple tiles
     } else if (city.level >= 2) {
-      return 0.9; // Medium city
+      return 1.4; // Medium city filling hex tile nicely
     } else {
-      return 0.8; // Small city
+      return 1.1; // Level 1 city fills to hex tile edges
     }
   }, [city.level]);
   
@@ -78,7 +78,7 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
       <primitive object={groundedScene} scale={[cityScale, cityScale, cityScale]} />
       
       {/* City level indicator - floating text above the model */}
-      <mesh position={[0, city.level >= 3 ? 2.0 : 1.2, 0]}>
+      <mesh position={[0, city.level >= 3 ? 2.5 : city.level >= 2 ? 1.8 : 1.5, 0]}>
         <sphereGeometry args={[0.1]} />
         <meshBasicMaterial 
           color={isPlayerCity ? "#00FF00" : "#FF6B6B"} 
@@ -91,8 +91,8 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
       {city.level > 1 && (
         <mesh position={[0, -0.05, 0]}>
           <cylinderGeometry args={[
-            city.level >= 3 ? 2.4 : 1.0, 
-            city.level >= 3 ? 2.4 : 1.0, 
+            city.level >= 3 ? 2.8 : 1.4, 
+            city.level >= 3 ? 2.8 : 1.4, 
             0.02, 
             16
           ]} />
