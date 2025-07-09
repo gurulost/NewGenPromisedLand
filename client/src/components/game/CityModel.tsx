@@ -69,7 +69,7 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
   }, [scene, isPlayerCity, city.level]);
   
   return (
-    <group position={[position.x, 0.15, position.y]}>
+    <group position={[position.x, 0.3, position.y]}>
       <primitive object={clonedScene} />
       
       {/* City level indicator - floating text above the model */}

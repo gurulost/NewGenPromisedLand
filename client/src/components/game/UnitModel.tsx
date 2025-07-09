@@ -91,7 +91,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   }, [scene, isPlayerUnit, unit.status]);
   
   return (
-    <group position={[position.x, 0.025, position.y]}>
+    <group position={[position.x, 0.2, position.y]}>
       <primitive object={clonedScene} />
       
       {/* Unit status indicators */}
