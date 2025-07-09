@@ -68,64 +68,64 @@ interface TribalSpawnModifiers {
 
 export const TRIBAL_SPAWN_MODIFIERS: Record<FactionId, TribalSpawnModifiers> = {
   NEPHITES: {
-    mountain: 0.8,
-    forest: 1.0,
-    grainField: 1.2,
-    wildAnimal: 0.8,
-    water: 1.0,
-    fish: 1.0,
-    ruins: 1.0,
-    lore: "Agriculturally focused, city-building people (Alma 50); extra fertile fields accelerate peaceful booming while slightly fewer mountains keep starts flexible."
+    mountain: 0.8,      // 0.8× mountain
+    forest: 1.0,        // Neutral forest
+    grainField: 1.2,    // 1.2× grain (calculated automatically)
+    wildAnimal: 1.0,    // Neutral wild animals
+    water: 1.0,         // Neutral water
+    fish: 1.0,          // Neutral fish
+    ruins: 1.0,         // Neutral ruins
+    lore: "Advanced civilization with organized agriculture and cities"
   },
   LAMANITES: {
-    mountain: 0.8,
-    forest: 1.5,
-    grainField: 0.5,
-    wildAnimal: 1.5,
-    water: 1.0,
-    fish: 1.0,
-    ruins: 1.0,
-    lore: "Dwelt in the wilderness and lived by the chase (Enos 1:20); dense forests and abundant game fuel aggressive early hunts."
+    mountain: 1.0,      // Neutral mountain
+    forest: 1.5,        // 1.5× forest
+    grainField: 1.0,    // Auto-calculated (fields = remainder)
+    wildAnimal: 1.5,    // 1.5× wild_goats
+    water: 1.0,         // Neutral water
+    fish: 1.0,          // Neutral fish
+    ruins: 1.0,         // Neutral ruins
+    lore: "Forest-dwelling hunters skilled in wilderness survival"
   },
   MULEKITES: {
-    mountain: 0.5,
-    forest: 0.8,
-    grainField: 1.3,
-    wildAnimal: 1.0,
-    water: 1.5,
-    fish: 1.5,
-    ruins: 1.2,
-    lore: "River-valley traders along the Sidon (Omni 1:16); plentiful waterways and fish support commerce, extra ruins from Jaredite encounters."
+    mountain: 1.0,      // Neutral mountain
+    forest: 1.0,        // Neutral forest
+    grainField: 1.0,    // Auto-calculated
+    wildAnimal: 1.0,    // Neutral animals
+    water: 1.5,         // 1.5× water
+    fish: 1.5,          // 1.5× fish
+    ruins: 1.2,         // 1.2× ruins
+    lore: "River-valley traders with access to waterways and ancient ruins"
   },
   ANTI_NEPHI_LEHIES: {
-    mountain: 0.6,
-    forest: 0.9,
-    grainField: 1.5,
-    wildAnimal: 1.5,
-    water: 1.0,
-    fish: 1.0,
-    ruins: 1.0,
-    lore: "Peaceful herders in Jershon (Alma 27); rich pastures enable tall, defensive play while fewer mountains reduce rush-mining incentives."
+    mountain: 0.6,      // 0.6× mountain
+    forest: 1.0,        // Neutral forest
+    grainField: 1.5,    // 1.5× grain (peaceful agriculture)
+    wildAnimal: 1.5,    // 1.5× wild animals (herding)
+    water: 1.0,         // Neutral water
+    fish: 1.0,          // Neutral fish
+    ruins: 1.0,         // Neutral ruins
+    lore: "Peaceful herders focused on agriculture and animal husbandry"
   },
   ZORAMITES: {
-    mountain: 1.5,
-    forest: 0.5,
-    grainField: 0.7,
-    wildAnimal: 0.5,
-    water: 0.8,
-    fish: 0.8,
-    ruins: 1.0,
-    lore: "Proud, stark land of Antionum (Alma 31); rocky starts suit defensive Pride strategies, but limited food pushes expansion."
+    mountain: 1.5,      // 1.5× mountain
+    forest: 0.5,        // 0.5× forest
+    grainField: 1.0,    // Auto-calculated (limited by terrain)
+    wildAnimal: 1.0,    // Neutral animals
+    water: 1.0,         // Neutral water
+    fish: 1.0,          // Neutral fish
+    ruins: 1.0,         // Neutral ruins
+    lore: "Mountain-dwelling people with rocky, challenging homeland"
   },
   JAREDITES: {
-    mountain: 1.5,
-    forest: 1.0,
-    grainField: 0.8,
-    wildAnimal: 1.2,
-    water: 0.8,
-    fish: 0.8,
-    ruins: 2.0,
-    lore: "Ancient civilization with many herds and flocks (Ether 13); rugged highlands and double ruins for exploring their fallen empire."
+    mountain: 1.5,      // 1.5× mountain
+    forest: 1.0,        // Neutral forest
+    grainField: 1.0,    // Auto-calculated
+    wildAnimal: 1.0,    // Neutral animals
+    water: 1.0,         // Neutral water
+    fish: 1.0,          // Neutral fish
+    ruins: 2.0,         // 2.0× ruins (ancient civilization)
+    lore: "Ancient civilization with extensive ruins and mountainous territory"
   }
 };
 
@@ -279,7 +279,7 @@ export class MapGenerator {
     
     // Pass 3: Post-terrain villages (universal pass)
     // Keep adding villages until no legal tile remains, with soft cap
-    const maxVillages = Math.floor(tiles.length / 15); // ~4% of land tiles like Polytopia
+    const maxVillages = Math.floor(tiles.length / 25); // ~4% of land tiles like Polytopia (was 8% = /15)
     let villagesPlaced = 0;
     let attempts = 0;
     const maxAttempts = tiles.length * 2; // Prevent infinite loops
@@ -297,7 +297,7 @@ export class MapGenerator {
       }
     }
     
-    console.log(`Generated ${villagesPlaced} villages on map`);
+    console.log(`Polytopia village spawning: Generated ${villagesPlaced} villages on map (${((villagesPlaced / tiles.length) * 100).toFixed(1)}% density)`);
   }
 
   /**
@@ -341,14 +341,14 @@ export class MapGenerator {
 
   /**
    * Step 4: Generate terrain with tribal homeland modifiers
-   * Uses Polytopia-style cascading modifiers with proper order of operations
+   * Uses Polytopia-style Luxidoor base percentages (48% fields, 38% forests, 14% mountains)
    */
   private generateFactionBiasedTerrain(tiles: Tile[], mapRadius: number, capitalPositions: HexCoordinate[]): void {
-    // Base terrain distribution (neutral/Luxidoor settings)
+    // Base terrain distribution (Luxidoor's 48/38/14 split)
     const baseTerrain = {
-      mountain: 0.25,
-      forest: 0.35,
-      plains: 0.40  // This represents grain fields
+      plains: 0.48,  // Fields (Grain Patch tiles)
+      forest: 0.38,  // Forests (Timber Grove tiles)
+      mountain: 0.14 // Mountains
     };
     
     for (const tile of tiles) {
@@ -365,7 +365,7 @@ export class MapGenerator {
           if (modifiers) {
             // Apply tribal homeland modifiers with distance falloff
             const influence = Math.max(0, 1 - distance / 4); // Stronger influence closer to capital
-            terrainProbs = this.applyTribalModifiers(terrainProbs, modifiers, influence);
+            terrainProbs = this.applyPolytopiaTribalModifiers(terrainProbs, modifiers, influence);
           }
         }
       }
@@ -376,49 +376,24 @@ export class MapGenerator {
   }
 
   /**
-   * Apply tribal homeland modifiers using Polytopia's cascading system
-   * Order of operations: mountain → forest → plains (calculated automatically)
+   * Apply tribal homeland modifiers using authentic Polytopia cascading system
+   * Order: mountain → forest → fields (plains calculated as remainder)
    */
-  private applyTribalModifiers(base: any, modifiers: TribalSpawnModifiers, influence: number): any {
-    // Step 1: Start with base percentages
+  private applyPolytopiaTribalModifiers(base: any, modifiers: TribalSpawnModifiers, influence: number): any {
+    // Step 1: Apply mountain modifier first (Polytopia order)
     let mountain = base.mountain;
-    let forest = base.forest;
-    let plains = base.plains;
-
-    // Step 2: Apply mountain modifier first
     const mountainMod = 1 + (modifiers.mountain - 1) * influence;
-    const originalMountain = mountain;
-    mountain = Math.min(0.8, Math.max(0.05, mountain * mountainMod)); // Clamp between 5-80%
-    const mountainDelta = mountain - originalMountain;
+    mountain = Math.min(0.8, Math.max(0.05, mountain * mountainMod)); // Clamp 5-80%
     
-    // Subtract delta proportionally from original forest and plains
-    const originalTotal = base.forest + base.plains;
-    if (originalTotal > 0) {
-      forest -= mountainDelta * (base.forest / originalTotal);
-      plains -= mountainDelta * (base.plains / originalTotal);
-    }
-
-    // Step 3: Apply forest modifier second
+    // Step 2: Apply forest modifier to remaining land
+    const remainingAfterMountain = 1 - mountain;
+    let forest = base.forest * remainingAfterMountain / (base.forest + base.plains);
     const forestMod = 1 + (modifiers.forest - 1) * influence;
-    const newForest = Math.min(0.8, Math.max(0.05, forest * forestMod));
-    const forestDelta = newForest - forest;
+    forest = Math.min(remainingAfterMountain * 0.9, Math.max(0.05, forest * forestMod));
     
-    // Subtract forest delta only from plains (grain fields)
-    plains -= forestDelta;
-    forest = newForest;
-
-    // Step 4: Plains (grain fields) are whatever is left
-    // This ensures the map still sums to 100% and implements the grainField modifier indirectly
-    plains = Math.max(0.05, plains);
-
-    // Step 5: Ensure valid percentages
-    const total = mountain + forest + plains;
-    if (total > 0) {
-      mountain /= total;
-      forest /= total;
-      plains /= total;
-    }
-
+    // Step 3: Fields (plains) = remaining land (never gets direct multiplier)
+    const plains = Math.max(0.05, remainingAfterMountain - forest);
+    
     return { mountain, forest, plains };
   }
 
@@ -671,95 +646,106 @@ export class MapGenerator {
   }
   
   /**
-   * Inner city spawn rates (adjacent to cities) - high resource concentration
+   * Inner city spawn rates using authentic Polytopia percentages
+   * Terrain-based resource distribution per blueprint
    */
   private getInnerCitySpawnTable(): ResourceSpawnRate {
     return {
-      food: 20,          // 20%
-      stone: 15,         // 15%
-      gold: 10,          // 10%
-      timber_grove: 15,  // 15%
-      wild_goats: 12,    // 12%
-      grain_patch: 16,   // 16%
-      fishing_shoal: 0,  // 0% (water only)
-      sea_beast: 0,      // 0% (deep water only)
-      jaredite_ruins: 7, // 7%
-      empty: 5           // 5%
+      // Field tiles (48% of land) - Inner city rates
+      grain_patch: 18,       // 18% (main field resource)
+      food: 18,             // 18% (fruit orchard equivalent)
+      
+      // Forest tiles (38% of land) - Inner city rates  
+      wild_goats: 19,       // 19% (filled forest resource)
+      timber_grove: 0,      // Use empty forest, no timber resource spawn
+      
+      // Mountain tiles (14% of land) - Inner city rates
+      stone: 11,            // 11% (ore vein)
+      gold: 0,              // Simplified - no separate gold
+      
+      // Water-only resources
+      fishing_shoal: 0,     // Water terrain only
+      sea_beast: 0,         // Deep water only
+      jaredite_ruins: 4,    // Standard ruins count (4-23 based on map size)
+      empty: 30             // Remaining empty tiles
     };
   }
   
   /**
-   * Outer city spawn rates (2 tiles away) - lower concentration
+   * Outer city spawn rates (reduced concentration per Polytopia)
    */
   private getOuterCitySpawnTable(): ResourceSpawnRate {
     return {
-      food: 8,           // 8%
-      stone: 10,         // 10%
-      gold: 5,           // 5%
-      timber_grove: 12,  // 12%
-      wild_goats: 8,     // 8%
-      grain_patch: 10,   // 10%
-      fishing_shoal: 0,  // 0% (water only)
-      sea_beast: 0,      // 0% (deep water only)
-      jaredite_ruins: 7, // 7%
-      empty: 40          // 40%
+      // Field tiles - Outer city rates (reduced)
+      grain_patch: 6,       // 6% (reduced from 18%)
+      food: 6,              // 6% (reduced from 18%)
+      
+      // Forest tiles - Outer city rates
+      wild_goats: 6,        // 6% (reduced from 19%)
+      timber_grove: 0,      // Use empty forest
+      
+      // Mountain tiles - Outer city rates  
+      stone: 3,             // 3% (reduced from 11%)
+      gold: 0,              // No gold spawns
+      
+      // Water-only resources
+      fishing_shoal: 0,     // Water terrain only
+      sea_beast: 0,         // Deep water only
+      jaredite_ruins: 4,    // Standard ruins distribution
+      empty: 75             // Majority empty in outer zones
     };
   }
   
   /**
-   * Select resource from spawn table based on terrain requirements and random roll
+   * Select resource from spawn table based on terrain requirements and blueprint specs
+   * Terrain-resource matching per Polytopia blueprint
    */
   private getResourceFromTable(spawnTable: ResourceSpawnRate, terrain: TerrainType): string | null {
-    const roll = this.rng.nextInt(1, 100); // 1-100 roll
+    // Water-only resources (50% of shallow water gets Fish Shoals per blueprint)
+    if (terrain === 'water') {
+      const roll = this.rng.nextInt(1, 100);
+      if (roll <= 50) { // 50% of shallow water gets Fish Shoals
+        return 'fishing_shoal';
+      }
+      return null; // Empty water
+    }
+    
+    // Land-based resources with terrain matching per blueprint:
+    const roll = this.rng.nextInt(1, 100);
     let cumulative = 0;
     
-    // Check each resource type in order
     const resourceChecks = [
-      { 
-        type: 'food', 
-        rate: spawnTable.food, 
-        terrains: ['plains', 'forest'] 
-      },
-      { 
-        type: 'stone', 
-        rate: spawnTable.stone, 
-        terrains: ['mountain', 'desert'] 
-      },
-      { 
-        type: 'gold', 
-        rate: spawnTable.gold, 
-        terrains: ['mountain', 'desert', 'plains'] 
-      },
-      // World Elements
-      { 
-        type: 'timber_grove', 
-        rate: spawnTable.timber_grove, 
-        terrains: ['forest', 'hill'] 
-      },
-      { 
-        type: 'wild_goats', 
-        rate: spawnTable.wild_goats, 
-        terrains: ['plains', 'hill'] 
-      },
+      // Field tiles (48% of land): grain_patch, fruit orchard
       { 
         type: 'grain_patch', 
         rate: spawnTable.grain_patch, 
-        terrains: ['plains', 'forest'] 
+        terrains: ['plains'] // Fields only
       },
       { 
-        type: 'fishing_shoal', 
-        rate: spawnTable.fishing_shoal, 
-        terrains: ['water'] 
+        type: 'food', 
+        rate: spawnTable.food, 
+        terrains: ['plains'] // Fruit orchard on fields
       },
+      
+      // Forest tiles (38% of land): wild_goats (filled forest resource)
       { 
-        type: 'sea_beast', 
-        rate: spawnTable.sea_beast, 
-        terrains: ['water'] // Will be limited to deep water in post-processing
+        type: 'wild_goats', 
+        rate: spawnTable.wild_goats, 
+        terrains: ['forest'] // Forest only
       },
+      
+      // Mountain tiles (14% of land): ore vein (stone)
+      { 
+        type: 'stone', 
+        rate: spawnTable.stone, 
+        terrains: ['mountain'] // Mountain only
+      },
+      
+      // Ruins spawn on any land terrain
       { 
         type: 'jaredite_ruins', 
         rate: spawnTable.jaredite_ruins, 
-        terrains: ['plains', 'desert', 'forest', 'hill'] 
+        terrains: ['plains', 'forest', 'mountain'] 
       }
     ];
     
