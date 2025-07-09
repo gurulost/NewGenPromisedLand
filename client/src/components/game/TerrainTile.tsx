@@ -216,17 +216,6 @@ function TerrainFallback({ terrain, position, color, opacity }: {
       mat.transparent = true;
       mat.opacity = Math.min(opacity, 0.7);
       mat.color.setRGB(0.4, 0.7, 0.9); // Beautiful water blue
-      // Add subtle metallic reflection for water
-      if (mat instanceof THREE.MeshLambertMaterial) {
-        const waterMat = new THREE.MeshPhongMaterial({
-          color: new THREE.Color(0.4, 0.7, 0.9),
-          transparent: true,
-          opacity: Math.min(opacity, 0.7),
-          shininess: 100,
-          specular: 0x4499ff
-        });
-        return waterMat;
-      }
     }
     
     return mat;
