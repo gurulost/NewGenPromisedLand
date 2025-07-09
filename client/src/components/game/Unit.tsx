@@ -25,7 +25,7 @@ const HEX_SIZE = 1;
 
 export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
   const meshRef = useRef<THREE.Group>(null);
-  const { setSelectedUnit, setReachableTiles } = useGameState();
+  const { setSelectedUnit, setReachableTiles, isMovementMode } = useGameState();
   const { gameState } = useLocalGame();
   const { getReachableTiles: getReachableTilesWorker } = usePathfindingWorker();
   const debug = useGameDebugger();
@@ -53,9 +53,9 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
   // No need for additional visibility checks here - just render the unit
   console.log(`✅ Unit ${unit.id} passed visibility filter and is rendering`);
   
-  // Calculate reachable tiles when this unit is selected (using web worker)
+  // Calculate reachable tiles when this unit is selected AND in movement mode
   useEffect(() => {
-    if (isSelected && gameState) {
+    if (isSelected && isMovementMode && gameState) {
       console.log('Calculating reachable tiles for unit:', unit.id, 'Movement:', unit.remainingMovement);
       
       // Generate passable tiles list for the worker
@@ -80,10 +80,10 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
           setReachableTiles(reachableKeys);
         }
       );
-    } else if (!isSelected) {
+    } else if (!isSelected || !isMovementMode) {
       setReachableTiles([]);
     }
-  }, [isSelected, unit.coordinate, unit.remainingMovement, gameState, setReachableTiles, getReachableTilesWorker]);
+  }, [isSelected, isMovementMode, unit.coordinate, unit.remainingMovement, gameState, setReachableTiles, getReachableTilesWorker]);
   
   // Animation for selected unit
   useFrame((state) => {
