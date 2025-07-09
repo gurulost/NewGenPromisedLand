@@ -77,7 +77,7 @@ export default function TerrainGrid({ map }: TerrainGridProps) {
       
       return {
         tile,
-        position: [pixelPos.x, 0.0, pixelPos.y] as [number, number, number],
+        position: [pixelPos.x, 0.05, pixelPos.y] as [number, number, number], // Slightly elevated above hex grid
         color,
         opacity,
         isVisible: isCurrentlyVisible,
@@ -88,15 +88,21 @@ export default function TerrainGrid({ map }: TerrainGridProps) {
   
   return (
     <group>
-      {tileStates.map(({ tile, position, color, opacity, isVisible, isExplored }) => (
-        <TerrainTile
-          key={`${tile.coordinate.q},${tile.coordinate.r}`}
-          terrain={tile.terrain}
-          position={position}
-          color={color}
-          opacity={opacity}
-        />
-      ))}
+      {tileStates.map(({ tile, position, color, opacity, isVisible, isExplored }) => {
+        // Only render 3D overlays for visible/explored tiles with interesting terrain
+        if (!isVisible && !isExplored) return null;
+        if (tile.terrain === 'water') return null; // Let hex grid handle water
+        
+        return (
+          <TerrainTile
+            key={`${tile.coordinate.q},${tile.coordinate.r}`}
+            terrain={tile.terrain}
+            position={position}
+            color={color}
+            opacity={Math.min(opacity, 0.9)} // Slightly transparent to show hex grid underneath
+          />
+        );
+      })}
     </group>
   );
 }

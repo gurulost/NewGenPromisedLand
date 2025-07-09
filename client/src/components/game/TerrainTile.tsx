@@ -56,54 +56,84 @@ function TerrainFallback({ terrain, position, color, opacity }: {
     
     switch (terrain) {
       case 'mountain':
-        // Create mountain peaks
-        const mountainGeometry = new THREE.ConeGeometry(0.8, 1.5, 8);
-        mountainGeometry.translate(0, 0.75, 0);
+        // Create mountain peaks - more compact for overlay
+        const mountainGeometry = new THREE.ConeGeometry(0.6, 1.0, 6);
+        mountainGeometry.translate(0, 0.5, 0);
         return mountainGeometry;
         
       case 'forest':
-        // Simplified forest - single elevated cone for performance
-        const forestGeometry = new THREE.ConeGeometry(0.8, 1.2, 8);
-        forestGeometry.translate(0, 0.6, 0);
+        // Forest canopy - cluster of small trees
+        const forestGeometry = new THREE.BufferGeometry();
+        const positions: number[] = [];
+        const normals: number[] = [];
+        
+        // Create 3 small tree cones
+        for (let i = 0; i < 3; i++) {
+          const treeGeometry = new THREE.ConeGeometry(0.15, 0.5, 5);
+          const angle = (i / 3) * Math.PI * 2;
+          const radius = 0.2;
+          treeGeometry.translate(
+            Math.cos(angle) * radius,
+            0.25,
+            Math.sin(angle) * radius
+          );
+          
+          const treePositions = treeGeometry.attributes.position.array;
+          const treeNormals = treeGeometry.attributes.normal.array;
+          
+          for (let j = 0; j < treePositions.length; j += 3) {
+            positions.push(treePositions[j], treePositions[j + 1], treePositions[j + 2]);
+          }
+          for (let j = 0; j < treeNormals.length; j += 3) {
+            normals.push(treeNormals[j], treeNormals[j + 1], treeNormals[j + 2]);
+          }
+        }
+        
+        forestGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        forestGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
         return forestGeometry;
         
       case 'hill':
-        // Create gentle hills
-        const hillGeometry = new THREE.SphereGeometry(0.9, 8, 4);
-        hillGeometry.scale(1, 0.3, 1);
+        // Create gentle rolling hills - smaller for overlay
+        const hillGeometry = new THREE.SphereGeometry(0.7, 8, 4);
+        hillGeometry.scale(1, 0.2, 1);
+        hillGeometry.translate(0, 0.1, 0);
         return hillGeometry;
         
       case 'water':
-        // Create water surface with slight animation-ready deformation
-        const waterGeometry = new THREE.PlaneGeometry(2, 2, 4, 4);
-        waterGeometry.rotateX(-Math.PI / 2);
-        
-        // Add slight wave-like deformation
-        const positionAttribute = waterGeometry.attributes.position;
-        for (let i = 0; i < positionAttribute.count; i++) {
-          const x = positionAttribute.getX(i);
-          const z = positionAttribute.getZ(i);
-          const wave = Math.sin(x * 2) * Math.cos(z * 2) * 0.05;
-          positionAttribute.setY(i, wave);
-        }
-        waterGeometry.computeVertexNormals();
-        
-        return waterGeometry;
+        // Don't render water overlay - let hex grid handle water rendering
+        return new THREE.BufferGeometry(); // Empty geometry
         
       default:
-        // Plains - rolling surface
-        const plainsGeometry = new THREE.CylinderGeometry(1, 1, 0.1, 6);
+        // Plains - subtle grass tufts or small details
+        const plainsGeometry = new THREE.BufferGeometry();
+        const grassPositions: number[] = [];
+        const grassNormals: number[] = [];
         
-        // Add subtle height variations
-        const plainsPosAttribute = plainsGeometry.attributes.position;
-        for (let i = 0; i < plainsPosAttribute.count; i++) {
-          const x = plainsPosAttribute.getX(i);
-          const z = plainsPosAttribute.getZ(i);
-          const height = Math.sin(x * 3) * Math.cos(z * 3) * 0.02;
-          plainsPosAttribute.setY(i, plainsPosAttribute.getY(i) + height);
+        // Add small grass details - very minimal
+        for (let i = 0; i < 5; i++) {
+          const grassBlade = new THREE.ConeGeometry(0.05, 0.1, 3);
+          const angle = Math.random() * Math.PI * 2;
+          const radius = Math.random() * 0.4;
+          grassBlade.translate(
+            Math.cos(angle) * radius,
+            0.05,
+            Math.sin(angle) * radius
+          );
+          
+          const bladePositions = grassBlade.attributes.position.array;
+          const bladeNormals = grassBlade.attributes.normal.array;
+          
+          for (let j = 0; j < bladePositions.length; j += 3) {
+            grassPositions.push(bladePositions[j], bladePositions[j + 1], bladePositions[j + 2]);
+          }
+          for (let j = 0; j < bladeNormals.length; j += 3) {
+            grassNormals.push(bladeNormals[j], bladeNormals[j + 1], bladeNormals[j + 2]);
+          }
         }
-        plainsGeometry.computeVertexNormals();
         
+        plainsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(grassPositions, 3));
+        plainsGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(grassNormals, 3));
         return plainsGeometry;
     }
   }, [terrain]);
