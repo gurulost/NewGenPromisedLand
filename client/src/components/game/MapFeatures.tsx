@@ -105,7 +105,7 @@ function GameModel({ position }: { position: { x: number; y: number } }) {
     <GroundedModel
       src={modelPath}
       position={position}
-      scale={0.6}
+      scale={0.3}
       tileY={0}
     />
   );
