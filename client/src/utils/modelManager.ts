@@ -7,7 +7,7 @@ import { useGLTF } from '@react-three/drei';
 export const MODEL_PATHS = {
   // Upgraded unit models from attached assets
   units: {
-    warrior: '/models/warrior.glb',
+    warrior: '/models/warrior.glb', // Upgraded warrior model
     worker: '/models/settler.glb', // Upgraded settler model for worker units
     scout: '/models/scout.glb',
 
