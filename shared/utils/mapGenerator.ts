@@ -188,11 +188,11 @@ export class MapGenerator {
     // Step 3: Place neutral villages/cities
     this.placeCities(tiles, mapRadius, capitalPositions);
     
-    // Step 4: Place capturable villages
-    this.placeVillages(tiles, mapRadius, capitalPositions);
-    
-    // Step 5: Generate terrain with faction-specific modifiers
+    // Step 4: Generate terrain with faction-specific modifiers (BEFORE villages)
     this.generateFactionBiasedTerrain(tiles, mapRadius, capitalPositions);
+    
+    // Step 5: Place capturable villages (AFTER terrain is generated)
+    this.placeVillages(tiles, mapRadius, capitalPositions);
     
     // Step 6: Place resources in zones around cities
     this.placeZonedResources(tiles);
@@ -263,7 +263,7 @@ export class MapGenerator {
   }
 
   /**
-   * Step 4: Place capturable villages using Polytopia's three-pass system
+   * Step 5: Place capturable villages using Polytopia's three-pass system
    * Pass 1: Suburbs (future expansion - skipped for now)
    * Pass 2: Pre-terrain villages (future expansion - skipped for now) 
    * Pass 3: Post-terrain villages (main implementation)
@@ -297,7 +297,7 @@ export class MapGenerator {
       }
     }
     
-    console.log(`Generated ${villagesPlaced} villages on map (${placedVillages.length} total)`);
+    console.log(`Generated ${villagesPlaced} villages on map`);
   }
 
   /**
@@ -340,7 +340,7 @@ export class MapGenerator {
   }
 
   /**
-   * Step 5: Generate terrain with tribal homeland modifiers
+   * Step 4: Generate terrain with tribal homeland modifiers
    * Uses Polytopia-style cascading modifiers with proper order of operations
    */
   private generateFactionBiasedTerrain(tiles: Tile[], mapRadius: number, capitalPositions: HexCoordinate[]): void {
