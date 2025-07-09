@@ -140,41 +140,41 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
   const getModelForElement = (elementId: string) => {
     switch (elementId) {
       case 'timber_grove':
-        return { model: 'fruit', color: '#4a5c3a', scale: 0.8 }; // Green-brown for timber
+        return { model: 'fruit', scale: 0.8 }; // Tree-like elements
       case 'wild_goats':
-        return { model: 'game', color: '#8B4513', scale: 0.7 }; // Brown for goats
+        return { model: 'game', scale: 0.7 }; // Animal elements
       case 'grain_patch':
-        return { model: 'fruit', color: '#DAA520', scale: 0.6 }; // Golden for grain
+        return { model: 'fruit', scale: 0.6 }; // Agricultural elements
       case 'fishing_shoal':
-        return { model: 'fruit', color: '#4682B4', scale: 0.5 }; // Blue for fish
+        return { model: 'fruit', scale: 0.5 }; // Marine elements
       case 'sea_beast':
-        return { model: 'game', color: '#2F4F4F', scale: 1.2 }; // Dark gray for sea beast
+        return { model: 'game', scale: 1.2 }; // Large creature elements
       case 'jaredite_ruins':
-        return { model: 'stone', color: '#696969', scale: 1.0 }; // Gray for ruins
+        return { model: 'stone', scale: 1.0 }; // Archaeological elements
       default:
-        return { model: 'fruit', color: '#90EE90', scale: 0.6 };
+        return { model: 'fruit', scale: 0.6 };
     }
   };
 
   const config = getModelForElement(elementId);
-  const modelPath = getResourceModelPath(config.model as any);
+  const modelPath = getResourceModelPath(config.model as 'fruit' | 'stone' | 'game' | 'metal');
   
   if (!modelPath) {
     // Fallback to procedural geometry
     return (
       <Box position={[position.x, 0.08, position.y]} args={[0.08, 0.08, 0.08]} scale={config.scale}>
-        <meshStandardMaterial color={config.color} />
+        <meshStandardMaterial color="#90EE90" />
       </Box>
     );
   }
   
-  const { scene } = useGLTF(modelPath);
-  
   return (
-    <group position={[position.x, 0, position.y]} scale={[config.scale, config.scale, config.scale]}>
-      <primitive object={scene.clone()} position={[0, 0.2, 0]} />
-      <meshStandardMaterial color={config.color} />
-    </group>
+    <GroundedModel
+      src={modelPath}
+      position={position}
+      scale={config.scale}
+      tileY={0}
+    />
   );
 }
 
