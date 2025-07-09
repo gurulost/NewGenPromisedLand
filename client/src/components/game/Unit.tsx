@@ -20,7 +20,7 @@ interface UnitProps {
   onUnitClick?: (unit: UnitType) => void;
 }
 
-const UNIT_HEIGHT = 0.15;
+const UNIT_HEIGHT = 0.2;
 const HEX_SIZE = 1;
 
 export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
