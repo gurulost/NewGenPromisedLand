@@ -242,8 +242,6 @@ export default function MapFeatures() {
       case 'fruit':
       case 'food':
         return <FruitModel key={`fruit-${key}`} position={position} />;
-      case 'wood':
-        return <GameModel key={`wood-${key}`} position={position} />;
       case 'stone':
         return <StoneModel key={`stone-${key}`} position={position} />;
       case 'animal':
@@ -256,6 +254,11 @@ export default function MapFeatures() {
       default:
         return null;
     }
+  };
+
+  // Function to render forest trees (Polytopia-style: ALL forests have trees)
+  const renderForestTrees = (position: { x: number; y: number }, key: string) => {
+    return <GameModel key={`forest-${key}`} position={position} />;
   };
 
   // Function to render improvement models
@@ -493,8 +496,27 @@ export default function MapFeatures() {
         return renderImprovement(improvement, position, `${improvement.id}-${impKey}`);
       })}
       
-      {/* Render Resources on Tiles */}
+      {/* Render Forest Trees on ALL Forest Tiles (Polytopia-style) */}
+      {visibleTiles.map(tile => {
+        if (tile.terrain !== 'forest') return null;
+        
+        const position = hexToPixel(tile.coordinate, 1);
+        const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
+        
+        // Check if this tile has an improvement (don't render trees on improved tiles)
+        const hasImprovement = visibleImprovements.some(imp => 
+          imp.coordinate.q === tile.coordinate.q && imp.coordinate.r === tile.coordinate.r
+        );
+        
+        if (hasImprovement) return null; // Don't render trees on improved tiles
+        
+        return renderForestTrees(position, tileKey);
+      })}
+
+      {/* Render Resources on Non-Forest Tiles */}
       {visibleTilesWithFeatures.map(tile => {
+        if (tile.terrain === 'forest') return null; // Forest trees handled separately
+        
         const position = hexToPixel(tile.coordinate, 1);
         const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
         

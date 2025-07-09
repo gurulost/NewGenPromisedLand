@@ -167,12 +167,12 @@ function executeClearForestAction(
     return { success: false, message: "Need Forestry technology to clear forests" };
   }
 
-  // Polytopia-style: Clear forest gives +1 star immediately (no cost)
+  // Polytopia-style: Clear forest gives +2 stars immediately (no cost)
   const newState = {
     ...state,
     players: state.players.map(p => 
       p.id === player.id 
-        ? { ...p, stars: p.stars + 1 }
+        ? { ...p, stars: p.stars + 2 }
         : p
     ),
     map: {
@@ -187,7 +187,7 @@ function executeClearForestAction(
 
   return {
     success: true,
-    message: "Forest cleared - gained 1 star and tile converted to plains",
+    message: "Forest cleared - gained 2 stars and tile converted to plains",
     newState,
     effects: { }
   };

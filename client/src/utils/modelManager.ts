@@ -92,8 +92,7 @@ export const getResourceModelPath = (resourceType: string): string | null => {
     case 'metal':
     case 'gold': // Map gold to metal model (both are metallic)
       return MODEL_PATHS.resources.metal;
-    case 'wood':
-      return MODEL_PATHS.resources.game; // Map wood to game model (both are organic/natural)
+
     default:
       return null; // Return null for resources without 3D models (will use procedural)
   }
