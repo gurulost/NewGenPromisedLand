@@ -162,6 +162,37 @@ function ForestCanopyModel({ position }: { position: { x: number; y: number } })
   );
 }
 
+// Fish Shoal Model Component for Water Resources
+function FishShoalModel({ position }: { position: { x: number; y: number } }) {
+  const modelPath = getResourceModelPath('fishing_shoal');
+  
+  if (!modelPath) {
+    // Fallback to procedural fish if model not available
+    return (
+      <group>
+        <Sphere position={[position.x, 0.05, position.y]} args={[0.08]}>
+          <meshStandardMaterial color="#4169E1" />
+        </Sphere>
+        <Sphere position={[position.x + 0.1, 0.03, position.y + 0.05]} args={[0.05]}>
+          <meshStandardMaterial color="#4682B4" />
+        </Sphere>
+        <Sphere position={[position.x - 0.08, 0.04, position.y - 0.03]} args={[0.06]}>
+          <meshStandardMaterial color="#5F9EA0" />
+        </Sphere>
+      </group>
+    );
+  }
+  
+  return (
+    <GroundedModel
+      src={modelPath}
+      position={position}
+      scale={0.7}
+      tileY={0}
+    />
+  );
+}
+
 // World Element Model Components
 function WorldElementModel({ elementId, position }: { elementId: string; position: { x: number; y: number } }) {
   // Use existing resource models for world elements with appropriate fallbacks
@@ -174,7 +205,7 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
       case 'grain_patch':
         return { model: 'fruit', scale: 0.6 }; // Agricultural elements
       case 'fishing_shoal':
-        return { model: 'fruit', scale: 0.5 }; // Marine elements
+        return { model: 'fishing_shoal', scale: 0.7 }; // Marine elements
       case 'sea_beast':
         return { model: 'game', scale: 1.2 }; // Large creature elements
       case 'jaredite_ruins':
@@ -334,7 +365,7 @@ export default function MapFeatures() {
       case 'grain_patch':
         return <FruitModel key={`grain-${key}`} position={position} />; // Fruit model represents crops/grain
       case 'fishing_shoal':
-        return <StoneModel key={`fish-${key}`} position={position} />; // Stone model represents coral/rocky fishing areas
+        return <FishShoalModel key={`fish-${key}`} position={position} />; // New fish shoal 3D model
       case 'sea_beast':
         return <GameModel key={`whale-${key}`} position={position} />; // Large creature model for sea beasts
       case 'jaredite_ruins':
