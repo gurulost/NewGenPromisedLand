@@ -8,8 +8,9 @@ export const MODEL_PATHS = {
   // Upgraded unit models from attached assets
   units: {
     warrior: '/models/warrior.glb',
-    worker: '/models/worker.glb',
+    worker: '/models/settler.glb', // Upgraded settler model for worker units
     scout: '/models/scout.glb',
+
     // Use standard models for all unit types for consistency
     spearman: '/models/warrior.glb', // Use warrior model
     commander: '/models/warrior.glb', // Use warrior model  
