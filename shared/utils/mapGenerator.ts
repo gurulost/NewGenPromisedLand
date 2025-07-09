@@ -411,7 +411,7 @@ export class MapGenerator {
       }
       
       // Generate terrain based on modified probabilities
-      tile.terrain = this.selectTerrainFromProbabilities(tile.coordinate, terrainProbs, mapRadius);
+      tile.terrain = this.selectTerrainFromProbabilities(tile.coordinate, terrainProbs, mapRadius, capitalPositions);
     }
   }
 
@@ -445,7 +445,12 @@ export class MapGenerator {
    * Select terrain based on probabilities and noise
    * Includes tribal water modifier for coast generation
    */
-  private selectTerrainFromProbabilities(coord: HexCoordinate, probs: TerrainProbabilities, mapRadius: number): TerrainType {
+  private selectTerrainFromProbabilities(
+    coord: HexCoordinate, 
+    probs: TerrainProbabilities, 
+    mapRadius: number, 
+    capitalPositions: HexCoordinate[]
+  ): TerrainType {
     // Use noise to add variation
     const noiseValue = this.noise2D(coord.q * 0.1, coord.r * 0.1);
     const distanceFromCenter = Math.sqrt(coord.q ** 2 + coord.r ** 2) / mapRadius;
@@ -455,7 +460,6 @@ export class MapGenerator {
       MAP_GENERATION_CONSTANTS.WATER_EDGE_CHANCE : MAP_GENERATION_CONSTANTS.WATER_CENTER_CHANCE;
     
     // Apply tribal water modifier if near capitals
-    const capitalPositions = this.generateCapitalSpawns(Math.min(this.config.width, this.config.height));
     for (let i = 0; i < this.config.playerCount && i < capitalPositions.length; i++) {
       const capitalPos = capitalPositions[i];
       if (capitalPos) {
