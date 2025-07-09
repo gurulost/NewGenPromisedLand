@@ -429,7 +429,7 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
         onPointerLeave={() => document.body.style.cursor = 'default'}
       >
         <group
-          scale={unit.status === 'exhausted' ? [0.7, 0.7, 0.7] : [0.8, 0.8, 0.8]}
+          scale={unit.status === 'exhausted' ? [0.9, 0.9, 0.9] : [1.0, 1.0, 1.0]}
         >
           {/* Use the new 3D unit model */}
           <UnitModel 

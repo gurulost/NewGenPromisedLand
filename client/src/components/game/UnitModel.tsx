@@ -22,16 +22,16 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   const modelPath = getUnitModelPath(unit.type);
   const { scene } = useGLTF(modelPath);
   
-  // Calculate unit scale based on type
+  // Calculate unit scale based on type - increased for better visibility
   const unitScale = useMemo(() => {
     if (unit.type === 'worker') {
-      return 0.35; // Slightly smaller for civilian units
+      return 0.55; // Increased for civilian units
     } else if (unit.type === 'scout' || unit.type === 'wilderness_hunter') {
-      return 0.38; // Medium scale for ranged units
+      return 0.6; // Increased for ranged units
     } else if (unit.type === 'missionary' || unit.type === 'royal_envoy') {
-      return 0.37; // Special scale for religious units
+      return 0.58; // Increased for religious units
     }
-    return 0.4; // Default scale for most units
+    return 0.65; // Increased default scale for most units
   }, [unit.type]);
   
   // Clone and modify the scene for materials and status effects
