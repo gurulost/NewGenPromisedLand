@@ -556,9 +556,11 @@ export default function MapFeatures() {
       })}
       
       {/* Render Forest Trees on ALL Forest Tiles (Polytopia-style) */}
-      {visibleTiles.map(tile => {
-        if (tile.terrain !== 'forest') return null;
-        
+      {gameState.map.tiles.filter(tile => {
+        const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
+        const isVisible = visibleTiles.has(tileKey) || exploredTiles.has(tileKey);
+        return isVisible && tile.terrain === 'forest';
+      }).map(tile => {
         const position = hexToPixel(tile.coordinate, 1);
         const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
         
