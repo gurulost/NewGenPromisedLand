@@ -306,7 +306,7 @@ export default function MapFeatures() {
       case 'grain_patch':
         return <FruitModel key={`grain-${key}`} position={position} />; // Use fruit model for crops
       case 'fishing_shoal':
-        return <FruitModel key={`fish-${key}`} position={position} />; // Temporary fish representation
+        return <StoneModel key={`fish-${key}`} position={position} />; // Coral reef/rocky shoals where fish gather
       case 'sea_beast':
         return <GameModel key={`whale-${key}`} position={position} />; // Use large creature model
       case 'jaredite_ruins':
