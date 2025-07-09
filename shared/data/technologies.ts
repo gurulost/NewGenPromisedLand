@@ -28,6 +28,19 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     category: 'economic'
   },
 
+  forestry: {
+    id: 'forestry',
+    name: 'Forestry',
+    description: 'Following Nephi\'s example of constructing ships from timber (1 Nephi 18:1), this knowledge of forest management enables lumber harvesting and timber processing for construction and economic growth.',
+    cost: 5,
+    prerequisites: [],
+    unlocks: {
+      improvements: ['lumber_hut', 'sawmill'],
+      abilities: ['clear_forest']
+    },
+    category: 'economic'
+  },
+
   hunting: {
     id: 'hunting',
     name: 'Hunting',
@@ -35,8 +48,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 5,
     prerequisites: [],
     unlocks: {
-      units: ['scout'],
-      improvements: ['forest_camp']
+      units: ['scout']
     },
     category: 'military'
   },

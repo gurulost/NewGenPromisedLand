@@ -112,15 +112,32 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     constructionTime: 1
   },
   
-  forest_camp: {
-    id: 'forest_camp',
-    name: 'Forest Camp',
-    description: 'Harvests timber and provides hunting grounds',
-    cost: 4,
-    starProduction: 2,
+  lumber_hut: {
+    id: 'lumber_hut',
+    name: 'Lumber Hut',
+    description: 'Harvests timber and provides population growth',
+    cost: 3,
+    starProduction: 0,
     validTerrain: ['forest'],
-    requiredTech: 'hunting',
-    constructionTime: 1
+    requiredTech: 'forestry',
+    constructionTime: 1,
+    effects: {
+      populationGrowth: 1 // +1 population per turn
+    }
+  },
+  
+  sawmill: {
+    id: 'sawmill',
+    name: 'Sawmill',
+    description: 'Processes lumber - adds +1 population for each adjacent Lumber Hut',
+    cost: 5,
+    starProduction: 0,
+    validTerrain: ['plains'],
+    requiredTech: 'forestry',
+    constructionTime: 1,
+    effects: {
+      populationGrowth: 0 // Dynamic bonus calculated based on adjacent Lumber Huts
+    }
   },
   
   plantation: {

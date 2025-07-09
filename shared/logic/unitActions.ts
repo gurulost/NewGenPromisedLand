@@ -158,22 +158,28 @@ function executeClearForestAction(
   }
 
   const player = state.players.find(p => p.units.some(u => u.id === unit.id));
-  if (!player || player.stars < 5) {
-    return { success: false, message: "Need 5 stars to clear forest" };
+  if (!player) {
+    return { success: false, message: "Player not found" };
   }
 
+  // Check if player has Forestry technology
+  if (!player.researchedTechs.includes('forestry')) {
+    return { success: false, message: "Need Forestry technology to clear forests" };
+  }
+
+  // Polytopia-style: Clear forest gives +1 star immediately (no cost)
   const newState = {
     ...state,
     players: state.players.map(p => 
       p.id === player.id 
-        ? { ...p, stars: p.stars - 5 }
+        ? { ...p, stars: p.stars + 1 }
         : p
     ),
     map: {
       ...state.map,
       tiles: state.map.tiles.map(tile =>
         tile.coordinate.q === hex.coordinate.q && tile.coordinate.r === hex.coordinate.r
-          ? { ...tile, terrain: 'plains' }
+          ? { ...tile, terrain: 'plains', resources: [] } // Remove any wood resources
           : tile
       )
     }
@@ -181,7 +187,7 @@ function executeClearForestAction(
 
   return {
     success: true,
-    message: "Forest cleared - tile converted to plains",
+    message: "Forest cleared - gained 1 star and tile converted to plains",
     newState,
     effects: { }
   };
