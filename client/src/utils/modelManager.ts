@@ -82,6 +82,7 @@ export const getCityModelPath = (level: number): string => {
 export const getResourceModelPath = (resourceType: string): string | null => {
   switch (resourceType) {
     case 'fruit':
+    case 'food':
       return MODEL_PATHS.resources.fruit;
     case 'stone':
       return MODEL_PATHS.resources.stone;
