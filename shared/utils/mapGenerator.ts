@@ -625,10 +625,10 @@ export class MapGenerator {
       // Field tiles (48% of land) - Inner city rates
       grain_patch: 18,       // 18% (main field resource)
       food: 18,             // 18% (fruit orchard equivalent)
+      wild_goats: 9,        // 9% (animals on plains terrain only)
       
-      // Forest tiles (38% of land) - Inner city rates (animals moved to plains)
-      wild_goats: 0,        // 0% (animals only spawn on plains)
-      timber_grove: 19,     // 19% (increased timber concentration on forests)
+      // Forest tiles (38% of land) - Inner city rates
+      timber_grove: 19,     // 19% (timber groves on forest terrain only)
       
       // Mountain tiles (14% of land) - Inner city rates
       stone: 6,             // 6% (basic ore vein)
@@ -672,10 +672,10 @@ export class MapGenerator {
       // Field tiles - Outer city rates (reduced)
       grain_patch: 6,       // 6% (reduced from 18%)
       food: 6,              // 6% (reduced from 18%)
+      wild_goats: 3,        // 3% (animals on plains terrain only)
       
-      // Forest tiles - Outer city rates (animals moved to plains)
-      wild_goats: 0,        // 0% (animals only on plains)
-      timber_grove: 6,      // 6% (increased timber on forests)
+      // Forest tiles - Outer city rates
+      timber_grove: 6,      // 6% (timber groves on forest terrain only)
       
       // Mountain tiles - Outer city rates  
       stone: 2,             // 2% (basic ore vein)
