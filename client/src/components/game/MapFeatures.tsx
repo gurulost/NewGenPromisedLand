@@ -78,7 +78,7 @@ function FruitModel({ position }: { position: { x: number; y: number } }) {
   );
 }
 
-// Stone Model Component
+// Stone Model Component (used for Jaredite Ruins)
 function StoneModel({ position }: { position: { x: number; y: number } }) {
   const modelPath = getResourceModelPath('stone');
   
@@ -124,7 +124,7 @@ function GameModel({ position }: { position: { x: number; y: number } }) {
   );
 }
 
-// Metal/Ore Model Component
+// Metal/Ore Model Component (used for Ore Veins)
 function MetalModel({ position }: { position: { x: number; y: number } }) {
   const modelPath = getResourceModelPath('metal');
   
@@ -217,6 +217,8 @@ function WorldElementModel({ elementId, position }: { elementId: string; positio
         return { model: 'game', scale: 0.7 }; // Animal elements
       case 'grain_patch':
         return { model: 'fruit', scale: 0.6 }; // Agricultural elements
+      case 'ore_vein':
+        return { model: 'metal', scale: 0.5 }; // Ore/mineral elements
       case 'fishing_shoal':
         return { model: 'fishing_shoal', scale: 0.42 }; // Marine elements
       case 'sea_beast':

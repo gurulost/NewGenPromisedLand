@@ -506,21 +506,17 @@ export class MapGenerator {
     const ruinsMod = 1 + (modifiers.ruins - 1) * influence;
     const fishMod = 1 + (modifiers.fish - 1) * influence;
     
-    // Apply modifiers to world elements and traditional resources
+    // Apply modifiers to unified world elements system
     modified.wild_goats = Math.round(modified.wild_goats * wildAnimalMod);
     modified.jaredite_ruins = Math.round(modified.jaredite_ruins * ruinsMod);
     modified.fishing_shoal = Math.round(modified.fishing_shoal * fishMod);
     modified.sea_beast = Math.round(modified.sea_beast * fishMod);
-    
-    // Also apply to traditional animal resources
-    modified.food = Math.round(modified.food * wildAnimalMod); // Food includes hunted animals
     
     // Clamp values to reasonable ranges
     modified.wild_goats = Math.max(0, Math.min(30, modified.wild_goats));
     modified.jaredite_ruins = Math.max(0, Math.min(25, modified.jaredite_ruins));
     modified.fishing_shoal = Math.max(0, Math.min(20, modified.fishing_shoal));
     modified.sea_beast = Math.max(0, Math.min(15, modified.sea_beast));
-    modified.food = Math.max(0, Math.min(25, modified.food));
     
     return modified;
   }
