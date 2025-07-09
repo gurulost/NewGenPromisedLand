@@ -5,7 +5,7 @@ import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { getVisibleUnits } from "@shared/logic/unitLogic";
 import HexGridInstanced from "./HexGridInstanced";
-import TerrainGrid from "./TerrainGrid";
+
 import WaterAnimation from "./WaterAnimation";
 import Unit from "./Unit";
 import MapFeatures from "./MapFeatures";
@@ -185,9 +185,6 @@ export default function GameCanvas() {
       
       {/* Grid - Using Instanced Rendering for Performance */}
       <HexGridInstanced map={gameState.map} />
-      
-      {/* 3D Terrain Models - Overlaid on hex grid for visual enhancement */}
-      <TerrainGrid map={gameState.map} />
       
       {/* Animated Water Effects */}
       <WaterAnimation map={gameState.map} />
