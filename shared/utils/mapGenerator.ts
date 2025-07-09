@@ -100,7 +100,6 @@ export const FACTION_TERRAIN_MODIFIERS: Record<string, FactionTerrainModifiers> 
 
 interface ResourceSpawnRate {
   food: number;
-  wood: number;
   stone: number;
   gold: number;
   empty: number;
@@ -516,11 +515,10 @@ export class MapGenerator {
    */
   private getInnerCitySpawnTable(): ResourceSpawnRate {
     return {
-      food: 30,  // 30%
-      wood: 25,  // 25%
-      stone: 20, // 20%
-      gold: 15,  // 15%
-      empty: 10  // 10%
+      food: 40,  // 40%
+      stone: 25, // 25%
+      gold: 20,  // 20%
+      empty: 15  // 15%
     };
   }
   
@@ -529,11 +527,10 @@ export class MapGenerator {
    */
   private getOuterCitySpawnTable(): ResourceSpawnRate {
     return {
-      food: 10,  // 10%
-      wood: 20,  // 20%
-      stone: 10, // 10%
-      gold: 5,   // 5%
-      empty: 55  // 55%
+      food: 15,  // 15%
+      stone: 15, // 15%
+      gold: 10,  // 10%
+      empty: 60  // 60%
     };
   }
   
@@ -551,11 +548,7 @@ export class MapGenerator {
         rate: spawnTable.food, 
         terrains: ['plains', 'forest'] 
       },
-      { 
-        type: 'wood', 
-        rate: spawnTable.wood, 
-        terrains: ['forest'] 
-      },
+
       { 
         type: 'stone', 
         rate: spawnTable.stone, 
