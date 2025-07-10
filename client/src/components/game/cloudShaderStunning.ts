@@ -12,8 +12,16 @@ export function createStunningCloudMaterial(textures: Record<string, THREE.Textu
     side: THREE.DoubleSide,
     depthWrite: false,          // clouds can overlap nicely
     uniforms: {
-      // required by caller
-      ...textures,
+      // terrain textures with proper format
+      plainsTexture: textures.plainsTexture,
+      forestTexture: textures.forestTexture,
+      mountainTexture: textures.mountainTexture,
+      waterTexture: textures.waterTexture,
+      desertTexture: textures.desertTexture,
+      swampTexture: textures.swampTexture,
+      grassTexture: textures.grassTexture,
+      sandTexture: textures.sandTexture,
+      woodTexture: textures.woodTexture,
 
       // time & animation
       time:        { value: 0 },
@@ -213,19 +221,52 @@ export function createStunningCloudMaterial(textures: Record<string, THREE.Textu
         }
 
         // ───── explored tile → sample existing textures ─────
-        vec3 tex; vec3 borderColor;
-        if      (vTextureId < 1.5){ tex = texture2D(plainsTexture,   vUv).rgb; borderColor = vec3(0.8,0.9,0.4);}
-        else if (vTextureId < 2.5){ tex = texture2D(forestTexture,   vUv).rgb; borderColor = vec3(0.2,0.7,0.2);}
-        else if (vTextureId < 3.5){ tex = texture2D(mountainTexture, vUv).rgb; borderColor = vec3(0.7,0.6,0.5);}
-        else if (vTextureId < 4.5){ tex = texture2D(waterTexture,    vUv).rgb; borderColor = vec3(0.2,0.7,0.9);}
-        else if (vTextureId < 5.5){ tex = texture2D(desertTexture,   vUv).rgb; borderColor = vec3(0.9,0.8,0.5);}
-        else if (vTextureId < 6.5){ tex = texture2D(swampTexture,    vUv).rgb; borderColor = vec3(0.3,0.5,0.3);}
-        else                       { tex = texture2D(grassTexture,   vUv).rgb; borderColor = vec3(0.6,0.8,0.4);}
+        vec3 textureColor = vec3(1.0);
+        vec3 borderColor = vec3(0.5, 0.5, 0.5);
 
-        float border = hexBorder(vUv, 0.07);
-        tex = mix(tex, borderColor, step(0.0, border) * 0.8);
+        if (vTextureId < 1.5) {
+          textureColor = texture2D(plainsTexture, vUv).rgb;
+          borderColor = vec3(0.8, 0.9, 0.4);
+        } else if (vTextureId < 2.5) {
+          textureColor = texture2D(forestTexture, vUv).rgb;
+          borderColor = vec3(0.2, 0.8, 0.2);
+        } else if (vTextureId < 3.5) {
+          // Apply same mountain texture rotation as original
+          vec2 rotatedUv = vUv - 0.5;
+          float angle = -0.698132;
+          float cosAngle = cos(angle);
+          float sinAngle = sin(angle);
+          vec2 mountainUv = vec2(rotatedUv.x * cosAngle - rotatedUv.y * sinAngle, rotatedUv.x * sinAngle + rotatedUv.y * cosAngle) + 0.5;
+          textureColor = texture2D(mountainTexture, mountainUv).rgb;
+          borderColor = vec3(0.6, 0.4, 0.3);
+        } else if (vTextureId < 4.5) {
+          textureColor = texture2D(waterTexture, vUv).rgb;
+          borderColor = vec3(0.2, 0.7, 0.9);
+        } else if (vTextureId < 5.5) {
+          textureColor = texture2D(desertTexture, vUv).rgb;
+          borderColor = vec3(0.9, 0.7, 0.4);
+        } else if (vTextureId < 6.5) {
+          textureColor = texture2D(swampTexture, vUv).rgb;
+          borderColor = vec3(0.4, 0.6, 0.3);
+        }
 
-        gl_FragColor = vec4(tex * vColor, vOpacity);
+        // Apply hex border
+        float border = hexBorder(vUv, 0.12); // Increased from 0.07 to 0.12 for thicker borders
+        vec3 finalColor = textureColor;
+        if (border > 0.5) {
+          finalColor = mix(finalColor, borderColor, 0.9); // Increased from 0.8 to 0.9 for stronger border colors
+        }
+
+        // Apply the instance color tint (for cities, valid moves, etc.)
+        finalColor *= vColor;
+
+        // Dim explored tiles that are not currently visible (opacity is 0.85)
+        if (vOpacity < 1.0) {
+            vec3 fogColor = vec3(0.4, 0.5, 0.6);
+            finalColor = mix(finalColor, fogColor, 0.08);
+        }
+
+        gl_FragColor = vec4(finalColor, vOpacity);
       }
     `
   });
