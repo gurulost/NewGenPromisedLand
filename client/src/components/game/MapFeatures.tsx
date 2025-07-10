@@ -264,16 +264,16 @@ export default function MapFeatures() {
         unitVisibleTiles.forEach((tileKey: string) => visible.add(tileKey));
       });
     
-    // Filter cities that are visible or explored
+    // Filter cities that are currently visible only (not just explored)
     const cities = gameState.cities?.filter(city => {
       const cityKey = `${city.coordinate.q},${city.coordinate.r}`;
-      return explored.has(cityKey) || visible.has(cityKey);
+      return visible.has(cityKey); // Only currently visible, not explored
     }) || [];
     
-    // Filter improvements that are visible or explored
+    // Filter improvements that are currently visible only (not just explored)
     const improvements = gameState.improvements?.filter(improvement => {
       const impKey = `${improvement.coordinate.q},${improvement.coordinate.r}`;
-      return explored.has(impKey) || visible.has(impKey);
+      return visible.has(impKey); // Only currently visible, not explored
     }) || [];
     
     // Filter structures in visible cities
