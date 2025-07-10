@@ -147,8 +147,8 @@ export function createCloudShader(textures: Record<string, THREE.Texture>): THRE
         float ang = atan(q.y,q.x)+0.5236;
         float rad = length(q);
         float hd  = cos(floor(0.5+ang/1.047198)*1.047198-ang)*rad;
-        float o   = step(hd,0.97);
-        float i   = step(hd,0.97-w);
+        float o   = step(hd,0.94);  // Changed from 0.97 to 0.94 for thicker borders
+        float i   = step(hd,0.94-w); // Changed from 0.97 to 0.94 for thicker borders
         return o-i;
       }
 
@@ -207,10 +207,10 @@ export function createCloudShader(textures: Record<string, THREE.Texture>): THRE
         }
 
         // Apply hex border
-        float border = hexBorder(vUv, 0.08);
+        float border = hexBorder(vUv, 0.12); // Increased from 0.08 to 0.12 for thicker borders
         vec3 finalColor = textureColor;
         if (border > 0.5) {
-          finalColor = mix(finalColor, borderColor, 0.8);
+          finalColor = mix(finalColor, borderColor, 0.9); // Increased from 0.8 to 0.9 for stronger border colors
         }
 
         // Apply the instance color tint (for cities, valid moves, etc.)
