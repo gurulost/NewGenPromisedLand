@@ -313,14 +313,16 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           float value = 0.0;
           float amplitude = 0.5;
           float frequency = 1.0;
-          
+
           for(int i = 0; i < 4; i++) {
+            // Add noise at the current frequency and amplitude
             value += amplitude * noise(p * frequency);
+            
+            // For the next octave, decrease amplitude and increase frequency
             amplitude *= 0.5;
             frequency *= 2.0;
-            p = p * 2.0 + vec2(time * 0.1, time * 0.05);
           }
-          
+
           return value;
         }
         
