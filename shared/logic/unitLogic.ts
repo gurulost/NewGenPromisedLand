@@ -4,6 +4,8 @@ import { HexCoordinate } from "../types/coordinates";
 import { getReachableTiles } from "./pathfinding";
 import { GAME_RULES } from "../data/gameRules";
 import { hexDistance } from "../utils/hex";
+import { getUnitDefinition } from "../data/units";
+import { getVisibleTilesInRange } from "../utils/lineOfSight";
 
 /**
  * Centralized unit logic functions to be shared between UI and game reducer
@@ -193,19 +195,31 @@ export function isUnitVisibleToPlayer(
   // Find all friendly units for the player
   const playerUnits = gameState.units.filter(u => u.playerId === playerId);
   
-  // Check if the enemy unit's tile is currently visible (not just explored)
+  // Check if the enemy unit's tile is currently visible using proper line-of-sight
   const unitTileKey = `${unit.coordinate.q},${unit.coordinate.r}`;
   
-  // Calculate currently visible tiles for this player
-  const isVisible = playerUnits.some(friendlyUnit => {
-    const distance = hexDistance(friendlyUnit.coordinate, unit.coordinate);
-    const visionRadius = friendlyUnit.visionRadius || 2;
-    return distance <= visionRadius;
+  // Calculate currently visible tiles for this player using proper vision system
+  const allVisibleTiles = new Set<string>();
+  
+  playerUnits.forEach(friendlyUnit => {
+    // Use unit's actual vision radius from definition (same as MapFeatures)
+    const unitDef = getUnitDefinition(friendlyUnit.type);
+    const visionRadius = unitDef.baseStats.visionRadius;
+    
+    // Get visible tiles with line-of-sight calculations (same as MapFeatures)
+    const unitVisibleTiles = getVisibleTilesInRange(
+      friendlyUnit.coordinate,
+      visionRadius,
+      gameState.map,
+      true // Enable shadow casting for performance
+    );
+    
+    // Add all visible tiles to the set
+    unitVisibleTiles.forEach(tileKey => allVisibleTiles.add(tileKey));
   });
   
   // Enemy units are only visible if they're in currently visible tiles
-  return isVisible;
-  return isVisible;
+  return allVisibleTiles.has(unitTileKey);
 }
 
 /**
