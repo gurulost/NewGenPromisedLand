@@ -10,6 +10,7 @@ import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
+import { createCloudShader } from './cloudShader';
 
 interface HexGridInstancedProps {
   map: GameMap;
@@ -262,197 +263,23 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     return geometry;
   }, []);
 
-  // Custom shader material for instanced rendering with fog of war
-  const shaderMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      transparent: true,
-      vertexShader: `
-        attribute vec3 instanceColor;
-        attribute float instanceOpacity;
-        attribute float instanceTextureId;
-        
-        varying vec3 vColor;
-        varying float vOpacity;
-        varying float vTextureId;
-        varying vec2 vUv;
-        
-        void main() {
-          vColor = instanceColor;
-          vOpacity = instanceOpacity;
-          vTextureId = instanceTextureId;
-          vUv = uv;
-          
-          vec3 transformed = position;
-          vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(transformed, 1.0);
-          gl_Position = projectionMatrix * mvPosition;
-        }
-      `,
-      fragmentShader: `
-        uniform sampler2D plainsTexture;
-        uniform sampler2D forestTexture;
-        uniform sampler2D mountainTexture;
-        uniform sampler2D waterTexture;
-        uniform sampler2D desertTexture;
-        uniform sampler2D swampTexture;
-        uniform sampler2D grassTexture;
-        uniform sampler2D sandTexture;
-        uniform sampler2D woodTexture;
-        uniform float time;
-        
-        varying vec3 vColor;
-        varying float vOpacity;
-        varying float vTextureId;
-        varying vec2 vUv;
-        
-        // Generates a pseudo-random value from a 2D coordinate
-        float random(vec2 p) {
-            return fract(sin(dot(p.xy, vec2(12.9898, 78.233))) * 43758.5453123);
-        }
-
-        // Creates smooth, organic noise by interpolating random values
-        float value_noise(vec2 st) {
-            vec2 i = floor(st);
-            vec2 f = fract(st);
-
-            // Get random values at the four corners of the grid cell
-            float a = random(i);
-            float b = random(i + vec2(1.0, 0.0));
-            float c = random(i + vec2(0.0, 1.0));
-            float d = random(i + vec2(1.0, 1.0));
-
-            // Smoothly blend the values
-            vec2 u = f * f * (3.0 - 2.0 * f);
-            return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
-        }
-        
-        float fbm(vec2 p) {
-          float value = 0.0;
-          float amplitude = 0.5;
-          float frequency = 1.0;
-
-          for(int i = 0; i < 4; i++) {
-            // Add noise at the current frequency and amplitude
-            value += amplitude * value_noise(p * frequency);
-            
-            // For the next octave, decrease amplitude and increase frequency
-            amplitude *= 0.5;
-            frequency *= 2.0;
-          }
-
-          return value;
-        }
-        
-        // Function to create hex border matching actual hex geometry
-        float hexBorder(vec2 uv, float borderWidth) {
-          // Convert UV to centered coordinates
-          vec2 pos = (uv - 0.5) * 2.0;
-          
-          // Rotate by 30 degrees to match the hex geometry orientation
-          // Our hex geometry is rotated by PI/6 (30 degrees) to align flat-top to north
-          float angle = atan(pos.y, pos.x) + 0.5236; // Add PI/6 (30 degrees)
-          float radius = length(pos);
-          
-          // Hexagon distance field with proper 60-degree segments
-          float hexDist = cos(floor(0.5 + angle / 1.047198) * 1.047198 - angle) * radius;
-          
-          // Create border by checking distance from edge
-          float outerHex = step(hexDist, 0.9);
-          float innerHex = step(hexDist, 0.9 - borderWidth);
-          
-          return outerHex - innerHex;
-        }
-        
-        void main() {
-          // Unexplored Tiles: Procedural sky and clouds
-          if (vTextureId < 0.5) {
-              // 1. Define the background sky color
-              vec3 skyColor = vec3(0.53, 0.81, 0.92); // Cheery sky blue
-
-              // 2. Generate the cloud pattern using the sophisticated noise generation
-              vec2 cloudUv = vUv * 3.0 + vec2(time * 0.02, time * 0.01);
-              float cloudPattern1 = fbm(cloudUv);
-              float cloudPattern2 = fbm(cloudUv * 1.5 + vec2(1.7, 9.2));
-              float cloudPattern3 = fbm(cloudUv * 0.5 + vec2(8.3, 2.8));
-              float clouds = (cloudPattern1 + cloudPattern2 * 0.7 + cloudPattern3 * 0.4) / 2.1;
-              clouds = smoothstep(0.3, 0.8, clouds); // Sharpen the edges
-
-              // 3. Define the cloud color
-              vec3 cloudColor = vec3(1.0, 1.0, 1.0); // Bright white clouds
-
-              // 4. Mix the sky and cloud colors and set the final fragment color
-              vec3 finalColor = mix(skyColor, cloudColor, clouds);
-              gl_FragColor = vec4(finalColor, 1.0);
-          }
-          // Visible and Explored Tiles: Use Textures
-          else {
-              vec3 textureColor = vec3(1.0);
-              vec3 borderColor = vec3(0.5, 0.5, 0.5);
-
-              // This is the original texture sampling logic from your file
-              if (vTextureId < 1.5) {
-                textureColor = texture2D(plainsTexture, vUv).rgb;
-                borderColor = vec3(0.8, 0.9, 0.4);
-              } else if (vTextureId < 2.5) {
-                textureColor = texture2D(forestTexture, vUv).rgb;
-                borderColor = vec3(0.2, 0.8, 0.2);
-              } else if (vTextureId < 3.5) {
-                vec2 rotatedUv = vUv - 0.5;
-                float angle = -0.698132;
-                float cosAngle = cos(angle);
-                float sinAngle = sin(angle);
-                vec2 mountainUv = vec2(rotatedUv.x * cosAngle - rotatedUv.y * sinAngle, rotatedUv.x * sinAngle + rotatedUv.y * cosAngle) + 0.5;
-                textureColor = texture2D(mountainTexture, mountainUv).rgb;
-                borderColor = vec3(0.6, 0.4, 0.3);
-              } else if (vTextureId < 4.5) {
-                textureColor = texture2D(waterTexture, vUv).rgb;
-                borderColor = vec3(0.2, 0.7, 0.9);
-              } else if (vTextureId < 5.5) {
-                textureColor = texture2D(desertTexture, vUv).rgb;
-                borderColor = vec3(0.9, 0.7, 0.4);
-              } else if (vTextureId < 6.5) {
-                textureColor = texture2D(swampTexture, vUv).rgb;
-                borderColor = vec3(0.4, 0.6, 0.3);
-              }
-
-              // Apply hex border
-              float border = hexBorder(vUv, 0.08);
-              vec3 finalColor = textureColor;
-              if (border > 0.5) {
-                finalColor = mix(finalColor, borderColor, 0.8);
-              }
-
-              // Apply the instance color tint (for cities, valid moves, etc.)
-              finalColor *= vColor;
-
-              // Dim explored tiles that are not currently visible (opacity is 0.85)
-              if (vOpacity < 1.0) {
-                  vec3 fogColor = vec3(0.4, 0.5, 0.6);
-                  finalColor = mix(finalColor, fogColor, 0.08);
-              }
-
-              gl_FragColor = vec4(finalColor, vOpacity);
-          }
-        }
-      `,
-      uniforms: {
-        plainsTexture: { value: plainsTexture },
-        forestTexture: { value: forestTexture },
-        mountainTexture: { value: mountainTexture },
-        waterTexture: { value: waterTexture },
-        desertTexture: { value: desertTexture },
-        swampTexture: { value: swampTexture },
-        grassTexture: { value: grassTexture },
-        sandTexture: { value: sandTexture },
-        woodTexture: { value: woodTexture },
-        time: { value: 0.0 }
-      }
-    });
-  }, [plainsTexture, forestTexture, mountainTexture, waterTexture, desertTexture, swampTexture, grassTexture, sandTexture, woodTexture]);
+  // Advanced cloud shader material using modular cloud shader
+  const shaderMaterial = useMemo(() => createCloudShader({
+    plainsTexture,
+    forestTexture,
+    mountainTexture,
+    waterTexture,
+    desertTexture,
+    swampTexture,
+    grassTexture,
+    sandTexture,
+    woodTexture
+  }), [plainsTexture, forestTexture, mountainTexture, waterTexture, desertTexture, swampTexture, grassTexture, sandTexture, woodTexture]);
 
   // Animate the cloud fog of war
-  useFrame((state) => {
+  useFrame(({ clock }) => {
     if (shaderMaterial) {
-      shaderMaterial.uniforms.time.value = state.clock.elapsedTime;
+      shaderMaterial.uniforms.time.value = clock.elapsedTime;
     }
   });
 
