@@ -109,57 +109,41 @@ export default function HandoffScreen() {
         opacity: imageLoaded ? 1 : 0.8
       }}
     >
-      {/* Dark overlay to ensure text readability - removed blur for clear image visibility */}
-      <div className="absolute inset-0 bg-black/50"></div>
+      {/* No overlay - let the beautiful images show in full glory */}
       
-      {/* Content wrapper with relative positioning */}
-      <div className="relative z-10 w-full h-full flex items-center justify-center">
-        <Card className="w-96 bg-black/90 border-amber-600/50 text-white text-center">
-        <CardHeader>
-          <CardTitle className="text-2xl font-cinzel text-amber-400 mb-4 font-semibold tracking-wide">
-            Turn Complete
-          </CardTitle>
-        </CardHeader>
-        
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
-            <p className="text-lg text-gray-300 font-body">
-              Turn {gameState.turn} is ready to begin.
-            </p>
-            
-            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-600">
-              <p className="text-sm text-gray-400 mb-2 font-body">Pass the device to:</p>
-              <div className="flex items-center justify-center gap-3">
-                <div 
-                  className="w-6 h-6 rounded-full"
-                  style={{ backgroundColor: faction.color }}
-                />
-                <span className="text-xl font-bold font-body">{currentPlayer.name}</span>
+      {/* Compact overlay positioned in bottom quarter */}
+      <div className="relative z-10 w-full h-full flex items-end justify-center pb-16">
+        <div className="w-80 bg-black/30 backdrop-blur-md border border-white/20 rounded-2xl text-white text-center shadow-2xl overflow-hidden">
+          {/* Elegant gradient border effect */}
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 via-transparent to-blue-500/20 rounded-2xl"></div>
+          
+          <div className="relative p-6 space-y-4">
+            {/* Player info with improved styling */}
+            <div className="flex items-center justify-center gap-3">
+              <div 
+                className="w-8 h-8 rounded-full border-2 border-white/30 shadow-lg"
+                style={{ backgroundColor: faction.color }}
+              />
+              <div className="text-center">
+                <div className="text-xl font-bold font-body text-white">{currentPlayer.name}</div>
+                <div className="text-sm text-amber-300 font-cinzel">{faction.name}</div>
               </div>
-              <p className="text-lg text-amber-300 mt-2 font-cinzel">{faction.name}</p>
             </div>
             
-            <div className="space-y-2 text-sm text-gray-400 font-body">
-              <p>• Make sure only {currentPlayer.name} can see the screen</p>
-              <p>• Other players should look away</p>
-              <p>• Click the button when ready to start your turn</p>
+            {/* Turn indicator */}
+            <div className="text-sm text-white/80 font-body">
+              Turn {gameState.turn}
             </div>
+            
+            {/* Elegant call-to-action button */}
+            <Button
+              onClick={handleStartTurn}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-3 text-lg rounded-xl border border-white/20 shadow-lg transition-all duration-300 hover:scale-105 font-semibold"
+            >
+              Start Turn
+            </Button>
           </div>
-          
-          <Button
-            onClick={handleStartTurn}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg"
-          >
-            Start My Turn
-          </Button>
-          
-          <div className="pt-4 border-t border-gray-700">
-            <p className="text-xs text-gray-500">
-              {faction.playstyle}
-            </p>
-          </div>
-        </CardContent>
-        </Card>
+        </div>
       </div>
     </div>
   );
