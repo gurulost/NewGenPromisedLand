@@ -236,10 +236,10 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         opacity = 0.85; // Increased from 0.7 to 0.85 for better visibility
         textureId = getTextureId(tile.terrain);
       } else {
-        // Unexplored: Trigger cloud shader with very low opacity
+        // Unexplored: Use textureId = 0 to trigger cloud shader
         color = [1.0, 1.0, 1.0]; // White base (shader will handle cloud colors)
-        opacity = 0.05; // Very low opacity to trigger cloud shader (< 0.1)
-        textureId = 0; // No terrain texture visible
+        opacity = 1.0; // Full opacity for proper rendering
+        textureId = 0; // No terrain texture visible (textureId < 0.5 triggers clouds)
       }
       
       instanceData.push({
@@ -393,32 +393,26 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             }
           }
           
-          // Create beautiful cloud-like fog for unexplored areas
-          if (vOpacity < 0.1) {
-            // Generate animated cloud patterns
+          // For unexplored tiles, show clouds over a blue sky
+          if (vTextureId < 0.5) {
+            // 1. Keep the original, sophisticated noise generation for rich clouds
             vec2 cloudUv = vUv * 3.0 + vec2(time * 0.02, time * 0.01);
             float cloudPattern1 = fbm(cloudUv);
             float cloudPattern2 = fbm(cloudUv * 1.5 + vec2(1.7, 9.2));
             float cloudPattern3 = fbm(cloudUv * 0.5 + vec2(8.3, 2.8));
-            
-            // Combine patterns for rich cloud texture
+
+            // Combine patterns for a rich final cloud mask
             float clouds = (cloudPattern1 + cloudPattern2 * 0.7 + cloudPattern3 * 0.4) / 2.1;
-            clouds = smoothstep(0.3, 0.8, clouds);
-            
-            // Beautiful cloud colors - soft blues, whites, and grays
-            vec3 cloudColor1 = vec3(0.85, 0.9, 0.95);  // Light blue-white
-            vec3 cloudColor2 = vec3(0.7, 0.8, 0.9);   // Soft blue
-            vec3 cloudColor3 = vec3(0.9, 0.95, 1.0);  // Pure white
-            
-            // Mix cloud colors based on noise
-            vec3 finalCloudColor = mix(cloudColor2, cloudColor1, cloudPattern1);
-            finalCloudColor = mix(finalCloudColor, cloudColor3, cloudPattern3 * 0.6);
-            
-            // Add depth and movement to clouds
-            float cloudDensity = clouds * (0.8 + 0.2 * sin(time * 0.3 + vUv.x * 5.0));
-            
-            texColor = finalCloudColor;
-            gl_FragColor = vec4(texColor, cloudDensity * 0.9);
+            clouds = smoothstep(0.3, 0.8, clouds); // Sharpen the edges
+
+            // 2. Define the new background and cloud colors
+            vec3 skyColor = vec3(0.53, 0.81, 0.92);   // Cheery sky blue
+            vec3 cloudColor = vec3(1.0, 1.0, 1.0);     // Bright white
+
+            // 3. Mix the sky and cloud colors using the sophisticated cloud mask
+            texColor = mix(skyColor, cloudColor, clouds);
+
+            gl_FragColor = vec4(texColor, 1.0); // Make the tile fully opaque
           }
           // Explored but not visible tiles - subtle fog
           else if (vOpacity < 1.0 && vOpacity > 0.2) {
