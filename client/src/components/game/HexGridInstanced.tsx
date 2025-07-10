@@ -244,7 +244,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       }
       
       instanceData.push({
-        position: [pixelPos.x, textureId === 0 ? 2.0 : 0.0, pixelPos.y], // Elevate cloud tiles above 3D models
+        position: [pixelPos.x, 0.0, pixelPos.y], // y becomes z in 3D space, at ground level
         color,
         opacity,
         textureId
