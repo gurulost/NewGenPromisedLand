@@ -282,11 +282,11 @@ export default function MapFeatures() {
       return city !== undefined;
     }) || [];
     
-    // Filter villages that are visible or explored
+    // Filter villages that are currently visible only (not just explored)
     const villages = gameState.map.tiles.filter(tile => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      const isVisible = explored.has(tileKey) || visible.has(tileKey);
-      return isVisible && tile.feature === 'village';
+      const isCurrentlyVisible = visible.has(tileKey); // Only currently visible, not explored
+      return isCurrentlyVisible && tile.feature === 'village';
     });
     
     return { 
@@ -299,18 +299,18 @@ export default function MapFeatures() {
     };
   }, [gameState, currentPlayer]);
   
-  // Get visible tiles with resources and improvements
+  // Get currently visible tiles with resources (not just explored)
   const visibleTilesWithFeatures = useMemo(() => {
     if (!gameState) return [];
     
     return gameState.map.tiles.filter(tile => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      const isVisible = visibleTiles.has(tileKey) || exploredTiles.has(tileKey);
+      const isCurrentlyVisible = visibleTiles.has(tileKey); // Only currently visible, not explored
       const hasFeatures = tile.resources.length > 0; // Add improvements check when available
       
-      return isVisible && hasFeatures;
+      return isCurrentlyVisible && hasFeatures;
     });
-  }, [gameState, visibleTiles, exploredTiles]);
+  }, [gameState, visibleTiles]);
   
   if (!gameState) return null;
   
@@ -598,8 +598,8 @@ export default function MapFeatures() {
       {/* Render Forest Trees on Forest Tiles WITHOUT Timber Groves (Polytopia-style) */}
       {gameState.map.tiles.filter(tile => {
         const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-        const isVisible = visibleTiles.has(tileKey) || exploredTiles.has(tileKey);
-        return isVisible && tile.terrain === 'forest';
+        const isCurrentlyVisible = visibleTiles.has(tileKey); // Only currently visible, not explored
+        return isCurrentlyVisible && tile.terrain === 'forest';
       }).map(tile => {
         const position = hexToPixel(tile.coordinate, 1);
         const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
