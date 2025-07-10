@@ -304,9 +304,25 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         varying float vTextureId;
         varying vec2 vUv;
         
-        // Cloud noise function for beautiful fog of war
-        float noise(vec2 p) {
-          return sin(p.x * 10.0 + time * 0.5) * sin(p.y * 10.0 + time * 0.3) * 0.5 + 0.5;
+        // Generates a pseudo-random value from a 2D coordinate
+        float random(vec2 p) {
+            return fract(sin(dot(p.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+        }
+
+        // Creates smooth, organic noise by interpolating random values
+        float value_noise(vec2 st) {
+            vec2 i = floor(st);
+            vec2 f = fract(st);
+
+            // Get random values at the four corners of the grid cell
+            float a = random(i);
+            float b = random(i + vec2(1.0, 0.0));
+            float c = random(i + vec2(0.0, 1.0));
+            float d = random(i + vec2(1.0, 1.0));
+
+            // Smoothly blend the values
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
         }
         
         float fbm(vec2 p) {
@@ -316,7 +332,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
 
           for(int i = 0; i < 4; i++) {
             // Add noise at the current frequency and amplitude
-            value += amplitude * noise(p * frequency);
+            value += amplitude * value_noise(p * frequency);
             
             // For the next octave, decrease amplitude and increase frequency
             amplitude *= 0.5;
