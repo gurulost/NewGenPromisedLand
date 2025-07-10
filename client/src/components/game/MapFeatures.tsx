@@ -286,7 +286,18 @@ export default function MapFeatures() {
     const villages = gameState.map.tiles.filter(tile => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
       const isCurrentlyVisible = visible.has(tileKey); // Only currently visible, not explored
-      return isCurrentlyVisible && tile.feature === 'village';
+      const isVillage = tile.feature === 'village';
+      
+      // Debug logging for villages
+      if (isVillage) {
+        console.log(`🏘️ Village tile ${tileKey}:`, {
+          coordinate: tile.coordinate,
+          isCurrentlyVisible,
+          willRender: isCurrentlyVisible && isVillage
+        });
+      }
+      
+      return isCurrentlyVisible && isVillage;
     });
     
     return { 
@@ -303,13 +314,27 @@ export default function MapFeatures() {
   const visibleTilesWithFeatures = useMemo(() => {
     if (!gameState) return [];
     
-    return gameState.map.tiles.filter(tile => {
+    const filteredTiles = gameState.map.tiles.filter(tile => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
       const isCurrentlyVisible = visibleTiles.has(tileKey); // Only currently visible, not explored
       const hasFeatures = tile.resources.length > 0; // Add improvements check when available
       
+      // Debug logging for visibility
+      if (hasFeatures) {
+        console.log(`🔍 Resource tile ${tileKey}:`, {
+          coordinate: tile.coordinate,
+          resources: tile.resources,
+          isCurrentlyVisible,
+          willRender: isCurrentlyVisible && hasFeatures
+        });
+      }
+      
       return isCurrentlyVisible && hasFeatures;
     });
+    
+    console.log(`🎯 MapFeatures rendering ${filteredTiles.length} resource tiles out of ${gameState.map.tiles.filter(t => t.resources.length > 0).length} total resource tiles`);
+    
+    return filteredTiles;
   }, [gameState, visibleTiles]);
   
   if (!gameState) return null;
@@ -599,7 +624,18 @@ export default function MapFeatures() {
       {gameState.map.tiles.filter(tile => {
         const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
         const isCurrentlyVisible = visibleTiles.has(tileKey); // Only currently visible, not explored
-        return isCurrentlyVisible && tile.terrain === 'forest';
+        const isForest = tile.terrain === 'forest';
+        
+        // Debug logging for forest tiles
+        if (isForest) {
+          console.log(`🌲 Forest tile ${tileKey}:`, {
+            coordinate: tile.coordinate,
+            isCurrentlyVisible,
+            willRender: isCurrentlyVisible && isForest
+          });
+        }
+        
+        return isCurrentlyVisible && isForest;
       }).map(tile => {
         const position = hexToPixel(tile.coordinate, 1);
         const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
