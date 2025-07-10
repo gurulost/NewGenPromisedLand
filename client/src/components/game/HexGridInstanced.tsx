@@ -10,7 +10,7 @@ import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
-import { createStunningCloudMaterial } from './cloudShaderStunning';
+import { createCloudShader } from './cloudShader';
 
 interface HexGridInstancedProps {
   map: GameMap;
@@ -254,45 +254,34 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     return { visibleTileKeys: visible, exploredTileKeys: explored, tileInstanceData: instanceData };
   }, [gameState?.units, currentPlayer?.id, map.tiles]);
 
-  // Create hex geometry once with higher vertex count for smooth cloud displacement
+  // Create hex geometry once
   const hexGeometry = useMemo(() => {
-    const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.14, 32, 1, false);
+    const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.1, 6);
     // CylinderGeometry already lies flat in XZ-plane by default
     // Only rotate to align flat-top to north
     geometry.rotateY(Math.PI / 6); // Align flat-top to north
     return geometry;
   }, []);
 
-  // Stunning cloud shader material
-  const cloudMat = useMemo(() => createStunningCloudMaterial({
-    plainsTexture,
-    forestTexture,
-    mountainTexture,
-    waterTexture,
-    desertTexture,
-    swampTexture,
-    grassTexture,
-    sandTexture,
-    woodTexture
+  // Advanced cloud shader material using modular cloud shader
+  const shaderMaterial = useMemo(() => createCloudShader({
+    plainsTexture: { value: plainsTexture },
+    forestTexture: { value: forestTexture },
+    mountainTexture: { value: mountainTexture },
+    waterTexture: { value: waterTexture },
+    desertTexture: { value: desertTexture },
+    swampTexture: { value: swampTexture },
+    grassTexture: { value: grassTexture },
+    sandTexture: { value: sandTexture },
+    woodTexture: { value: woodTexture }
   }), [plainsTexture, forestTexture, mountainTexture, waterTexture, desertTexture, swampTexture, grassTexture, sandTexture, woodTexture]);
 
   // Animate the cloud fog of war
   useFrame(({ clock }) => {
-    if (cloudMat) {
-      cloudMat.uniforms.time.value = clock.elapsedTime;
+    if (shaderMaterial) {
+      shaderMaterial.uniforms.time.value = clock.elapsedTime;
     }
   });
-
-  // Optional: Art-direction controls for the stunning cloud shader
-  useEffect(() => {
-    if (cloudMat) {
-      // Fine-tune cloud appearance for optimal visual impact
-      cloudMat.uniforms.cloudHeight.value = 0.45; // Slightly higher peaks for more dramatic effect
-      cloudMat.uniforms.cloudScale.value = 0.035; // Optimal noise scale for hex-sized tiles
-      cloudMat.uniforms.cloudSpeed.value = 0.02; // Slower drift for calmer feel
-      cloudMat.uniforms.rimPower.value = 2.5; // Softer rim lighting
-    }
-  }, [cloudMat]);
 
   // Update instance attributes when tile data changes
   useEffect(() => {
@@ -518,7 +507,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     <group>
       <instancedMesh 
         ref={meshRef}
-        args={[hexGeometry, cloudMat, map.tiles.length]}
+        args={[hexGeometry, shaderMaterial, map.tiles.length]}
         onClick={handleClick}
         onPointerMove={handlePointerMove}
         frustumCulled={false}
