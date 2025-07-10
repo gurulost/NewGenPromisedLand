@@ -345,85 +345,74 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         }
         
         void main() {
-          vec3 texColor = vColor;
-          
-          // Apply texture if textureId is valid (for visible/explored tiles)
-          if (vTextureId > 0.5 && vOpacity > 0.1) {
-            vec3 textureColor = vec3(1.0);
-            vec3 borderColor = vec3(0.5, 0.5, 0.5); // Default gray border
-            
-            if (vTextureId < 1.5) {
-              textureColor = texture2D(plainsTexture, vUv).rgb;
-              borderColor = vec3(0.8, 0.9, 0.4); // Light green for plains
-            } else if (vTextureId < 2.5) {
-              textureColor = texture2D(forestTexture, vUv).rgb;
-              borderColor = vec3(0.2, 0.8, 0.2); // Green for forest
-            } else if (vTextureId < 3.5) {
-              // Rotate mountain texture 40 degrees clockwise for better appearance
-              vec2 rotatedUv = vUv - 0.5; // Center the UV
-              float angle = -0.698132; // 40 degrees clockwise in radians
-              float cosAngle = cos(angle);
-              float sinAngle = sin(angle);
-              vec2 mountainUv = vec2(
-                rotatedUv.x * cosAngle - rotatedUv.y * sinAngle,
-                rotatedUv.x * sinAngle + rotatedUv.y * cosAngle
-              ) + 0.5; // Move back to 0-1 range
-              textureColor = texture2D(mountainTexture, mountainUv).rgb;
-              borderColor = vec3(0.6, 0.4, 0.3); // Brown for mountain
-            } else if (vTextureId < 4.5) {
-              textureColor = texture2D(waterTexture, vUv).rgb;
-              borderColor = vec3(0.2, 0.7, 0.9); // Bright blue for water
-            } else if (vTextureId < 5.5) {
-              textureColor = texture2D(desertTexture, vUv).rgb;
-              borderColor = vec3(0.9, 0.7, 0.4); // Sandy yellow for desert
-            } else if (vTextureId < 6.5) {
-              textureColor = texture2D(swampTexture, vUv).rgb;
-              borderColor = vec3(0.4, 0.6, 0.3); // Dark green for swamp
-            }
-            
-            // Create hex border with terrain-specific color - wider and more visible
-            float border = hexBorder(vUv, 0.08);
-            
-            // Use pure texture color for beautiful clear textures
-            texColor = textureColor;
-            
-            // Add colored transparent border - more prominent
-            if (border > 0.5) {
-              texColor = mix(texColor, borderColor, 0.8); // 80% border color, 20% texture
-            }
-          }
-          
-          // For unexplored tiles, show clouds over a blue sky
+          // Unexplored Tiles: Procedural sky and clouds
           if (vTextureId < 0.5) {
-            // 1. Keep the original, sophisticated noise generation for rich clouds
-            vec2 cloudUv = vUv * 3.0 + vec2(time * 0.02, time * 0.01);
-            float cloudPattern1 = fbm(cloudUv);
-            float cloudPattern2 = fbm(cloudUv * 1.5 + vec2(1.7, 9.2));
-            float cloudPattern3 = fbm(cloudUv * 0.5 + vec2(8.3, 2.8));
+              // 1. Define the background sky color
+              vec3 skyColor = vec3(0.53, 0.81, 0.92); // Cheery sky blue
 
-            // Combine patterns for a rich final cloud mask
-            float clouds = (cloudPattern1 + cloudPattern2 * 0.7 + cloudPattern3 * 0.4) / 2.1;
-            clouds = smoothstep(0.3, 0.8, clouds); // Sharpen the edges
+              // 2. Generate the cloud pattern using the sophisticated noise generation
+              vec2 cloudUv = vUv * 3.0 + vec2(time * 0.02, time * 0.01);
+              float cloudPattern1 = fbm(cloudUv);
+              float cloudPattern2 = fbm(cloudUv * 1.5 + vec2(1.7, 9.2));
+              float cloudPattern3 = fbm(cloudUv * 0.5 + vec2(8.3, 2.8));
+              float clouds = (cloudPattern1 + cloudPattern2 * 0.7 + cloudPattern3 * 0.4) / 2.1;
+              clouds = smoothstep(0.3, 0.8, clouds); // Sharpen the edges
 
-            // 2. Define the new background and cloud colors
-            vec3 skyColor = vec3(0.53, 0.81, 0.92);   // Cheery sky blue
-            vec3 cloudColor = vec3(1.0, 1.0, 1.0);     // Bright white
+              // 3. Define the cloud color
+              vec3 cloudColor = vec3(1.0, 1.0, 1.0); // Bright white clouds
 
-            // 3. Mix the sky and cloud colors using the sophisticated cloud mask
-            texColor = mix(skyColor, cloudColor, clouds);
-
-            gl_FragColor = vec4(texColor, 1.0); // Make the tile fully opaque
+              // 4. Mix the sky and cloud colors and set the final fragment color
+              vec3 finalColor = mix(skyColor, cloudColor, clouds);
+              gl_FragColor = vec4(finalColor, 1.0);
           }
-          // Explored but not visible tiles - subtle fog
-          else if (vOpacity < 1.0 && vOpacity > 0.2) {
-            // Add a very subtle blue-gray tint to indicate fog of war while preserving texture clarity
-            vec3 fogColor = vec3(0.4, 0.5, 0.6);
-            texColor = mix(texColor, fogColor, 0.08); // Reduced from 0.15 to 0.08 for better texture visibility
-            gl_FragColor = vec4(texColor, vOpacity);
-          }
-          // Fully visible tiles
+          // Visible and Explored Tiles: Use Textures
           else {
-            gl_FragColor = vec4(texColor, vOpacity);
+              vec3 textureColor = vec3(1.0);
+              vec3 borderColor = vec3(0.5, 0.5, 0.5);
+
+              // This is the original texture sampling logic from your file
+              if (vTextureId < 1.5) {
+                textureColor = texture2D(plainsTexture, vUv).rgb;
+                borderColor = vec3(0.8, 0.9, 0.4);
+              } else if (vTextureId < 2.5) {
+                textureColor = texture2D(forestTexture, vUv).rgb;
+                borderColor = vec3(0.2, 0.8, 0.2);
+              } else if (vTextureId < 3.5) {
+                vec2 rotatedUv = vUv - 0.5;
+                float angle = -0.698132;
+                float cosAngle = cos(angle);
+                float sinAngle = sin(angle);
+                vec2 mountainUv = vec2(rotatedUv.x * cosAngle - rotatedUv.y * sinAngle, rotatedUv.x * sinAngle + rotatedUv.y * cosAngle) + 0.5;
+                textureColor = texture2D(mountainTexture, mountainUv).rgb;
+                borderColor = vec3(0.6, 0.4, 0.3);
+              } else if (vTextureId < 4.5) {
+                textureColor = texture2D(waterTexture, vUv).rgb;
+                borderColor = vec3(0.2, 0.7, 0.9);
+              } else if (vTextureId < 5.5) {
+                textureColor = texture2D(desertTexture, vUv).rgb;
+                borderColor = vec3(0.9, 0.7, 0.4);
+              } else if (vTextureId < 6.5) {
+                textureColor = texture2D(swampTexture, vUv).rgb;
+                borderColor = vec3(0.4, 0.6, 0.3);
+              }
+
+              // Apply hex border
+              float border = hexBorder(vUv, 0.08);
+              vec3 finalColor = textureColor;
+              if (border > 0.5) {
+                finalColor = mix(finalColor, borderColor, 0.8);
+              }
+
+              // Apply the instance color tint (for cities, valid moves, etc.)
+              finalColor *= vColor;
+
+              // Dim explored tiles that are not currently visible (opacity is 0.85)
+              if (vOpacity < 1.0) {
+                  vec3 fogColor = vec3(0.4, 0.5, 0.6);
+                  finalColor = mix(finalColor, fogColor, 0.08);
+              }
+
+              gl_FragColor = vec4(finalColor, vOpacity);
           }
         }
       `,
