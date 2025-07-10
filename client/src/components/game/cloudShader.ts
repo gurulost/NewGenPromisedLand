@@ -156,6 +156,8 @@ export function createCloudShader(textures: Record<string, THREE.Texture>): THRE
       void main() {
         // ---------- UNEXPLORED CLOUD LAYER ----------
         if (vTextureId < 0.5) {
+            // Push clouds higher to cover 3D models
+            gl_FragDepth = 0.1; // Ensure clouds render in front of 3D models
 
             // 3-D position: world X-Z plus animated Y
             vec3 p = vec3(vWorld.xz * 0.025, time * 0.03);
