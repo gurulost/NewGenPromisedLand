@@ -236,9 +236,9 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         opacity = 0.85; // Increased from 0.7 to 0.85 for better visibility
         textureId = getTextureId(tile.terrain);
       } else {
-        // Unexplored: Show darker base terrain (clouds will be added as separate layer)
-        color = [0.05, 0.05, 0.1]; // Very dark base color
-        opacity = 1.0;
+        // Unexplored: Trigger cloud shader with very low opacity
+        color = [1.0, 1.0, 1.0]; // White base (shader will handle cloud colors)
+        opacity = 0.05; // Very low opacity to trigger cloud shader (< 0.1)
         textureId = 0; // No terrain texture visible
       }
       
@@ -685,13 +685,6 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         frustumCulled={false}
         renderOrder={0}
       />
-      
-      {/* Fog of War Clouds Layer */}
-      <FogOfWarClouds 
-        map={map} 
-        gameState={gameState} 
-        currentPlayer={currentPlayer}
-      />
     </group>
   );
 }
@@ -721,114 +714,3 @@ function getTextureId(terrain: string): number {
   }
 }
 
-// Fog of War Clouds Component
-function FogOfWarClouds({ map, gameState, currentPlayer }: { 
-  map: GameMap; 
-  gameState: any; 
-  currentPlayer: any; 
-}) {
-  const cloudMeshRef = useRef<THREE.InstancedMesh>(null);
-  
-  // Create cloud geometry
-  const cloudGeometry = useMemo(() => {
-    const geometry = new THREE.CylinderGeometry(HEX_SIZE * 0.9, HEX_SIZE * 0.9, 0.3, 6);
-    geometry.rotateY(Math.PI / 6);
-    return geometry;
-  }, []);
-  
-  // Cloud material with animated fog effect
-  const cloudMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      transparent: true,
-      vertexShader: `
-        varying vec2 vUv;
-        varying vec3 vPosition;
-        
-        void main() {
-          vUv = uv;
-          vPosition = position;
-          
-          vec3 transformed = position;
-          vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(transformed, 1.0);
-          gl_Position = projectionMatrix * mvPosition;
-        }
-      `,
-      fragmentShader: `
-        uniform float time;
-        varying vec2 vUv;
-        varying vec3 vPosition;
-        
-        // Simple noise function
-        float noise(vec2 p) {
-          return sin(p.x * 10.0) * sin(p.y * 10.0);
-        }
-        
-        void main() {
-          vec2 uv = vUv * 2.0 - 1.0;
-          float dist = length(uv);
-          
-          // Create cloud pattern with animation
-          float n1 = noise(vUv * 3.0 + time * 0.1);
-          float n2 = noise(vUv * 5.0 - time * 0.05);
-          float cloud = (n1 + n2) * 0.3 + 0.7;
-          
-          // Fade at edges
-          float alpha = smoothstep(1.0, 0.6, dist) * cloud;
-          
-          // Cloud color - soft blue-gray
-          vec3 color = mix(vec3(0.8, 0.9, 1.0), vec3(0.6, 0.7, 0.9), cloud);
-          
-          gl_FragColor = vec4(color, alpha * 0.8);
-        }
-      `,
-      uniforms: {
-        time: { value: 0 }
-      }
-    });
-  }, []);
-  
-  // Update cloud positions and animation
-  useFrame(({ clock }) => {
-    if (!cloudMeshRef.current || !gameState || !currentPlayer) return;
-    
-    // Update time uniform for animation
-    if (cloudMaterial.uniforms) {
-      cloudMaterial.uniforms.time.value = clock.getElapsedTime();
-    }
-    
-    // Position clouds over unexplored tiles
-    let cloudCount = 0;
-    const matrix = new THREE.Matrix4();
-    
-    map.tiles.forEach((tile, index) => {
-      const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      
-      // Check if tile is currently visible
-      const isCurrentlyVisible = gameState.visibility?.[currentPlayer.id]?.has(tileKey) || false;
-      
-      // Check if tile has been explored before (even if not currently visible)
-      const hasBeenExplored = tile.exploredBy?.includes(currentPlayer.id) || false;
-      
-      // Only show clouds on tiles that are completely unexplored
-      if (!isCurrentlyVisible && !hasBeenExplored) {
-        const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
-        matrix.setPosition(pixelPos.x, 0.2, pixelPos.y);
-        cloudMeshRef.current.setMatrixAt(cloudCount, matrix);
-        cloudCount++;
-      }
-    });
-    
-    // Update instance count
-    cloudMeshRef.current.count = cloudCount;
-    cloudMeshRef.current.instanceMatrix.needsUpdate = true;
-  });
-  
-  const maxClouds = map.tiles.length;
-  
-  return (
-    <instancedMesh
-      ref={cloudMeshRef}
-      args={[cloudGeometry, cloudMaterial, maxClouds]}
-    />
-  );
-}
