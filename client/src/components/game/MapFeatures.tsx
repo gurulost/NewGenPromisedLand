@@ -288,14 +288,7 @@ export default function MapFeatures() {
       const isCurrentlyVisible = visible.has(tileKey); // Only currently visible, not explored
       const isVillage = tile.feature === 'village';
       
-      // Debug logging for villages
-      if (isVillage) {
-        console.log(`🏘️ Village tile ${tileKey}:`, {
-          coordinate: tile.coordinate,
-          isCurrentlyVisible,
-          willRender: isCurrentlyVisible && isVillage
-        });
-      }
+
       
       return isCurrentlyVisible && isVillage;
     });
@@ -319,20 +312,12 @@ export default function MapFeatures() {
       const isCurrentlyVisible = visibleTiles.has(tileKey); // Only currently visible, not explored
       const hasFeatures = tile.resources.length > 0; // Add improvements check when available
       
-      // Debug logging for visibility
-      if (hasFeatures) {
-        console.log(`🔍 Resource tile ${tileKey}:`, {
-          coordinate: tile.coordinate,
-          resources: tile.resources,
-          isCurrentlyVisible,
-          willRender: isCurrentlyVisible && hasFeatures
-        });
-      }
+
       
       return isCurrentlyVisible && hasFeatures;
     });
     
-    console.log(`🎯 MapFeatures rendering ${filteredTiles.length} resource tiles out of ${gameState.map.tiles.filter(t => t.resources.length > 0).length} total resource tiles`);
+
     
     return filteredTiles;
   }, [gameState, visibleTiles]);
@@ -626,14 +611,7 @@ export default function MapFeatures() {
         const isCurrentlyVisible = visibleTiles.has(tileKey); // Only currently visible, not explored
         const isForest = tile.terrain === 'forest';
         
-        // Debug logging for forest tiles
-        if (isForest) {
-          console.log(`🌲 Forest tile ${tileKey}:`, {
-            coordinate: tile.coordinate,
-            isCurrentlyVisible,
-            willRender: isCurrentlyVisible && isForest
-          });
-        }
+
         
         return isCurrentlyVisible && isForest;
       }).map(tile => {

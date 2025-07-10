@@ -197,11 +197,11 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       // Apply three-tiered fog of war system
       let baseColor: [number, number, number] = [1.0, 1.0, 1.0]; // Default to white (no color tinting)
       
-      // Check if tile is currently visible
-      const isCurrentlyVisible = gameState.visibility?.[currentPlayer.id]?.has(tileKey) || false;
+      // Check if tile is currently visible (use same calculation as MapFeatures)
+      const isCurrentlyVisible = visible.has(tileKey);
       
-      // Check if tile has been explored before
-      const hasBeenExplored = tile.exploredBy?.includes(currentPlayer.id) || false;
+      // Check if tile has been explored before (use same calculation as MapFeatures)
+      const hasBeenExplored = explored.has(tileKey);
       
       // Check for cities on this tile first
       const cityOnTile = gameState.cities?.find(city =>
