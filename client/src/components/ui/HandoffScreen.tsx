@@ -43,15 +43,48 @@ const BACKGROUND_IMAGES = [
   'magnifics_upscale-zr6uwxMiG09mW0ByxKFZ-IMG_0326-min.png'
 ];
 
+// Preload all images for instant display
+const preloadedImages = new Map<string, HTMLImageElement>();
+
+const preloadImages = () => {
+  BACKGROUND_IMAGES.forEach(imageName => {
+    if (!preloadedImages.has(imageName)) {
+      const img = new Image();
+      img.src = `/images/rotating_images/${imageName}`;
+      preloadedImages.set(imageName, img);
+    }
+  });
+};
+
+// Start preloading immediately when module loads
+if (typeof window !== 'undefined') {
+  preloadImages();
+}
+
 export default function HandoffScreen() {
   const { gameState, setGamePhase } = useLocalGame();
   const [backgroundImage, setBackgroundImage] = useState<string>('');
+  const [imageLoaded, setImageLoaded] = useState<boolean>(false);
 
   // Select a random background image when component mounts
   useEffect(() => {
     const randomIndex = Math.floor(Math.random() * BACKGROUND_IMAGES.length);
     const selectedImage = BACKGROUND_IMAGES[randomIndex];
-    setBackgroundImage(`/images/rotating_images/${selectedImage}`);
+    const imagePath = `/images/rotating_images/${selectedImage}`;
+    
+    // Check if image is preloaded, if so show immediately
+    if (preloadedImages.has(selectedImage)) {
+      setBackgroundImage(imagePath);
+      setImageLoaded(true);
+    } else {
+      // Fallback loading if preload didn't complete
+      const img = new Image();
+      img.onload = () => {
+        setBackgroundImage(imagePath);
+        setImageLoaded(true);
+      };
+      img.src = imagePath;
+    }
   }, []); // Empty dependency array ensures this runs once per mount
 
   if (!gameState) {
@@ -67,16 +100,17 @@ export default function HandoffScreen() {
 
   return (
     <div 
-      className="w-full h-full flex items-center justify-center relative overflow-hidden"
+      className="w-full h-full flex items-center justify-center relative overflow-hidden transition-opacity duration-300"
       style={{
-        backgroundImage: `url(${backgroundImage})`,
+        backgroundImage: imageLoaded ? `url(${backgroundImage})` : 'linear-gradient(135deg, #1e293b 0%, #7c3aed 50%, #1e293b 100%)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
+        backgroundRepeat: 'no-repeat',
+        opacity: imageLoaded ? 1 : 0.8
       }}
     >
-      {/* Dark overlay to ensure text readability */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+      {/* Dark overlay to ensure text readability - removed blur for clear image visibility */}
+      <div className="absolute inset-0 bg-black/50"></div>
       
       {/* Content wrapper with relative positioning */}
       <div className="relative z-10 w-full h-full flex items-center justify-center">
