@@ -6,19 +6,10 @@ export function createCloudShader(textures: Record<string, THREE.Texture>): THRE
     transparent: true,
     side: THREE.DoubleSide,
     uniforms: {
-      // Texture uniforms
-      plainsTexture: { value: textures.plainsTexture },
-      forestTexture: { value: textures.forestTexture },
-      mountainTexture: { value: textures.mountainTexture },
-      waterTexture: { value: textures.waterTexture },
-      desertTexture: { value: textures.desertTexture },
-      swampTexture: { value: textures.swampTexture },
-      grassTexture: { value: textures.grassTexture },
-      sandTexture: { value: textures.sandTexture },
-      woodTexture: { value: textures.woodTexture },
+      ...textures,               // plainsTexture, forestTexture, … keep existing
       time: { value: 0.0 },
 
-      // Cloud tunables
+      // Tunables -------------------------------------------------------------
       cloudScale:  { value: 0.025 },   // spatial frequency of noise
       cloudSpeed:  { value: 0.03 },    // units / second the field drifts
       skyColour:   { value: new THREE.Color(0x8ec9ea) }, // #8EC9EA

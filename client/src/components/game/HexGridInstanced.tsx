@@ -265,15 +265,15 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
 
   // Advanced cloud shader material using modular cloud shader
   const shaderMaterial = useMemo(() => createCloudShader({
-    plainsTexture,
-    forestTexture,
-    mountainTexture,
-    waterTexture,
-    desertTexture,
-    swampTexture,
-    grassTexture,
-    sandTexture,
-    woodTexture
+    plainsTexture: { value: plainsTexture },
+    forestTexture: { value: forestTexture },
+    mountainTexture: { value: mountainTexture },
+    waterTexture: { value: waterTexture },
+    desertTexture: { value: desertTexture },
+    swampTexture: { value: swampTexture },
+    grassTexture: { value: grassTexture },
+    sandTexture: { value: sandTexture },
+    woodTexture: { value: woodTexture }
   }), [plainsTexture, forestTexture, mountainTexture, waterTexture, desertTexture, swampTexture, grassTexture, sandTexture, woodTexture]);
 
   // Animate the cloud fog of war
