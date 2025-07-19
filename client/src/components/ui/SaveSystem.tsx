@@ -238,9 +238,18 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+    <div 
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+      onClick={(e) => {
+        // Close system if clicking on backdrop
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <motion.div
         className="bg-slate-900 rounded-xl border border-slate-600 w-[800px] max-h-[80vh] overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
