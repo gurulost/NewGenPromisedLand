@@ -84,8 +84,8 @@ export function WorldElementPanel({
       <div 
         className={`
           inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 
-          hover:scale-105 hover:shadow-lg group relative cursor-default
-          ${style.bgColor} ${style.borderColor} ${style.glowColor}
+          md:hover:scale-105 md:hover:shadow-lg group relative cursor-default
+          ${style.bgColor} ${style.borderColor} ${style.glowColor} shadow-sm
         `}
         title={`${displayValue} ${style.name}`}
         role="tooltip"
@@ -94,7 +94,7 @@ export function WorldElementPanel({
         <div className={`
           w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold
           ${style.color} bg-black/20 border ${style.borderColor}
-          group-hover:animate-pulse flex-shrink-0
+          md:group-hover:animate-pulse flex-shrink-0
         `}>
           {style.icon}
         </div>
@@ -107,9 +107,9 @@ export function WorldElementPanel({
           </span>
         </div>
         
-        {/* Subtle glow effect on hover */}
+        {/* Subtle glow effect on hover - desktop only */}
         <div className={`
-          absolute inset-0 rounded-lg opacity-0 group-hover:opacity-30 transition-opacity duration-300
+          absolute inset-0 rounded-lg opacity-0 md:group-hover:opacity-30 transition-opacity duration-300
           ${style.bgColor} blur-sm -z-10 pointer-events-none
         `} />
       </div>
@@ -117,7 +117,7 @@ export function WorldElementPanel({
   };
 
   return (
-    <Card className="w-96 bg-gradient-to-br from-stone-900/98 to-stone-800/95 border-amber-600/40 text-amber-100 shadow-2xl shadow-black/50 backdrop-blur-sm">
+    <Card className="w-96 max-w-[95vw] bg-gradient-to-br from-stone-900/98 to-stone-800/95 border-amber-600/40 text-amber-100 shadow-2xl shadow-black/50 backdrop-blur-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
@@ -132,7 +132,7 @@ export function WorldElementPanel({
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="text-amber-300 hover:text-amber-100 hover:bg-amber-600/20 rounded-full w-8 h-8 p-0 transition-all duration-200 hover:scale-110"
+            className="text-amber-300 md:hover:text-amber-100 md:hover:bg-amber-600/20 rounded-full w-10 h-10 min-h-[44px] min-w-[44px] p-0 transition-all duration-200 md:hover:scale-110 bg-amber-600/10 border border-amber-600/30 active:scale-95 touch-manipulation"
           >
             <span className="text-lg font-bold">×</span>
           </Button>
@@ -170,7 +170,7 @@ export function WorldElementPanel({
               <Button
                 onClick={() => onAction('harvest')}
                 disabled={!harvestCheck.canExecute}
-                className="w-full bg-gradient-to-r from-red-800 to-red-700 hover:from-red-700 hover:to-red-600 text-white font-semibold py-3 transition-all duration-200 hover:shadow-lg hover:shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed border border-red-600/30"
+                className="w-full bg-gradient-to-r from-red-800 to-red-700 md:hover:from-red-700 md:hover:to-red-600 text-white font-semibold py-4 min-h-[44px] transition-all duration-200 md:hover:shadow-lg md:hover:shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed border border-red-600/30 shadow-lg active:scale-95 touch-manipulation"
                 size="sm"
               >
                 <div className="flex items-center justify-center gap-2">
@@ -234,7 +234,7 @@ export function WorldElementPanel({
                     <h4 className="text-amber-200 font-medium text-sm mt-4">Permanent Benefits:</h4>
                     <div className="flex flex-col gap-3">
                       {element.longTermBuild.effectPermanent.popDelta > 0 && (
-                        <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 hover:scale-105 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-400/40">
+                        <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 md:hover:scale-105 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-400/40 shadow-sm">
                           <div className="w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold text-green-300 bg-black/20 border border-green-400/40">
                             👥
                           </div>
@@ -249,7 +249,7 @@ export function WorldElementPanel({
                         </div>
                       )}
                       {element.longTermBuild.effectPermanent.starsPerTurn > 0 && (
-                        <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 hover:scale-105 bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border-yellow-400/40">
+                        <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 md:hover:scale-105 bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border-yellow-400/40 shadow-sm">
                           <div className="w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold text-yellow-300 bg-black/20 border border-yellow-400/40">
                             🔄
                           </div>
@@ -271,7 +271,7 @@ export function WorldElementPanel({
               <Button
                 onClick={() => onAction('build')}
                 disabled={!buildCheck.canExecute}
-                className="w-full bg-gradient-to-r from-blue-800 to-blue-700 hover:from-blue-700 hover:to-blue-600 text-white font-semibold py-3 transition-all duration-200 hover:shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed border border-blue-600/30"
+                className="w-full bg-gradient-to-r from-blue-800 to-blue-700 md:hover:from-blue-700 md:hover:to-blue-600 text-white font-semibold py-4 min-h-[44px] transition-all duration-200 md:hover:shadow-lg md:hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed border border-blue-600/30 shadow-lg active:scale-95 touch-manipulation"
                 size="sm"
               >
                 <div className="flex items-center justify-center gap-2">
