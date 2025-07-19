@@ -59,7 +59,7 @@ export function InfoTooltip({
 
   const tooltipElement = isVisible && (
     <div
-      className="fixed z-[9999] pointer-events-none"
+      className="fixed z-40 pointer-events-none"
       style={{
         left: position.x,
         top: position.y,
@@ -159,7 +159,7 @@ export function Tooltip({
 
   const tooltipElement = isVisible && (
     <div
-      className="fixed z-[9999] pointer-events-none"
+      className="fixed z-40 pointer-events-none"
       style={{
         left: position.x,
         top: position.y,
