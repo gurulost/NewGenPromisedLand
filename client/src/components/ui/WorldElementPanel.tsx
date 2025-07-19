@@ -81,23 +81,28 @@ export function WorldElementPanel({
     const displayValue = isPositive ? `+${value}` : `${value}`;
     
     return (
-      <div className={`
-        inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 
-        hover:scale-105 hover:shadow-lg group relative
-        ${style.bgColor} ${style.borderColor} ${style.glowColor}
-      `}>
+      <div 
+        className={`
+          inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 
+          hover:scale-105 hover:shadow-lg group relative cursor-default
+          ${style.bgColor} ${style.borderColor} ${style.glowColor}
+        `}
+        title={`${displayValue} ${style.name}`}
+        role="tooltip"
+        aria-label={`${isPositive ? 'Gain' : 'Loss'} of ${Math.abs(value)} ${style.name}`}
+      >
         <div className={`
           w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold
           ${style.color} bg-black/20 border ${style.borderColor}
-          group-hover:animate-pulse
+          group-hover:animate-pulse flex-shrink-0
         `}>
           {style.icon}
         </div>
-        <div className="flex flex-col">
+        <div className="flex flex-col min-w-0">
           <span className={`${style.color} font-bold text-sm leading-none`}>
             {displayValue}
           </span>
-          <span className="text-amber-200/60 text-xs leading-none">
+          <span className="text-amber-200/60 text-xs leading-none truncate">
             {style.name}
           </span>
         </div>
@@ -105,7 +110,7 @@ export function WorldElementPanel({
         {/* Subtle glow effect on hover */}
         <div className={`
           absolute inset-0 rounded-lg opacity-0 group-hover:opacity-30 transition-opacity duration-300
-          ${style.bgColor} blur-sm -z-10
+          ${style.bgColor} blur-sm -z-10 pointer-events-none
         `} />
       </div>
     );
@@ -155,7 +160,7 @@ export function WorldElementPanel({
                 {element.uiTooltipHarvest}
               </p>
               
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="flex flex-wrap gap-3 mb-4">
                 {renderResourceDelta(element.immediateAction.starsDelta, 'stars')}
                 {renderResourceDelta(element.immediateAction.faithDelta, 'faith')}
                 {renderResourceDelta(element.immediateAction.prideDelta, 'pride')}
@@ -218,7 +223,7 @@ export function WorldElementPanel({
               {/* Benefits Grid */}
               <div className="space-y-3 mb-4">
                 <h4 className="text-amber-200 font-medium text-sm">Immediate Effects:</h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-wrap gap-3">
                   {renderResourceDelta(element.longTermBuild.faithDelta, 'faith')}
                   {renderResourceDelta(element.longTermBuild.prideDelta, 'pride')}
                   {renderResourceDelta(element.longTermBuild.dissentDelta, 'dissent')}
@@ -227,7 +232,7 @@ export function WorldElementPanel({
                 {(element.longTermBuild.effectPermanent.popDelta > 0 || element.longTermBuild.effectPermanent.starsPerTurn > 0) && (
                   <>
                     <h4 className="text-amber-200 font-medium text-sm mt-4">Permanent Benefits:</h4>
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="flex flex-col gap-3">
                       {element.longTermBuild.effectPermanent.popDelta > 0 && (
                         <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 hover:scale-105 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-400/40">
                           <div className="w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold text-green-300 bg-black/20 border border-green-400/40">
