@@ -123,13 +123,16 @@ export default function GameUI() {
 
   // Detect clicks on world element tiles
   useEffect(() => {
-    const handleTileClick = (event: any) => {
+    const handleWorldElementClick = (event: CustomEvent) => {
       if (event.detail?.coordinate && event.detail?.resources) {
         const { coordinate, resources } = event.detail;
+        
+        console.log('World element click detected:', { coordinate, resources });
         
         // Check if any resource is a world element
         for (const resource of resources) {
           if (WORLD_ELEMENTS[resource]) {
+            console.log('Setting selected world element:', resource, coordinate);
             setSelectedWorldElement({
               elementId: resource,
               coordinate
@@ -140,8 +143,12 @@ export default function GameUI() {
       }
     };
 
-    window.addEventListener('tileClick', handleTileClick);
-    return () => window.removeEventListener('tileClick', handleTileClick);
+    // Listen for world element clicks
+    window.addEventListener('worldElementClick', handleWorldElementClick as EventListener);
+    
+    return () => {
+      window.removeEventListener('worldElementClick', handleWorldElementClick as EventListener);
+    };
   }, []);
 
   // Check for victory conditions

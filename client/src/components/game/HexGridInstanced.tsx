@@ -459,6 +459,23 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             console.log('Tile not reachable');
           }
         } else if (!unitOnTile) {
+          // Check for world elements on this tile first
+          if (clickedTile.resources && clickedTile.resources.length > 0) {
+            console.log('World element clicked:', clickedTile.resources, 'at coordinate:', clickedTile.coordinate);
+            
+            // Dispatch custom event for world element interaction
+            const worldElementEvent = new CustomEvent('worldElementClick', {
+              detail: {
+                coordinate: clickedTile.coordinate,
+                resources: clickedTile.resources,
+                terrain: clickedTile.terrain
+              }
+            });
+            
+            window.dispatchEvent(worldElementEvent);
+            return; // Don't deselect unit if clicking on world element
+          }
+          
           // Clicked on empty tile - exit movement mode and deselect
           console.log('Clicked on empty tile - exiting movement mode');
           setMovementMode(false);
