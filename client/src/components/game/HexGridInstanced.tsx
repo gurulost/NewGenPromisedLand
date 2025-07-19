@@ -10,7 +10,7 @@ import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
-import { createStunningCloudMaterial } from './cloudShaderStunning';
+import { createCloudShader } from './cloudShader';
 
 interface HexGridInstancedProps {
   map: GameMap;
@@ -254,17 +254,17 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     return { visibleTileKeys: visible, exploredTileKeys: explored, tileInstanceData: instanceData };
   }, [gameState?.units, currentPlayer?.id, map.tiles]);
 
-  // Create hex geometry once with higher vertex count for better cloud displacement
+  // Create hex geometry once
   const hexGeometry = useMemo(() => {
-    const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.14, 32, 1, false);
+    const geometry = new THREE.CylinderGeometry(HEX_SIZE, HEX_SIZE, 0.1, 6);
     // CylinderGeometry already lies flat in XZ-plane by default
     // Only rotate to align flat-top to north
     geometry.rotateY(Math.PI / 6); // Align flat-top to north
     return geometry;
   }, []);
 
-  // Stunning cloud shader material with 3D displacement and realistic lighting
-  const shaderMaterial = useMemo(() => createStunningCloudMaterial({
+  // Advanced cloud shader material using modular cloud shader
+  const shaderMaterial = useMemo(() => createCloudShader({
     plainsTexture: { value: plainsTexture },
     forestTexture: { value: forestTexture },
     mountainTexture: { value: mountainTexture },
