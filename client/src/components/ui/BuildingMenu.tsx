@@ -229,7 +229,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
 
   return (
     <div 
-      className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto"
+      className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto"
       onClick={(e) => {
         // Close menu if clicking on backdrop
         if (e.target === e.currentTarget) {

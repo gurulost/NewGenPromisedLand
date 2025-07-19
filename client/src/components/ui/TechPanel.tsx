@@ -347,7 +347,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
         {/* Centered Modal for Selected Tech */}
         {selectedTech && (
           <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50"
             onClick={(e) => {
               // Close modal if clicking on backdrop
               if (e.target === e.currentTarget) {

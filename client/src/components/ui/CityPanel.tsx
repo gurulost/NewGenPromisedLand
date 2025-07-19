@@ -140,7 +140,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
 
   return (
     <div 
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
       style={{ pointerEvents: 'auto' }}
       onClick={(e) => {
         console.log('🏛️ CityPanel backdrop clicked:', e.target === e.currentTarget);

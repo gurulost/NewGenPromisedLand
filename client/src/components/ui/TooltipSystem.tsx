@@ -2,44 +2,44 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Info } from 'lucide-react';
 
+type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right';
+
 interface TooltipPosition {
   x: number;
   y: number;
-  placement: string;
+  placement: TooltipPlacement;
 }
 
-interface InfoTooltipProps {
+interface BaseTooltipProps {
   content: React.ReactNode;
-  placement?: 'top' | 'bottom' | 'left' | 'right';
+  placement?: TooltipPlacement;
+  disabled?: boolean;
   className?: string;
 }
 
-interface LegacyTooltipProps {
-  content: React.ReactNode;
+interface LegacyTooltipProps extends BaseTooltipProps {
   children: React.ReactElement;
   delay?: number;
-  placement?: 'top' | 'bottom' | 'left' | 'right';
+}
+
+interface InfoTooltipProps extends BaseTooltipProps {}
+
+interface ActionTooltipProps {
+  cost?: number;
+  requirements?: string[];
+  effects?: string[];
+  placement?: TooltipPlacement;
   disabled?: boolean;
 }
 
-// Main standalone info button tooltip that doesn't interfere with clicks
-export function InfoTooltip({ 
-  content, 
-  placement = 'top',
-  className = ""
-}: InfoTooltipProps) {
+// InfoTooltip component - Shows info icon with tooltip on click/hover
+export function InfoTooltip({ content, placement = 'top', disabled = false, className = '' }: InfoTooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState<TooltipPosition>({ x: 0, y: 0, placement });
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   const showTooltip = (event: React.MouseEvent) => {
     event.stopPropagation();
-    // Check if we're inside a modal (z-50 or higher)
-    const parentModal = (event.target as HTMLElement).closest('[class*="z-50"], [class*="z-[50"], [class*="z-60"], [class*="z-[60"]');
-    if (parentModal) {
-      // Don't show tooltip inside modals to prevent interference
-      return;
-    }
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     const tooltipPosition = calculatePosition(rect, placement);
     setPosition(tooltipPosition);
@@ -65,7 +65,7 @@ export function InfoTooltip({
 
   const tooltipElement = isVisible && (
     <div
-      className="fixed z-40 pointer-events-none"
+      className="fixed z-[60] pointer-events-none"
       style={{
         left: position.x,
         top: position.y,
@@ -165,7 +165,7 @@ export function Tooltip({
 
   const tooltipElement = isVisible && (
     <div
-      className="fixed z-40 pointer-events-none"
+      className="fixed z-[60] pointer-events-none"
       style={{
         left: position.x,
         top: position.y,
@@ -234,99 +234,74 @@ function calculatePosition(rect: DOMRect, preferredPlacement: string): TooltipPo
       break;
   }
 
-  return { x, y, placement: finalPlacement };
+  return { x, y, placement: finalPlacement as TooltipPlacement };
 }
 
 function getTransform(placement: string): string {
   switch (placement) {
-    case 'top':
-      return 'translate(-50%, -100%)';
-    case 'bottom':
-      return 'translate(-50%, 0%)';
-    case 'left':
-      return 'translate(-100%, -50%)';
-    case 'right':
-      return 'translate(0%, -50%)';
-    default:
-      return 'translate(-50%, -100%)';
+    case 'top': return 'translate(-50%, -100%)';
+    case 'bottom': return 'translate(-50%, 0%)';
+    case 'left': return 'translate(-100%, -50%)';
+    case 'right': return 'translate(0%, -50%)';
+    default: return 'translate(-50%, -100%)';
   }
 }
 
 function getArrowClasses(placement: string): string {
   switch (placement) {
-    case 'top':
-      return 'top-full left-1/2 -translate-x-1/2 border-t border-l';
-    case 'bottom':
-      return 'bottom-full left-1/2 -translate-x-1/2 border-b border-r';
-    case 'left':
-      return 'left-full top-1/2 -translate-y-1/2 border-l border-b';
-    case 'right':
-      return 'right-full top-1/2 -translate-y-1/2 border-r border-t';
-    default:
-      return 'top-full left-1/2 -translate-x-1/2 border-t border-l';
+    case 'top': return 'top-full left-1/2 -translate-x-1/2 border-t border-l';
+    case 'bottom': return 'bottom-full left-1/2 -translate-x-1/2 border-b border-r';
+    case 'left': return 'left-full top-1/2 -translate-y-1/2 border-t border-l';
+    case 'right': return 'right-full top-1/2 -translate-y-1/2 border-b border-r';
+    default: return 'top-full left-1/2 -translate-x-1/2 border-t border-l';
   }
 }
 
-// Specialized tooltip content components
-export function ActionTooltip({ 
-  title, 
-  description, 
-  cost, 
-  requirements, 
-  effects, 
-  hotkey 
-}: {
-  title: string;
-  description: string;
-  cost?: string;
-  requirements?: string[];
-  effects?: string[];
-  hotkey?: string;
-}) {
-  return (
+// ActionTooltip component - Shows contextual information about actions
+export function ActionTooltip({ cost, requirements = [], effects = [], placement = 'top', disabled = false }: ActionTooltipProps) {
+  const tooltipContent = (
     <div className="space-y-2">
-      <div className="font-semibold text-blue-300">{title}</div>
-      <div className="text-xs text-slate-300">{description}</div>
-      
-      {cost && (
-        <div className="text-xs">
-          <span className="text-yellow-300">Cost: </span>
-          <span className="text-white">{cost}</span>
+      {cost !== undefined && (
+        <div className="flex items-center gap-2">
+          <span className="text-yellow-400">⭐</span>
+          <span className="text-yellow-400 font-semibold">{cost} Stars</span>
         </div>
       )}
       
-      {requirements && requirements.length > 0 && (
-        <div className="text-xs">
-          <div className="text-red-300 mb-1">Requirements:</div>
-          <ul className="list-disc list-inside text-slate-300">
+      {requirements.length > 0 && (
+        <div>
+          <div className="text-red-400 font-semibold mb-1">Requirements:</div>
+          <ul className="text-xs space-y-1">
             {requirements.map((req, index) => (
-              <li key={index}>{req}</li>
+              <li key={index} className="flex items-start gap-1">
+                <span className="text-red-400 mt-0.5">•</span>
+                <span className="text-red-300">{req}</span>
+              </li>
             ))}
           </ul>
         </div>
       )}
       
-      {effects && effects.length > 0 && (
-        <div className="text-xs">
-          <div className="text-green-300 mb-1">Effects:</div>
-          <ul className="list-disc list-inside text-slate-300">
+      {effects.length > 0 && (
+        <div>
+          <div className="text-green-400 font-semibold mb-1">Effects:</div>
+          <ul className="text-xs space-y-1">
             {effects.map((effect, index) => (
-              <li key={index}>{effect}</li>
+              <li key={index} className="flex items-start gap-1">
+                <span className="text-green-400 mt-0.5">•</span>
+                <span className="text-green-300">{effect}</span>
+              </li>
             ))}
           </ul>
-        </div>
-      )}
-      
-      {hotkey && (
-        <div className="text-xs">
-          <span className="text-purple-300">Hotkey: </span>
-          <kbd className="bg-slate-600 px-1 rounded text-white">{hotkey}</kbd>
         </div>
       )}
     </div>
   );
+
+  return <InfoTooltip content={tooltipContent} placement={placement} disabled={disabled} />;
 }
 
+// Legacy specialized tooltip content components
 export function UnitTooltip({ unit, unitDef }: { unit: any; unitDef: any }) {
   return (
     <div className="space-y-2">
@@ -380,13 +355,15 @@ export function FaithSystemTooltip() {
     <div className="space-y-2">
       <div className="font-semibold text-blue-300">Faith System</div>
       <div className="text-xs text-slate-300">
-        Faith represents your civilization's spiritual strength and unity.
+        Faith represents your people's spiritual devotion and guides moral choices throughout your civilization's growth.
       </div>
-      <div className="text-xs space-y-1">
-        <div>• Gained from temples and cities</div>
-        <div>• Used for special abilities</div>
-        <div>• Enables conversion and healing</div>
-        <div>• Required for faith victory</div>
+      <div className="text-xs">
+        <div className="text-green-300 mb-1">Benefits:</div>
+        <ul className="list-disc list-inside text-slate-300 space-y-1">
+          <li>Unlocks divine abilities and blessings</li>
+          <li>Strengthens resistance to conversion</li>
+          <li>Enables righteous governance options</li>
+        </ul>
       </div>
     </div>
   );
@@ -397,13 +374,187 @@ export function PrideSystemTooltip() {
     <div className="space-y-2">
       <div className="font-semibold text-red-300">Pride System</div>
       <div className="text-xs text-slate-300">
-        Pride represents your civilization's military strength and ambition.
+        Pride reflects your civilization's worldly ambition and military prowess, but can corrupt righteous intentions.
       </div>
-      <div className="text-xs space-y-1">
-        <div>• Gained from victories and conquests</div>
-        <div>• Enables aggressive abilities</div>
-        <div>• Boosts combat effectiveness</div>
-        <div>• Can lead to internal conflicts</div>
+      <div className="text-xs">
+        <div className="text-red-300 mb-1">Benefits:</div>
+        <ul className="list-disc list-inside text-slate-300 space-y-1">
+          <li>Boosts combat effectiveness</li>
+          <li>Accelerates military production</li>
+          <li>Unlocks aggressive expansion options</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export function DissentSystemTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-purple-300">Dissent System</div>
+      <div className="text-xs text-slate-300">
+        Dissent measures internal conflict and opposition within your civilization from moral choices.
+      </div>
+      <div className="text-xs">
+        <div className="text-purple-300 mb-1">Effects:</div>
+        <ul className="list-disc list-inside text-slate-300 space-y-1">
+          <li>Reduces city loyalty and stability</li>
+          <li>Increases risk of rebellion</li>
+          <li>Weakens diplomatic relations</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// Resource-specific tooltips
+export function TimberGroveTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-green-300">Timber Grove</div>
+      <div className="text-xs text-slate-300">
+        Sacred forests provide both immediate resources and long-term spiritual growth opportunities.
+      </div>
+      <div className="text-xs">
+        <div className="text-green-300 mb-1">Harvest Options:</div>
+        <ul className="list-disc list-inside text-slate-300 space-y-1">
+          <li><span className="text-blue-300">Faithful Stewardship:</span> +2 Faith, sustainable growth</li>
+          <li><span className="text-red-300">Prideful Exploitation:</span> +3 Stars, +1 Pride, -1 Faith</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export function WildGoatsTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-brown-300">Wild Goats</div>
+      <div className="text-xs text-slate-300">
+        Wild herds offer protein and materials, but your approach affects your people's relationship with nature.
+      </div>
+      <div className="text-xs">
+        <div className="text-brown-300 mb-1">Harvest Options:</div>
+        <ul className="list-disc list-inside text-slate-300 space-y-1">
+          <li><span className="text-blue-300">Respectful Hunting:</span> +1 Population, +1 Faith</li>
+          <li><span className="text-red-300">Aggressive Hunting:</span> +2 Population, +1 Pride, +1 Dissent</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export function GrainPatchTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-yellow-300">Grain Patch</div>
+      <div className="text-xs text-slate-300">
+        Wild grains provide sustenance and can be cultivated, representing humanity's relationship with the land.
+      </div>
+      <div className="text-xs">
+        <div className="text-yellow-300 mb-1">Harvest Options:</div>
+        <ul className="list-disc list-inside text-slate-300 space-y-1">
+          <li><span className="text-blue-300">Patient Cultivation:</span> +1 Population, +1 Faith, long-term growth</li>
+          <li><span className="text-red-300">Quick Harvesting:</span> +2 Population, +1 Pride</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export function GameResourceTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-purple-300">Game Animals</div>
+      <div className="text-xs text-slate-300">
+        Wild game provides protein and materials for your growing civilization.
+      </div>
+    </div>
+  );
+}
+
+export function MetalResourceTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-orange-300">Ore Veins</div>
+      <div className="text-xs text-slate-300">
+        Mineral deposits provide materials for tools, weapons, and construction.
+      </div>
+    </div>
+  );
+}
+
+export function OreVeinTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-orange-300">Ore Vein</div>
+      <div className="text-xs text-slate-300">
+        Sacred mineral veins represent the earth's hidden treasures and test stewardship values.
+      </div>
+      <div className="text-xs">
+        <div className="text-orange-300 mb-1">Harvest Options:</div>
+        <ul className="list-disc list-inside text-slate-300 space-y-1">
+          <li><span className="text-blue-300">Careful Mining:</span> +2 Stars, +1 Faith, sustainable extraction</li>
+          <li><span className="text-red-300">Strip Mining:</span> +4 Stars, +1 Pride, +1 Dissent</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export function FishingShoalTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-blue-300">Fishing Shoal</div>
+      <div className="text-xs text-slate-300">
+        Rich fishing grounds provide abundant protein and materials from the sea's bounty.
+      </div>
+      <div className="text-xs">
+        <div className="text-blue-300 mb-1">Harvest Options:</div>
+        <ul className="list-disc list-inside text-slate-300 space-y-1">
+          <li><span className="text-blue-300">Sustainable Fishing:</span> +2 Population, +1 Faith</li>
+          <li><span className="text-red-300">Overfishing:</span> +3 Population, +1 Pride, +1 Dissent</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export function JarediteRuinsTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-purple-300">Jaredite Ruins</div>
+      <div className="text-xs text-slate-300">
+        Ancient ruins from the fallen Jaredite civilization offer both knowledge and moral tests.
+      </div>
+      <div className="text-xs">
+        <div className="text-purple-300 mb-1">Exploration Options:</div>
+        <ul className="list-disc list-inside text-slate-300 space-y-1">
+          <li><span className="text-blue-300">Reverent Study:</span> +1 Tech Progress, +1 Faith</li>
+          <li><span className="text-red-300">Treasure Hunting:</span> +3 Stars, +1 Pride, +1 Dissent</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export function StoneResourceTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-gray-300">Stone Resource</div>
+      <div className="text-xs text-slate-300">
+        Stone deposits found in mountain terrain provide essential building materials.
+      </div>
+    </div>
+  );
+}
+
+export function FruitResourceTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-green-300">Fruit Resource</div>
+      <div className="text-xs text-slate-300">
+        Wild fruit orchards provide abundant food for growing populations.
       </div>
     </div>
   );
@@ -443,213 +594,5 @@ export function DissentTooltip() {
   );
 }
 
-// Resource-specific tooltips
-export function StoneResourceTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-gray-300">Stone Resource</div>
-      <div className="text-xs text-slate-300">
-        Stone deposits found in mountain terrain provide essential building materials.
-      </div>
-      <div className="text-xs space-y-1">
-        <div className="text-yellow-300">• Worker Action: Harvest Stone</div>
-        <div>• Requires Mining technology</div>
-        <div>• Gives +1 population to nearest city</div>
-        <div>• Worker must be within 2 tiles of friendly city</div>
-        <div>• Consumes worker's movement for the turn</div>
-        <div>• Tile becomes empty plains after harvest</div>
-      </div>
-    </div>
-  );
-}
-
-export function FruitResourceTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-green-300">Fruit Resource</div>
-      <div className="text-xs text-slate-300">
-        Wild fruit orchards provide abundant food for growing populations.
-      </div>
-      <div className="text-xs space-y-1">
-        <div className="text-yellow-300">• Worker Action: Harvest Fruit</div>
-        <div>• No technology requirement</div>
-        <div>• Gives +3 population to nearest city</div>
-        <div>• Worker must be within 2 tiles of friendly city</div>
-        <div>• Consumes worker's movement for the turn</div>
-        <div>• Tile becomes empty plains after harvest</div>
-      </div>
-    </div>
-  );
-}
-
-export function GameResourceTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-amber-300">Animal Resource</div>
-      <div className="text-xs text-slate-300">
-        Wild animals provide meat and materials for expanding settlements.
-      </div>
-      <div className="text-xs space-y-1">
-        <div className="text-yellow-300">• Worker Action: Hunt Animals</div>
-        <div>• Requires Hunting technology</div>
-        <div>• Gives +2 population to nearest city</div>
-        <div>• Worker must be within 2 tiles of friendly city</div>
-        <div>• Consumes worker's movement for the turn</div>
-        <div>• Tile becomes empty plains after harvest</div>
-      </div>
-    </div>
-  );
-}
-
-export function MetalResourceTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-blue-300">Metal Resource</div>
-      <div className="text-xs text-slate-300">
-        Precious metal deposits provide valuable materials for tools and trade.
-      </div>
-      <div className="text-xs space-y-1">
-        <div className="text-yellow-300">• Worker Action: Mine Metal</div>
-        <div>• Requires Mining technology</div>
-        <div>• Gives +1 population to nearest city</div>
-        <div>• Worker must be within 2 tiles of friendly city</div>
-        <div>• Consumes worker's movement for the turn</div>
-        <div>• Tile becomes empty plains after harvest</div>
-      </div>
-    </div>
-  );
-}
-
-export function TimberGroveTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-green-400">Timber Grove</div>
-      <div className="text-xs text-slate-300">
-        Sacred groves offer a moral choice between quick profit and sustainable growth.
-      </div>
-      <div className="text-xs space-y-1">
-        <div className="text-red-300">• Quick Option: Harvest Lumber</div>
-        <div>  - Gain 2 stars immediately</div>
-        <div>  - +1 Pride, +1 Dissent (moral cost)</div>
-        <div>  - Tile becomes empty plains</div>
-        <div className="text-green-300">• Sustainable Option: Build Sawmill</div>
-        <div>  - Costs 5 stars, requires Woodcraft tech</div>
-        <div>  - +1 Population, +1 star per turn</div>
-        <div>  - +1 Faith (spiritual benefit)</div>
-        <div>  - Permanent improvement</div>
-      </div>
-    </div>
-  );
-}
-
-export function WildGoatsTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-amber-400">Wild Goats</div>
-      <div className="text-xs text-slate-300">
-        Herds of goats present a choice between immediate sustenance and long-term husbandry.
-      </div>
-      <div className="text-xs space-y-1">
-        <div className="text-red-300">• Quick Option: Slaughter for Meat</div>
-        <div>  - Gain 2 stars immediately</div>
-        <div>  - +1 Pride, +1 Dissent (moral cost)</div>
-        <div>  - Tile becomes empty plains</div>
-        <div className="text-green-300">• Sustainable Option: Build Corral</div>
-        <div>  - Costs 5 stars, requires Husbandry tech</div>
-        <div>  - +1 Population, +1 star per turn</div>
-        <div>  - +1 Faith (stewardship benefit)</div>
-        <div>  - Permanent improvement</div>
-      </div>
-    </div>
-  );
-}
-
-export function GrainPatchTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-yellow-400">Grain Patch</div>
-      <div className="text-xs text-slate-300">
-        Wild grains offer choices between immediate harvest and agricultural development.
-      </div>
-      <div className="text-xs space-y-1">
-        <div className="text-red-300">• Quick Option: Gather Harvest</div>
-        <div>  - Gain 1 population immediately</div>
-        <div>  - +1 Pride, +1 Dissent (exploitation)</div>
-        <div>  - Tile becomes empty plains</div>
-        <div className="text-green-300">• Sustainable Option: Build Field</div>
-        <div>  - Costs 5 stars, requires Agriculture tech</div>
-        <div>  - +2 Population permanently</div>
-        <div>  - +1 Faith (cultivation blessing)</div>
-        <div>  - Can upgrade to Granary (+1 star/turn)</div>
-      </div>
-    </div>
-  );
-}
-
-export function FishingShoalTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-blue-400">Fishing Shoal</div>
-      <div className="text-xs text-slate-300">
-        Rich fishing grounds that require technology and infrastructure to utilize.
-      </div>
-      <div className="text-xs space-y-1">
-        <div className="text-yellow-300">• No immediate harvest option</div>
-        <div className="text-green-300">• Build Option: Fishing Jetty</div>
-        <div>  - Costs 2 stars, requires Seafaring tech</div>
-        <div>  - +1 Population boost</div>
-        <div>  - No ongoing star production</div>
-        <div className="text-purple-300">• Upgrade: Harbor (with Trade tech)</div>
-        <div>  - No additional cost</div>
-        <div>  - +2 stars per turn permanently</div>
-        <div>• Spawns on 50% of water tiles</div>
-        <div>• Mulekites get enhanced spawn rates (1.5x-2.0x)</div>
-      </div>
-    </div>
-  );
-}
-
-export function JarediteRuinsTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-purple-400">Jaredite Ruins</div>
-      <div className="text-xs text-slate-300">
-        Ancient ruins left by the Jaredite civilization, full of mysteries and treasures.
-      </div>
-      <div className="text-xs space-y-1">
-        <div className="text-yellow-300">• Exploration Action: Investigate Ruins</div>
-        <div>• Random rewards when explored:</div>
-        <div>  - Ancient technology knowledge</div>
-        <div>  - Population refugees joining your city</div>
-        <div>  - Star treasure caches</div>
-        <div>  - Elite warrior units</div>
-        <div>  - Map vision revealing nearby areas</div>
-        <div>• Ruins disappear after exploration</div>
-        <div>• Higher spawn rates near Jaredite tribal lands</div>
-      </div>
-    </div>
-  );
-}
-
-export function OreVeinTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-blue-400">Ore Vein</div>
-      <div className="text-xs text-slate-300">
-        Precious metals and ores present a choice between immediate extraction and sustainable mining.
-      </div>
-      <div className="text-xs space-y-1">
-        <div className="text-red-300">• Quick Option: Tap the Vein</div>
-        <div>  - Gain +1 population, +2 stars</div>
-        <div>  - +1 Pride, +1 Dissent (moral cost)</div>
-        <div>  - No technology requirement</div>
-        <div>  - Tile becomes empty mountain</div>
-        <div className="text-green-300">• Sustainable Option: Build Mine</div>
-        <div>  - Costs 5 stars, requires Mining tech</div>
-        <div>  - +1 Population, +1 star per turn</div>
-        <div>  - +1 Faith (spiritual benefit)</div>
-        <div>  - Permanent improvement</div>
-      </div>
-    </div>
-  );
-}
+// Export the main components
+export default InfoTooltip;
