@@ -68,6 +68,31 @@ export function executeElementHarvest(
     return executeRuinExploration(gameState, playerId, coordinate);
   }
 
+  // Find nearest city to receive population bonus
+  const playerCities = gameState.cities?.filter(city => 
+    player.citiesOwned.includes(city.id)
+  ) || [];
+  
+  let closestCity = null;
+  if (playerCities.length > 0) {
+    closestCity = playerCities[0];
+    let closestDistance = Math.sqrt(
+      Math.pow(coordinate.q - closestCity.coordinate.q, 2) + 
+      Math.pow(coordinate.r - closestCity.coordinate.r, 2)
+    );
+    
+    for (const city of playerCities) {
+      const distance = Math.sqrt(
+        Math.pow(coordinate.q - city.coordinate.q, 2) + 
+        Math.pow(coordinate.r - city.coordinate.r, 2)
+      );
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestCity = city;
+      }
+    }
+  }
+
   // Apply resource changes with bounds checking
   const newState = {
     ...gameState,
@@ -84,7 +109,12 @@ export function executeElementHarvest(
             }
           }
         : p
-    )
+    ),
+    cities: gameState.cities?.map(city => 
+      city.id === closestCity?.id && action.popDelta > 0
+        ? { ...city, population: Math.min(20, city.population + action.popDelta) }
+        : city
+    ) || []
   };
 
   // Transform tile if specified
@@ -102,7 +132,9 @@ export function executeElementHarvest(
 
   return {
     success: true,
-    message: `${action.name} completed - ${getImpactMessage(action.prideDelta, action.faithDelta)}`,
+    message: `${action.name} completed - ${getImpactMessage(action.prideDelta, action.faithDelta)}${
+      action.popDelta > 0 && closestCity ? ` (+${action.popDelta} population to ${closestCity.name})` : ''
+    }`,
     newState,
     resourceDeltas: {
       stars: action.starsDelta,
@@ -334,15 +366,19 @@ export function canExecuteElementAction(
     if (!element.immediateAction) {
       return { canExecute: false, reason: 'No harvest action available' };
     }
+    return { canExecute: true };
   } else if (actionType === 'build') {
     if (!element.longTermBuild) {
       return { canExecute: false, reason: 'No build action available' };
     }
     
+    // Check if player has enough stars
     if (player.stars < element.longTermBuild.costStars) {
       return { canExecute: false, reason: `Need ${element.longTermBuild.costStars} stars` };
     }
+    
+    return { canExecute: true };
   }
 
-  return { canExecute: true };
+  return { canExecute: false, reason: 'Invalid action type' };
 }
