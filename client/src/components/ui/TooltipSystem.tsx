@@ -34,6 +34,12 @@ export function InfoTooltip({
 
   const showTooltip = (event: React.MouseEvent) => {
     event.stopPropagation();
+    // Check if we're inside a modal (z-50 or higher)
+    const parentModal = (event.target as HTMLElement).closest('[class*="z-50"], [class*="z-[50"], [class*="z-60"], [class*="z-[60"]');
+    if (parentModal) {
+      // Don't show tooltip inside modals to prevent interference
+      return;
+    }
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     const tooltipPosition = calculatePosition(rect, placement);
     setPosition(tooltipPosition);
@@ -82,7 +88,7 @@ export function InfoTooltip({
       <button
         ref={buttonRef}
         type="button"
-        className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors duration-200 ${className}`}
+        className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-slate-400 md:hover:text-slate-200 md:hover:bg-slate-700 transition-colors duration-200 ${className}`}
         onClick={showTooltip}
         onMouseEnter={showTooltip}
         onMouseLeave={hideTooltip}

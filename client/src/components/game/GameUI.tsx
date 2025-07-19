@@ -314,35 +314,47 @@ export default function GameUI() {
 
       {/* Construction Hall */}
       {showConstructionHall && selectedCityId && (
-        <BuildingMenu
-          city={gameState.cities?.find(c => c.id === selectedCityId)!}
-          player={currentPlayer}
-          gameState={gameState}
-          onBuild={(optionId) => {
-            // Handle construction logic
-            console.log('Starting construction:', optionId);
-            // Determine building category
-            let category: 'improvements' | 'structures' | 'units';
-            
-            if (Object.values(STRUCTURE_DEFINITIONS).some(s => s.id === optionId)) {
-              category = 'structures';
-            } else if (Object.values(UNIT_DEFINITIONS).some(u => u.type === optionId)) {
-              category = 'units';
-            } else {
-              category = 'improvements';
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (e.target === e.currentTarget) {
+              setShowConstructionHall(false);
             }
-            
-            // Use the game state construction system
-            const { startConstruction } = useGameState.getState();
-            startConstruction(optionId, category, selectedCityId, currentPlayer.id);
-            setShowConstructionHall(false);
           }}
-          onClose={() => setShowConstructionHall(false)}
-          onShowCities={() => {
-            setShowConstructionHall(false);
-            setShowCityPanel(true);
-          }}
-        />
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <BuildingMenu
+              city={gameState.cities?.find(c => c.id === selectedCityId)!}
+              player={currentPlayer}
+              gameState={gameState}
+              onBuild={(optionId) => {
+                // Handle construction logic
+                console.log('Starting construction:', optionId);
+                // Determine building category
+                let category: 'improvements' | 'structures' | 'units';
+                
+                if (Object.values(STRUCTURE_DEFINITIONS).some(s => s.id === optionId)) {
+                  category = 'structures';
+                } else if (Object.values(UNIT_DEFINITIONS).some(u => u.type === optionId)) {
+                  category = 'units';
+                } else {
+                  category = 'improvements';
+                }
+                
+                // Use the game state construction system
+                const { startConstruction } = useGameState.getState();
+                startConstruction(optionId, category, selectedCityId, currentPlayer.id);
+                setShowConstructionHall(false);
+              }}
+              onClose={() => setShowConstructionHall(false)}
+              onShowCities={() => {
+                setShowConstructionHall(false);
+                setShowCityPanel(true);
+              }}
+            />
+          </div>
+        </div>
       )}
 
       {/* Victory Screen */}
@@ -370,15 +382,25 @@ export default function GameUI() {
 
       {/* World Element Panel */}
       {selectedWorldElement && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <WorldElementPanel
-            gameState={gameState}
-            playerId={currentPlayer.id}
-            elementId={selectedWorldElement.elementId}
-            coordinate={selectedWorldElement.coordinate}
-            onAction={handleWorldElementAction}
-            onClose={() => setSelectedWorldElement(null)}
-          />
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (e.target === e.currentTarget) {
+              setSelectedWorldElement(null);
+            }
+          }}
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <WorldElementPanel
+              gameState={gameState}
+              playerId={currentPlayer.id}
+              elementId={selectedWorldElement.elementId}
+              coordinate={selectedWorldElement.coordinate}
+              onAction={handleWorldElementAction}
+              onClose={() => setSelectedWorldElement(null)}
+            />
+          </div>
         </div>
       )}
 
