@@ -41,29 +41,78 @@ export function WorldElementPanel({
   const renderResourceDelta = (value: number, type: 'stars' | 'faith' | 'pride' | 'dissent') => {
     if (value === 0) return null;
     
-    const colors = {
-      stars: 'text-yellow-400',
-      faith: 'text-blue-400',
-      pride: 'text-red-400',
-      dissent: 'text-orange-400'
+    const config = {
+      stars: {
+        color: 'text-yellow-300',
+        bgColor: 'bg-gradient-to-r from-yellow-500/20 to-amber-500/20',
+        borderColor: 'border-yellow-400/40',
+        glowColor: 'shadow-yellow-400/25',
+        icon: '✦',
+        name: 'Stars'
+      },
+      faith: {
+        color: 'text-blue-300',
+        bgColor: 'bg-gradient-to-r from-blue-500/20 to-sky-500/20', 
+        borderColor: 'border-blue-400/40',
+        glowColor: 'shadow-blue-400/25',
+        icon: '✠',
+        name: 'Faith'
+      },
+      pride: {
+        color: 'text-red-300',
+        bgColor: 'bg-gradient-to-r from-red-500/20 to-rose-500/20',
+        borderColor: 'border-red-400/40', 
+        glowColor: 'shadow-red-400/25',
+        icon: '⚔',
+        name: 'Pride'
+      },
+      dissent: {
+        color: 'text-orange-300',
+        bgColor: 'bg-gradient-to-r from-orange-500/20 to-amber-600/20',
+        borderColor: 'border-orange-400/40',
+        glowColor: 'shadow-orange-400/25',
+        icon: '⚡',
+        name: 'Dissent'
+      }
     };
     
-    const symbols = {
-      stars: '★',
-      faith: '✝',
-      pride: '⚔',
-      dissent: '⚡'
-    };
+    const style = config[type];
+    const isPositive = value > 0;
+    const displayValue = isPositive ? `+${value}` : `${value}`;
     
     return (
-      <span className={`${colors[type]} font-semibold`}>
-        {value > 0 ? '+' : ''}{value} {symbols[type]}
-      </span>
+      <div className={`
+        inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 
+        hover:scale-105 hover:shadow-lg group relative
+        ${style.bgColor} ${style.borderColor} ${style.glowColor}
+      `}>
+        <div className={`
+          w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold
+          ${style.color} bg-black/20 border ${style.borderColor}
+          group-hover:animate-pulse
+        `}>
+          {style.icon}
+        </div>
+        <div className="flex flex-col">
+          <span className={`${style.color} font-bold text-sm leading-none`}>
+            {displayValue}
+          </span>
+          <span className="text-amber-200/60 text-xs leading-none">
+            {style.name}
+          </span>
+        </div>
+        
+        {/* Subtle glow effect on hover */}
+        <div className={`
+          absolute inset-0 rounded-lg opacity-0 group-hover:opacity-30 transition-opacity duration-300
+          ${style.bgColor} blur-sm -z-10
+        `} />
+      </div>
     );
   };
 
   return (
-    <Card className="w-96 bg-stone-900/95 border-amber-600/30 text-amber-100">
+    <Card className="w-96 bg-gradient-to-br from-stone-900/98 to-stone-800/95 border-amber-600/40 text-amber-100 shadow-2xl shadow-black/50 backdrop-blur-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
@@ -78,9 +127,9 @@ export function WorldElementPanel({
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="text-amber-300 hover:text-amber-100"
+            className="text-amber-300 hover:text-amber-100 hover:bg-amber-600/20 rounded-full w-8 h-8 p-0 transition-all duration-200 hover:scale-110"
           >
-            ✕
+            <span className="text-lg font-bold">×</span>
           </Button>
         </div>
         <p className="text-amber-200/90 text-sm leading-relaxed">
@@ -93,8 +142,8 @@ export function WorldElementPanel({
         {element.immediateAction && (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Badge variant="destructive" className="bg-red-900/50 text-red-200">
-                Immediate
+              <Badge variant="destructive" className="bg-gradient-to-r from-red-900/60 to-red-800/50 text-red-200 border border-red-600/30 shadow-sm">
+                ⚡ Immediate
               </Badge>
               <h3 className="font-semibold text-amber-200">
                 {element.immediateAction.name}
@@ -106,7 +155,7 @@ export function WorldElementPanel({
                 {element.uiTooltipHarvest}
               </p>
               
-              <div className="flex flex-wrap gap-2 mb-3">
+              <div className="grid grid-cols-2 gap-3 mb-4">
                 {renderResourceDelta(element.immediateAction.starsDelta, 'stars')}
                 {renderResourceDelta(element.immediateAction.faithDelta, 'faith')}
                 {renderResourceDelta(element.immediateAction.prideDelta, 'pride')}
@@ -116,10 +165,15 @@ export function WorldElementPanel({
               <Button
                 onClick={() => onAction('harvest')}
                 disabled={!harvestCheck.canExecute}
-                className="w-full bg-red-800 hover:bg-red-700 text-white"
+                className="w-full bg-gradient-to-r from-red-800 to-red-700 hover:from-red-700 hover:to-red-600 text-white font-semibold py-3 transition-all duration-200 hover:shadow-lg hover:shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed border border-red-600/30"
                 size="sm"
               >
-                {harvestCheck.canExecute ? element.immediateAction.name : harvestCheck.reason}
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-lg">⚔</span>
+                  <span>
+                    {harvestCheck.canExecute ? element.immediateAction.name : harvestCheck.reason}
+                  </span>
+                </div>
               </Button>
             </div>
           </div>
@@ -133,67 +187,118 @@ export function WorldElementPanel({
         {element.longTermBuild && (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="bg-blue-900/50 text-blue-200">
-                Long-term
+              <Badge variant="secondary" className="bg-gradient-to-r from-blue-900/60 to-blue-800/50 text-blue-200 border border-blue-600/30 shadow-sm">
+                🏗 Long-term
               </Badge>
               <h3 className="font-semibold text-amber-200">
                 Build {element.longTermBuild.name}
               </h3>
             </div>
             
-            <div className="bg-stone-800/50 p-3 rounded-lg">
-              <p className="text-amber-100/80 text-sm mb-2">
+            <div className="bg-stone-800/50 p-4 rounded-lg border border-stone-700/50">
+              <p className="text-amber-100/80 text-sm mb-4 leading-relaxed">
                 {element.uiTooltipBuild}
               </p>
               
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-amber-300">Cost:</span>
-                  <span className="text-yellow-400">
-                    {element.longTermBuild.costStars} ★
-                  </span>
+              {/* Cost Section */}
+              <div className="bg-stone-900/50 p-3 rounded-md border border-amber-600/20 mb-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-amber-200 font-medium text-sm">Construction Cost:</span>
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-yellow-500/10 border border-yellow-400/30">
+                    <div className="w-4 h-4 rounded-full bg-yellow-400/20 border border-yellow-400/40 flex items-center justify-center">
+                      <span className="text-yellow-300 text-xs font-bold">✦</span>
+                    </div>
+                    <span className="text-yellow-300 font-bold text-sm">
+                      {element.longTermBuild.costStars}
+                    </span>
+                  </div>
                 </div>
-                
-                <div className="flex flex-wrap gap-2 mb-3">
+              </div>
+              
+              {/* Benefits Grid */}
+              <div className="space-y-3 mb-4">
+                <h4 className="text-amber-200 font-medium text-sm">Immediate Effects:</h4>
+                <div className="grid grid-cols-2 gap-3">
                   {renderResourceDelta(element.longTermBuild.faithDelta, 'faith')}
                   {renderResourceDelta(element.longTermBuild.prideDelta, 'pride')}
                   {renderResourceDelta(element.longTermBuild.dissentDelta, 'dissent')}
-                  {element.longTermBuild.effectPermanent.popDelta > 0 && (
-                    <span className="text-green-400 font-semibold">
-                      +{element.longTermBuild.effectPermanent.popDelta} Pop
-                    </span>
-                  )}
-                  {element.longTermBuild.effectPermanent.starsPerTurn > 0 && (
-                    <span className="text-yellow-400 font-semibold">
-                      +{element.longTermBuild.effectPermanent.starsPerTurn} ★/turn
-                    </span>
-                  )}
                 </div>
+                
+                {(element.longTermBuild.effectPermanent.popDelta > 0 || element.longTermBuild.effectPermanent.starsPerTurn > 0) && (
+                  <>
+                    <h4 className="text-amber-200 font-medium text-sm mt-4">Permanent Benefits:</h4>
+                    <div className="grid grid-cols-1 gap-3">
+                      {element.longTermBuild.effectPermanent.popDelta > 0 && (
+                        <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 hover:scale-105 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-400/40">
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold text-green-300 bg-black/20 border border-green-400/40">
+                            👥
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-green-300 font-bold text-sm leading-none">
+                              +{element.longTermBuild.effectPermanent.popDelta}
+                            </span>
+                            <span className="text-amber-200/60 text-xs leading-none">
+                              Population
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {element.longTermBuild.effectPermanent.starsPerTurn > 0 && (
+                        <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 hover:scale-105 bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border-yellow-400/40">
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold text-yellow-300 bg-black/20 border border-yellow-400/40">
+                            🔄
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-yellow-300 font-bold text-sm leading-none">
+                              +{element.longTermBuild.effectPermanent.starsPerTurn}/turn
+                            </span>
+                            <span className="text-amber-200/60 text-xs leading-none">
+                              Income
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
               
               <Button
                 onClick={() => onAction('build')}
                 disabled={!buildCheck.canExecute}
-                className="w-full bg-blue-800 hover:bg-blue-700 text-white"
+                className="w-full bg-gradient-to-r from-blue-800 to-blue-700 hover:from-blue-700 hover:to-blue-600 text-white font-semibold py-3 transition-all duration-200 hover:shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed border border-blue-600/30"
                 size="sm"
               >
-                {buildCheck.canExecute ? `Build ${element.longTermBuild.name}` : buildCheck.reason}
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-lg">🏗</span>
+                  <span>
+                    {buildCheck.canExecute ? `Build ${element.longTermBuild.name}` : buildCheck.reason}
+                  </span>
+                </div>
               </Button>
             </div>
           </div>
         )}
 
-        {/* Moral Choice Indicator */}
-        <div className="bg-amber-900/20 p-3 rounded-lg border border-amber-600/30">
-          <h4 className="text-amber-200 font-semibold text-sm mb-2">Moral Choice</h4>
-          <p className="text-amber-100/80 text-xs leading-relaxed">
-            {element.immediateAction && element.immediateAction.prideDelta > 0
-              ? "Immediate exploitation increases Pride and Dissent, risking spiritual consequence."
-              : ""}
-            {element.longTermBuild && element.longTermBuild.faithDelta > 0
-              ? " Patient stewardship builds Faith and strengthens your covenant path."
-              : ""}
-          </p>
+        {/* Enhanced Moral Choice Indicator */}
+        <div className="bg-gradient-to-r from-amber-900/30 to-amber-800/20 p-4 rounded-lg border border-amber-600/40 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-amber-400/5 animate-pulse" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
+                <span className="text-amber-300 text-xs font-bold">⚖</span>
+              </div>
+              <h4 className="text-amber-200 font-semibold text-sm">Moral Consequence</h4>
+            </div>
+            <p className="text-amber-100/90 text-xs leading-relaxed">
+              {element.immediateAction && element.immediateAction.prideDelta > 0
+                ? "⚔ Immediate exploitation increases Pride and Dissent, risking spiritual consequence."
+                : ""}
+              {element.longTermBuild && element.longTermBuild.faithDelta > 0
+                ? " ✠ Patient stewardship builds Faith and strengthens your covenant path."
+                : ""}
+            </p>
+          </div>
         </div>
       </CardContent>
     </Card>
