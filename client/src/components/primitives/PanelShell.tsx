@@ -121,7 +121,7 @@ export function PanelShell({
             {/* Particle sparkle overlay (disabled for reduced motion) */}
             {!reducedMotion && (
               <div className="pointer-events-none absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent)]">
-                <div className="absolute inset-0 animate-sparkle-slow opacity-30" />
+                <div className="absolute inset-0 animate-sparkle-slow opacity-30 bg-gradient-to-br from-amber-400/20 via-transparent to-amber-600/20" />
               </div>
             )}
             

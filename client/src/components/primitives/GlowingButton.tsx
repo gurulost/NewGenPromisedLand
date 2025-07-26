@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Button, ButtonProps } from '../ui/button';
 import clsx from 'clsx';
 
-import { useSfx } from '../../hooks/useSfx';
+import { useSfxEngine } from '../../hooks/useSfx';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface GlowingButtonProps extends Omit<ButtonProps, 'onClick'> {
@@ -52,11 +52,11 @@ export function GlowingButton({
   ...props 
 }: GlowingButtonProps) {
   const reducedMotion = useReducedMotion();
-  const playSfx = useSfx();
+  const playSfx = useSfxEngine();
 
   const handleClick = () => {
     if (!disabled && onClick) {
-      playSfx(soundEffect);
+      playSfx('cta-click');
       onClick();
     }
   };

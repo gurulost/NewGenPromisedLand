@@ -10,6 +10,33 @@ export default {
         'body': ['Source Sans 3', 'sans-serif'],
         'sans': ['Source Sans 3', 'system-ui', 'sans-serif'],
       },
+      animation: {
+        'sparkle-slow': 'sparkle 4s ease-in-out infinite',
+        'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+      },
+      keyframes: {
+        sparkle: {
+          '0%, 100%': { opacity: '0.3', transform: 'scale(1) rotate(0deg)' },
+          '50%': { opacity: '0.6', transform: 'scale(1.05) rotate(180deg)' },
+        },
+        'pulse-glow': {
+          '0%, 100%': { boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)' },
+          '50%': { boxShadow: '0 0 40px rgba(59, 130, 246, 0.6)' },
+        },
+      },
+      backgroundImage: {
+        'panel': 'linear-gradient(135deg, rgb(15 23 42 / 0.95), rgb(30 41 59 / 0.9), rgb(15 23 42 / 0.95))',
+      },
+      colors: {
+        'gold': {
+          '100': 'rgb(254 243 199)',
+          '200': 'rgb(253 230 138)',
+          '300': 'rgb(252 211 77)',
+          '400': 'rgb(251 191 36)',
+          '500': 'rgb(245 158 11)',
+          '600': 'rgb(217 119 6)',
+        },
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
