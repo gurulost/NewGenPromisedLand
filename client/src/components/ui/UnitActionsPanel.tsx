@@ -115,29 +115,67 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
 
   const getUnitActions = (): ActionDefinition[] => {
     const actions: ActionDefinition[] = [];
+    const isPlayerTurn = unit.playerId === currentPlayer.id;
+
+    // Helper to check valid attack targets
+    const hasValidAttackTargets = () => {
+      return gameState.units.some(target => 
+        target.playerId !== unit.playerId && 
+        hexDistance(unit.coordinate, target.coordinate) <= (unit.attackRange || 1)
+      );
+    };
+
+    // Helper to check valid movement tiles
+    const hasValidMovementTiles = () => {
+      if (unit.remainingMovement <= 0) return false;
+      // Check if any adjacent tiles are passable
+      const neighbors = hexNeighbors(unit.coordinate);
+      return neighbors.some(coord => 
+        gameState.map.tiles.some(tile => 
+          tile.coordinate.q === coord.q && 
+          tile.coordinate.r === coord.r &&
+          tile.terrain !== 'water' // Basic passability
+        )
+      );
+    };
+
+    // Helper to check current tile resources for workers
+    const hasHarvestableTileResources = () => {
+      const currentTile = gameState.map.tiles.find(tile =>
+        tile.coordinate.q === unit.coordinate.q &&
+        tile.coordinate.r === unit.coordinate.r
+      );
+      return currentTile && currentTile.resources.length > 0;
+    };
 
     // Basic actions available to all units
-    if (unit.remainingMovement > 0) {
+    const canMove = isPlayerTurn && unit.remainingMovement > 0;
+    const hasMoveTiles = hasValidMovementTiles();
+    if (canMove || !isPlayerTurn) {
       actions.push({
         id: 'move',
         name: 'Move',
-        description: 'Move to adjacent tiles',
+        description: isPlayerTurn ? 'Move to adjacent tiles' : 'Not your turn',
         icon: <Move className="w-4 h-4" />,
         cost: 'Movement',
-        available: true,
+        available: canMove && hasMoveTiles,
         rangeType: 'movement',
         range: unit.remainingMovement
       });
     }
 
-    if (!unit.hasAttacked && unit.attack > 0) {
+    const canAttack = isPlayerTurn && !unit.hasAttacked && unit.attack > 0;
+    const hasAttackTargets = hasValidAttackTargets();
+    if (canAttack || !isPlayerTurn || unit.hasAttacked) {
       actions.push({
         id: 'attack',
         name: 'Attack',
-        description: 'Attack adjacent enemy units',
+        description: !isPlayerTurn ? 'Not your turn' : 
+                    unit.hasAttacked ? 'Already attacked this turn' : 
+                    'Attack adjacent enemy units',
         icon: <Swords className="w-4 h-4" />,
         cost: 'Turn',
-        available: true,
+        available: canAttack && hasAttackTargets,
         rangeType: 'attack',
         range: unit.attackRange || 1
       });
@@ -165,41 +203,72 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     // Unit-specific abilities
     switch (unit.type) {
       case 'worker':
+        // Check if on valid tile for improvements
+        const currentTile = gameState.map.tiles.find(tile =>
+          tile.coordinate.q === unit.coordinate.q &&
+          tile.coordinate.r === unit.coordinate.r
+        );
+        const canBuildOnTile = currentTile && !currentTile.hasCity;
+        
         // Build regular improvements
         actions.push({
           id: 'build_improvement',
           name: 'Build Improvement',
-          description: 'Construct terrain improvements (farms, mines, etc.)',
+          description: !isPlayerTurn ? 'Not your turn' :
+                      !canBuildOnTile ? 'Cannot build on this tile' :
+                      'Construct terrain improvements (farms, mines, etc.)',
           icon: <Hammer className="w-4 h-4" />,
           cost: 'Turn',
-          available: true
+          available: isPlayerTurn && canBuildOnTile
         });
+
+        // Harvest resources if available on current tile
+        if (hasHarvestableTileResources()) {
+          actions.push({
+            id: 'harvest_resource',
+            name: 'Harvest Resource',
+            description: isPlayerTurn ? 'Gather resources from this tile' : 'Not your turn',
+            icon: <Coins className="w-4 h-4" />,
+            cost: 'Turn',
+            available: isPlayerTurn && !unit.hasAttacked
+          });
+        }
         
         // Build Road - Polytopia-style infrastructure
         if (unitDef.abilities.includes('BUILD_ROAD')) {
           const canAfford = currentPlayer.stars >= 3;
+          const hasMovement = unit.remainingMovement > 0;
           actions.push({
             id: 'build_road',
             name: 'Build Road',
-            description: 'Create roads that reduce movement cost for friendly units',
+            description: !isPlayerTurn ? 'Not your turn' :
+                        !canAfford ? 'Requires 3 stars' :
+                        !hasMovement ? 'No movement remaining' :
+                        'Create roads that reduce movement cost for friendly units',
             icon: <Move className="w-4 h-4" />,
             cost: '3 Stars',
             starCost: 3,
-            available: canAfford && unit.remainingMovement > 0
+            available: isPlayerTurn && canAfford && hasMovement
           });
         }
         
         // Clear Forest - Polytopia-style terraforming
         if (unitDef.abilities.includes('CLEAR_FOREST')) {
           const canAfford = currentPlayer.stars >= 5;
+          const hasMovement = unit.remainingMovement > 0;
+          const onForest = currentTile?.terrain === 'forest';
           actions.push({
             id: 'clear_forest',
             name: 'Clear Forest',
-            description: 'Remove forest and convert to plains terrain',
+            description: !isPlayerTurn ? 'Not your turn' :
+                        !canAfford ? 'Requires 5 stars' :
+                        !hasMovement ? 'No movement remaining' :
+                        !onForest ? 'Must be on forest tile' :
+                        'Remove forest and convert to plains terrain',
             icon: <Zap className="w-4 h-4" />,
             cost: '5 Stars',
             starCost: 5,
-            available: canAfford && unit.remainingMovement > 0,
+            available: isPlayerTurn && canAfford && hasMovement && onForest,
             irreversible: true,
             consequences: [
               'Permanently destroys forest terrain',

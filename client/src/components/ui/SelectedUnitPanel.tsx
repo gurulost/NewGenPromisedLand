@@ -7,10 +7,11 @@ import { Separator } from "./separator";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { getUnitDefinition } from "@shared/data/units";
+import { getActionAvailability, getDetailedActionFeedback } from "../../lib/helpers/actionAvailabilityHelpers";
 import type { Unit } from "@shared/types/unit";
 import { 
   Hammer, Eye, Shield, Heart, Crown, Target, 
-  Anchor, Bomb, Sparkles, Move, Settings, Info 
+  Anchor, Bomb, Sparkles, Move, Settings, Info, Swords 
 } from "lucide-react";
 import UnitActionsPanel from "./UnitActionsPanel";
 import { InfoTooltip } from "./TooltipSystem";
@@ -35,6 +36,17 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
       isFullMovement: unit.remainingMovement === unit.movement
     };
   }, [unit.type, unit.hp, unit.remainingMovement, unit.movement]);
+
+  // Memoize action availability to determine button states
+  const actionAvailability = useMemo(() => {
+    if (!gameState) return { 
+      canMove: false, canAttack: false, hasAbilities: false, 
+      reachableTilesCount: 0, attackTargetsCount: 0, isPlayerTurn: false,
+      movementReason: "", attackReason: "", abilityReason: ""
+    };
+
+    return getActionAvailability(unit, gameState);
+  }, [gameState, unit]);
 
   return (
     <div className="absolute bottom-4 left-4 pointer-events-auto">
@@ -117,32 +129,75 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
             </div>
           )}
 
-          {/* Main Action Buttons */}
+          {/* Main Action Buttons with Dynamic States */}
           <div className="grid grid-cols-3 gap-2">
+            {/* Attack Button */}
             <Button
               onClick={() => setAttackMode(true)}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className={`${
+                actionAvailability.canAttack 
+                  ? "bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/25" 
+                  : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50"
+              } transition-all duration-200`}
               size="sm"
-              disabled={unit.hasAttacked}
+              disabled={!actionAvailability.canAttack}
+              title={
+                !actionAvailability.isPlayerTurn 
+                  ? "Not your turn" 
+                  : unit.hasAttacked 
+                    ? "Already attacked this turn"
+                    : actionAvailability.attackTargetsCount === 0
+                      ? "No valid targets in range"
+                      : `Attack (${actionAvailability.attackTargetsCount} targets)`
+              }
             >
-              <Target className="w-4 h-4 mr-1" />
+              <Swords className="w-4 h-4 mr-1" />
               Attack
             </Button>
             
+            {/* Move Button */}
             <Button
               onClick={() => setMovementMode(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className={`${
+                actionAvailability.canMove 
+                  ? "bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25" 
+                  : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50"
+              } transition-all duration-200`}
               size="sm"
-              disabled={unit.remainingMovement === 0}
+              disabled={!actionAvailability.canMove}
+              title={
+                !actionAvailability.isPlayerTurn 
+                  ? "Not your turn" 
+                  : unit.remainingMovement === 0
+                    ? "No movement remaining"
+                    : actionAvailability.reachableTilesCount === 0
+                      ? "No valid moves available"
+                      : `Move (${actionAvailability.reachableTilesCount} tiles)`
+              }
             >
               <Move className="w-4 h-4 mr-1" />
               Move
             </Button>
 
+            {/* Abilities Button */}
             <Button
               onClick={() => setShowActionsPanel(true)}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className={`${
+                actionAvailability.hasAbilities 
+                  ? "bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-500/25" 
+                  : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50"
+              } transition-all duration-200`}
               size="sm"
+              disabled={!actionAvailability.hasAbilities}
+              title={
+                !actionAvailability.isPlayerTurn 
+                  ? "Not your turn" 
+                  : unitStats.definition.abilities.length === 0
+                    ? "No abilities available"
+                    : unit.hasAttacked
+                      ? "Already acted this turn"
+                      : `Use abilities (${unitStats.definition.abilities.length} available)`
+              }
             >
               <Sparkles className="w-4 h-4 mr-1" />
               Ability
