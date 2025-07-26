@@ -140,7 +140,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
 
   return (
     <div 
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
       style={{ pointerEvents: 'auto' }}
       onClick={(e) => {
         console.log('🏛️ CityPanel backdrop clicked:', e.target === e.currentTarget);
@@ -150,7 +150,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
       }}
     >
       <Card 
-        className="w-[90%] h-[90%] max-w-4xl bg-white border-2" 
+        className="w-full h-full max-w-4xl max-h-[90vh] bg-white border-2 overflow-y-auto" 
         onClick={(e) => {
           console.log('🏛️ CityPanel card clicked');
           e.stopPropagation();

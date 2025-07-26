@@ -170,7 +170,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   
   return (
     <div 
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4"
       style={{ pointerEvents: 'auto' }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
@@ -178,7 +178,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
         }
       }}
     >
-      <div className="w-[95%] h-[95%] max-w-7xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-slate-600/50 rounded-2xl shadow-2xl overflow-hidden"
+      <div className="w-full h-full max-w-7xl max-h-[90vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-slate-600/50 rounded-2xl shadow-2xl overflow-hidden"
            onClick={(e) => e.stopPropagation()}>
         
         {/* Header */}
@@ -347,7 +347,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
         {/* Centered Modal for Selected Tech */}
         {selectedTech && (
           <div 
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto"
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4"
             onClick={(e) => {
               // Close modal if clicking on backdrop
               if (e.target === e.currentTarget) {
@@ -356,7 +356,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             }}
           >
             <div 
-              className="w-full max-w-2xl mx-4 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-slate-600/50 shadow-2xl overflow-hidden"
+              className="w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-slate-600/50 shadow-2xl"
               onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
             >
               {/* Header */}

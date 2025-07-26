@@ -94,7 +94,7 @@ export default function VictoryScreen({
   const stats = getFinalStats();
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto">
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto p-4">
       {/* Confetti Effect */}
       {showConfetti && (
         <div className="absolute inset-0 pointer-events-none">
