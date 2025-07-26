@@ -77,3 +77,17 @@ canvas {
 .duration-200 {
   animation-duration: 200ms;
 }
+
+@layer utilities {
+  @keyframes sparkle-slow {
+    0%,100% { background-position: 0 0 }
+    50%     { background-position: 400px 200px }
+  }
+  .animate-sparkle-slow {
+    background-image: radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                      radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
+                      radial-gradient(circle at 40% 40%, rgba(120, 119, 198, 0.15) 0%, transparent 50%);
+    background-size: 600px 600px;
+    animation: sparkle-slow 12s linear infinite;
+  }
+}
