@@ -150,22 +150,26 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
       }}
     >
       <Card 
-        className="w-full h-full max-w-4xl max-h-[90vh] bg-white border-2 overflow-y-auto" 
+        className="w-full h-full max-w-4xl max-h-[90vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/10 overflow-y-auto" 
         onClick={(e) => {
           console.log('🏛️ CityPanel card clicked');
           e.stopPropagation();
         }}
       >
-        <CardHeader className="border-b">
+        <CardHeader className="bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
           <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2 font-cinzel text-xl font-semibold tracking-wide">
-              <Building className="w-5 h-5" />
-              {city.name} - City Management
+            <CardTitle className="flex items-center gap-3 font-cinzel text-xl font-semibold tracking-wide text-amber-100">
+              <div className="p-2 bg-gradient-to-br from-amber-600 to-amber-700 rounded-lg shadow-lg shadow-amber-500/25">
+                <Building className="w-5 h-5 text-amber-100" />
+              </div>
+              {city.name}
+              <div className="text-sm text-amber-300/70 font-normal ml-2">— City of the Promised Land —</div>
             </CardTitle>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-yellow-500" />
-                <span className="font-semibold">{currentPlayer.stars} Stars</span>
+              <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-500/30 px-3 py-2 rounded-lg">
+                <Star className="w-4 h-4 text-amber-400" />
+                <span className="font-semibold text-amber-100">{currentPlayer.stars}</span>
+                <span className="text-amber-300/70 text-sm">Stars</span>
               </div>
               <Button 
                 variant="outline" 
@@ -174,6 +178,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                   e.stopPropagation();
                   onClose();
                 }}
+                className="min-h-[44px] bg-amber-900/30 border-amber-600/50 text-amber-300 md:hover:bg-amber-800/30 active:bg-amber-900/50 touch-manipulation"
               >
                 Close
               </Button>

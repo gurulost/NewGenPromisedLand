@@ -110,15 +110,18 @@ export default function VictoryScreen({
         </div>
       )}
 
-      <Card className="w-full max-w-[600px] max-h-[90vh] overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-yellow-500/50 shadow-2xl">
-        <CardHeader className="text-center pb-4">
+      <Card className="w-full max-w-[600px] max-h-[90vh] overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20">
+        <CardHeader className="text-center pb-4 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
           <div className="flex justify-center mb-4">
-            {getVictoryIcon(victoryType)}
+            <div className="p-4 bg-gradient-to-br from-amber-600 to-amber-700 rounded-full shadow-lg shadow-amber-500/25">
+              {getVictoryIcon(victoryType)}
+            </div>
           </div>
           
-          <CardTitle className="text-4xl font-cinzel font-bold text-yellow-300 mb-2 tracking-wide">
+          <CardTitle className="text-4xl font-cinzel font-bold text-amber-100 mb-2 tracking-wide">
             {getVictoryTitle(victoryType)}
           </CardTitle>
+          <div className="text-sm text-amber-300/70 font-normal">— Victory in the Promised Land —</div>
           
           <div className="flex items-center justify-center gap-2 mb-3">
             <div 
