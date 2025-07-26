@@ -138,18 +138,30 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
               View All Actions
             </Button>
             
-            {/* Quick Status Summary */}
-            <div className="flex justify-center gap-4 text-xs text-gray-400 bg-gray-800/30 rounded-lg p-2">
-              <div className={`flex items-center gap-1 ${actionAvailability.canMove ? 'text-blue-300' : 'text-gray-500'}`}>
-                <Move className="w-3 h-3" />
-                Move: {actionAvailability.canMove ? 'Ready' : 'Unavailable'}
+            {/* Enhanced Quick Status Summary with Dynamic Colors */}
+            <div className="flex justify-center gap-4 text-xs bg-gray-800/30 rounded-lg p-2">
+              <div className={`flex items-center gap-1 transition-colors duration-200 ${
+                actionAvailability.canMove 
+                  ? 'text-green-400 font-medium' 
+                  : 'text-gray-500'
+              }`}>
+                <Move className={`w-3 h-3 ${actionAvailability.canMove ? 'text-green-400' : 'text-gray-500'}`} />
+                Move: {actionAvailability.canMove ? `${actionAvailability.reachableTilesCount} tiles` : 'None'}
               </div>
-              <div className={`flex items-center gap-1 ${actionAvailability.canAttack ? 'text-red-300' : 'text-gray-500'}`}>
-                <Swords className="w-3 h-3" />
-                Attack: {actionAvailability.canAttack ? 'Ready' : 'Unavailable'}
+              <div className={`flex items-center gap-1 transition-colors duration-200 ${
+                actionAvailability.canAttack 
+                  ? 'text-red-400 font-medium' 
+                  : 'text-gray-500'
+              }`}>
+                <Swords className={`w-3 h-3 ${actionAvailability.canAttack ? 'text-red-400' : 'text-gray-500'}`} />
+                Attack: {actionAvailability.canAttack ? `${actionAvailability.attackTargetsCount} targets` : 'None'}
               </div>
-              <div className={`flex items-center gap-1 ${actionAvailability.hasAbilities ? 'text-purple-300' : 'text-gray-500'}`}>
-                <Settings className="w-3 h-3" />
+              <div className={`flex items-center gap-1 transition-colors duration-200 ${
+                actionAvailability.hasAbilities 
+                  ? 'text-purple-400 font-medium' 
+                  : 'text-gray-500'
+              }`}>
+                <Settings className={`w-3 h-3 ${actionAvailability.hasAbilities ? 'text-purple-400' : 'text-gray-500'}`} />
                 Abilities: {actionAvailability.hasAbilities ? 'Available' : 'None'}
               </div>
             </div>

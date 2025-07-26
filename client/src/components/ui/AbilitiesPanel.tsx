@@ -378,62 +378,62 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                         </div>
                         <p className="text-sm text-purple-200 mt-1 leading-relaxed">{action.description}</p>
                         
-                        {/* Enhanced Cost Display */}
+                        {/* Enhanced Cost Display with Availability Indicators */}
                         <div className="flex items-center gap-2 mt-3">
-                          {/* Base cost badge */}
+                          {/* Base cost badge with dynamic coloring */}
                           <Badge 
-                            variant="outline" 
-                            className={`text-xs font-medium ${
+                            variant="outline"
+                            className={`text-xs font-medium transition-colors duration-200 ${
                               action.available 
                                 ? 'text-green-300 border-green-500/50 bg-green-500/10' 
                                 : 'text-red-300 border-red-500/50 bg-red-500/10'
                             }`}
                           >
-                            {action.cost}
+                            {action.cost} {action.available ? '✓' : '✗'}
                           </Badge>
                           
-                          {/* Star cost */}
+                          {/* Star cost with clear affordability indicator */}
                           {action.starCost && (
                             <Badge 
                               variant="outline" 
-                              className={`text-xs flex items-center gap-1 ${
+                              className={`text-xs flex items-center gap-1 transition-colors duration-200 ${
                                 currentPlayer.stars >= action.starCost
                                   ? 'text-yellow-300 border-yellow-500/50 bg-yellow-500/10'
                                   : 'text-red-300 border-red-500/50 bg-red-500/10'
                               }`}
                             >
                               <Star className="w-3 h-3" />
-                              {action.starCost}
+                              {action.starCost} {currentPlayer.stars >= action.starCost ? '✓' : '✗'}
                             </Badge>
                           )}
                           
-                          {/* Faith cost */}
+                          {/* Faith cost with clear affordability indicator */}
                           {action.faithCost && (
                             <Badge 
                               variant="outline" 
-                              className={`text-xs flex items-center gap-1 ${
+                              className={`text-xs flex items-center gap-1 transition-colors duration-200 ${
                                 currentPlayer.stats.faith >= action.faithCost
                                   ? 'text-blue-300 border-blue-500/50 bg-blue-500/10'
                                   : 'text-red-300 border-red-500/50 bg-red-500/10'
                               }`}
                             >
                               <Heart className="w-3 h-3" />
-                              {action.faithCost}
+                              {action.faithCost} {currentPlayer.stats.faith >= action.faithCost ? '✓' : '✗'}
                             </Badge>
                           )}
                           
-                          {/* Pride cost */}
+                          {/* Pride cost with clear affordability indicator */}
                           {action.prideCost && (
                             <Badge 
                               variant="outline" 
-                              className={`text-xs flex items-center gap-1 ${
+                              className={`text-xs flex items-center gap-1 transition-colors duration-200 ${
                                 currentPlayer.stats.pride >= action.prideCost
                                   ? 'text-red-300 border-red-500/50 bg-red-500/10'
                                   : 'text-gray-400 border-gray-600/50 bg-gray-600/10'
                               }`}
                             >
                               <Crown className="w-3 h-3" />
-                              {action.prideCost}
+                              {action.prideCost} {currentPlayer.stats.pride >= action.prideCost ? '✓' : '✗'}
                             </Badge>
                           )}
                           
