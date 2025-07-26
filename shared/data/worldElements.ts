@@ -15,6 +15,7 @@ export interface ElementAction {
   popDelta: number;
   tileTransform?: string;
   requiresUnitTag?: string;
+  summary?: string; // Action summary line for UI
 }
 
 export interface ElementStructure {
@@ -27,6 +28,7 @@ export interface ElementStructure {
   faithDelta: number;
   prideDelta: number;
   dissentDelta: number;
+  summary?: string; // Structure summary line for UI
   upgrade?: {
     techRequired: string;
     structure: string;
@@ -71,7 +73,8 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       prideDelta: 1,
       dissentDelta: 1,
       popDelta: 1, // Added population boost for unified system
-      tileTransform: 'plains'
+      tileTransform: 'plains',
+      summary: 'Quick harvest: +2 Stars, +1 Pop now (Pride +1, Dissent +1)'
     },
     longTermBuild: {
       name: 'Sawmill',
@@ -82,7 +85,8 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       },
       faithDelta: 1,
       prideDelta: 0,
-      dissentDelta: 0
+      dissentDelta: 0,
+      summary: 'Build 5★ Sawmill: +1 Population, +1★/turn, +1 Faith'
     },
     techPrerequisite: 'woodcraft',
     assetTileset: 'tiles/feature_timber_grove.png',
@@ -106,7 +110,8 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       prideDelta: 1,
       dissentDelta: 1,
       popDelta: 1, // Added population boost for unified system
-      tileTransform: 'plains'
+      tileTransform: 'plains',
+      summary: 'Slaughter herd: +2 Stars, +1 Pop now (Pride +1, Dissent +1)'
     },
     longTermBuild: {
       name: 'Corral',
@@ -117,7 +122,8 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       },
       faithDelta: 1,
       prideDelta: 0,
-      dissentDelta: 0
+      dissentDelta: 0,
+      summary: 'Build 5★ Corral: +1 Population, +1★/turn, +1 Faith'
     },
     techPrerequisite: 'husbandry',
     assetTileset: 'tiles/feature_goats.png',

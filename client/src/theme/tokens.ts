@@ -31,4 +31,20 @@ export const TOKENS = {
     icon: '⚡', 
     name: 'Dissent' 
   },
+  population: { 
+    color: 'text-green-300', 
+    bg: 'bg-gradient-to-r from-emerald-500/20 to-green-600/20',
+    border: 'border-green-400/40', 
+    glow: 'shadow-green-400/25', 
+    icon: '👥', 
+    name: 'Population' 
+  },
+  costStars: { 
+    color: 'text-yellow-300', 
+    bg: 'bg-slate-900/40', 
+    border: 'border-yellow-400/40',
+    glow: 'shadow-yellow-400/25', 
+    icon: '✪', 
+    name: 'Star Cost' 
+  },
 } as const;
