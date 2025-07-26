@@ -6,7 +6,7 @@ import { AvatarBadge } from '../primitives/AvatarBadge';
 import { GlowingButton } from '../primitives/GlowingButton';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Progress } from '../ui/progress';
-import { InfoTooltip } from '../ui/InfoTooltip';
+import { InfoTooltip } from '../primitives/InfoTooltip';
 
 import { Player, GameState } from '../../../../shared/types/game';
 import { getFaction } from '../../../../shared/data/factions';
