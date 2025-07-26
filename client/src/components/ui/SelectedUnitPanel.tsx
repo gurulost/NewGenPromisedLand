@@ -29,9 +29,9 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
     return {
       definition: unitDef,
       hpPercentage: (unit.hp / unitDef.baseStats.hp) * 100,
-      movementDisplay: `${unit.remainingMovement}/${unit.movement}`,
+      movementDisplay: `${unit.remainingMovement}/${unitDef.baseStats.movement}`,
       isWounded: unit.hp < unitDef.baseStats.hp,
-      isFullMovement: unit.remainingMovement === unit.movement
+      isFullMovement: unit.remainingMovement === unitDef.baseStats.movement
     };
   }, [unit.type, unit.hp, unit.remainingMovement, unit.movement]);
 
