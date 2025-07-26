@@ -392,7 +392,7 @@ export default function GameUI() {
       {/* World Element Panel */}
       {selectedWorldElement && (
         <div 
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-auto"
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm pointer-events-auto"
           onClick={(e) => {
             e.stopPropagation();
             if (e.target === e.currentTarget) {

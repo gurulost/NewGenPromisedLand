@@ -39,7 +39,7 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
   const [isHovered, setIsHovered] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Check if any modals are open that should hide tooltips
+  // Check if any modals are open that should hide tooltips and info icons
   const shouldHideForModals = () => {
     const modals = document.querySelectorAll('[class*="fixed"][class*="z-50"], [class*="fixed"][class*="z-[50]"]');
     return modals.length > 0;
@@ -91,10 +91,10 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
     }
   }, [isVisible]);
 
-  // Enhanced tooltip with premium styling
+  // Enhanced tooltip with premium styling - should hide behind modals
   const tooltipElement = isVisible && !shouldHideForModals() && (
     <div
-      className="fixed z-[60] pointer-events-none"
+      className="fixed z-[45] pointer-events-none"
       style={{
         left: position.x,
         top: position.y,

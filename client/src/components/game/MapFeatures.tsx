@@ -208,7 +208,7 @@ function ResourceWithTooltip({
           <InfoTooltip 
             content={getTooltipContent(resourceType)} 
             placement="top"
-            className="animate-bounce-subtle"
+            className="animate-bounce-subtle z-[40]"
           />
         </div>
       </Html>
