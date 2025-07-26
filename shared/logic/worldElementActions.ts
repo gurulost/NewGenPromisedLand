@@ -6,6 +6,7 @@
 import { GameState } from '../types/game';
 import { HexCoordinate } from '../types/coordinates';
 import { getWorldElement, RUIN_REWARDS, RuinReward } from '../data/worldElements';
+import { getUnitDefinition, UnitType } from '../data/units';
 
 export interface WorldElementActionResult {
   success: boolean;
@@ -23,6 +24,20 @@ export interface WorldElementActionResult {
     newTerrain?: string;
     ruinReward?: RuinReward;
   };
+}
+
+/**
+ * Check if unit type has required tag for special actions
+ */
+function hasRequiredTag(unitType: UnitType, requiredTag: string): boolean {
+  const unitDef = getUnitDefinition(unitType);
+  
+  // Naval commander tag check for sea beast harvesting
+  if (requiredTag === 'naval_commander') {
+    return unitType === 'commander' && unitDef.abilities.includes('NAVAL_COMMAND');
+  }
+  
+  return false;
 }
 
 /**
@@ -61,6 +76,24 @@ export function executeElementHarvest(
       message: `Requires ${element.techPrerequisite} technology`,
       resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
     };
+  }
+
+  // Check unit tag requirement (Sea Beast Harvesting needs naval_commander)
+  if (action.requiresUnitTag) {
+    const requiredUnits = gameState.units.filter(unit => 
+      unit.playerId === playerId && 
+      unit.coordinate.q === coordinate.q && 
+      unit.coordinate.r === coordinate.r &&
+      hasRequiredTag(unit.type as UnitType, action.requiresUnitTag!)
+    );
+    
+    if (requiredUnits.length === 0) {
+      return {
+        success: false,
+        message: `Requires unit with ${action.requiresUnitTag} capability on this tile`,
+        resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
+      };
+    }
   }
 
   // Special handling for Jaredite Ruins
