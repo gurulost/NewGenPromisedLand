@@ -139,29 +139,26 @@ const CityStructuresTab = React.memo(({ city, cityValidation, currentPlayer }: {
   city: City;
   cityValidation: CityValidation;
   currentPlayer: Player;
-}) => (
-  <div className="space-y-4">
-    <h3 className="font-cinzel font-semibold text-amber-200">Available Structures</h3>
-    <div className="grid gap-3 md:grid-cols-2">
-      <StructureCard 
-        name="Temple"
-        cost={15}
-        effects={[{ type: 'faith', value: 2 }]}
-        canAfford={currentPlayer.stars >= 15}
-        hasPrerequisites={true}
-        description="Increases faith generation"
-      />
-      <StructureCard 
-        name="Market"
-        cost={10}
-        effects={[{ type: 'stars', value: 2 }]}
-        canAfford={currentPlayer.stars >= 10}
-        hasPrerequisites={true}
-        description="Boosts economic output"
-      />
+}) => {
+  const availableStructures = cityValidation.getAvailableStructures();
+  
+  return (
+    <div className="space-y-4">
+      <h3 className="font-cinzel font-semibold text-amber-200">Available Structures</h3>
+      <div className="grid gap-3 md:grid-cols-2">
+        {availableStructures.map(structureId => (
+          <StructureCard 
+            key={structureId}
+            structureId={structureId}
+            canAfford={cityValidation.canAffordStructure(structureId)}
+            hasPrerequisites={cityValidation.hasStructurePrerequisites(structureId)}
+            currentPlayer={currentPlayer}
+          />
+        ))}
+      </div>
     </div>
-  </div>
-));
+  );
+});
 
 const CityMilitaryTab = React.memo(({ city, cityValidation, currentPlayer }: {
   city: City;
@@ -192,40 +189,52 @@ const CityMilitaryTab = React.memo(({ city, cityValidation, currentPlayer }: {
 ));
 
 // Reusable card components following the design system
-const StructureCard = React.memo(({ name, cost, effects, canAfford, hasPrerequisites, description }: {
-  name: string;
-  cost: number;
-  effects: Array<{ type: string; value: number }>;
+const StructureCard = React.memo(({ structureId, canAfford, hasPrerequisites, currentPlayer }: {
+  structureId: string;
   canAfford: boolean;
   hasPrerequisites: boolean;
-  description: string;
-}) => (
-  <div className={`rounded-lg border p-4 transition-all ${
-    canAfford && hasPrerequisites
-      ? 'bg-slate-800/40 border-amber-500/30 hover:border-amber-400/50'
-      : 'bg-slate-800/20 border-slate-600/30 opacity-60'
-  }`}>
-    <div className="flex justify-between items-start mb-2">
-      <h4 className="font-cinzel font-semibold text-amber-200">{name}</h4>
-      <ResourceDeltaBadge value={cost} type="costStars" />
-    </div>
-    <p className="text-xs text-amber-300/70 mb-3">{description}</p>
-    <div className="flex gap-2">
-      {effects.map((effect, index) => (
-        <ResourceDeltaBadge 
-          key={index} 
-          value={effect.value} 
-          type={effect.type as any} 
-        />
-      ))}
-    </div>
-    {!canAfford && (
-      <div className="mt-2 text-xs text-red-300 bg-red-900/20 rounded px-2 py-1 border border-red-500/30">
-        Insufficient stars
+  currentPlayer: Player;
+}) => {
+  // Structure definitions lookup (simplified for demo)
+  const structureData = {
+    temple: { name: 'Temple', cost: 15, effects: [{ type: 'faith', value: 2 }], description: 'Increases faith generation' },
+    market: { name: 'Market', cost: 10, effects: [{ type: 'stars', value: 2 }], description: 'Boosts economic output' },
+    barracks: { name: 'Barracks', cost: 12, effects: [{ type: 'military', value: 1 }], description: 'Trains military units' }
+  }[structureId] || { name: structureId, cost: 10, effects: [], description: 'Unknown structure' };
+  
+  return (
+    <div className={`rounded-lg border p-4 transition-all ${
+      canAfford && hasPrerequisites
+        ? 'bg-slate-800/40 border-amber-500/30 hover:border-amber-400/50'
+        : 'bg-slate-800/20 border-slate-600/30 opacity-60'
+    }`}>
+      <div className="flex justify-between items-start mb-2">
+        <h4 className="font-cinzel font-semibold text-amber-200">{structureData.name}</h4>
+        <ResourceDeltaBadge value={structureData.cost} type="costStars" />
       </div>
-    )}
-  </div>
-));
+      <p className="text-xs text-amber-300/70 mb-3">{structureData.description}</p>
+      <div className="flex gap-2">
+        {structureData.effects.map((effect, index) => (
+          <ResourceDeltaBadge 
+            key={index} 
+            value={effect.value} 
+            type={effect.type as any} 
+          />
+        ))}
+      </div>
+      {!canAfford && (
+        <div className="mt-2 text-xs text-red-300 bg-red-900/20 rounded px-2 py-1 border border-red-500/30">
+          Insufficient stars ({currentPlayer.stars}/{structureData.cost})
+        </div>
+      )}
+      {!hasPrerequisites && (
+        <div className="mt-2 text-xs text-orange-300 bg-orange-900/20 rounded px-2 py-1 border border-orange-500/30">
+          Prerequisites not met
+        </div>
+      )}
+    </div>
+  );
+});
 
 const UnitCard = React.memo(({ name, cost, stats, canAfford, hasPrerequisites, description }: {
   name: string;

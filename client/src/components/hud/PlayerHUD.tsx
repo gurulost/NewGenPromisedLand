@@ -38,7 +38,11 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
               color={faction.color} 
               size="md"
               aria-label={`${faction.name} faction`}
-            />
+            >
+              <span className="text-white font-bold text-sm">
+                {faction.name.charAt(0)}
+              </span>
+            </AvatarBadge>
             {player.name}
           </CardTitle>
           <div className="text-xs text-amber-300/70 font-normal">
