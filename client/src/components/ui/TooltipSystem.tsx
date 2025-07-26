@@ -41,8 +41,24 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
 
   // Check if any modals are open that should hide tooltips and info icons
   const shouldHideForModals = () => {
-    const modals = document.querySelectorAll('[class*="fixed"][class*="z-50"], [class*="fixed"][class*="z-[50]"]');
-    return modals.length > 0;
+    // Check for any fixed positioned modals with high z-index
+    const modalSelectors = [
+      '[class*="fixed"][class*="z-50"]',
+      '[class*="fixed"][class*="z-[50]"]', 
+      '[class*="fixed"][class*="z-100"]',
+      '[class*="fixed"][class*="z-[100]"]',
+      '.fixed.z-50',
+      '.fixed.z-100'
+    ];
+    
+    for (const selector of modalSelectors) {
+      const modals = document.querySelectorAll(selector);
+      if (modals.length > 0) {
+        return true;
+      }
+    }
+    
+    return false;
   };
 
   const showTooltip = (event: React.MouseEvent) => {
@@ -59,13 +75,20 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
     setIsVisible(false);
   };
 
-  // Hide tooltip when modals open
+  // Hide tooltip and force re-render when modals open/close
+  const [shouldHide, setShouldHide] = useState(false);
+  
   useEffect(() => {
     const checkModalState = () => {
-      if (shouldHideForModals() && isVisible) {
+      const hideState = shouldHideForModals();
+      setShouldHide(hideState);
+      if (hideState && isVisible) {
         hideTooltip();
       }
     };
+
+    // Initial check
+    checkModalState();
 
     const observer = new MutationObserver(checkModalState);
     observer.observe(document.body, {
@@ -162,7 +185,7 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
   );
 
   // Don't render if disabled or modals are open
-  if (disabled || shouldHideForModals()) {
+  if (disabled || shouldHide || shouldHideForModals()) {
     return null;
   }
 
