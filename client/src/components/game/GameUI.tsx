@@ -6,7 +6,7 @@ import { getFaction } from "@shared/data/factions";
 import PlayerHUD from "../ui/PlayerHUD";
 import SelectedUnitPanel from "../ui/SelectedUnitPanel";
 import CombatPanel from "../ui/CombatPanel";
-import { AbilitiesPanel } from "../ui/AbilitiesPanel";
+import UnitActionsPanel from "../ui/AbilitiesPanel";
 import TechPanel from "../ui/TechPanel";
 import CityPanel from "../ui/CityPanel";
 import { BuildingMenu } from "../ui/BuildingMenu";
@@ -294,14 +294,7 @@ export default function GameUI() {
         />
       )}
 
-      {/* Faction Abilities Panel */}
-      <div className="absolute top-4 left-80 pointer-events-auto">
-        <AbilitiesPanel
-          currentPlayer={currentPlayer}
-          gameState={gameState}
-          onActivateAbility={handleActivateAbility}
-        />
-      </div>
+      {/* NOTE: Faction Abilities Panel removed - consolidated into unit-specific UnitActionsPanel */}
 
       {/* Tech Panel Modal */}
       <TechPanel
