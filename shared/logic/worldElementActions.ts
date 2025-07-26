@@ -6,7 +6,8 @@
 import { GameState } from '../types/game';
 import { HexCoordinate } from '../types/coordinates';
 import { getWorldElement, RUIN_REWARDS, RuinReward } from '../data/worldElements';
-import { getUnitDefinition, UnitType } from '../data/units';
+import { getUnitDefinition } from '../data/units';
+import type { UnitType } from '../types/unit';
 
 export interface WorldElementActionResult {
   success: boolean;
