@@ -16,6 +16,7 @@ import { SaveSystem } from "../ui/SaveSystem";
 import { UnitSelectionUI } from "../effects/UnitSelection";
 import { ActionTooltip } from "../ui/TooltipSystem";
 import { WorldElementPanel } from "../ui/WorldElementPanel";
+import MovementControls from "../game/MovementControls";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
 import { getWorldElement, WORLD_ELEMENTS } from "../../../../shared/data/worldElements";
@@ -23,7 +24,7 @@ import type { Unit } from "@shared/types/unit";
 
 export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
-  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isMovementMode, isAttackMode, setMovementMode, setAttackMode } = useGameState();
+  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
@@ -267,6 +268,14 @@ export default function GameUI() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Movement Mode Controls */}
+      {isMovementMode && selectedUnit && (
+        <MovementControls 
+          selectedUnit={selectedUnit}
+          reachableCount={reachableCoordinates.length}
+        />
       )}
 
       {/* Player HUD */}

@@ -15,10 +15,12 @@ import { gsap } from "gsap";
 import * as THREE from "three";
 import { UnitSelectionEffects, useUnitSelection } from "../effects/UnitSelection";
 import { calculateReachableTiles } from "@shared/logic/unitLogic";
+import MovementOverlay from "./MovementOverlay";
+import { getReachableTiles } from "@shared/logic/pathfinding";
 
 export default function GameCanvas() {
-  const { gameState } = useLocalGame();
-  const { selectedUnit, hoveredTile, setSelectedUnit, isMovementMode, setMovementMode } = useGameState();
+  const { gameState, dispatch } = useLocalGame();
+  const { selectedUnit, hoveredTile, setSelectedUnit, isMovementMode, setMovementMode, reachableCoordinates, setReachableCoordinates } = useGameState();
   const { camera } = useThree();
   const controlsRef = useRef<any>();
   const debug = useGameDebugger();
@@ -33,6 +35,25 @@ export default function GameCanvas() {
     clearSelection,
     hoverTile
   } = useUnitSelection();
+
+  // Calculate reachable tiles when movement mode is activated
+  useEffect(() => {
+    if (isMovementMode && selectedUnit && gameState) {
+      const reachable = getReachableTiles(
+        selectedUnit.coordinate,
+        selectedUnit.remainingMovement,
+        (coord) => {
+          const tile = gameState.map.tiles.find(t => 
+            t.coordinate.q === coord.q && t.coordinate.r === coord.r
+          );
+          return tile && tile.terrain !== 'water';
+        }
+      );
+      setReachableCoordinates(reachable);
+    } else {
+      setReachableCoordinates([]);
+    }
+  }, [isMovementMode, selectedUnit, gameState, setReachableCoordinates]);
   
   // Combat effects moved to GameUI to avoid HTML in R3F
 
@@ -222,6 +243,35 @@ export default function GameCanvas() {
         validMoveCoordinates={validMoveCoordinates}
         validAttackCoordinates={validAttackCoordinates}
       />
+
+      {/* Professional Movement Overlay */}
+      {isMovementMode && selectedUnit && reachableCoordinates.length > 0 && (
+        <MovementOverlay 
+          reachableTiles={reachableCoordinates}
+          selectedTile={hoveredTile ? { 
+            q: Math.round(hoveredTile.tile.coordinate.q), 
+            r: Math.round(hoveredTile.tile.coordinate.r),
+            s: Math.round(hoveredTile.tile.coordinate.s || 0)
+          } : null}
+          onTileHover={(coord) => {
+            // Handle tile hover for movement preview
+            console.log('Movement tile hovered:', coord);
+          }}
+          onTileClick={(coord) => {
+            // Execute unit movement
+            if (selectedUnit && gameState) {
+              console.log('Executing unit movement:', selectedUnit.id, 'to', coord);
+              dispatch({
+                type: 'MOVE_UNIT',
+                unitId: selectedUnit.id,
+                targetCoordinate: coord
+              });
+              setMovementMode(false);
+              setReachableCoordinates([]);
+            }
+          }}
+        />
+      )}
 
       {/* Combat Effects - Note: Moved to GameUI to avoid HTML in R3F */}
       
