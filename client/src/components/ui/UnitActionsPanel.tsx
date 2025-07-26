@@ -3,12 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 import { Badge } from "./badge";
 import { Separator } from "./separator";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./dialog";
+import { Alert, AlertDescription } from "./alert";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { getUnitDefinition } from "@shared/data/units";
 import { Unit } from "@shared/types/unit";
+import { hexDistance, hexNeighbors } from "@shared/utils/hex";
 import { 
   X, Hammer, Eye, Heart, Bomb, Crown, 
-  Shield, Swords, Move, Target, Zap, Star 
+  Shield, Swords, Move, Target, Zap, Star,
+  AlertTriangle, Coins, Sparkles
 } from "lucide-react";
 
 interface UnitActionsPanelProps {
@@ -16,17 +20,101 @@ interface UnitActionsPanelProps {
   onClose: () => void;
 }
 
+interface ActionDefinition {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+  cost: string;
+  starCost?: number;
+  faithCost?: number;
+  prideCost?: number;
+  available: boolean;
+  irreversible?: boolean;
+  rangeType?: 'movement' | 'attack' | 'ability';
+  range?: number;
+  consequences?: string[];
+}
+
 export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProps) {
   const { gameState, dispatch } = useLocalGame();
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [actionToConfirm, setActionToConfirm] = useState<ActionDefinition | null>(null);
+  const [rangePreview, setRangePreview] = useState<string[]>([]);
 
   if (!gameState) return null;
 
   const unitDef = getUnitDefinition(unit.type);
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
 
-  const getUnitActions = () => {
-    const actions = [];
+  // Helper function to calculate range preview tiles
+  const calculateRangePreview = (action: ActionDefinition): string[] => {
+    if (!action.rangeType || !action.range) return [];
+    
+    const tiles: string[] = [];
+    const centerQ = unit.coordinate.q;
+    const centerR = unit.coordinate.r;
+    
+    for (let q = centerQ - action.range; q <= centerQ + action.range; q++) {
+      for (let r = centerR - action.range; r <= centerR + action.range; r++) {
+        const s = -q - r;
+        const distance = hexDistance(
+          { q: centerQ, r: centerR, s: -centerQ - centerR },
+          { q, r, s }
+        );
+        
+        if (distance <= action.range && distance > 0) {
+          tiles.push(`${q},${r}`);
+        }
+      }
+    }
+    
+    return tiles;
+  };
+
+  // Helper function to check if action needs confirmation
+  const needsConfirmation = (action: ActionDefinition): boolean => {
+    return action.irreversible || (action.starCost && action.starCost > 0) || 
+           (action.faithCost && action.faithCost > 0) || (action.prideCost && action.prideCost > 0);
+  };
+
+  // Handle action selection with range preview
+  const handleActionSelect = (action: ActionDefinition) => {
+    if (!action.available) return;
+    
+    setSelectedAction(action.id);
+    
+    // Show range preview if action has range
+    if (action.rangeType && action.range) {
+      const tiles = calculateRangePreview(action);
+      setRangePreview(tiles);
+    } else {
+      setRangePreview([]);
+    }
+  };
+
+  // Handle action execution
+  const handleActionExecute = (action: ActionDefinition) => {
+    if (needsConfirmation(action)) {
+      setActionToConfirm(action);
+      setShowConfirmDialog(true);
+    } else {
+      executeAction(action.id);
+    }
+  };
+
+  // Confirm and execute action
+  const confirmAndExecute = () => {
+    if (actionToConfirm) {
+      executeAction(actionToConfirm.id);
+    }
+    setShowConfirmDialog(false);
+    setActionToConfirm(null);
+  };
+
+  const getUnitActions = (): ActionDefinition[] => {
+    const actions: ActionDefinition[] = [];
 
     // Basic actions available to all units
     if (unit.remainingMovement > 0) {
@@ -36,7 +124,9 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         description: 'Move to adjacent tiles',
         icon: <Move className="w-4 h-4" />,
         cost: 'Movement',
-        available: true
+        available: true,
+        rangeType: 'movement',
+        range: unit.remainingMovement
       });
     }
 
@@ -47,7 +137,9 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         description: 'Attack adjacent enemy units',
         icon: <Swords className="w-4 h-4" />,
         cost: 'Turn',
-        available: true
+        available: true,
+        rangeType: 'attack',
+        range: unit.attackRange || 1
       });
     }
 
@@ -85,25 +177,35 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         
         // Build Road - Polytopia-style infrastructure
         if (unitDef.abilities.includes('BUILD_ROAD')) {
+          const canAfford = currentPlayer.stars >= 3;
           actions.push({
             id: 'build_road',
             name: 'Build Road',
             description: 'Create roads that reduce movement cost for friendly units',
             icon: <Move className="w-4 h-4" />,
             cost: '3 Stars',
-            available: currentPlayer.stars >= 3 && unit.remainingMovement > 0
+            starCost: 3,
+            available: canAfford && unit.remainingMovement > 0
           });
         }
         
         // Clear Forest - Polytopia-style terraforming
         if (unitDef.abilities.includes('CLEAR_FOREST')) {
+          const canAfford = currentPlayer.stars >= 5;
           actions.push({
             id: 'clear_forest',
             name: 'Clear Forest',
             description: 'Remove forest and convert to plains terrain',
             icon: <Zap className="w-4 h-4" />,
             cost: '5 Stars',
-            available: currentPlayer.stars >= 5 && unit.remainingMovement > 0
+            starCost: 5,
+            available: canAfford && unit.remainingMovement > 0,
+            irreversible: true,
+            consequences: [
+              'Permanently destroys forest terrain',
+              'Converts tile to plains',
+              'Cannot be undone'
+            ]
           });
         }
         
@@ -112,7 +214,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           actions.push({
             id: 'harvest_resource',
             name: 'Harvest Resource',
-            description: 'Harvest forest, mountain, or animals to grow nearby city',
+            description: 'Harvest world elements for immediate rewards',
             icon: <Star className="w-4 h-4" />,
             cost: 'Movement',
             available: unit.remainingMovement > 0
@@ -166,7 +268,10 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: hasHealingTech ? 'Restore health to friendly units' : 'Requires Spirituality technology',
             icon: <Heart className="w-4 h-4" />,
             cost: '5 Faith',
-            available: hasHealingTech && currentPlayer.stats.faith >= 5 && !unit.hasAttacked
+            faithCost: 5,
+            available: hasHealingTech && currentPlayer.stats.faith >= 5 && !unit.hasAttacked,
+            rangeType: 'ability',
+            range: 2
           });
         }
         if (unitDef.abilities.includes('convert')) {
@@ -176,7 +281,10 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: 'Convert enemy unit to your side',
             icon: <Star className="w-4 h-4" />,
             cost: '10 Faith',
-            available: currentPlayer.stats.faith >= 10
+            faithCost: 10,
+            available: currentPlayer.stats.faith >= 10,
+            rangeType: 'attack',
+            range: 1
           });
         }
         break;
@@ -189,7 +297,13 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: 'Setup for long-range bombardment',
             icon: <Bomb className="w-4 h-4" />,
             cost: 'Turn',
-            available: true
+            available: true,
+            irreversible: true,
+            consequences: [
+              'Permanently consumes resource',
+              'May increase Pride and Dissent',
+              'Provides immediate population/star boost'
+            ]
           });
         }
         if (unitDef.abilities.includes('bombardment')) {
@@ -212,7 +326,10 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: 'Boost nearby units\' attack and morale',
             icon: <Crown className="w-4 h-4" />,
             cost: '5 Pride',
-            available: currentPlayer.stats.pride >= 5 && !unit.hasAttacked
+            prideCost: 5,
+            available: currentPlayer.stats.pride >= 5 && !unit.hasAttacked,
+            rangeType: 'ability',
+            range: 2
           });
         }
         break;
@@ -390,18 +507,25 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                       ? 'bg-slate-800/50 border-slate-600 hover:bg-slate-800'
                       : 'bg-slate-800/20 border-slate-700 opacity-50 cursor-not-allowed'
                   }`}
-                  onClick={() => action.available && setSelectedAction(action.id)}
+                  onClick={() => action.available && handleActionSelect(action)}
                 >
                   <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-3 flex-1">
                       <div className="mt-1 text-purple-400">
                         {action.icon}
                       </div>
-                      <div>
-                        <h4 className="font-semibold text-white">{action.name}</h4>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-white">{action.name}</h4>
+                          {action.irreversible && (
+                            <AlertTriangle className="w-4 h-4 text-orange-400" />
+                          )}
+                        </div>
                         <p className="text-sm text-slate-400 mt-1">{action.description}</p>
                         
+                        {/* Enhanced Cost Display */}
                         <div className="flex items-center gap-2 mt-2">
+                          {/* Base cost badge */}
                           <Badge 
                             variant="outline" 
                             className={`text-xs ${
@@ -410,8 +534,37 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                                 : 'text-red-300 border-red-500/50'
                             }`}
                           >
-                            Cost: {action.cost}
+                            {action.cost}
                           </Badge>
+                          
+                          {/* Detailed cost breakdown */}
+                          {action.starCost && (
+                            <Badge variant="outline" className="text-xs text-yellow-300 border-yellow-500/50 flex items-center gap-1">
+                              <Coins className="w-3 h-3" />
+                              {action.starCost}
+                            </Badge>
+                          )}
+                          
+                          {action.faithCost && (
+                            <Badge variant="outline" className="text-xs text-blue-300 border-blue-500/50 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" />
+                              {action.faithCost}
+                            </Badge>
+                          )}
+                          
+                          {action.prideCost && (
+                            <Badge variant="outline" className="text-xs text-red-300 border-red-500/50 flex items-center gap-1">
+                              <Crown className="w-3 h-3" />
+                              {action.prideCost}
+                            </Badge>
+                          )}
+                          
+                          {/* Range indicator */}
+                          {action.rangeType && action.range && (
+                            <Badge variant="outline" className="text-xs text-purple-300 border-purple-500/50">
+                              Range: {action.range}
+                            </Badge>
+                          )}
                           
                           {!action.available && (
                             <Badge variant="outline" className="text-xs text-red-300 border-red-500/50">
@@ -419,27 +572,122 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                             </Badge>
                           )}
                         </div>
+                        
+                        {/* Consequences warning for irreversible actions */}
+                        {action.consequences && selectedAction === action.id && (
+                          <Alert className="mt-2 border-orange-500/50 bg-orange-900/20">
+                            <AlertTriangle className="w-4 h-4" />
+                            <AlertDescription className="text-xs">
+                              <strong>Warning:</strong> This action is irreversible
+                              <ul className="mt-1 ml-2 text-orange-300">
+                                {action.consequences.map((consequence, idx) => (
+                                  <li key={idx} className="text-xs">• {consequence}</li>
+                                ))}
+                              </ul>
+                            </AlertDescription>
+                          </Alert>
+                        )}
                       </div>
                     </div>
                   </div>
+                  
+                  {/* Execute Button for Selected Action */}
+                  {selectedAction === action.id && action.available && (
+                    <div className="mt-3 pt-3 border-t border-slate-600">
+                      <Button
+                        onClick={() => handleActionExecute(action)}
+                        className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                        size="sm"
+                      >
+                        {needsConfirmation(action) ? 'Confirm Action' : 'Execute Action'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))
             )}
           </div>
 
-          {/* Execute Action Button */}
-          {selectedAction && (
-            <div className="flex justify-center pt-4">
-              <Button
-                onClick={() => executeAction(selectedAction)}
-                className="bg-purple-600 hover:bg-purple-700 px-8"
-              >
-                Execute Action
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
+      
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent className="bg-slate-900 border-slate-600 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-400">
+              <AlertTriangle className="w-5 h-5" />
+              Confirm Action
+            </DialogTitle>
+            <DialogDescription className="text-slate-300">
+              {actionToConfirm?.name} - Are you sure you want to proceed?
+            </DialogDescription>
+          </DialogHeader>
+          
+          {actionToConfirm && (
+            <div className="space-y-3">
+              <div className="p-3 bg-slate-800/50 rounded-lg">
+                <p className="text-sm text-slate-300 mb-2">{actionToConfirm.description}</p>
+                
+                {/* Cost Summary */}
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {actionToConfirm.starCost && (
+                    <Badge className="bg-yellow-900/50 text-yellow-300 border-yellow-500/50">
+                      -{actionToConfirm.starCost} Stars
+                    </Badge>
+                  )}
+                  {actionToConfirm.faithCost && (
+                    <Badge className="bg-blue-900/50 text-blue-300 border-blue-500/50">
+                      -{actionToConfirm.faithCost} Faith
+                    </Badge>
+                  )}
+                  {actionToConfirm.prideCost && (
+                    <Badge className="bg-red-900/50 text-red-300 border-red-500/50">
+                      -{actionToConfirm.prideCost} Pride
+                    </Badge>
+                  )}
+                </div>
+                
+                {/* Player Resources Check */}
+                <div className="text-xs text-slate-400">
+                  Current Resources: {currentPlayer.stars} Stars, {currentPlayer.stats.faith} Faith, {currentPlayer.stats.pride} Pride
+                </div>
+              </div>
+              
+              {/* Consequences */}
+              {actionToConfirm.consequences && (
+                <Alert className="border-orange-500/50 bg-orange-900/20">
+                  <AlertTriangle className="w-4 h-4" />
+                  <AlertDescription>
+                    <strong className="text-orange-300">Consequences:</strong>
+                    <ul className="mt-1 text-orange-200">
+                      {actionToConfirm.consequences.map((consequence, idx) => (
+                        <li key={idx} className="text-xs">• {consequence}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowConfirmDialog(false)}
+              className="border-slate-600 text-slate-300 hover:bg-slate-800"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmAndExecute}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
