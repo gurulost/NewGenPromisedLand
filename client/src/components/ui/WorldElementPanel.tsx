@@ -14,7 +14,9 @@ import { GameState } from '../../../../shared/types/game';
 
 import { TOKENS } from '../../theme/tokens';          // central colour tokens
 import { useHotkeys } from '../../hooks/useHotkeys'; // tiny custom hook
-import { useSfx } from '../../hooks/useSfx';         // optional SFX hook
+import { useSfxEngine } from '../../hooks/useSfx';         // optional SFX hook
+import { StaggeredContent, StaggeredContainer } from '../primitives/StaggeredContent';
+import { RequirementBanner } from '../primitives/RequirementBanner';
 
 /** ───────────────────────────────────────────────────────────────────────────
  *  Resource‑delta pill (memoised to avoid re‑render churn)                  */
@@ -68,7 +70,12 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
   const player = gameState.players.find(p => p.id === playerId);
 
   useHotkeys('Escape', onClose);
-  useSfx('ui/panel-open.mp3'); // plays once on mount; noop if hook returns void
+  const playSfx = useSfxEngine();
+  
+  // Play panel open sound
+  React.useEffect(() => {
+    playSfx('panel-open');
+  }, [playSfx]);
 
   if (!element || !player) return null;
 
@@ -95,59 +102,100 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
 
         {/* Panel */}
         <Transition.Child
-          as={motion.div}
-          initial={{ scale: 0.85, opacity: 0 }}
-          animate={{ scale: 1,    opacity: 1 }}
-          exit={{   scale: 0.9,   opacity: 0 }}
-          className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl
-                     bg-gradient-to-br from-stone-900/95 to-stone-800/90 border border-amber-600/40
-                     text-amber-100 shadow-2xl shadow-black/60 p-6"
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0 scale-95"
+          enterTo="opacity-100 scale-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100 scale-100"
+          leaveTo="opacity-0 scale-95"
         >
+          <motion.div
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl
+                       bg-gradient-to-br from-stone-900/95 to-stone-800/90 border border-amber-600/40
+                       text-amber-100 shadow-2xl shadow-black/60 p-6"
+          >
           {/* Particle sparkle overlay (pure CSS, disabled for reduced‑motion) */}
           <div className="pointer-events-none absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent)]">
             <div className="absolute inset-0 animate-sparkle-slow" />
           </div>
 
-          {/* HEADER */}
-          <PanelHeader title={element.displayName}
-                       scripture={element.scriptureRef}
-                       description={element.description}
-                       onClose={onClose} />
+          <StaggeredContainer>
+            {/* HEADER */}
+            <StaggeredContent>
+              <PanelHeader title={element.displayName}
+                           scripture={element.scriptureRef}
+                           description={element.description}
+                           onClose={onClose} />
+            </StaggeredContent>
 
-          {/* IMMEDIATE ACTION */}
-          {element.immediateAction && (
-            <ActionSection
-              label="Immediate"
-              badgeColor="destructive"
-              action={element.immediateAction}
-              canExecute={harvest}
-              onClick={() => onAction('harvest')}
-              theme="red"
-            />
-          )}
+            {/* IMMEDIATE ACTION */}
+            {element.immediateAction && (
+              <StaggeredContent>
+                <ActionSection
+                  label="Immediate"
+                  badgeColor="destructive"
+                  action={element.immediateAction}
+                  canExecute={harvest}
+                  onClick={() => onAction('harvest')}
+                  theme="red"
+                />
+              </StaggeredContent>
+            )}
 
-          {element.immediateAction && element.longTermBuild && <Separator className="my-5 bg-amber-600/30" />}
+            {element.immediateAction && element.longTermBuild && (
+              <StaggeredContent>
+                <Separator className="my-5 bg-amber-600/30" />
+              </StaggeredContent>
+            )}
 
-          {/* LONG‑TERM ACTION */}
-          {element.longTermBuild && (
-            <ActionSection
-              label="Long‑term"
-              badgeColor="secondary"
-              action={element.longTermBuild}
-              canExecute={build}
-              onClick={() => onAction('build')}
-              theme="blue"
-            />
-          )}
+            {/* LONG‑TERM ACTION */}
+            {element.longTermBuild && (
+              <StaggeredContent>
+                <ActionSection
+                  label="Long‑term"
+                  badgeColor="secondary"
+                  action={element.longTermBuild}
+                  canExecute={build}
+                  onClick={() => onAction('build')}
+                  theme="blue"
+                />
+              </StaggeredContent>
+            )}
 
-          {/* MORAL CONSEQUENCE */}
-          <div className="mt-6 rounded-lg border border-amber-500/40 bg-amber-800/20 p-4">
-            <h4 className="mb-2 flex items-center gap-2 font-semibold text-amber-200 text-sm">
-              <span className="inline-block h-5 w-5 rounded-full bg-amber-500/30 text-center">⚖</span>
-              Moral Consequence
-            </h4>
-            <p className="text-amber-100/90 text-xs leading-relaxed">{moralMsg}</p>
-          </div>
+            {/* MORAL CONSEQUENCE - Enhanced formatting with icons as bullet points */}
+            <StaggeredContent>
+              <div className="mt-6 rounded-lg border border-amber-500/40 bg-amber-800/20 p-4">
+                <h3 className="mb-3 font-cinzel text-sm font-semibold text-amber-200">
+                  Moral Consequences
+                </h3>
+                <div className="space-y-2 text-sm text-amber-100/90">
+                  {element.immediateAction?.prideDelta && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-red-400 mt-0.5">⚔</span>
+                      <span>Immediate exploitation increases Pride and Dissent.</span>
+                    </div>
+                  )}
+                  {element.longTermBuild?.faithDelta && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-blue-400 mt-0.5">✠</span>
+                      <span>Patient stewardship builds Faith and strengthens your covenant path.</span>
+                    </div>
+                  )}
+                  {(!element.immediateAction?.prideDelta && !element.longTermBuild?.faithDelta) && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-amber-400 mt-0.5">⚖</span>
+                      <span>Your choices shape the moral compass of your civilization.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </StaggeredContent>
+          </StaggeredContainer>
+          </motion.div>
         </Transition.Child>
       </Dialog>
     </Transition>
@@ -283,29 +331,46 @@ function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }
 
       {/* Requirement banner for unavailable actions */}
       {!canExecute.canExecute && (
-        <div className="mt-4 px-4 py-3 rounded-lg bg-red-800/70 border border-red-600/40 text-red-200 text-sm flex items-center gap-2">
-          ✖ {canExecute.reason || 'Action not available'}
-        </div>
+        <RequirementBanner
+          type="insufficient-stars"
+          message={canExecute.reason || 'Action not available'}
+        />
       )}
 
-      {/* Action Button */}
-      <Button
-        onClick={onClick}
-        disabled={!canExecute.canExecute}
-        size="lg"
-        className={clsx(
-          'w-full font-semibold shadow-xl active:scale-95 transition-all duration-200 min-h-[48px] touch-manipulation',
-          isImmediate 
-            ? 'bg-gradient-to-r from-red-800 to-red-700 md:hover:from-red-700 md:hover:to-red-600 border border-red-600/50 shadow-red-500/25'
-            : 'bg-gradient-to-r from-blue-800 to-blue-700 md:hover:from-blue-700 md:hover:to-blue-600 border border-blue-600/50 shadow-blue-500/25',
-          !canExecute.canExecute && 'cursor-not-allowed opacity-50 grayscale'
-        )}
+      {/* Action Button with enhanced AAA quality */}
+      <motion.div
+        whileHover={canExecute.canExecute ? { scale: 1.02 } : {}}
+        whileTap={canExecute.canExecute ? { scale: 0.98 } : {}}
       >
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-lg">{isImmediate ? '⚡' : '🏗'}</span>
-          <span>{canExecute.canExecute ? actionData.name : (canExecute.reason || 'Action not available')}</span>
-        </div>
-      </Button>
+        <Button
+          onClick={() => {
+            if (canExecute.canExecute) {
+              playSfx('cta-click');
+              onClick();
+            }
+          }}
+          disabled={!canExecute.canExecute}
+          size="lg"
+          className={clsx(
+            'w-full font-semibold shadow-xl transition-all duration-200 min-h-[48px] touch-manipulation',
+            isImmediate 
+              ? 'bg-gradient-to-r from-red-800 to-red-700 md:hover:from-red-700 md:hover:to-red-600 border border-red-600/50 shadow-red-500/25'
+              : 'bg-gradient-to-r from-blue-800 to-blue-700 md:hover:from-blue-700 md:hover:to-blue-600 border border-blue-600/50 shadow-blue-500/25',
+            !canExecute.canExecute && 'cursor-not-allowed opacity-50 grayscale'
+          )}
+        >
+          <div className="flex items-center justify-center gap-2">
+            <motion.span 
+              className="text-lg"
+              animate={canExecute.canExecute ? { rotate: [0, 5, -5, 0] } : {}}
+              transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+            >
+              {isImmediate ? '⚡' : '🏗'}
+            </motion.span>
+            <span>{actionData.name}</span>
+          </div>
+        </Button>
+      </motion.div>
     </section>
   );
 }
