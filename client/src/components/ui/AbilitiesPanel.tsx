@@ -2,17 +2,41 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 import { Badge } from "./badge";
+import { Separator } from "./separator";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./dialog";
+import { Alert, AlertDescription } from "./alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip";
-import { Star, Clock, Target, Zap, Heart, Shield, Swords, Eye, ChevronDown, ChevronUp } from "lucide-react";
-import { ABILITIES } from "@shared/data/abilities";
-import { FACTIONS } from "@shared/data/factions";
+import { 
+  Star, Clock, Target, Zap, Heart, Shield, Swords, Eye, ChevronDown, ChevronUp,
+  X, Hammer, Bomb, Crown, Move, Coins, Sparkles, AlertTriangle
+} from "lucide-react";
+import { useLocalGame } from "../../lib/stores/useLocalGame";
+import { getUnitDefinition } from "@shared/data/units";
+import { getActionAvailability } from "../../lib/helpers/actionAvailabilityHelpers";
+import { hexDistance, hexNeighbors } from "@shared/utils/hex";
+import type { Unit } from "@shared/types/unit";
 import type { PlayerState } from "@shared/types/game";
 import type { GameState } from "@shared/types/game";
 
-interface AbilitiesPanelProps {
-  currentPlayer: PlayerState;
-  gameState: GameState;
-  onActivateAbility: (abilityId: string, targetId?: string) => void;
+interface UnitActionsPanelProps {
+  unit: Unit;
+  onClose: () => void;
+}
+
+interface ActionDefinition {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+  cost: string;
+  starCost?: number;
+  faithCost?: number;
+  prideCost?: number;
+  available: boolean;
+  irreversible?: boolean;
+  rangeType?: 'movement' | 'attack' | 'ability';
+  range?: number;
+  consequences?: string[];
 }
 
 interface TargetingState {
@@ -21,241 +45,495 @@ interface TargetingState {
   instruction: string;
 }
 
-export function AbilitiesPanel({ currentPlayer, gameState, onActivateAbility }: AbilitiesPanelProps) {
-  const [targetingState, setTargetingState] = useState<TargetingState>({
-    abilityId: null,
-    targetType: null,
-    instruction: ''
-  });
-  const [isCollapsed, setIsCollapsed] = useState(false);
+export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProps) {
+  const { gameState, dispatch } = useLocalGame();
+  const [selectedAction, setSelectedAction] = useState<string | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [actionToConfirm, setActionToConfirm] = useState<ActionDefinition | null>(null);
 
-  // Get faction-specific abilities
-  const factionData = FACTIONS[currentPlayer.factionId];
-  const availableAbilities = useMemo(() => {
-    if (!factionData) return [];
-    
-    return factionData.abilities.map(ability => {
-      // Check if ability is unlocked by technology
-      const isUnlocked = !ability.requirements || Object.entries(ability.requirements).every(([resource, cost]) => {
-        return currentPlayer.stats[resource as keyof typeof currentPlayer.stats] >= cost;
+  if (!gameState) return null;
+
+  const unitDef = getUnitDefinition(unit.type);
+  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  const isPlayerTurn = currentPlayer.id === unit.playerId;
+  const actionAvailability = getActionAvailability(unit, gameState);
+
+  // Generate available actions based on unit type and game state
+  const getUnitActions = (): ActionDefinition[] => {
+    const actions: ActionDefinition[] = [];
+
+    // Basic movement action
+    if (unit.remainingMovement > 0 && isPlayerTurn) {
+      actions.push({
+        id: 'move',
+        name: 'Move',
+        description: `Move to adjacent tiles (${actionAvailability.reachableTilesCount} available)`,
+        icon: <Move className="w-4 h-4" />,
+        cost: 'Movement',
+        available: actionAvailability.canMove
       });
-
-      // Check if player can afford the ability
-      const canAfford = currentPlayer.stars >= (ability.cost || 0);
-
-      // Check cooldown (simplified - in real game this would track per-ability cooldowns)
-      const isOnCooldown = false; // TODO: Implement proper cooldown tracking
-
-      return {
-        ...ability,
-        isUnlocked,
-        canAfford,
-        isOnCooldown,
-        canActivate: isUnlocked && canAfford && !isOnCooldown
-      };
-    }).filter(Boolean);
-  }, [currentPlayer, factionData]);
-
-  const getAbilityIcon = (abilityId: string) => {
-    switch (abilityId) {
-      case 'blessing': return <Heart className="w-4 h-4" />;
-      case 'divine_protection': return <Shield className="w-4 h-4" />;
-      case 'conversion': return <Star className="w-4 h-4" />;
-      case 'enlightenment': return <Eye className="w-4 h-4" />;
-      case 'righteous_charge': return <Swords className="w-4 h-4" />;
-      case 'ancestral_rage': return <Zap className="w-4 h-4" />;
-      default: return <Zap className="w-4 h-4" />;
     }
-  };
 
-  const getResourceCost = (ability: any) => {
-    const costs = [];
-    if (ability.requirements?.stars) costs.push(`${ability.requirements.stars} Stars`);
-    if (ability.requirements?.faith) costs.push(`${ability.requirements.faith} Faith`);
-    if (ability.requirements?.pride) costs.push(`${ability.requirements.pride} Pride`);
-    return costs.join(', ') || 'Free';
-  };
-
-  const handleAbilityClick = (ability: any) => {
-    if (!ability.canActivate) return;
-
-    // Check if ability requires targeting (safely check if effect exists)
-    const effectString = ability.effect || '';
-    const requiresTargeting = effectString.includes('target') || effectString.includes('selected');
-    
-    if (requiresTargeting) {
-      // Enter targeting mode
-      setTargetingState({
-        abilityId: ability.id,
-        targetType: effectString.includes('unit') ? 'unit' : 'city',
-        instruction: `Select a target for ${ability.name}`
+    // Basic attack action
+    if (unit.attack > 0 && !unit.hasAttacked && isPlayerTurn) {
+      actions.push({
+        id: 'attack',
+        name: 'Attack',
+        description: actionAvailability.canAttack ? 
+          `Attack adjacent enemy units (${actionAvailability.attackTargetsCount} targets)` : 
+          actionAvailability.attackReason,
+        icon: <Swords className="w-4 h-4" />,
+        cost: 'Turn',
+        available: actionAvailability.canAttack
       });
+    }
+
+    // Unit-specific abilities based on type
+    switch (unit.type) {
+      case 'worker':
+        actions.push(
+          {
+            id: 'build_improvement',
+            name: 'Build Improvement',
+            description: actionAvailability.canBuild ? 
+              'Construct terrain improvements (farms, mines, etc.)' : 
+              'Cannot build on this tile',
+            icon: <Hammer className="w-4 h-4" />,
+            cost: 'Turn',
+            available: actionAvailability.canBuild
+          },
+          {
+            id: 'harvest_resource',
+            name: 'Harvest Resource',
+            description: actionAvailability.canHarvest ? 
+              'Extract resources from this tile' : 
+              'No resources available',
+            icon: <Coins className="w-4 h-4" />,
+            cost: 'Turn',
+            available: actionAvailability.canHarvest
+          },
+          {
+            id: 'build_road',
+            name: 'Build Road',
+            description: currentPlayer.stars >= 3 ? 
+              'Create road infrastructure (3 stars)' : 
+              'Insufficient stars (need 3)',
+            icon: <Target className="w-4 h-4" />,
+            cost: '3 Stars',
+            starCost: 3,
+            available: currentPlayer.stars >= 3 && isPlayerTurn && unit.remainingMovement > 0
+          }
+        );
+        break;
+
+      case 'missionary':
+        const hasHealingTech = currentPlayer.researchedTechs.includes('spirituality');
+        actions.push(
+          {
+            id: 'heal',
+            name: 'Heal Nearby Units',
+            description: hasHealingTech ? 
+              'Restore health to friendly units' : 
+              'Requires Spirituality technology',
+            icon: <Heart className="w-4 h-4" />,
+            cost: '5 Faith',
+            faithCost: 5,
+            available: hasHealingTech && currentPlayer.stats.faith >= 5 && !unit.hasAttacked,
+            rangeType: 'ability',
+            range: 2
+          },
+          {
+            id: 'convert',
+            name: 'Convert Enemy',
+            description: 'Convert enemy unit to your side',
+            icon: <Star className="w-4 h-4" />,
+            cost: '10 Faith',
+            faithCost: 10,
+            available: currentPlayer.stats.faith >= 10,
+            rangeType: 'attack',
+            range: 1
+          }
+        );
+        break;
+
+      case 'scout':
+        actions.push(
+          {
+            id: 'stealth',
+            name: 'Stealth Mode',
+            description: 'Become invisible to enemies',
+            icon: <Eye className="w-4 h-4" />,
+            cost: 'Turn',
+            available: !unit.hasAttacked && unit.status !== 'stealthed'
+          },
+          {
+            id: 'reconnaissance',
+            name: 'Reconnaissance',
+            description: 'Reveal large area around unit',
+            icon: <Target className="w-4 h-4" />,
+            cost: 'Turn',
+            available: !unit.hasAttacked
+          }
+        );
+        break;
+
+      case 'commander':
+        actions.push({
+          id: 'rally_troops',
+          name: 'Rally Troops',
+          description: currentPlayer.stats.pride >= 5 ? 
+            'Boost nearby friendly units' : 
+            'Insufficient pride (need 5)',
+          icon: <Crown className="w-4 h-4" />,
+          cost: '5 Pride',
+          prideCost: 5,
+          available: currentPlayer.stats.pride >= 5,
+          rangeType: 'ability',
+          range: 3
+        });
+        break;
+
+      case 'catapult':
+        actions.push({
+          id: 'bombardment',
+          name: 'Artillery Bombardment',
+          description: unit.remainingMovement === unit.movement ? 
+            'Long-range area attack' : 
+            'Must not have moved this turn',
+          icon: <Bomb className="w-4 h-4" />,
+          cost: 'Turn',
+          available: unit.remainingMovement === unit.movement && !unit.hasAttacked,
+          rangeType: 'attack',
+          range: 3
+        });
+        break;
+    }
+
+    return actions;
+  };
+
+  const needsConfirmation = (action: ActionDefinition): boolean => {
+    return action.irreversible || (action.starCost && action.starCost > 5) || 
+           (action.faithCost && action.faithCost > 10) || (action.prideCost && action.prideCost > 10);
+  };
+
+  const handleActionSelect = (action: ActionDefinition) => {
+    if (!action.available) return;
+    
+    if (needsConfirmation(action)) {
+      setActionToConfirm(action);
+      setShowConfirmDialog(true);
     } else {
-      // Activate immediately
-      onActivateAbility(ability.id);
+      handleActionExecute(action);
     }
   };
 
-  const cancelTargeting = () => {
-    setTargetingState({
-      abilityId: null,
-      targetType: null,
-      instruction: ''
-    });
+  const handleActionExecute = (action: ActionDefinition) => {
+    if (!action.available) return;
+    
+    console.log(`Executing action: ${action.name} for unit ${unit.id}`);
+    
+    // Handle different action types
+    switch (action.id) {
+      case 'move':
+        console.log('Opening movement interface');
+        break;
+      case 'attack':
+        console.log('Opening attack interface');
+        break;
+      case 'heal':
+        console.log('Healing nearby units...');
+        break;
+      case 'build_road':
+        console.log('Building road...');
+        break;
+      default:
+        console.log('Action not implemented yet:', action.id);
+    }
+    
+    onClose();
   };
 
-  if (!factionData || availableAbilities.length === 0) {
-    return (
-      <Card className="p-4 bg-purple-950/90 border-purple-800">
-        <div className="text-center text-white">
-          <h3 className="font-semibold mb-2">Faction Abilities</h3>
-          <p className="text-sm opacity-75">
-            No abilities available for this faction
-          </p>
-        </div>
-      </Card>
-    );
-  }
+  const actions = getUnitActions();
 
   return (
-    <TooltipProvider>
-      <Card className={`${isCollapsed ? 'w-64' : 'w-80'} bg-purple-950/90 border-purple-800 overflow-hidden transition-all duration-300`}>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-white font-cinzel font-semibold tracking-wide flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4" />
-              {factionData.name} Abilities
-            </div>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4">
+      <Card className="w-full max-w-[500px] max-h-[85vh] overflow-y-auto bg-purple-950/90 border-purple-800">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-3 text-white font-cinzel">
+              <Sparkles className="w-6 h-6 text-purple-400" />
+              {unitDef.name} Actions
+            </CardTitle>
             <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="h-6 w-6 p-0 text-purple-300 hover:text-white hover:bg-purple-800/50"
+              variant="outline" 
+              size="icon"
+              onClick={onClose}
+              className="min-h-[44px] border-purple-600 text-purple-300 md:hover:bg-purple-800/50 active:bg-purple-900 touch-manipulation"
             >
-              {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              <X className="w-4 h-4" />
             </Button>
-          </CardTitle>
-          
-          {targetingState.abilityId && (
-            <div className="p-2 bg-purple-900/50 border border-purple-700 rounded text-purple-200 text-sm">
-              <div className="flex justify-between items-center">
-                <span>{targetingState.instruction}</span>
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  onClick={cancelTargeting}
-                  className="h-6 px-2 text-purple-300 hover:text-white"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
+          </div>
+          <div className="text-sm text-purple-200 font-body">
+            Select an action for this unit to perform
+          </div>
         </CardHeader>
         
-        {!isCollapsed && (
-          <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
+          {/* Unit Status */}
+          <div className="grid grid-cols-2 gap-4 p-3 bg-purple-900/30 rounded-lg border border-purple-800/50">
+            <div className="text-center">
+              <div className="text-lg font-semibold text-green-400">{unit.hp}/{unitDef.baseStats.hp}</div>
+              <div className="text-xs text-purple-300">Health</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-blue-400">{unit.remainingMovement}/{unit.movement}</div>
+              <div className="text-xs text-purple-300">Movement</div>
+            </div>
+          </div>
+
           {/* Resource Display */}
-          <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="grid grid-cols-3 gap-2 p-3 bg-purple-900/20 rounded-lg border border-purple-800/30">
             <div className="text-center">
               <div className="text-yellow-400 flex items-center justify-center gap-1">
                 <Star className="w-3 h-3" />
                 <span className="font-semibold">{currentPlayer.stars}</span>
               </div>
-              <div className="text-yellow-300">Stars</div>
+              <div className="text-yellow-300 text-xs">Stars</div>
             </div>
             <div className="text-center">
               <div className="text-blue-400 flex items-center justify-center gap-1">
                 <Heart className="w-3 h-3" />
                 <span className="font-semibold">{currentPlayer.stats.faith}</span>
               </div>
-              <div className="text-blue-300">Faith</div>
+              <div className="text-blue-300 text-xs">Faith</div>
             </div>
             <div className="text-center">
               <div className="text-red-400 flex items-center justify-center gap-1">
-                <Shield className="w-3 h-3" />
+                <Crown className="w-3 h-3" />
                 <span className="font-semibold">{currentPlayer.stats.pride}</span>
               </div>
-              <div className="text-red-300">Pride</div>
+              <div className="text-red-300 text-xs">Pride</div>
             </div>
           </div>
 
-          {/* Abilities List */}
+          <Separator className="bg-purple-700" />
+
+          {/* Available Actions */}
           <div className="space-y-2">
-            {availableAbilities.map((ability) => (
-              <Tooltip key={ability.id}>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={`w-full p-3 h-auto justify-start ${
-                      ability.canActivate
-                        ? 'bg-purple-600/20 border-purple-400 text-purple-100 hover:bg-purple-600/40'
-                        : 'bg-gray-800/20 border-gray-600 text-gray-400 cursor-not-allowed'
-                    }`}
-                    onClick={() => handleAbilityClick(ability)}
-                    disabled={!ability.canActivate}
-                  >
-                    <div className="flex items-start gap-3 w-full">
-                      <div className="mt-0.5">
-                        {getAbilityIcon(ability.id)}
+            <h3 className="text-lg font-semibold text-white font-cinzel">Available Actions</h3>
+            
+            {actions.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-purple-300 mb-2 text-lg">No actions available</div>
+                <div className="text-sm text-purple-400">
+                  This unit has exhausted all available actions this turn.
+                </div>
+              </div>
+            ) : (
+              actions.map((action) => (
+                <div
+                  key={action.id}
+                  className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 min-h-[80px] touch-manipulation ${
+                    selectedAction === action.id
+                      ? 'bg-purple-600/30 border-purple-500/70 ring-2 ring-purple-500/50'
+                      : action.available
+                      ? 'bg-purple-600/10 border-purple-600/50 md:hover:bg-purple-600/20 active:bg-purple-600/25 md:hover:border-purple-500/70 active:scale-[0.98]'
+                      : 'bg-gray-800/20 border-gray-700/50 opacity-50 cursor-not-allowed'
+                  }`}
+                  onClick={() => action.available && handleActionSelect(action)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="mt-1 text-purple-400">
+                        {action.icon}
                       </div>
-                      
-                      <div className="flex-1 text-left">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium">{ability.name}</span>
-                          <div className="flex items-center gap-1">
-                            {ability.isOnCooldown && (
-                              <Badge variant="secondary" className="text-xs">
-                                <Clock className="w-2 h-2 mr-1" />
-                                Cooldown
-                              </Badge>
-                            )}
-                            {!ability.isUnlocked && (
-                              <Badge variant="destructive" className="text-xs">
-                                Locked
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="text-xs opacity-75 mb-2 break-words whitespace-normal leading-relaxed">
-                          {ability.description}
-                        </div>
-                        
-                        <div className="text-xs">
-                          <span className="text-yellow-300">Cost: {getResourceCost(ability)}</span>
-                          {ability.cooldown && (
-                            <span className="text-gray-400 ml-2">• Cooldown: {ability.cooldown} turns</span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-white text-base">{action.name}</h4>
+                          {action.irreversible && (
+                            <AlertTriangle className="w-4 h-4 text-orange-400" />
                           )}
                         </div>
+                        <p className="text-sm text-purple-200 mt-1 leading-relaxed">{action.description}</p>
+                        
+                        {/* Enhanced Cost Display */}
+                        <div className="flex items-center gap-2 mt-3">
+                          {/* Base cost badge */}
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs font-medium ${
+                              action.available 
+                                ? 'text-green-300 border-green-500/50 bg-green-500/10' 
+                                : 'text-red-300 border-red-500/50 bg-red-500/10'
+                            }`}
+                          >
+                            {action.cost}
+                          </Badge>
+                          
+                          {/* Star cost */}
+                          {action.starCost && (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs flex items-center gap-1 ${
+                                currentPlayer.stars >= action.starCost
+                                  ? 'text-yellow-300 border-yellow-500/50 bg-yellow-500/10'
+                                  : 'text-red-300 border-red-500/50 bg-red-500/10'
+                              }`}
+                            >
+                              <Star className="w-3 h-3" />
+                              {action.starCost}
+                            </Badge>
+                          )}
+                          
+                          {/* Faith cost */}
+                          {action.faithCost && (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs flex items-center gap-1 ${
+                                currentPlayer.stats.faith >= action.faithCost
+                                  ? 'text-blue-300 border-blue-500/50 bg-blue-500/10'
+                                  : 'text-red-300 border-red-500/50 bg-red-500/10'
+                              }`}
+                            >
+                              <Heart className="w-3 h-3" />
+                              {action.faithCost}
+                            </Badge>
+                          )}
+                          
+                          {/* Pride cost */}
+                          {action.prideCost && (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs flex items-center gap-1 ${
+                                currentPlayer.stats.pride >= action.prideCost
+                                  ? 'text-red-300 border-red-500/50 bg-red-500/10'
+                                  : 'text-gray-400 border-gray-600/50 bg-gray-600/10'
+                              }`}
+                            >
+                              <Crown className="w-3 h-3" />
+                              {action.prideCost}
+                            </Badge>
+                          )}
+                          
+                          {/* Range indicator */}
+                          {action.rangeType && action.range && (
+                            <Badge variant="outline" className="text-xs text-purple-300 border-purple-500/50 bg-purple-500/10">
+                              Range: {action.range}
+                            </Badge>
+                          )}
+                          
+                          {!action.available && (
+                            <Badge variant="outline" className="text-xs text-red-300 border-red-500/50 bg-red-500/10">
+                              Unavailable
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        {/* Consequences warning for irreversible actions */}
+                        {action.consequences && selectedAction === action.id && (
+                          <Alert className="mt-3 border-orange-500/50 bg-orange-900/20">
+                            <AlertTriangle className="w-4 h-4" />
+                            <AlertDescription className="text-xs">
+                              <strong>Warning:</strong> This action is irreversible
+                              <ul className="mt-2 ml-2 text-orange-300">
+                                {action.consequences.map((consequence, idx) => (
+                                  <li key={idx} className="text-xs">• {consequence}</li>
+                                ))}
+                              </ul>
+                            </AlertDescription>
+                          </Alert>
+                        )}
                       </div>
                     </div>
-                  </Button>
-                </TooltipTrigger>
-                
-                <TooltipContent side="left" className="max-w-xs">
-                  <div className="space-y-2">
-                    <h4 className="font-semibold">{ability.name}</h4>
-                    <p className="text-sm">{ability.description}</p>
-                    <div className="text-xs text-gray-300">
-                      <div>Effect: {ability.effect}</div>
-                      {ability.duration && <div>Duration: {ability.duration} turns</div>}
-                      <div>Type: {ability.type}</div>
-                    </div>
                   </div>
-                </TooltipContent>
-              </Tooltip>
-            ))}
+                  
+                  {/* Execute Button for Selected Action */}
+                  {selectedAction === action.id && action.available && (
+                    <div className="mt-4 pt-3 border-t border-purple-700">
+                      <Button
+                        onClick={() => handleActionExecute(action)}
+                        className="w-full bg-purple-600 md:hover:bg-purple-700 active:bg-purple-800 text-white min-h-[44px] touch-manipulation"
+                        size="sm"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        {needsConfirmation(action) ? 'Confirm Action' : 'Execute Action'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
 
-          {availableAbilities.length === 0 && (
-            <div className="text-center text-gray-400 text-sm py-4">
-              No abilities available
+        </CardContent>
+      </Card>
+      
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent className="bg-purple-950 border-purple-600 text-white max-w-md p-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-400">
+              <AlertTriangle className="w-5 h-5" />
+              Confirm Action
+            </DialogTitle>
+            <DialogDescription className="text-purple-200">
+              {actionToConfirm?.name} - Are you sure you want to proceed?
+            </DialogDescription>
+          </DialogHeader>
+          
+          {actionToConfirm && (
+            <div className="space-y-3">
+              <div className="p-3 bg-purple-900/50 rounded-lg">
+                <p className="text-sm text-purple-200 mb-2">{actionToConfirm.description}</p>
+                
+                {/* Cost Summary */}
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {actionToConfirm.starCost && (
+                    <Badge className="bg-yellow-900/50 text-yellow-300 border-yellow-500/50">
+                      -{actionToConfirm.starCost} Stars
+                    </Badge>
+                  )}
+                  {actionToConfirm.faithCost && (
+                    <Badge className="bg-blue-900/50 text-blue-300 border-blue-500/50">
+                      -{actionToConfirm.faithCost} Faith
+                    </Badge>
+                  )}
+                  {actionToConfirm.prideCost && (
+                    <Badge className="bg-red-900/50 text-red-300 border-red-500/50">
+                      -{actionToConfirm.prideCost} Pride
+                    </Badge>
+                  )}
+                </div>
+                
+                {/* Player Resources Check */}
+                <div className="text-xs text-purple-300">
+                  Current Resources: {currentPlayer.stars} Stars, {currentPlayer.stats.faith} Faith, {currentPlayer.stats.pride} Pride
+                </div>
+              </div>
+              
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowConfirmDialog(false)}
+                  className="border-purple-600 text-purple-300 md:hover:bg-purple-800/50"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    handleActionExecute(actionToConfirm);
+                    setShowConfirmDialog(false);
+                  }}
+                  className="bg-purple-600 md:hover:bg-purple-700 text-white"
+                >
+                  Confirm
+                </Button>
+              </DialogFooter>
             </div>
           )}
-          </CardContent>
-        )}
-      </Card>
-    </TooltipProvider>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

@@ -13,7 +13,7 @@ import {
   Hammer, Eye, Shield, Heart, Crown, Target, 
   Anchor, Bomb, Sparkles, Move, Settings, Info, Swords 
 } from "lucide-react";
-import UnitActionsPanel from "./UnitActionsPanel";
+import UnitActionsPanel from "./AbilitiesPanel";
 import { InfoTooltip } from "./TooltipSystem";
 
 interface SelectedUnitPanelProps {
