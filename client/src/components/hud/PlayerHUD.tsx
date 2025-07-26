@@ -4,6 +4,7 @@ import { Star, TrendingUp, Book, Hammer, Info } from 'lucide-react';
 import { HUDShell } from '../primitives/HUDShell';
 import { AvatarBadge } from '../primitives/AvatarBadge';
 import { GlowingButton } from '../primitives/GlowingButton';
+import { HoverCard } from '../primitives/HoverCard';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Progress } from '../ui/progress';
 import { InfoTooltip } from '../primitives/InfoTooltip';
