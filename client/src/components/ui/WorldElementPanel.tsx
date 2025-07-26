@@ -51,6 +51,9 @@ const ResourceDeltaBadge = React.memo(({ value, type, label }: DeltaProps) => {
 });
 ResourceDeltaBadge.displayName = 'ResourceDeltaBadge';
 
+// Export the ResourceDeltaBadge for use in other components
+export { ResourceDeltaBadge };
+
 /** ───────────────────────────────────────────────────────────────────────────
  *  Main Panel                                                                */
 export interface WorldElementPanelProps {
