@@ -127,19 +127,25 @@ export default function GameUI() {
       if (event.detail?.coordinate && event.detail?.resources) {
         const { coordinate, resources } = event.detail;
         
-        console.log('World element click detected:', { coordinate, resources });
+        // Enhanced logging for debugging
+        console.log('🌍 World element click detected:', { coordinate, resources, availableElements: Object.keys(WORLD_ELEMENTS) });
         
         // Check if any resource is a world element
         for (const resource of resources) {
           if (WORLD_ELEMENTS[resource]) {
-            console.log('Setting selected world element:', resource, coordinate);
+            console.log('✅ Setting selected world element:', resource, coordinate);
             setSelectedWorldElement({
               elementId: resource,
               coordinate
             });
             return;
+          } else {
+            console.log('❌ Resource not in WORLD_ELEMENTS:', resource);
           }
         }
+        console.log('⚠️ No world elements found in resources:', resources);
+      } else {
+        console.log('⚠️ Invalid world element click event:', event.detail);
       }
     };
 

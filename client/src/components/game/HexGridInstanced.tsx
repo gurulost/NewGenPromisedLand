@@ -461,7 +461,8 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         } else if (!unitOnTile) {
           // Check for world elements on this tile first
           if (clickedTile.resources && clickedTile.resources.length > 0) {
-            console.log('World element clicked:', clickedTile.resources, 'at coordinate:', clickedTile.coordinate);
+            console.log('🎯 Tile clicked with resources:', clickedTile.resources, 'at coordinate:', clickedTile.coordinate);
+            console.log('🔍 Tile terrain:', clickedTile.terrain, 'Tile details:', clickedTile);
             
             // Dispatch custom event for world element interaction
             const worldElementEvent = new CustomEvent('worldElementClick', {
@@ -472,8 +473,11 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
               }
             });
             
+            console.log('📡 Dispatching worldElementClick event:', worldElementEvent.detail);
             window.dispatchEvent(worldElementEvent);
             return; // Don't deselect unit if clicking on world element
+          } else {
+            console.log('🔍 Clicked tile has no resources:', clickedTile);
           }
           
           // Clicked on empty tile - exit movement mode and deselect
