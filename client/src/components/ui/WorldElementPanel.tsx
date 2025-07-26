@@ -131,7 +131,11 @@ export function WorldElementPanel({
           <Button
             variant="ghost"
             size="sm"
-            onClick={onClose}
+            onClick={(e) => {
+              console.log('🌍 WorldElementPanel Close button clicked');
+              e.stopPropagation();
+              onClose();
+            }}
             className="text-amber-300 md:hover:text-amber-100 md:hover:bg-amber-600/20 rounded-full w-10 h-10 min-h-[44px] min-w-[44px] p-0 transition-all duration-200 md:hover:scale-110 bg-amber-600/10 border border-amber-600/30 active:scale-95 touch-manipulation"
           >
             <span className="text-lg font-bold">×</span>
@@ -168,7 +172,11 @@ export function WorldElementPanel({
               </div>
               
               <Button
-                onClick={() => onAction('harvest')}
+                onClick={(e) => {
+                  console.log('🌍 WorldElementPanel Harvest button clicked', { elementId, harvestCheck });
+                  e.stopPropagation();
+                  onAction('harvest');
+                }}
                 disabled={!harvestCheck.canExecute}
                 className="w-full bg-gradient-to-r from-red-800 to-red-700 md:hover:from-red-700 md:hover:to-red-600 text-white font-semibold py-4 min-h-[44px] transition-all duration-200 md:hover:shadow-lg md:hover:shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed border border-red-600/30 shadow-lg active:scale-95 touch-manipulation"
                 size="sm"
@@ -269,7 +277,11 @@ export function WorldElementPanel({
               </div>
               
               <Button
-                onClick={() => onAction('build')}
+                onClick={(e) => {
+                  console.log('🌍 WorldElementPanel Build button clicked', { elementId, buildCheck });
+                  e.stopPropagation();
+                  onAction('build');
+                }}
                 disabled={!buildCheck.canExecute}
                 className="w-full bg-gradient-to-r from-blue-800 to-blue-700 md:hover:from-blue-700 md:hover:to-blue-600 text-white font-semibold py-4 min-h-[44px] transition-all duration-200 md:hover:shadow-lg md:hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed border border-blue-600/30 shadow-lg active:scale-95 touch-manipulation"
                 size="sm"
