@@ -171,41 +171,186 @@ interface ActionSectionProps {
   canExecute: { canExecute: boolean; reason?: string };
   onClick: () => void; theme: 'red' | 'blue';
 }
+
 function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }: ActionSectionProps) {
-  const color = theme === 'red' ? 'red' : 'blue';
+  const isImmediate = theme === 'red';
+  const isLongTerm = theme === 'blue';
+  
   return (
-    <section className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Badge variant={badgeColor}>{label}</Badge>
-        <h3 className="font-semibold text-amber-200">{action.name}</h3>
-      </div>
-
-      <div className="rounded-lg border border-stone-700/50 bg-stone-800/50 p-4">
-        {/* Tooltip */}
-        <p className="mb-3 text-sm text-amber-100/80">{action.uiTooltipHarvest ?? action.uiTooltipBuild}</p>
-
-        {/* Resource Deltas */}
-        <div className="mb-4 flex flex-wrap gap-3">
-          <ResourceDeltaBadge value={action.starsDelta ?? 0}   type="stars" />
-          <ResourceDeltaBadge value={action.faithDelta ?? 0}   type="faith" />
-          <ResourceDeltaBadge value={action.prideDelta ?? 0}   type="pride" />
-          <ResourceDeltaBadge value={action.dissentDelta ?? 0} type="dissent" />
-        </div>
-
-        {/* CTA */}
-        <Button
-          onClick={onClick}
-          disabled={!canExecute.canExecute}
-          size="lg"
-          className={clsx(
-            'w-full font-semibold shadow-lg active:scale-95',
-            `bg-${color}-800 hover:bg-${color}-700 border border-${color}-600/30`,
-            !canExecute.canExecute && 'cursor-not-allowed opacity-50',
-          )}
+    <section className="space-y-4">
+      {/* Header with Badge and Action Name */}
+      <div className="flex items-center gap-3">
+        <Badge 
+          variant={badgeColor}
+          className={`px-3 py-1 font-semibold ${
+            isImmediate ? 'bg-red-900/60 text-red-200 border border-red-600/50' : 
+            'bg-blue-900/60 text-blue-200 border border-blue-600/50'
+          }`}
         >
-          {canExecute.canExecute ? action.name : canExecute.reason}
-        </Button>
+          {isImmediate ? '⚡' : '🏗'} {label}
+        </Badge>
+        <h3 className="font-cinzel text-lg font-bold text-amber-200 tracking-wide uppercase">
+          {action.name}
+        </h3>
       </div>
+
+      {/* Detailed Description from old menu - rich tooltip content */}
+      <div className="text-amber-100/90 text-sm leading-relaxed mb-4 p-3 bg-stone-900/40 rounded-lg border border-amber-600/20">
+        {action.uiTooltipHarvest ?? action.uiTooltipBuild}
+      </div>
+
+      {/* Immediate Resource Effects */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        <ResourceDeltaBadge value={action.starsDelta ?? 0}   type="stars" />
+        <ResourceDeltaBadge value={action.faithDelta ?? 0}   type="faith" />
+        <ResourceDeltaBadge value={action.prideDelta ?? 0}   type="pride" />
+        <ResourceDeltaBadge value={action.dissentDelta ?? 0} type="dissent" />
+      </div>
+
+      {/* Construction Cost Section (for long-term builds) */}
+      {isLongTerm && action.costStars && (
+        <div className="mb-4 p-3 bg-stone-900/60 rounded-lg border border-amber-600/30">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-amber-200 font-semibold text-sm">Construction Cost:</span>
+            <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-yellow-500/20 border border-yellow-400/40">
+              <span className="text-yellow-300 text-lg">✦</span>
+              <span className="text-yellow-300 font-bold">{action.costStars}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Immediate Effects Section - more comprehensive like old menu */}
+      {(action.faithDelta || action.prideDelta || action.dissentDelta || action.popDelta || action.starsDelta) && (
+        <div className="mb-4">
+          <h4 className="text-amber-200 font-semibold text-sm mb-3 flex items-center gap-2 uppercase tracking-wide">
+            <span className="text-blue-400">❄</span>
+            Immediate Effects:
+          </h4>
+          <div className="space-y-2">
+            {/* Stars immediate effect */}
+            {action.starsDelta > 0 && (
+              <div className="px-4 py-2 bg-yellow-500/20 border border-yellow-400/40 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-yellow-400 text-lg">✦</span>
+                  <div className="text-yellow-300 font-semibold">+{action.starsDelta} Stars now</div>
+                </div>
+              </div>
+            )}
+            {/* Population immediate effect */}
+            {action.popDelta > 0 && (
+              <div className="px-4 py-2 bg-green-500/20 border border-green-400/40 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-green-400 text-lg">👥</span>
+                  <div className="text-green-300 font-semibold">+{action.popDelta} Population now</div>
+                </div>
+              </div>
+            )}
+            {/* Faith immediate effect */}
+            {action.faithDelta !== 0 && (
+              <div className="px-4 py-2 bg-blue-500/20 border border-blue-400/40 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-blue-400 text-lg">✠</span>
+                  <div className="text-blue-300 font-semibold">{action.faithDelta > 0 ? '+' : ''}{action.faithDelta} Faith</div>
+                </div>
+              </div>
+            )}
+            {/* Pride immediate effect */}
+            {action.prideDelta !== 0 && (
+              <div className="px-4 py-2 bg-red-500/20 border border-red-400/40 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-red-400 text-lg">⚔</span>
+                  <div className="text-red-300 font-semibold">{action.prideDelta > 0 ? '+' : ''}{action.prideDelta} Pride</div>
+                </div>
+              </div>
+            )}
+            {/* Dissent immediate effect */}
+            {action.dissentDelta !== 0 && (
+              <div className="px-4 py-2 bg-orange-500/20 border border-orange-400/40 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-orange-400 text-lg">⚡</span>
+                  <div className="text-orange-300 font-semibold">{action.dissentDelta > 0 ? '+' : ''}{action.dissentDelta} Dissent</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Benefits Section (for long-term builds) - enhanced like old menu */}
+      {isLongTerm && action.effectPermanent && (
+        <div className="mb-4">
+          <h4 className="text-amber-200 font-semibold text-sm mb-3 flex items-center gap-2 uppercase tracking-wide">
+            <span className="text-green-400">🏛</span>
+            Permanent Benefits:
+          </h4>
+          <div className="space-y-2">
+            {action.effectPermanent.popDelta > 0 && (
+              <div className="px-4 py-3 bg-green-500/20 border border-green-400/40 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-green-400 text-xl">👥</span>
+                  <div>
+                    <div className="text-green-300 font-bold text-base">+{action.effectPermanent.popDelta} Population</div>
+                    <div className="text-green-200/80 text-xs">Permanent city growth boost</div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {action.effectPermanent.starsPerTurn > 0 && (
+              <div className="px-4 py-3 bg-yellow-500/20 border border-yellow-400/40 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-yellow-400 text-xl">✦</span>
+                  <div>
+                    <div className="text-yellow-300 font-bold text-base">+{action.effectPermanent.starsPerTurn} Stars per turn</div>
+                    <div className="text-yellow-200/80 text-xs">Ongoing economic income</div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Additional permanent faith/pride effects */}
+            {action.faithDelta > 0 && (
+              <div className="px-4 py-3 bg-blue-500/20 border border-blue-400/40 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-blue-400 text-xl">✠</span>
+                  <div>
+                    <div className="text-blue-300 font-bold text-base">+{action.faithDelta} Faith</div>
+                    <div className="text-blue-200/80 text-xs">Spiritual benefit from construction</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Technology Requirements */}
+      {!canExecute.canExecute && canExecute.reason?.includes('technology') && (
+        <div className="mb-4 p-3 bg-blue-900/40 border border-blue-600/50 rounded-lg">
+          <div className="flex items-center gap-2 text-blue-300">
+            <span className="text-blue-400">🔬</span>
+            <span className="text-sm font-medium">{canExecute.reason}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Action Button */}
+      <Button
+        onClick={onClick}
+        disabled={!canExecute.canExecute}
+        size="lg"
+        className={clsx(
+          'w-full font-semibold shadow-xl active:scale-95 transition-all duration-200 min-h-[48px]',
+          isImmediate 
+            ? 'bg-gradient-to-r from-red-800 to-red-700 md:hover:from-red-700 md:hover:to-red-600 border border-red-600/50 shadow-red-500/25'
+            : 'bg-gradient-to-r from-blue-800 to-blue-700 md:hover:from-blue-700 md:hover:to-blue-600 border border-blue-600/50 shadow-blue-500/25',
+          !canExecute.canExecute && 'cursor-not-allowed opacity-50 grayscale'
+        )}
+      >
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-lg">{isImmediate ? '⚡' : '🏗'}</span>
+          <span>{canExecute.canExecute ? action.name : canExecute.reason}</span>
+        </div>
+      </Button>
     </section>
   );
 }
