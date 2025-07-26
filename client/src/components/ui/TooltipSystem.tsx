@@ -32,13 +32,22 @@ interface ActionTooltipProps {
   disabled?: boolean;
 }
 
-// InfoTooltip component - Shows info icon with tooltip on click/hover
+// Enhanced InfoTooltip component with premium visual design and modal awareness
 export function InfoTooltip({ content, placement = 'top', disabled = false, className = '' }: InfoTooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState<TooltipPosition>({ x: 0, y: 0, placement });
+  const [isHovered, setIsHovered] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
+  // Check if any modals are open that should hide tooltips
+  const shouldHideForModals = () => {
+    const modals = document.querySelectorAll('[class*="fixed"][class*="z-50"], [class*="fixed"][class*="z-[50]"]');
+    return modals.length > 0;
+  };
+
   const showTooltip = (event: React.MouseEvent) => {
+    if (disabled || shouldHideForModals()) return;
+    
     event.stopPropagation();
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     const tooltipPosition = calculatePosition(rect, placement);
@@ -49,6 +58,25 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
   const hideTooltip = () => {
     setIsVisible(false);
   };
+
+  // Hide tooltip when modals open
+  useEffect(() => {
+    const checkModalState = () => {
+      if (shouldHideForModals() && isVisible) {
+        hideTooltip();
+      }
+    };
+
+    const observer = new MutationObserver(checkModalState);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    return () => observer.disconnect();
+  }, [isVisible]);
 
   useEffect(() => {
     const handleClickOutside = (event: Event) => {
@@ -63,7 +91,8 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
     }
   }, [isVisible]);
 
-  const tooltipElement = isVisible && (
+  // Enhanced tooltip with premium styling
+  const tooltipElement = isVisible && !shouldHideForModals() && (
     <div
       className="fixed z-[60] pointer-events-none"
       style={{
@@ -72,30 +101,74 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
         transform: getTransform(position.placement)
       }}
     >
-      <div className="bg-slate-800 text-white text-sm px-3 py-2 rounded-lg border border-slate-600 shadow-xl max-w-xs backdrop-blur-sm bg-opacity-95">
+      <div className="bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800 text-white text-sm px-4 py-3 rounded-xl border border-slate-500/50 shadow-2xl max-w-sm backdrop-blur-md bg-opacity-95 animate-in fade-in-0 zoom-in-95 duration-200">
         <div className="relative">
           {content}
           <div
-            className={`absolute w-2 h-2 bg-slate-800 border-slate-600 transform rotate-45 ${getArrowClasses(position.placement)}`}
+            className={`absolute w-3 h-3 bg-gradient-to-br from-slate-800 to-slate-700 border-l border-t border-slate-500/50 transform rotate-45 ${getArrowClasses(position.placement)}`}
           />
         </div>
       </div>
     </div>
   );
 
+  // Premium info icon with enhanced visual design
+  const iconButton = (
+    <button
+      ref={buttonRef}
+      type="button"
+      className={`
+        group relative inline-flex items-center justify-center 
+        w-8 h-8 min-w-[32px] min-h-[32px]
+        rounded-full 
+        bg-gradient-to-br from-blue-500/90 via-blue-600/90 to-blue-700/90
+        border-2 border-blue-400/60
+        text-white
+        shadow-lg shadow-blue-500/25
+        transition-all duration-300 ease-out
+        transform-gpu
+        md:hover:scale-110 md:hover:rotate-12
+        md:hover:shadow-xl md:hover:shadow-blue-400/40
+        md:hover:from-blue-400 md:hover:via-blue-500 md:hover:to-blue-600
+        md:hover:border-blue-300/80
+        active:scale-95
+        backdrop-blur-sm
+        touch-manipulation
+        ${isHovered ? 'ring-4 ring-blue-400/30' : ''}
+        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+        ${className}
+      `}
+      onClick={showTooltip}
+      onMouseEnter={(e) => {
+        setIsHovered(true);
+        showTooltip(e);
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        hideTooltip();
+      }}
+      disabled={disabled}
+      aria-label="More information"
+    >
+      {/* Animated glow effect */}
+      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-400/40 to-blue-600/40 animate-pulse group-hover:animate-none" />
+      
+      {/* Info icon with enhanced styling */}
+      <Info className="relative z-10 w-4 h-4 drop-shadow-sm transition-transform duration-300 group-hover:scale-110" />
+      
+      {/* Subtle inner glow */}
+      <div className="absolute inset-1 rounded-full bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
+    </button>
+  );
+
+  // Don't render if disabled or modals are open
+  if (disabled || shouldHideForModals()) {
+    return null;
+  }
+
   return (
     <>
-      <button
-        ref={buttonRef}
-        type="button"
-        className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-slate-400 md:hover:text-slate-200 md:hover:bg-slate-700 transition-colors duration-200 ${className}`}
-        onClick={showTooltip}
-        onMouseEnter={showTooltip}
-        onMouseLeave={hideTooltip}
-        aria-label="More information"
-      >
-        <Info className="w-3 h-3" />
-      </button>
+      {iconButton}
       {tooltipElement && createPortal(tooltipElement, document.body)}
     </>
   );
@@ -153,11 +226,12 @@ export function Tooltip({
   const clonedChild = React.cloneElement(children, {
     ref: (el: HTMLElement) => {
       elementRef.current = el;
-      if (children.ref) {
-        if (typeof children.ref === 'function') {
-          children.ref(el);
+      const originalRef = (children as any).ref;
+      if (originalRef) {
+        if (typeof originalRef === 'function') {
+          originalRef(el);
         } else {
-          (children.ref as any).current = el;
+          originalRef.current = el;
         }
       }
     }
