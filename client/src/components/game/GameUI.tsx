@@ -317,7 +317,6 @@ export default function GameUI() {
         <div 
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-auto"
           onClick={(e) => {
-            console.log('🏗️ Construction Hall backdrop clicked:', e.target === e.currentTarget);
             e.stopPropagation();
             if (e.target === e.currentTarget) {
               setShowConstructionHall(false);
@@ -325,10 +324,7 @@ export default function GameUI() {
           }}
         >
           <div 
-            onClick={(e) => {
-              console.log('🏗️ Construction Hall content clicked');
-              e.stopPropagation();
-            }}
+            onClick={(e) => e.stopPropagation()}
             style={{ pointerEvents: 'auto' }}
           >
             <BuildingMenu
@@ -392,7 +388,6 @@ export default function GameUI() {
         <div 
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-auto"
           onClick={(e) => {
-            console.log('🌍 WorldElementPanel backdrop clicked:', e.target === e.currentTarget);
             e.stopPropagation();
             if (e.target === e.currentTarget) {
               setSelectedWorldElement(null);
@@ -400,10 +395,7 @@ export default function GameUI() {
           }}
         >
           <div 
-            onClick={(e) => {
-              console.log('🌍 WorldElementPanel content clicked');
-              e.stopPropagation();
-            }}
+            onClick={(e) => e.stopPropagation()}
             style={{ pointerEvents: 'auto' }}
           >
             <WorldElementPanel

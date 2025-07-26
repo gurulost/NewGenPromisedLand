@@ -330,7 +330,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
   const actions = getUnitActions();
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto">
       <Card className="w-[500px] max-h-[80vh] overflow-y-auto bg-slate-900 border-slate-600">
         <CardHeader>
           <div className="flex items-center justify-between">
