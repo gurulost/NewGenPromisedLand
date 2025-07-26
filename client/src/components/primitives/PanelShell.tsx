@@ -125,13 +125,27 @@ export function PanelShell({
               </div>
             )}
             
-            {/* Content with proper focus management */}
-            <div className={clsx(
-              "relative z-10",
-              fullScreen ? "h-full" : "p-6"
-            )}>
+            {/* Content with proper focus management and staggered animations */}
+            <motion.div 
+              className={clsx(
+                "relative z-10",
+                fullScreen ? "h-full" : "p-6"
+              )}
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: { opacity: 0 },
+                visible: {
+                  opacity: 1,
+                  transition: {
+                    staggerChildren: 0.1,
+                    delayChildren: 0.2
+                  }
+                }
+              }}
+            >
               {children}
-            </div>
+            </motion.div>
           </motion.div>
         </Transition.Child>
       </Dialog>

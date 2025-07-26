@@ -65,7 +65,12 @@ export function GlowingButton({
     ? {}
     : {
         whileTap: { scale: 0.97 },
-        whileHover: { scale: 1.02 }
+        whileHover: { 
+          scale: 1.02,
+          rotateX: 2,
+          rotateY: 2,
+          transition: { duration: 0.2 }
+        }
       };
 
   return (
