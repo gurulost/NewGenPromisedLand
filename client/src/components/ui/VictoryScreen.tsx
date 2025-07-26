@@ -110,7 +110,7 @@ export default function VictoryScreen({
         </div>
       )}
 
-      <Card className="w-[600px] max-h-[90vh] overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-yellow-500/50 shadow-2xl">
+      <Card className="w-full max-w-[600px] max-h-[90vh] overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-yellow-500/50 shadow-2xl">
         <CardHeader className="text-center pb-4">
           <div className="flex justify-center mb-4">
             {getVictoryIcon(victoryType)}
