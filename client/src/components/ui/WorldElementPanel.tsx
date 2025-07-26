@@ -18,12 +18,19 @@ import { useSfx } from '../../hooks/useSfx';         // optional SFX hook
 
 /** ───────────────────────────────────────────────────────────────────────────
  *  Resource‑delta pill (memoised to avoid re‑render churn)                  */
-interface DeltaProps { value: number; type: DeltaType }
-type DeltaType = 'stars' | 'faith' | 'pride' | 'dissent';
-const ResourceDeltaBadge = React.memo(({ value, type }: DeltaProps) => {
-  if (value === 0) return null;
+interface DeltaProps { 
+  value: number; 
+  type: DeltaType;
+  label?: string; // Custom label override
+}
+type DeltaType = 'stars' | 'faith' | 'pride' | 'dissent' | 'population' | 'costStars';
+const ResourceDeltaBadge = React.memo(({ value, type, label }: DeltaProps) => {
+  if (value === 0 && type !== 'costStars') return null;
   const t = TOKENS[type];
-  const sign = value > 0 ? '+' : '';
+  const isCost = type === 'costStars';
+  const sign = !isCost && value > 0 ? '+' : '';
+  const displayLabel = label || t.name;
+  
   return (
     <motion.div
       whileHover={{ scale: 1.08 }}
@@ -31,13 +38,14 @@ const ResourceDeltaBadge = React.memo(({ value, type }: DeltaProps) => {
         'inline-flex items-center gap-2 px-3 py-2 rounded-lg border shadow-sm',
         t.bg, t.border, t.glow,
       )}
-      title={`${sign}${value} ${t.name}`}
-      aria-label={`${value > 0 ? 'Gain' : 'Loss'} of ${Math.abs(value)} ${t.name}`}
+      title={`${isCost ? '' : sign}${value} ${displayLabel}`}
+      aria-label={`${isCost ? 'Cost of' : value > 0 ? 'Gain' : 'Loss'} ${Math.abs(value)} ${displayLabel}`}
     >
       <span className={clsx('w-6 h-6 rounded-full flex items-center justify-center font-bold', t.color, 'bg-black/20', t.border)}>
         {t.icon}
       </span>
       <span className={clsx(t.color, 'font-bold text-sm leading-none')}>{sign}{value}</span>
+      {label && <span className={clsx(t.color, 'text-xs opacity-80')}>{label}</span>}
     </motion.div>
   );
 });
@@ -146,13 +154,14 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
 
 /** ───────────────────────────────────────────────────────────────────────────
  *  Sub‑components                                                            */
-interface PanelHeaderProps { title: string; scripture: string; description: string; onClose: () => void }
+interface PanelHeaderProps { title: string; scripture: string; description?: string; onClose: () => void }
 function PanelHeader({ title, scripture, description, onClose }: PanelHeaderProps) {
   return (
     <header className="mb-6 flex items-start justify-between gap-4">
-      <div>
+      <div className="flex-1">
         <h2 id="world-element-title" className="font-cinzel text-lg text-amber-200">{title}</h2>
         <p className="text-amber-300/80 text-sm">{scripture}</p>
+        {description && <p className="mt-2 text-amber-300/80 text-sm">{description}</p>}
       </div>
       <Button variant="ghost" size="icon" aria-label="Close panel"
               onClick={onClose}
@@ -160,21 +169,51 @@ function PanelHeader({ title, scripture, description, onClose }: PanelHeaderProp
                          transition hover:scale-110 hover:bg-amber-600/20 hover:text-amber-100">
         ×
       </Button>
-      <p className="sr-only">{description}</p>
     </header>
   );
 }
 
+// Define ActionData interface for structured data
+interface ActionData {
+  name: string;
+  summary?: string; // "Free +1 Pop now (Pride +1, Dissent +1)"
+  starCost?: number;
+  immediateDeltas?: Array<{ value: number; type: DeltaType }>;
+  permanentDeltas?: Array<{ value: number; type: DeltaType }>;
+  techRequired?: string;
+}
+
 interface ActionSectionProps {
-  label: string; badgeColor: 'destructive' | 'secondary';
-  action: any; // conforms to immediateAction or longTermBuild shape
+  label: string; 
+  badgeColor: 'destructive' | 'secondary';
+  action: any; // Will be transformed to ActionData
   canExecute: { canExecute: boolean; reason?: string };
-  onClick: () => void; theme: 'red' | 'blue';
+  onClick: () => void; 
+  theme: 'red' | 'blue';
 }
 
 function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }: ActionSectionProps) {
   const isImmediate = theme === 'red';
-  const isLongTerm = theme === 'blue';
+  
+  // Transform legacy action data to structured format
+  const actionData: ActionData = {
+    name: action.name,
+    summary: action.uiTooltipHarvest ?? action.uiTooltipBuild,
+    starCost: action.costStars,
+    immediateDeltas: [
+      ...(action.starsDelta ? [{ value: action.starsDelta, type: 'stars' as DeltaType }] : []),
+      ...(action.popDelta ? [{ value: action.popDelta, type: 'population' as DeltaType }] : []),
+      ...(action.faithDelta ? [{ value: action.faithDelta, type: 'faith' as DeltaType }] : []),
+      ...(action.prideDelta ? [{ value: action.prideDelta, type: 'pride' as DeltaType }] : []),
+      ...(action.dissentDelta ? [{ value: action.dissentDelta, type: 'dissent' as DeltaType }] : []),
+    ].filter(d => d.value !== 0),
+    permanentDeltas: action.effectPermanent ? [
+      ...(action.effectPermanent.popDelta ? [{ value: action.effectPermanent.popDelta, type: 'population' as DeltaType }] : []),
+      ...(action.effectPermanent.starsPerTurn ? [{ value: action.effectPermanent.starsPerTurn, type: 'stars' as DeltaType }] : []),
+      // Add construction faith bonus to permanent effects for long-term builds
+      ...(action.faithDelta && !isImmediate ? [{ value: action.faithDelta, type: 'faith' as DeltaType }] : []),
+    ].filter(d => d.value !== 0) : undefined,
+  };
   
   return (
     <section className="space-y-4">
@@ -190,146 +229,61 @@ function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }
           {isImmediate ? '⚡' : '🏗'} {label}
         </Badge>
         <h3 className="font-cinzel text-lg font-bold text-amber-200 tracking-wide uppercase">
-          {action.name}
+          {actionData.name}
         </h3>
       </div>
 
-      {/* Detailed Description from old menu - rich tooltip content */}
-      <div className="text-amber-100/90 text-sm leading-relaxed mb-4 p-3 bg-stone-900/40 rounded-lg border border-amber-600/20">
-        {action.uiTooltipHarvest ?? action.uiTooltipBuild}
-      </div>
-
-      {/* Immediate Resource Effects */}
-      <div className="mb-4 flex flex-wrap gap-2">
-        <ResourceDeltaBadge value={action.starsDelta ?? 0}   type="stars" />
-        <ResourceDeltaBadge value={action.faithDelta ?? 0}   type="faith" />
-        <ResourceDeltaBadge value={action.prideDelta ?? 0}   type="pride" />
-        <ResourceDeltaBadge value={action.dissentDelta ?? 0} type="dissent" />
-      </div>
-
-      {/* Construction Cost Section (for long-term builds) */}
-      {isLongTerm && action.costStars && (
-        <div className="mb-4 p-3 bg-stone-900/60 rounded-lg border border-amber-600/30">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-amber-200 font-semibold text-sm">Construction Cost:</span>
-            <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-yellow-500/20 border border-yellow-400/40">
-              <span className="text-yellow-300 text-lg">✦</span>
-              <span className="text-yellow-300 font-bold">{action.costStars}</span>
-            </div>
-          </div>
-        </div>
+      {/* Action summary line */}
+      {actionData.summary && (
+        <p className="mb-3 text-sm text-amber-100/90 p-3 bg-stone-900/40 rounded-lg border border-amber-600/20">
+          {actionData.summary}
+        </p>
       )}
 
-      {/* Immediate Effects Section - more comprehensive like old menu */}
-      {(action.faithDelta || action.prideDelta || action.dissentDelta || action.popDelta || action.starsDelta) && (
+      {/* Construction cost */}
+      {actionData.starCost && (
         <div className="mb-4">
-          <h4 className="text-amber-200 font-semibold text-sm mb-3 flex items-center gap-2 uppercase tracking-wide">
-            <span className="text-blue-400">❄</span>
-            Immediate Effects:
-          </h4>
-          <div className="space-y-2">
-            {/* Stars immediate effect */}
-            {action.starsDelta > 0 && (
-              <div className="px-4 py-2 bg-yellow-500/20 border border-yellow-400/40 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-yellow-400 text-lg">✦</span>
-                  <div className="text-yellow-300 font-semibold">+{action.starsDelta} Stars now</div>
-                </div>
-              </div>
-            )}
-            {/* Population immediate effect */}
-            {action.popDelta > 0 && (
-              <div className="px-4 py-2 bg-green-500/20 border border-green-400/40 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-green-400 text-lg">👥</span>
-                  <div className="text-green-300 font-semibold">+{action.popDelta} Population now</div>
-                </div>
-              </div>
-            )}
-            {/* Faith immediate effect */}
-            {action.faithDelta !== 0 && (
-              <div className="px-4 py-2 bg-blue-500/20 border border-blue-400/40 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-blue-400 text-lg">✠</span>
-                  <div className="text-blue-300 font-semibold">{action.faithDelta > 0 ? '+' : ''}{action.faithDelta} Faith</div>
-                </div>
-              </div>
-            )}
-            {/* Pride immediate effect */}
-            {action.prideDelta !== 0 && (
-              <div className="px-4 py-2 bg-red-500/20 border border-red-400/40 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-red-400 text-lg">⚔</span>
-                  <div className="text-red-300 font-semibold">{action.prideDelta > 0 ? '+' : ''}{action.prideDelta} Pride</div>
-                </div>
-              </div>
-            )}
-            {/* Dissent immediate effect */}
-            {action.dissentDelta !== 0 && (
-              <div className="px-4 py-2 bg-orange-500/20 border border-orange-400/40 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-orange-400 text-lg">⚡</span>
-                  <div className="text-orange-300 font-semibold">{action.dissentDelta > 0 ? '+' : ''}{action.dissentDelta} Dissent</div>
-                </div>
-              </div>
-            )}
-          </div>
+          <ResourceDeltaBadge 
+            value={actionData.starCost} 
+            type="costStars" 
+            label="Construction Cost" 
+          />
         </div>
       )}
 
-      {/* Permanent Benefits Section (for long-term builds) - enhanced like old menu */}
-      {isLongTerm && action.effectPermanent && (
+      {/* Immediate effects */}
+      {actionData.immediateDeltas && actionData.immediateDeltas.length > 0 && (
         <div className="mb-4">
-          <h4 className="text-amber-200 font-semibold text-sm mb-3 flex items-center gap-2 uppercase tracking-wide">
-            <span className="text-green-400">🏛</span>
-            Permanent Benefits:
+          <h4 className="mt-5 mb-2 font-semibold text-amber-200 text-sm uppercase tracking-wide">
+            ❄ Immediate Effects:
           </h4>
-          <div className="space-y-2">
-            {action.effectPermanent.popDelta > 0 && (
-              <div className="px-4 py-3 bg-green-500/20 border border-green-400/40 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-green-400 text-xl">👥</span>
-                  <div>
-                    <div className="text-green-300 font-bold text-base">+{action.effectPermanent.popDelta} Population</div>
-                    <div className="text-green-200/80 text-xs">Permanent city growth boost</div>
-                  </div>
-                </div>
-              </div>
-            )}
-            {action.effectPermanent.starsPerTurn > 0 && (
-              <div className="px-4 py-3 bg-yellow-500/20 border border-yellow-400/40 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-yellow-400 text-xl">✦</span>
-                  <div>
-                    <div className="text-yellow-300 font-bold text-base">+{action.effectPermanent.starsPerTurn} Stars per turn</div>
-                    <div className="text-yellow-200/80 text-xs">Ongoing economic income</div>
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* Additional permanent faith/pride effects */}
-            {action.faithDelta > 0 && (
-              <div className="px-4 py-3 bg-blue-500/20 border border-blue-400/40 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-blue-400 text-xl">✠</span>
-                  <div>
-                    <div className="text-blue-300 font-bold text-base">+{action.faithDelta} Faith</div>
-                    <div className="text-blue-200/80 text-xs">Spiritual benefit from construction</div>
-                  </div>
-                </div>
-              </div>
-            )}
+          <div className="flex flex-wrap gap-3">
+            {actionData.immediateDeltas.map((d, idx) => (
+              <ResourceDeltaBadge key={`${d.type}-${idx}`} value={d.value} type={d.type} />
+            ))}
           </div>
         </div>
       )}
 
-      {/* Technology Requirements */}
-      {!canExecute.canExecute && canExecute.reason?.includes('technology') && (
-        <div className="mb-4 p-3 bg-blue-900/40 border border-blue-600/50 rounded-lg">
-          <div className="flex items-center gap-2 text-blue-300">
-            <span className="text-blue-400">🔬</span>
-            <span className="text-sm font-medium">{canExecute.reason}</span>
+      {/* Permanent benefits */}
+      {actionData.permanentDeltas && actionData.permanentDeltas.length > 0 && (
+        <div className="mb-4">
+          <h4 className="mt-5 mb-2 font-semibold text-amber-200 text-sm uppercase tracking-wide">
+            🏛 Permanent Benefits:
+          </h4>
+          <div className="flex flex-wrap gap-3">
+            {actionData.permanentDeltas.map((d, idx) => (
+              <ResourceDeltaBadge key={`${d.type}-${idx}`} value={d.value} type={d.type} />
+            ))}
           </div>
+        </div>
+      )}
+
+      {/* Requirement banner inside grey action card */}
+      {!canExecute.canExecute && (
+        <div className="mt-4 px-4 py-3 rounded-lg bg-red-800/70 border border-red-600/40
+                        text-red-200 text-sm flex items-center gap-2">
+          ✖ {canExecute.reason}
         </div>
       )}
 
@@ -348,7 +302,7 @@ function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }
       >
         <div className="flex items-center justify-center gap-2">
           <span className="text-lg">{isImmediate ? '⚡' : '🏗'}</span>
-          <span>{canExecute.canExecute ? action.name : canExecute.reason}</span>
+          <span>{canExecute.canExecute ? actionData.name : canExecute.reason}</span>
         </div>
       </Button>
     </section>
