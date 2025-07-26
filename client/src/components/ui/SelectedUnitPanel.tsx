@@ -134,22 +134,14 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
             {/* Attack Button */}
             <Button
               onClick={() => setAttackMode(true)}
-              className={`${
+              className={`min-h-[44px] px-4 ${
                 actionAvailability.canAttack 
-                  ? "bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/25" 
-                  : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50"
-              } transition-all duration-200`}
+                  ? "bg-red-600 md:hover:bg-red-700 active:bg-red-800 text-white shadow-lg shadow-red-500/25 border-red-500/30" 
+                  : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50 border-gray-600"
+              } transition-all duration-200 border active:scale-95 touch-manipulation`}
               size="sm"
               disabled={!actionAvailability.canAttack}
-              title={
-                !actionAvailability.isPlayerTurn 
-                  ? "Not your turn" 
-                  : unit.hasAttacked 
-                    ? "Already attacked this turn"
-                    : actionAvailability.attackTargetsCount === 0
-                      ? "No valid targets in range"
-                      : `Attack (${actionAvailability.attackTargetsCount} targets)`
-              }
+              title={actionAvailability.attackReason}
             >
               <Swords className="w-4 h-4 mr-1" />
               Attack
@@ -158,22 +150,14 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
             {/* Move Button */}
             <Button
               onClick={() => setMovementMode(true)}
-              className={`${
+              className={`min-h-[44px] px-4 ${
                 actionAvailability.canMove 
-                  ? "bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25" 
-                  : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50"
-              } transition-all duration-200`}
+                  ? "bg-blue-600 md:hover:bg-blue-700 active:bg-blue-800 text-white shadow-lg shadow-blue-500/25 border-blue-500/30" 
+                  : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50 border-gray-600"
+              } transition-all duration-200 border active:scale-95 touch-manipulation`}
               size="sm"
               disabled={!actionAvailability.canMove}
-              title={
-                !actionAvailability.isPlayerTurn 
-                  ? "Not your turn" 
-                  : unit.remainingMovement === 0
-                    ? "No movement remaining"
-                    : actionAvailability.reachableTilesCount === 0
-                      ? "No valid moves available"
-                      : `Move (${actionAvailability.reachableTilesCount} tiles)`
-              }
+              title={actionAvailability.movementReason}
             >
               <Move className="w-4 h-4 mr-1" />
               Move
@@ -182,22 +166,14 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
             {/* Abilities Button */}
             <Button
               onClick={() => setShowActionsPanel(true)}
-              className={`${
+              className={`min-h-[44px] px-4 ${
                 actionAvailability.hasAbilities 
-                  ? "bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-500/25" 
-                  : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50"
-              } transition-all duration-200`}
+                  ? "bg-purple-600 md:hover:bg-purple-700 active:bg-purple-800 text-white shadow-lg shadow-purple-500/25 border-purple-500/30" 
+                  : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50 border-gray-600"
+              } transition-all duration-200 border active:scale-95 touch-manipulation`}
               size="sm"
               disabled={!actionAvailability.hasAbilities}
-              title={
-                !actionAvailability.isPlayerTurn 
-                  ? "Not your turn" 
-                  : unitStats.definition.abilities.length === 0
-                    ? "No abilities available"
-                    : unit.hasAttacked
-                      ? "Already acted this turn"
-                      : `Use abilities (${unitStats.definition.abilities.length} available)`
-              }
+              title={actionAvailability.abilityReason}
             >
               <Sparkles className="w-4 h-4 mr-1" />
               Ability

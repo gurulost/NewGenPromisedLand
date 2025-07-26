@@ -569,11 +569,11 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
               actions.map((action) => (
                 <div
                   key={action.id}
-                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                  className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 min-h-[64px] touch-manipulation ${
                     selectedAction === action.id
-                      ? 'bg-purple-600/20 border-purple-500/50'
+                      ? 'bg-purple-600/20 border-purple-500/50 ring-2 ring-purple-500/30'
                       : action.available
-                      ? 'bg-slate-800/50 border-slate-600 hover:bg-slate-800'
+                      ? 'bg-slate-800/50 border-slate-600 md:hover:bg-slate-800 active:bg-slate-700 md:hover:border-slate-500 active:scale-[0.98]'
                       : 'bg-slate-800/20 border-slate-700 opacity-50 cursor-not-allowed'
                   }`}
                   onClick={() => action.available && handleActionSelect(action)}
