@@ -96,7 +96,6 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
           initial={{ scale: 0.85, opacity: 0 }}
           animate={{ scale: 1,    opacity: 1 }}
           exit={{   scale: 0.9,   opacity: 0 }}
-          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
           className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl
                      bg-gradient-to-br from-stone-900/95 to-stone-800/90 border border-amber-600/40
                      text-amber-100 shadow-2xl shadow-black/60 p-6"
@@ -279,11 +278,10 @@ function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }
         </div>
       )}
 
-      {/* Requirement banner inside grey action card */}
+      {/* Requirement banner for unavailable actions */}
       {!canExecute.canExecute && (
-        <div className="mt-4 px-4 py-3 rounded-lg bg-red-800/70 border border-red-600/40
-                        text-red-200 text-sm flex items-center gap-2">
-          ✖ {canExecute.reason}
+        <div className="mt-4 px-4 py-3 rounded-lg bg-red-800/70 border border-red-600/40 text-red-200 text-sm flex items-center gap-2">
+          ✖ {canExecute.reason || 'Action not available'}
         </div>
       )}
 
@@ -293,7 +291,7 @@ function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }
         disabled={!canExecute.canExecute}
         size="lg"
         className={clsx(
-          'w-full font-semibold shadow-xl active:scale-95 transition-all duration-200 min-h-[48px]',
+          'w-full font-semibold shadow-xl active:scale-95 transition-all duration-200 min-h-[48px] touch-manipulation',
           isImmediate 
             ? 'bg-gradient-to-r from-red-800 to-red-700 md:hover:from-red-700 md:hover:to-red-600 border border-red-600/50 shadow-red-500/25'
             : 'bg-gradient-to-r from-blue-800 to-blue-700 md:hover:from-blue-700 md:hover:to-blue-600 border border-blue-600/50 shadow-blue-500/25',
@@ -302,7 +300,7 @@ function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }
       >
         <div className="flex items-center justify-center gap-2">
           <span className="text-lg">{isImmediate ? '⚡' : '🏗'}</span>
-          <span>{canExecute.canExecute ? actionData.name : canExecute.reason}</span>
+          <span>{canExecute.canExecute ? actionData.name : (canExecute.reason || 'Action not available')}</span>
         </div>
       </Button>
     </section>

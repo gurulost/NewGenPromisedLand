@@ -147,7 +147,8 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       prideDelta: 1,
       dissentDelta: 1,
       popDelta: 2, // Boosted to +2 population for unified system
-      tileTransform: 'plains'
+      tileTransform: 'plains',
+      summary: 'Free +2 Pop now (Pride +1, Dissent +1)'
     },
     longTermBuild: {
       name: 'Field',
@@ -159,6 +160,7 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       faithDelta: 1,
       prideDelta: 0,
       dissentDelta: 0,
+      summary: 'Build 5★ Field: +2 Population, +1 Faith',
       upgrade: {
         techRequired: 'irrigation',
         structure: 'Windmill',
@@ -192,7 +194,8 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       prideDelta: 1,
       dissentDelta: 1,
       popDelta: 1, // Population boost for unified system
-      tileTransform: 'mountain'
+      tileTransform: 'mountain',
+      summary: 'Mine ore: +2 Stars, +1 Pop now (Pride +1, Dissent +1)'
     },
     longTermBuild: {
       name: 'Mine',
@@ -203,7 +206,8 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       },
       faithDelta: 1,
       prideDelta: 0,
-      dissentDelta: 0
+      dissentDelta: 0,
+      summary: 'Build 5★ Mine: +1 Population, +1★/turn, +1 Faith'
     },
     techPrerequisite: 'mining',
     assetTileset: 'tiles/feature_ore_vein.png',
@@ -231,6 +235,7 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       faithDelta: 0,
       prideDelta: 0,
       dissentDelta: 0,
+      summary: 'Build 2★ Fishing Jetty: +1 Population',
       upgrade: {
         techRequired: 'trade',
         structure: 'Harbor',
@@ -264,7 +269,8 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       dissentDelta: 3,
       popDelta: 0,
       tileTransform: 'deep_water_plain',
-      requiresUnitTag: 'naval_commander'
+      requiresUnitTag: 'naval_commander',
+      summary: 'Expedition harvest: +10 Stars (Pride +3, Dissent +3) - Requires Naval Commander'
     },
     longTermBuild: {
       name: 'Sea Platform',
@@ -275,7 +281,8 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       },
       faithDelta: 2,
       prideDelta: 0,
-      dissentDelta: 0
+      dissentDelta: 0,
+      summary: 'Build 5★ Sea Platform: +2 Population, +2 Faith'
     },
     techPrerequisite: 'navigation',
     assetTileset: 'tiles/feature_whale.png',
@@ -299,7 +306,8 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       prideDelta: 0,
       dissentDelta: 0,
       popDelta: 0, // Variable based on random reward
-      tileTransform: 'plains'
+      tileTransform: 'plains',
+      summary: 'Explore ancient ruins: +1 Faith plus random boon (technology, population, stars, or unit)'
     },
     techPrerequisite: undefined, // No tech needed
     assetTileset: 'tiles/feature_ruins.png',
