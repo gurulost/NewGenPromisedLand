@@ -178,33 +178,33 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
         }
       }}
     >
-      <div className="w-full h-full max-w-7xl max-h-[90vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-slate-600/50 rounded-2xl shadow-2xl overflow-hidden"
+      <div className="w-full h-full max-w-7xl max-h-[90vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 rounded-2xl shadow-2xl shadow-amber-500/10 overflow-hidden"
            onClick={(e) => e.stopPropagation()}>
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-700 border-b border-slate-600/50 p-6">
+        <div className="bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20 p-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
-                <Book className="w-6 h-6 text-white" />
+              <div className="p-2 bg-gradient-to-br from-amber-600 to-amber-700 rounded-lg shadow-lg shadow-amber-500/25">
+                <Book className="w-7 h-7 text-amber-100" />
               </div>
               <div>
-                <h1 className="font-cinzel text-2xl font-bold text-white">Technology Tree</h1>
-                <p className="text-slate-300 text-sm">Ancient Knowledge & Divine Wisdom</p>
+                <h1 className="font-cinzel text-2xl font-bold text-amber-100">Sacred Knowledge Tree</h1>
+                <p className="text-amber-300/70 text-sm">— Book of Mormon Technologies —</p>
               </div>
             </div>
             
             <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2 bg-slate-700/50 px-4 py-2 rounded-lg">
-                <Star className="w-5 h-5 text-yellow-400" />
-                <span className="font-semibold text-white text-lg">{currentPlayer.stars}</span>
-                <span className="text-slate-300 text-sm">Stars</span>
+              <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-500/30 px-4 py-2 rounded-lg">
+                <Star className="w-5 h-5 text-amber-400" />
+                <span className="font-semibold text-amber-100 text-lg">{currentPlayer.stars}</span>
+                <span className="text-amber-300/70 text-sm">Stars</span>
               </div>
               
               <Button 
                 variant="outline" 
                 onClick={onClose}
-                className="bg-slate-700/50 border-slate-500 text-white hover:bg-slate-600"
+                className="min-h-[44px] bg-amber-900/30 border-amber-600/50 text-amber-300 md:hover:bg-amber-800/30 active:bg-amber-900/50 touch-manipulation"
               >
                 Close
               </Button>
