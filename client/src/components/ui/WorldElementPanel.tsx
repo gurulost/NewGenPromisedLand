@@ -132,7 +132,6 @@ export function WorldElementPanel({
             variant="ghost"
             size="sm"
             onClick={(e) => {
-              console.log('🌍 WorldElementPanel Close button clicked');
               e.stopPropagation();
               onClose();
             }}
@@ -173,7 +172,6 @@ export function WorldElementPanel({
               
               <Button
                 onClick={(e) => {
-                  console.log('🌍 WorldElementPanel Harvest button clicked', { elementId, harvestCheck });
                   e.stopPropagation();
                   onAction('harvest');
                 }}
@@ -278,7 +276,6 @@ export function WorldElementPanel({
               
               <Button
                 onClick={(e) => {
-                  console.log('🌍 WorldElementPanel Build button clicked', { elementId, buildCheck });
                   e.stopPropagation();
                   onAction('build');
                 }}
