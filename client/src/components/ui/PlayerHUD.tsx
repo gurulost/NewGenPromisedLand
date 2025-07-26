@@ -109,105 +109,106 @@ export default function PlayerHUD({
 
   return (
     <div className="absolute top-4 left-4 space-y-4 pointer-events-auto">
-      {/* Current Player Info */}
-      <Card className="w-72 bg-black/80 border-white/20">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-white font-cinzel text-lg font-semibold tracking-wide">
+      {/* Enhanced Player Info with Book of Mormon Golden Theming */}
+      <Card className="w-72 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20">
+        <CardHeader className="pb-2 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
+          <CardTitle className="flex items-center gap-2 text-amber-100 font-cinzel text-lg font-semibold tracking-wide">
             <div 
-              className="w-4 h-4 rounded-full border-2" 
+              className="w-4 h-4 rounded-full border-2 border-amber-400 shadow-sm" 
               style={factionStyle}
             />
             {player.name}
           </CardTitle>
+          <div className="text-xs text-amber-300/70 font-normal">— Leader of the Promised Land —</div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {/* Star Resources with Production Info */}
+        <CardContent className="space-y-3 bg-slate-900/40">
+          {/* Enhanced Star Resources with Golden Theming */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-white">
+            <div className="flex items-center justify-between text-amber-100">
               <div className="flex items-center gap-1 relative">
-                <Star className="w-4 h-4 text-yellow-400" />
-                <span className="font-semibold">{player.stars}</span>
-                <Info className="w-3 h-3 text-gray-400 opacity-60" />
+                <Star className="w-4 h-4 text-amber-400" />
+                <span className="font-semibold text-amber-200">{player.stars}</span>
+                <Info className="w-3 h-3 text-amber-400/60 opacity-60" />
                 <InfoTooltip content={<StarProductionTooltip totalIncome={playerStats.starProduction} breakdown={playerStats.starProductionBreakdown} />} />
               </div>
-              <div className="flex items-center gap-1 text-sm text-green-400">
+              <div className="flex items-center gap-1 text-sm text-amber-300">
                 <TrendingUp className="w-3 h-3" />
                 <span>+{playerStats.starProduction}/turn</span>
               </div>
             </div>
             
-            {/* Star Production Breakdown - Expandable */}
+            {/* Enhanced Star Production Breakdown with Golden Theming */}
             <details className="group">
-              <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-300 flex items-center gap-1">
+              <summary className="text-xs text-amber-300/70 cursor-pointer hover:text-amber-300 flex items-center gap-1">
                 <span>Production breakdown</span>
                 <span className="transition-transform group-open:rotate-90">▶</span>
               </summary>
-              <div className="mt-1 space-y-1 text-xs">
+              <div className="mt-1 space-y-1 text-xs bg-amber-900/10 rounded p-2 border border-amber-500/20">
                 {playerStats.starProductionBreakdown.map((item, index) => (
-                  <div key={index} className="flex justify-between text-gray-300">
+                  <div key={index} className="flex justify-between text-amber-200">
                     <span>{item.source}:</span>
-                    <span className="text-yellow-400">+{item.amount}</span>
+                    <span className="text-amber-300">+{item.amount}</span>
                   </div>
                 ))}
-                <div className="flex justify-between font-semibold text-white border-t border-gray-600 pt-1">
+                <div className="flex justify-between font-semibold text-amber-100 border-t border-amber-600/50 pt-1">
                   <span>Total:</span>
-                  <span className="text-green-400">+{playerStats.starProduction}</span>
+                  <span className="text-amber-300">+{playerStats.starProduction}</span>
                 </div>
               </div>
             </details>
           </div>
           
-          {/* Faith Progress */}
+          {/* Enhanced Faith Progress with Golden Theming */}
           <div>
             <div className="flex justify-between text-sm mb-1">
               <div className="relative">
                 <span className="text-blue-300 font-cinzel font-medium flex items-center gap-1">
                   Faith
-                  <Info className="w-3 h-3 text-gray-400 opacity-60" />
+                  <Info className="w-3 h-3 text-amber-400/60 opacity-60" />
                 </span>
                 <InfoTooltip content={<FaithSystemTooltip />} />
               </div>
-              <span className="text-white font-body font-medium">{player.stats.faith}/100</span>
+              <span className="text-amber-100 font-body font-medium">{player.stats.faith}/100</span>
             </div>
             <Progress value={player.stats.faith} className="h-2" />
           </div>
           
-          {/* Pride Progress */}
+          {/* Enhanced Pride Progress with Golden Theming */}
           <div>
             <div className="flex justify-between text-sm mb-1">
               <div className="relative">
                 <span className="text-purple-300 font-cinzel font-medium flex items-center gap-1">
                   Pride
-                  <Info className="w-3 h-3 text-gray-400 opacity-60" />
+                  <Info className="w-3 h-3 text-amber-400/60 opacity-60" />
                 </span>
                 <InfoTooltip content={<PrideSystemTooltip />} />
               </div>
-              <span className="text-white font-body font-medium">{player.stats.pride}/100</span>
+              <span className="text-amber-100 font-body font-medium">{player.stats.pride}/100</span>
             </div>
             <Progress value={player.stats.pride} className="h-2" />
           </div>
           
-          {/* Internal Dissent Progress */}
+          {/* Enhanced Internal Dissent Progress with Golden Theming */}
           <div>
             <div className="flex justify-between text-sm mb-1">
               <span className="text-red-300 font-cinzel font-medium">Dissent</span>
-              <span className="text-white font-body font-medium">{player.stats.internalDissent}/100</span>
+              <span className="text-amber-100 font-body font-medium">{player.stats.internalDissent}/100</span>
             </div>
             <Progress value={player.stats.internalDissent} className="h-2" />
           </div>
           
-          {/* Action Buttons */}
+          {/* Enhanced Action Buttons with Book of Mormon Golden Theming */}
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <div className="relative">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full bg-blue-600/20 border-blue-400 text-blue-100 hover:bg-blue-600/40 text-xs px-2 py-2"
+                  className="w-full bg-gradient-to-r from-blue-600/20 to-blue-700/20 border-blue-400/60 text-blue-100 md:hover:bg-blue-600/40 text-xs px-2 py-2 shadow-lg shadow-blue-500/10"
                   onClick={onShowTechPanel}
                 >
                   <Book className="w-3 h-3 mr-1 flex-shrink-0" />
-                  <span>Research</span>
+                  <span>Sacred Knowledge</span>
                 </Button>
                 <InfoTooltip content={<TechnologyTooltip />} />
               </div>
@@ -215,7 +216,7 @@ export default function PlayerHUD({
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full bg-green-600/20 border-green-400 text-green-100 hover:bg-green-600/40 text-xs px-2 py-2 h-auto"
+                className="w-full bg-gradient-to-r from-amber-600/20 to-amber-700/20 border-amber-400/60 text-amber-100 md:hover:bg-amber-600/40 text-xs px-2 py-2 h-auto shadow-lg shadow-amber-500/10"
                 onClick={onShowConstructionHall}
               >
                 <div className="flex flex-col items-center justify-center">
@@ -226,7 +227,7 @@ export default function PlayerHUD({
             </div>
             
             <Button
-              className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+              className="w-full bg-gradient-to-r from-amber-600 to-amber-700 md:hover:from-amber-700 md:hover:to-amber-800 text-amber-100 shadow-lg shadow-amber-500/25 border border-amber-500/30"
               onClick={onEndTurn}
             >
               End Turn (T)
