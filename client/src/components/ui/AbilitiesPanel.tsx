@@ -205,18 +205,27 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
   };
 
   const needsConfirmation = (action: ActionDefinition): boolean => {
-    return action.irreversible || (action.starCost && action.starCost > 5) || 
-           (action.faithCost && action.faithCost > 10) || (action.prideCost && action.prideCost > 10);
+    return !!action.irreversible || 
+           (!!action.starCost && action.starCost > 5) || 
+           (!!action.faithCost && action.faithCost > 10) || 
+           (!!action.prideCost && action.prideCost > 10);
   };
 
   const handleActionSelect = (action: ActionDefinition) => {
     if (!action.available) return;
     
-    if (needsConfirmation(action)) {
-      setActionToConfirm(action);
-      setShowConfirmDialog(true);
+    // Toggle selection for UI state
+    if (selectedAction === action.id) {
+      // If already selected, execute the action
+      if (needsConfirmation(action)) {
+        setActionToConfirm(action);
+        setShowConfirmDialog(true);
+      } else {
+        handleActionExecute(action);
+      }
     } else {
-      handleActionExecute(action);
+      // Select the action to show details
+      setSelectedAction(action.id);
     }
   };
 
