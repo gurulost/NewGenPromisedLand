@@ -315,15 +315,22 @@ export default function GameUI() {
       {/* Construction Hall */}
       {showConstructionHall && selectedCityId && (
         <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-auto"
           onClick={(e) => {
+            console.log('🏗️ Construction Hall backdrop clicked:', e.target === e.currentTarget);
             e.stopPropagation();
             if (e.target === e.currentTarget) {
               setShowConstructionHall(false);
             }
           }}
         >
-          <div onClick={(e) => e.stopPropagation()}>
+          <div 
+            onClick={(e) => {
+              console.log('🏗️ Construction Hall content clicked');
+              e.stopPropagation();
+            }}
+            style={{ pointerEvents: 'auto' }}
+          >
             <BuildingMenu
               city={gameState.cities?.find(c => c.id === selectedCityId)!}
               player={currentPlayer}
@@ -383,15 +390,22 @@ export default function GameUI() {
       {/* World Element Panel */}
       {selectedWorldElement && (
         <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-auto"
           onClick={(e) => {
+            console.log('🌍 WorldElementPanel backdrop clicked:', e.target === e.currentTarget);
             e.stopPropagation();
             if (e.target === e.currentTarget) {
               setSelectedWorldElement(null);
             }
           }}
         >
-          <div onClick={(e) => e.stopPropagation()}>
+          <div 
+            onClick={(e) => {
+              console.log('🌍 WorldElementPanel content clicked');
+              e.stopPropagation();
+            }}
+            style={{ pointerEvents: 'auto' }}
+          >
             <WorldElementPanel
               gameState={gameState}
               playerId={currentPlayer.id}
