@@ -20,6 +20,11 @@ export interface UnitActionResult {
     conversion?: string[];
     construction?: boolean;
     transport?: boolean;
+    areaEffect?: boolean;
+    range?: number;
+    areaRadius?: number;
+    centerDamage?: number;
+    areaDamage?: number;
   };
 }
 
@@ -49,8 +54,8 @@ export function executeWorkerAction(
       return { success: false, message: "Invalid location" };
     }
 
-    // Handle Harvest action
-    if (action === 'HARVEST') {
+    // Check action type properly
+    if (action === 'HARVEST' && unitDef.abilities.includes('HARVEST')) {
       return executeHarvestAction(state, unit, hex);
     }
 
@@ -408,17 +413,55 @@ export function executeCatapultAction(
   }
 
   if (action === 'BOMBARDMENT' && unitDef.abilities.includes('LONG_RANGE_BOMBARDMENT')) {
-    // Area of effect attack
+    // Area of effect attack with targeting
     if (!target) {
       return { success: false, message: "No target specified" };
     }
     
-    const affectedTiles = hexNeighbors(target);
+    const distance = hexDistance(unit.coordinate, target);
+    if (distance > unit.attackRange) {
+      return { success: false, message: "Target out of bombardment range" };
+    }
+    
+    // Calculate area of effect - center tile + all neighbors (7 tiles total)
+    const affectedTiles = [target, ...hexNeighbors(target)];
+    const affectedUnits = state.units.filter(u => 
+      affectedTiles.some(tile => 
+        tile.q === u.coordinate.q && tile.r === u.coordinate.r
+      )
+    );
+    
+    // Enhanced bombardment damage calculation
+    const centerDamage = Math.floor(unit.attack * 0.8); // 80% damage to center
+    const areaDamage = Math.floor(unit.attack * 0.5);   // 50% damage to surrounding tiles
+    
+    const newState = {
+      ...state,
+      units: state.units.map(u => {
+        if (affectedUnits.some(affected => affected.id === u.id)) {
+          const isCenter = u.coordinate.q === target.q && u.coordinate.r === target.r;
+          const damage = isCenter ? centerDamage : areaDamage;
+          return { ...u, hp: Math.max(0, u.hp - damage) };
+        }
+        if (u.id === unit.id) {
+          // Catapult has attacked and used movement
+          return { ...u, hasAttacked: true, remainingMovement: 0 };
+        }
+        return u;
+      }).filter(u => u.hp > 0) // Remove destroyed units
+    };
     
     return {
       success: true,
-      message: `Bombardment affects ${affectedTiles.length + 1} tiles`,
-      effects: { }
+      message: `Bombardment hit ${affectedUnits.length} units across ${affectedTiles.length} tiles`,
+      newState,
+      effects: { 
+        areaEffect: true, 
+        range: unit.attackRange,
+        areaRadius: 1,
+        centerDamage,
+        areaDamage
+      }
     };
   }
 
@@ -545,7 +588,7 @@ export function executeCommanderAction(
 ): UnitActionResult {
   const unitDef = getUnitDefinition(unit.type);
   
-  if (action === 'RALLY' && unitDef.abilities.includes('LEADERSHIP')) {
+  if (action === 'RALLY' && unitDef.abilities.includes('rally_troops')) {
     const rallyRange = 3;
     const nearbyAllies = state.units.filter(u => 
       u.playerId === unit.playerId && 
@@ -553,16 +596,22 @@ export function executeCommanderAction(
       hexDistance(u.coordinate, unit.coordinate) <= rallyRange
     );
     
-    // Restore movement and remove exhausted status
+    // Enhanced rally effects: restore movement, remove negative status, add temp buffs
     const newState = {
       ...state,
       units: state.units.map(u => {
         if (nearbyAllies.some(ally => ally.id === u.id)) {
           return { 
             ...u, 
-            remainingMovement: Math.min(u.movement, u.remainingMovement + 1),
-            status: u.status === 'exhausted' ? 'active' : u.status
+            remainingMovement: Math.min(u.movement, u.remainingMovement + 2), // More movement restoration
+            status: 'active' as const, // Clear all negative status effects
+            // Add temporary rally bonus (handled in combat calculations)
+            rallyBuff: true
           };
+        }
+        if (u.id === unit.id) {
+          // Commander uses an action but gains inspiration
+          return { ...u, hasAttacked: false, remainingMovement: Math.max(0, u.remainingMovement - 1) };
         }
         return u;
       })
@@ -570,13 +619,13 @@ export function executeCommanderAction(
     
     return {
       success: true,
-      message: `Rallied ${nearbyAllies.length} nearby units`,
+      message: `Rallied ${nearbyAllies.length} units (+2 movement, combat bonus, clear status)`,
       newState,
-      effects: { }
+      effects: { areaEffect: true, range: rallyRange }
     };
   }
 
-  if (action === 'TACTICAL_COMMAND' && unitDef.abilities.includes('TACTICAL_COMMAND')) {
+  if (action === 'TACTICAL_COMMAND' && unitDef.abilities.includes('rally_troops')) {
     // Allow coordinated attacks - nearby units can attack after moving
     const commandRange = 2;
     const commandedUnits = state.units.filter(u => 
@@ -589,7 +638,14 @@ export function executeCommanderAction(
       ...state,
       units: state.units.map(u => {
         if (commandedUnits.some(cmd => cmd.id === u.id)) {
-          return { ...u, hasAttacked: false };
+          return { 
+            ...u, 
+            hasAttacked: false,
+            tacticalCommand: true // Mark for coordinated attack bonus
+          };
+        }
+        if (u.id === unit.id) {
+          return { ...u, remainingMovement: Math.max(0, u.remainingMovement - 1) };
         }
         return u;
       })
@@ -597,9 +653,9 @@ export function executeCommanderAction(
     
     return {
       success: true,
-      message: `Commanded ${commandedUnits.length} units for tactical maneuvers`,
+      message: `Commanded ${commandedUnits.length} units for coordinated tactical strikes`,
       newState,
-      effects: { }
+      effects: { areaEffect: true, range: commandRange }
     };
   }
 

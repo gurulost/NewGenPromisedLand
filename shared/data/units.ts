@@ -88,7 +88,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     cost: 25,
     requirements: { pride: 50 },
     factionSpecific: [], // Available to ALL factions
-    abilities: ['rally_troops'],
+    abilities: ['rally_troops', 'NAVAL_COMMAND'],
     requiredTechnology: 'leadership',
   },
 

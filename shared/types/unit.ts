@@ -48,6 +48,9 @@ export const UnitSchema = z.object({
   movement: z.number(),
   remainingMovement: z.number(),
   status: UnitStatusSchema,
+  // Enhanced unit abilities
+  rallyBuff: z.boolean().optional(),
+  tacticalCommand: z.boolean().optional(),
   abilities: z.array(z.string()).default([]),
   level: z.number().default(1),
   experience: z.number().default(0),
