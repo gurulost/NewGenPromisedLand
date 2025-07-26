@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { HexCoordinate } from '../../../shared/types/coordinates';
+import { HexCoordinate } from '@shared/types/coordinates';
 
 interface UnitSelectionProps {
   selectedCoordinate: HexCoordinate | null;

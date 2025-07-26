@@ -10,8 +10,7 @@ import { getUnitDefinition } from "@shared/data/units";
 import { getActionAvailability, getDetailedActionFeedback } from "../../lib/helpers/actionAvailabilityHelpers";
 import type { Unit } from "@shared/types/unit";
 import { 
-  Hammer, Eye, Shield, Heart, Crown, Target, 
-  Anchor, Bomb, Sparkles, Move, Settings, Info, Swords 
+  Sparkles, Move, Settings, Swords 
 } from "lucide-react";
 import UnitActionsPanel from "./AbilitiesPanel";
 import { InfoTooltip } from "./TooltipSystem";
@@ -22,7 +21,6 @@ interface SelectedUnitPanelProps {
 
 export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
   const { gameState } = useLocalGame();
-  const { setMovementMode, setAttackMode } = useGameState();
   const [showActionsPanel, setShowActionsPanel] = useState(false);
   
   // Memoize unit definition lookup and calculated stats
@@ -129,55 +127,32 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
             </div>
           )}
 
-          {/* Main Action Buttons with Dynamic States */}
-          <div className="grid grid-cols-3 gap-2">
-            {/* Attack Button */}
-            <Button
-              onClick={() => setAttackMode(true)}
-              className={`min-h-[44px] px-4 ${
-                actionAvailability.canAttack 
-                  ? "bg-red-600 md:hover:bg-red-700 active:bg-red-800 text-white shadow-lg shadow-red-500/25 border-red-500/30" 
-                  : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50 border-gray-600"
-              } transition-all duration-200 border active:scale-95 touch-manipulation`}
-              size="sm"
-              disabled={!actionAvailability.canAttack}
-              title={actionAvailability.attackReason}
-            >
-              <Swords className="w-4 h-4 mr-1" />
-              Attack
-            </Button>
-            
-            {/* Move Button */}
-            <Button
-              onClick={() => setMovementMode(true)}
-              className={`min-h-[44px] px-4 ${
-                actionAvailability.canMove 
-                  ? "bg-blue-600 md:hover:bg-blue-700 active:bg-blue-800 text-white shadow-lg shadow-blue-500/25 border-blue-500/30" 
-                  : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50 border-gray-600"
-              } transition-all duration-200 border active:scale-95 touch-manipulation`}
-              size="sm"
-              disabled={!actionAvailability.canMove}
-              title={actionAvailability.movementReason}
-            >
-              <Move className="w-4 h-4 mr-1" />
-              Move
-            </Button>
-
-            {/* Abilities Button */}
+          {/* Unified Actions Button */}
+          <div className="space-y-2">
             <Button
               onClick={() => setShowActionsPanel(true)}
-              className={`min-h-[44px] px-4 ${
-                actionAvailability.hasAbilities 
-                  ? "bg-purple-600 md:hover:bg-purple-700 active:bg-purple-800 text-white shadow-lg shadow-purple-500/25 border-purple-500/30" 
-                  : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50 border-gray-600"
-              } transition-all duration-200 border active:scale-95 touch-manipulation`}
+              className="w-full min-h-[44px] px-4 bg-gradient-to-r from-purple-600 to-purple-700 md:hover:from-purple-700 md:hover:to-purple-800 active:from-purple-800 active:to-purple-900 text-white shadow-lg shadow-purple-500/25 border border-purple-500/30 transition-all duration-200 active:scale-95 touch-manipulation"
               size="sm"
-              disabled={!actionAvailability.hasAbilities}
-              title={actionAvailability.abilityReason}
             >
-              <Sparkles className="w-4 h-4 mr-1" />
-              Ability
+              <Sparkles className="w-5 h-5 mr-2" />
+              View All Actions
             </Button>
+            
+            {/* Quick Status Summary */}
+            <div className="flex justify-center gap-4 text-xs text-gray-400 bg-gray-800/30 rounded-lg p-2">
+              <div className={`flex items-center gap-1 ${actionAvailability.canMove ? 'text-blue-300' : 'text-gray-500'}`}>
+                <Move className="w-3 h-3" />
+                Move: {actionAvailability.canMove ? 'Ready' : 'Unavailable'}
+              </div>
+              <div className={`flex items-center gap-1 ${actionAvailability.canAttack ? 'text-red-300' : 'text-gray-500'}`}>
+                <Swords className="w-3 h-3" />
+                Attack: {actionAvailability.canAttack ? 'Ready' : 'Unavailable'}
+              </div>
+              <div className={`flex items-center gap-1 ${actionAvailability.hasAbilities ? 'text-purple-300' : 'text-gray-500'}`}>
+                <Settings className="w-3 h-3" />
+                Abilities: {actionAvailability.hasAbilities ? 'Available' : 'None'}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
