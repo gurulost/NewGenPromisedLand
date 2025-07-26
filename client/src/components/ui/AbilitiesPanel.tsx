@@ -279,48 +279,48 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4">
-      <Card className="w-full max-w-[500px] max-h-[85vh] overflow-y-auto bg-purple-950/90 border-purple-800">
-        <CardHeader>
+      <Card className="w-full max-w-[500px] max-h-[85vh] overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20">
+        <CardHeader className="bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-3 text-white font-cinzel">
-              <Sparkles className="w-6 h-6 text-purple-400" />
+            <CardTitle className="flex items-center gap-3 text-amber-100 font-cinzel">
+              <Sparkles className="w-6 h-6 text-amber-300" />
               {unitDef.name} Actions
             </CardTitle>
             <Button
               variant="outline" 
               size="icon"
               onClick={onClose}
-              className="min-h-[44px] border-purple-600 text-purple-300 md:hover:bg-purple-800/50 active:bg-purple-900 touch-manipulation"
+              className="min-h-[44px] border-amber-600 text-amber-300 md:hover:bg-amber-800/50 active:bg-amber-900 touch-manipulation"
             >
               <X className="w-4 h-4" />
             </Button>
           </div>
-          <div className="text-sm text-purple-200 font-body">
-            Select an action for this unit to perform
+          <div className="text-sm text-amber-200/80 font-body">
+            — Choose Your Path in the Promised Land —
           </div>
         </CardHeader>
         
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 bg-slate-900/40">
           {/* Unit Status */}
-          <div className="grid grid-cols-2 gap-4 p-3 bg-purple-900/30 rounded-lg border border-purple-800/50">
+          <div className="grid grid-cols-2 gap-4 p-3 bg-amber-900/20 rounded-lg border border-amber-500/30">
             <div className="text-center">
               <div className="text-lg font-semibold text-green-400">{unit.hp}/{unitDef.baseStats.hp}</div>
-              <div className="text-xs text-purple-300">Health</div>
+              <div className="text-xs text-amber-300">Health</div>
             </div>
             <div className="text-center">
               <div className="text-lg font-semibold text-blue-400">{unit.remainingMovement}/{unit.movement}</div>
-              <div className="text-xs text-purple-300">Movement</div>
+              <div className="text-xs text-amber-300">Movement</div>
             </div>
           </div>
 
           {/* Resource Display */}
-          <div className="grid grid-cols-3 gap-2 p-3 bg-purple-900/20 rounded-lg border border-purple-800/30">
+          <div className="grid grid-cols-3 gap-2 p-3 bg-amber-900/10 rounded-lg border border-amber-500/20">
             <div className="text-center">
-              <div className="text-yellow-400 flex items-center justify-center gap-1">
+              <div className="text-amber-400 flex items-center justify-center gap-1">
                 <Star className="w-3 h-3" />
                 <span className="font-semibold">{currentPlayer.stars}</span>
               </div>
-              <div className="text-yellow-300 text-xs">Stars</div>
+              <div className="text-amber-300 text-xs">Stars</div>
             </div>
             <div className="text-center">
               <div className="text-blue-400 flex items-center justify-center gap-1">
@@ -338,16 +338,16 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             </div>
           </div>
 
-          <Separator className="bg-purple-700" />
+          <Separator className="bg-amber-500/30" />
 
           {/* Available Actions */}
           <div className="space-y-2">
-            <h3 className="text-lg font-semibold text-white font-cinzel">Available Actions</h3>
+            <h3 className="text-lg font-semibold text-amber-100 font-cinzel">Available Actions</h3>
             
             {actions.length === 0 ? (
               <div className="text-center py-8">
-                <div className="text-purple-300 mb-2 text-lg">No actions available</div>
-                <div className="text-sm text-purple-400">
+                <div className="text-amber-300 mb-2 text-lg">No actions available</div>
+                <div className="text-sm text-amber-400/70">
                   This unit has exhausted all available actions this turn.
                 </div>
               </div>
@@ -357,26 +357,32 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                   key={action.id}
                   className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 min-h-[80px] touch-manipulation ${
                     selectedAction === action.id
-                      ? 'bg-purple-600/30 border-purple-500/70 ring-2 ring-purple-500/50'
+                      ? 'bg-amber-600/30 border-amber-500/70 ring-2 ring-amber-500/50'
                       : action.available
-                      ? 'bg-purple-600/10 border-purple-600/50 md:hover:bg-purple-600/20 active:bg-purple-600/25 md:hover:border-purple-500/70 active:scale-[0.98]'
-                      : 'bg-gray-800/20 border-gray-700/50 opacity-50 cursor-not-allowed'
+                      ? 'bg-amber-600/10 border-amber-600/50 md:hover:bg-amber-600/20 active:bg-amber-600/25 md:hover:border-amber-500/70 active:scale-[0.98]'
+                      : 'bg-gray-800/20 border-gray-700/50 opacity-50 cursor-not-allowed grayscale'
                   }`}
                   onClick={() => action.available && handleActionSelect(action)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3 flex-1">
-                      <div className="mt-1 text-purple-400">
+                      <div className={`mt-1 transition-colors duration-200 ${
+                        action.available ? 'text-amber-400' : 'text-gray-500'
+                      }`}>
                         {action.icon}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <h4 className="font-semibold text-white text-base">{action.name}</h4>
+                          <h4 className={`font-semibold text-base transition-colors duration-200 ${
+                            action.available ? 'text-amber-100' : 'text-gray-400'
+                          }`}>{action.name}</h4>
                           {action.irreversible && (
                             <AlertTriangle className="w-4 h-4 text-orange-400" />
                           )}
                         </div>
-                        <p className="text-sm text-purple-200 mt-1 leading-relaxed">{action.description}</p>
+                        <p className={`text-sm mt-1 leading-relaxed transition-colors duration-200 ${
+                          action.available ? 'text-amber-200/80' : 'text-gray-500'
+                        }`}>{action.description}</p>
                         
                         {/* Enhanced Cost Display with Availability Indicators */}
                         <div className="flex items-center gap-2 mt-3">

@@ -48,12 +48,13 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
 
   return (
     <div className="absolute bottom-4 left-4 pointer-events-auto">
-      <Card className="w-64 bg-black/80 border-white/20">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-white font-cinzel font-semibold tracking-wide">{unitStats.definition.name}</CardTitle>
+      <Card className="w-64 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20">
+        <CardHeader className="pb-2 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
+          <CardTitle className="text-amber-100 font-cinzel font-semibold tracking-wide">{unitStats.definition.name}</CardTitle>
+          <div className="text-xs text-amber-300/70 font-normal">— Chosen Warrior of the Promised Land —</div>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="text-sm text-gray-300 font-body">
+        <CardContent className="space-y-2 bg-slate-900/40">
+          <div className="text-sm text-amber-200/90 font-body bg-amber-900/10 rounded p-2 border border-amber-500/20">
             {unitStats.definition.description}
           </div>
           
@@ -61,7 +62,7 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
           <div>
             <div className="flex justify-between text-sm mb-1">
               <span className="text-red-300 font-cinzel font-medium">Health</span>
-              <span className="text-white font-body font-medium">{unit.hp}/{unitStats.definition.baseStats.hp}</span>
+              <span className="text-amber-100 font-body font-medium">{unit.hp}/{unitStats.definition.baseStats.hp}</span>
             </div>
             <Progress 
               value={unitStats.hpPercentage} 
@@ -72,15 +73,15 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
           {/* Unit Stats */}
           <div className="grid grid-cols-2 gap-2 text-sm font-body">
             <div className="flex justify-between">
-              <span className="text-gray-400">Attack:</span>
-              <span className="text-white">{unit.attack}</span>
+              <span className="text-amber-300/70">Attack:</span>
+              <span className="text-amber-100">{unit.attack}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">Defense:</span>
-              <span className="text-white">{unit.defense}</span>
+              <span className="text-amber-300/70">Defense:</span>
+              <span className="text-amber-100">{unit.defense}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400 flex items-center gap-1">
+              <span className="text-amber-300/70 flex items-center gap-1">
                 Movement:
                 <InfoTooltip 
                   content={
@@ -98,28 +99,28 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
                   }
                 />
               </span>
-              <span className="text-white">{unitStats.movementDisplay}</span>
+              <span className="text-amber-100">{unitStats.movementDisplay}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">Vision:</span>
-              <span className="text-white">{unitStats.definition.baseStats.visionRadius || 2}</span>
+              <span className="text-amber-300/70">Vision:</span>
+              <span className="text-amber-100">{unitStats.definition.baseStats.visionRadius || 2}</span>
             </div>
           </div>
           
           {/* Unit Position */}
-          <div className="text-xs text-gray-400 font-body">
+          <div className="text-xs text-amber-300/50 font-body">
             Position: ({unit.coordinate.q}, {unit.coordinate.r})
           </div>
 
-          <Separator className="bg-white/20" />
+          <Separator className="bg-amber-500/30" />
 
           {/* Unit Abilities */}
           {unitStats.definition.abilities.length > 0 && (
             <div>
-              <h4 className="text-sm font-semibold text-white mb-2 font-cinzel">Abilities</h4>
+              <h4 className="text-sm font-semibold text-amber-100 mb-2 font-cinzel">Abilities</h4>
               <div className="flex flex-wrap gap-1">
                 {unitStats.definition.abilities.map((ability) => (
-                  <Badge key={ability} variant="outline" className="text-xs text-blue-300 border-blue-500/50">
+                  <Badge key={ability} variant="outline" className="text-xs text-amber-300 border-amber-500/50 bg-amber-900/20">
                     {ability.replace('_', ' ')}
                   </Badge>
                 ))}
@@ -139,30 +140,30 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
             </Button>
             
             {/* Enhanced Quick Status Summary with Dynamic Colors */}
-            <div className="flex justify-center gap-4 text-xs bg-gray-800/30 rounded-lg p-2">
+            <div className="flex justify-center gap-4 text-xs bg-amber-900/20 rounded-lg p-2 border border-amber-500/20">
               <div className={`flex items-center gap-1 transition-colors duration-200 ${
                 actionAvailability.canMove 
                   ? 'text-green-400 font-medium' 
-                  : 'text-gray-500'
+                  : 'text-red-400'
               }`}>
-                <Move className={`w-3 h-3 ${actionAvailability.canMove ? 'text-green-400' : 'text-gray-500'}`} />
-                Move: {actionAvailability.canMove ? `${actionAvailability.reachableTilesCount} tiles` : 'None'}
+                <Move className={`w-3 h-3 ${actionAvailability.canMove ? 'text-green-400' : 'text-red-400'}`} />
+                Move: {actionAvailability.canMove ? `${actionAvailability.reachableTilesCount} tiles` : 'Unavailable'}
               </div>
               <div className={`flex items-center gap-1 transition-colors duration-200 ${
                 actionAvailability.canAttack 
                   ? 'text-red-400 font-medium' 
-                  : 'text-gray-500'
+                  : 'text-red-400/50'
               }`}>
-                <Swords className={`w-3 h-3 ${actionAvailability.canAttack ? 'text-red-400' : 'text-gray-500'}`} />
-                Attack: {actionAvailability.canAttack ? `${actionAvailability.attackTargetsCount} targets` : 'None'}
+                <Swords className={`w-3 h-3 ${actionAvailability.canAttack ? 'text-red-400' : 'text-red-400/50'}`} />
+                Attack: {actionAvailability.canAttack ? `${actionAvailability.attackTargetsCount} targets` : 'Unavailable'}
               </div>
               <div className={`flex items-center gap-1 transition-colors duration-200 ${
                 actionAvailability.hasAbilities 
                   ? 'text-purple-400 font-medium' 
-                  : 'text-gray-500'
+                  : 'text-purple-400/50'
               }`}>
-                <Settings className={`w-3 h-3 ${actionAvailability.hasAbilities ? 'text-purple-400' : 'text-gray-500'}`} />
-                Abilities: {actionAvailability.hasAbilities ? 'Available' : 'None'}
+                <Settings className={`w-3 h-3 ${actionAvailability.hasAbilities ? 'text-purple-400' : 'text-purple-400/50'}`} />
+                Abilities: {actionAvailability.hasAbilities ? 'Available' : 'Unavailable'}
               </div>
             </div>
           </div>
