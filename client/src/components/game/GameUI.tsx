@@ -5,7 +5,6 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { getFaction } from "@shared/data/factions";
 import PlayerHUD from "../ui/PlayerHUD";
 import SelectedUnitPanel from "../ui/SelectedUnitPanel";
-import CombatPanel from "../ui/CombatPanel";
 import UnitActionsPanel from "../ui/AbilitiesPanel";
 import TechPanel from "../ui/TechPanel";
 import CityPanel from "../ui/CityPanel";
@@ -32,7 +31,7 @@ export default function GameUI() {
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
   const [showAdvancedSaveSystem, setShowAdvancedSaveSystem] = useState(false);
-  const [hoveredEnemy, setHoveredEnemy] = useState<Unit | null>(null);
+
   const [selectedWorldElement, setSelectedWorldElement] = useState<{
     elementId: string;
     coordinate: { q: number; r: number; s: number };
@@ -279,20 +278,12 @@ export default function GameUI() {
         onEndTurn={handleEndTurn}
       />
 
-      {/* Selected Unit Panel */}
+      {/* Selected Unit Panel - Unified interface with all unit actions */}
       {selectedUnit && (
         <SelectedUnitPanel unit={selectedUnit} />
       )}
 
-      {/* Combat Panel */}
-      {selectedUnit && (
-        <CombatPanel
-          selectedUnit={selectedUnit}
-          gameState={gameState}
-          onAttackUnit={handleAttackUnit}
-          hoveredEnemy={hoveredEnemy}
-        />
-      )}
+      {/* Combat Panel removed - all functionality consolidated into SelectedUnitPanel */}
 
       {/* NOTE: Faction Abilities Panel removed - consolidated into unit-specific UnitActionsPanel */}
 
