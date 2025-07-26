@@ -6,6 +6,7 @@ interface GameStateStore {
   selectedUnit: Unit | null;
   hoveredTile: { x: number; z: number; tile: Tile } | null;
   reachableTiles: string[];
+  reachableCoordinates: Array<{ q: number; r: number; s: number }>;
   
   // Construction mode
   constructionMode: {
@@ -23,6 +24,7 @@ interface GameStateStore {
   setSelectedUnit: (unit: Unit | null) => void;
   setHoveredTile: (tile: { x: number; z: number; tile: Tile } | null) => void;
   setReachableTiles: (tiles: string[]) => void;
+  setReachableCoordinates: (coordinates: Array<{ q: number; r: number; s: number }>) => void;
   
   // Construction actions
   startConstruction: (buildingType: string, category: 'improvements' | 'structures' | 'units', cityId: string, playerId: string) => void;
@@ -37,6 +39,7 @@ export const useGameState = create<GameStateStore>((set) => ({
   selectedUnit: null,
   hoveredTile: null,
   reachableTiles: [],
+  reachableCoordinates: [],
   
   constructionMode: {
     isActive: false,
@@ -52,6 +55,7 @@ export const useGameState = create<GameStateStore>((set) => ({
   setSelectedUnit: (unit) => set({ selectedUnit: unit, isMovementMode: false, isAttackMode: false }),
   setHoveredTile: (tile) => set({ hoveredTile: tile }),
   setReachableTiles: (tiles) => set({ reachableTiles: tiles }),
+  setReachableCoordinates: (coordinates) => set({ reachableCoordinates: coordinates }),
   
   startConstruction: (buildingType, category, cityId, playerId) => set({
     constructionMode: {
