@@ -202,10 +202,14 @@ function ResourceWithTooltip({
   return (
     <group>
       {children}
-      {/* Info button positioned above the resource using Html from drei */}
-      <Html position={[position.x + 0.3, 0.5, position.y + 0.3]} style={{ pointerEvents: 'auto' }}>
-        <div className="relative">
-          <InfoTooltip content={getTooltipContent(resourceType)} />
+      {/* Enhanced info button positioned above the resource using Html from drei */}
+      <Html position={[position.x + 0.35, 0.6, position.y + 0.35]} style={{ pointerEvents: 'auto' }}>
+        <div className="relative transform transition-all duration-300 hover:scale-110">
+          <InfoTooltip 
+            content={getTooltipContent(resourceType)} 
+            placement="top"
+            className="animate-bounce-subtle"
+          />
         </div>
       </Html>
     </group>
