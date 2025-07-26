@@ -1,22 +1,19 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 import { Badge } from "./badge";
 import { Separator } from "./separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./dialog";
 import { Alert, AlertDescription } from "./alert";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip";
 import { 
-  Star, Clock, Target, Zap, Heart, Shield, Swords, Eye, ChevronDown, ChevronUp,
+  Star, Target, Heart, Swords, Eye,
   X, Hammer, Bomb, Crown, Move, Coins, Sparkles, AlertTriangle
 } from "lucide-react";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
+import { useGameState } from "../../lib/stores/useGameState";
 import { getUnitDefinition } from "@shared/data/units";
 import { getActionAvailability } from "../../lib/helpers/actionAvailabilityHelpers";
-import { hexDistance, hexNeighbors } from "@shared/utils/hex";
 import type { Unit } from "@shared/types/unit";
-import type { PlayerState } from "@shared/types/game";
-import type { GameState } from "@shared/types/game";
 
 interface UnitActionsPanelProps {
   unit: Unit;
@@ -39,14 +36,9 @@ interface ActionDefinition {
   consequences?: string[];
 }
 
-interface TargetingState {
-  abilityId: string | null;
-  targetType: 'unit' | 'city' | 'coordinate' | null;
-  instruction: string;
-}
-
 export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProps) {
   const { gameState, dispatch } = useLocalGame();
+  const { setMovementMode, setAttackMode } = useGameState();
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [actionToConfirm, setActionToConfirm] = useState<ActionDefinition | null>(null);
@@ -231,24 +223,44 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
   const handleActionExecute = (action: ActionDefinition) => {
     if (!action.available) return;
     
-    console.log(`Executing action: ${action.name} for unit ${unit.id}`);
-    
-    // Handle different action types
+    // Handle different action types with proper game state updates
     switch (action.id) {
       case 'move':
-        console.log('Opening movement interface');
+        setMovementMode(true);
         break;
       case 'attack':
-        console.log('Opening attack interface');
+        setAttackMode(true);
         break;
       case 'heal':
-        console.log('Healing nearby units...');
+        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'heal' });
+        break;
+      case 'stealth':
+        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'stealth' });
+        break;
+      case 'reconnaissance':
+        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'reconnaissance' });
+        break;
+      case 'rally_troops':
+        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'rally_troops' });
+        break;
+      case 'bombardment':
+        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'bombardment' });
         break;
       case 'build_road':
-        console.log('Building road...');
+        dispatch({ type: 'BUILD_ROAD', unitId: unit.id });
+        break;
+      case 'build_improvement':
+        dispatch({ type: 'BUILD_IMPROVEMENT', unitId: unit.id });
+        break;
+      case 'harvest_resource':
+        dispatch({ type: 'HARVEST_RESOURCE', unitId: unit.id });
+        break;
+      case 'convert':
+        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'convert' });
         break;
       default:
-        console.log('Action not implemented yet:', action.id);
+        console.warn('Action not implemented:', action.id);
+        return;
     }
     
     onClose();
