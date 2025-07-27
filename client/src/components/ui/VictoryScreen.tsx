@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "./card";
-import { Button } from "./button";
+import { motion } from "framer-motion";
 import { Badge } from "./badge";
 import { Separator } from "./separator";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
@@ -9,6 +8,11 @@ import {
   Trophy, Crown, Star, Church, Shield, 
   Users, RotateCw, Home, Sparkles 
 } from "lucide-react";
+import { PanelShell } from "../primitives/PanelShell";
+import { PanelHeader } from "../primitives/PanelHeader";
+import { GlowingButton } from "../primitives/GlowingButton";
+import { AvatarBadge } from "../primitives/AvatarBadge";
+import { useHotkeys } from "../../hooks/useHotkeys";
 
 interface VictoryScreenProps {
   winnerId: string;
@@ -25,6 +29,9 @@ export default function VictoryScreen({
 }: VictoryScreenProps) {
   const { gameState } = useLocalGame();
   const [showConfetti, setShowConfetti] = useState(false);
+
+  useHotkeys('Escape', onMainMenu);
+  useHotkeys('KeyB', onMainMenu);
 
   useEffect(() => {
     setShowConfetti(true);
@@ -94,121 +101,176 @@ export default function VictoryScreen({
   const stats = getFinalStats();
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto p-4">
+    <PanelShell isOpen={true} onClose={onMainMenu} size="full">
       {/* Confetti Effect */}
       {showConfetti && (
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/4 animate-bounce">
-            <Sparkles className="w-6 h-6 text-yellow-400" />
-          </div>
-          <div className="absolute top-10 right-1/3 animate-bounce delay-300">
-            <Sparkles className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="absolute top-20 left-1/3 animate-bounce delay-700">
-            <Sparkles className="w-5 h-5 text-purple-400" />
-          </div>
+          {[...Array(20)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute"
+              initial={{ 
+                x: Math.random() * window.innerWidth,
+                y: -50,
+                rotation: Math.random() * 360,
+                scale: 0
+              }}
+              animate={{ 
+                y: window.innerHeight + 50,
+                rotation: Math.random() * 720,
+                scale: [0, 1, 0]
+              }}
+              transition={{ 
+                duration: 3 + Math.random() * 2,
+                delay: Math.random() * 2,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+            >
+              <Sparkles className={`w-${4 + Math.floor(Math.random() * 4)} h-${4 + Math.floor(Math.random() * 4)} text-amber-400`} />
+            </motion.div>
+          ))}
         </div>
       )}
 
-      <Card className="w-full max-w-[600px] max-h-[90vh] overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20">
-        <CardHeader className="text-center pb-4 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
-          <div className="flex justify-center mb-4">
-            <div className="p-4 bg-gradient-to-br from-amber-600 to-amber-700 rounded-full shadow-lg shadow-amber-500/25">
-              {getVictoryIcon(victoryType)}
-            </div>
-          </div>
+      <div className="p-6 space-y-6 max-w-2xl mx-auto">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", duration: 0.8 }}
+        >
+          <PanelHeader
+            icon={getVictoryIcon(victoryType)}
+            title={getVictoryTitle(victoryType)}
+            description="Victory in the Promised Land"
+            onClose={onMainMenu}
+          />
+        </motion.div>
+        
+        <motion.div
+          initial={{ y: 50, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.6 }}
+          className="text-center space-y-4"
+        >
+          <AvatarBadge 
+            playerId={winner.id}
+            playerName={winner.name}
+            factionId={winner.factionId as any}
+            size="large"
+            className="mx-auto shadow-2xl shadow-amber-500/30"
+          />
           
-          <CardTitle className="text-4xl font-cinzel font-bold text-amber-100 mb-2 tracking-wide">
-            {getVictoryTitle(victoryType)}
-          </CardTitle>
-          <div className="text-sm text-amber-300/70 font-normal">— Victory in the Promised Land —</div>
-          
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <div 
-              className="w-6 h-6 rounded-full border-2 border-white" 
-              style={{ backgroundColor: faction.color }}
-            />
-            <h3 className="text-2xl font-semibold text-white font-cinzel">
-              {winner.name} Victorious!
-            </h3>
-          </div>
+          <h3 className="text-3xl font-semibold text-amber-100 font-cinzel">
+            {winner.name} Victorious!
+          </h3>
           
           <Badge 
             variant="outline" 
-            className="text-lg px-4 py-2 border-yellow-500/50 text-yellow-300"
+            className="text-lg px-4 py-2 border-amber-500/50 text-amber-300"
           >
             {faction.name}
           </Badge>
-        </CardHeader>
+        </motion.div>
         
-        <CardContent className="space-y-6">
+        <motion.div
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.5, duration: 0.6 }}
+          className="space-y-6"
+        >
           {/* Victory Description */}
           <div className="text-center">
-            <p className="text-slate-300 text-lg leading-relaxed font-body">
+            <p className="text-amber-100/80 text-lg leading-relaxed font-body">
               {getVictoryDescription(victoryType)}
             </p>
           </div>
 
-          <Separator className="bg-slate-600" />
+          <Separator className="bg-amber-600/30" />
 
           {/* Final Statistics */}
           <div>
-            <h4 className="text-xl font-semibold text-white mb-4 font-cinzel text-center">
+            <h4 className="text-xl font-semibold text-amber-100 mb-4 font-cinzel text-center">
               Final Statistics
             </h4>
             
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-800/50 rounded-lg p-3">
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.7 }}
+                className="bg-gradient-to-br from-slate-800/50 via-slate-700/30 to-slate-800/50 rounded-lg p-3 border border-amber-600/20"
+              >
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-400">{stats.totalTurns}</div>
-                  <div className="text-sm text-slate-400">Total Turns</div>
+                  <div className="text-sm text-amber-100/60">Total Turns</div>
                 </div>
-              </div>
+              </motion.div>
               
-              <div className="bg-slate-800/50 rounded-lg p-3">
+              <motion.div
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.8 }}
+                className="bg-gradient-to-br from-slate-800/50 via-slate-700/30 to-slate-800/50 rounded-lg p-3 border border-amber-600/20"
+              >
                 <div className="text-center">
                   <div className="text-2xl font-bold text-purple-400">{stats.citiesControlled}</div>
-                  <div className="text-sm text-slate-400">Cities Controlled</div>
+                  <div className="text-sm text-amber-100/60">Cities Controlled</div>
                 </div>
-              </div>
+              </motion.div>
               
-              <div className="bg-slate-800/50 rounded-lg p-3">
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.9 }}
+                className="bg-gradient-to-br from-slate-800/50 via-slate-700/30 to-slate-800/50 rounded-lg p-3 border border-amber-600/20"
+              >
                 <div className="text-center">
                   <div className="text-2xl font-bold text-green-400">{stats.unitsRemaining}</div>
-                  <div className="text-sm text-slate-400">Units Remaining</div>
+                  <div className="text-sm text-amber-100/60">Units Remaining</div>
                 </div>
-              </div>
+              </motion.div>
               
-              <div className="bg-slate-800/50 rounded-lg p-3">
+              <motion.div
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 1.0 }}
+                className="bg-gradient-to-br from-slate-800/50 via-slate-700/30 to-slate-800/50 rounded-lg p-3 border border-amber-600/20"
+              >
                 <div className="text-center">
                   <div className="text-2xl font-bold text-yellow-400">{stats.techsResearched}</div>
-                  <div className="text-sm text-slate-400">Technologies</div>
+                  <div className="text-sm text-amber-100/60">Technologies</div>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
             {/* Resource Stats */}
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <div className="bg-slate-800/30 rounded p-2 text-center">
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 1.1, duration: 0.6 }}
+              className="mt-4 grid grid-cols-3 gap-2"
+            >
+              <div className="bg-gradient-to-br from-slate-800/50 via-slate-700/30 to-slate-800/50 rounded p-2 text-center border border-amber-600/20">
                 <div className="text-lg font-semibold text-blue-300">{stats.finalFaith}</div>
-                <div className="text-xs text-slate-400">Faith</div>
+                <div className="text-xs text-amber-100/60">Faith</div>
               </div>
-              <div className="bg-slate-800/30 rounded p-2 text-center">
+              <div className="bg-gradient-to-br from-slate-800/50 via-slate-700/30 to-slate-800/50 rounded p-2 text-center border border-amber-600/20">
                 <div className="text-lg font-semibold text-purple-300">{stats.finalPride}</div>
-                <div className="text-xs text-slate-400">Pride</div>
+                <div className="text-xs text-amber-100/60">Pride</div>
               </div>
-              <div className="bg-slate-800/30 rounded p-2 text-center">
+              <div className="bg-gradient-to-br from-slate-800/50 via-slate-700/30 to-slate-800/50 rounded p-2 text-center border border-amber-600/20">
                 <div className="text-lg font-semibold text-yellow-300">{stats.finalStars}</div>
-                <div className="text-xs text-slate-400">Stars</div>
+                <div className="text-xs text-amber-100/60">Stars</div>
               </div>
-            </div>
+            </motion.div>
           </div>
 
-          <Separator className="bg-slate-600" />
+          <Separator className="bg-amber-600/30" />
 
           {/* Player Rankings */}
           <div>
-            <h4 className="text-lg font-semibold text-white mb-3 font-cinzel text-center">
+            <h4 className="text-lg font-semibold text-amber-100 mb-3 font-cinzel text-center">
               Final Rankings
             </h4>
             
@@ -231,56 +293,68 @@ export default function VictoryScreen({
                   const isWinner = player.id === winnerId;
                   
                   return (
-                    <div 
+                    <motion.div 
                       key={player.id}
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: 1 + index * 0.1 }}
                       className={`flex items-center justify-between p-3 rounded-lg ${
                         isWinner 
-                          ? 'bg-gradient-to-r from-yellow-500/20 to-yellow-600/20 border border-yellow-500/30' 
-                          : 'bg-slate-800/30'
+                          ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/20 border border-amber-500/30' 
+                          : 'bg-slate-800/30 border border-slate-600/30'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="text-lg font-bold text-white">#{index + 1}</div>
-                        <div 
-                          className="w-4 h-4 rounded-full border" 
-                          style={{ backgroundColor: playerFaction.color }}
+                        <div className="text-lg font-bold text-amber-100">#{index + 1}</div>
+                        <AvatarBadge 
+                          playerId={player.id}
+                          playerName={player.name}
+                          factionId={player.factionId as any}
+                          size="small"
                         />
                         <div>
-                          <div className="font-semibold text-white">{player.name}</div>
-                          <div className="text-xs text-slate-400">{playerFaction.name}</div>
+                          <div className="font-semibold text-amber-100">{player.name}</div>
+                          <div className="text-xs text-amber-100/60">{playerFaction.name}</div>
                         </div>
                       </div>
                       
                       {isWinner && (
-                        <Crown className="w-5 h-5 text-yellow-400" />
+                        <Crown className="w-5 h-5 text-amber-400" />
                       )}
-                    </div>
+                    </motion.div>
                   );
                 })}
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-4 pt-4">
-            <Button
+          <motion.div
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 1.5, duration: 0.6 }}
+            className="flex gap-4 pt-4"
+          >
+            <GlowingButton
               onClick={onPlayAgain}
-              className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-3"
+              icon={<RotateCw />}
+              className="flex-1"
+              size="lg"
             >
-              <RotateCw className="w-5 h-5 mr-2" />
               Play Again
-            </Button>
+            </GlowingButton>
             
-            <Button
+            <GlowingButton
               onClick={onMainMenu}
-              variant="outline"
-              className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-700 py-3"
+              variant="secondary"
+              icon={<Home />}
+              className="flex-1"
+              size="lg"
             >
-              <Home className="w-5 h-5 mr-2" />
               Main Menu
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+            </GlowingButton>
+          </motion.div>
+        </motion.div>
+      </div>
+    </PanelShell>
   );
 }

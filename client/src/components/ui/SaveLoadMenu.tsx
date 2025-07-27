@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "./card";
-import { Button } from "./button";
+import { motion } from "framer-motion";
 import { Input } from "./input";
 import { Badge } from "./badge";
 import { Separator } from "./separator";
@@ -10,6 +9,10 @@ import {
   Users, Clock, X, Download, Upload 
 } from "lucide-react";
 import { compress, decompress } from "lz-string";
+import { PanelShell } from "../primitives/PanelShell";
+import { PanelHeader } from "../primitives/PanelHeader";
+import { GlowingButton } from "../primitives/GlowingButton";
+import { useHotkeys } from "../../hooks/useHotkeys";
 
 interface SaveLoadMenuProps {
   onClose: () => void;
@@ -33,6 +36,9 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
   const [savedGames, setSavedGames] = useState<SavedGame[]>([]);
   const [saveName, setSaveName] = useState("");
   const [selectedSave, setSelectedSave] = useState<string | null>(null);
+
+  useHotkeys('Escape', onClose);
+  useHotkeys('KeyB', onClose);
 
   useEffect(() => {
     loadSavedGamesList();
@@ -171,41 +177,20 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
   };
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto"
-      onClick={(e) => {
-        // Close menu if clicking on backdrop
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
-    >
-      <Card 
-        className="w-[700px] max-h-[80vh] overflow-hidden bg-slate-900 border-slate-600"
-        onClick={(e) => e.stopPropagation()} // Prevent clicks inside card from closing menu
-      >
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-3 text-white font-cinzel">
-              <Save className="w-6 h-6 text-blue-400" />
-              Save & Load Game
-            </CardTitle>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={onClose}
-              className="border-slate-600 text-slate-400 hover:bg-slate-700"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-        </CardHeader>
+    <PanelShell isOpen={true} onClose={onClose} size="full">
+      <div className="p-6 space-y-6">
+        <PanelHeader
+          icon={<Save />}
+          title="Save & Load Game"
+          description="Manage your game saves and continue your chronicles"
+          onClose={onClose}
+        />
         
-        <CardContent className="space-y-6">
+        <div className="max-h-[calc(90vh-200px)] overflow-y-auto space-y-6">
           {/* Save Current Game */}
           {gameState && (
             <div>
-              <h3 className="text-lg font-semibold text-white mb-3 font-cinzel">Save Current Game</h3>
+              <h3 className="text-lg font-semibold text-amber-100 mb-3 font-cinzel">Save Current Game</h3>
               <div className="flex gap-2">
                 <Input
                   placeholder="Enter save name..."
@@ -214,14 +199,13 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                   className="flex-1 bg-slate-800 border-slate-600 text-white"
                   onKeyPress={(e) => e.key === 'Enter' && saveName.trim() && saveGame()}
                 />
-                <Button
+                <GlowingButton
                   onClick={saveGame}
                   disabled={!saveName.trim()}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  icon={<Save />}
                 >
-                  <Save className="w-4 h-4 mr-2" />
                   Save
-                </Button>
+                </GlowingButton>
               </div>
             </div>
           )}
@@ -230,7 +214,7 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
 
           {/* Import/Export */}
           <div>
-            <h3 className="text-lg font-semibold text-white mb-3 font-cinzel">Import/Export</h3>
+            <h3 className="text-lg font-semibold text-amber-100 mb-3 font-cinzel">Import/Export</h3>
             <div className="flex gap-2">
               <input
                 type="file"
@@ -239,24 +223,22 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                 className="hidden"
                 id="import-save"
               />
-              <Button
-                variant="outline"
+              <GlowingButton
+                variant="secondary"
                 onClick={() => document.getElementById('import-save')?.click()}
-                className="border-slate-600 text-slate-300"
+                icon={<Upload />}
               >
-                <Upload className="w-4 h-4 mr-2" />
                 Import Save
-              </Button>
+              </GlowingButton>
               
               {selectedSave && (
-                <Button
-                  variant="outline"
+                <GlowingButton
+                  variant="secondary"
                   onClick={() => exportSave(selectedSave)}
-                  className="border-slate-600 text-slate-300"
+                  icon={<Download />}
                 >
-                  <Download className="w-4 h-4 mr-2" />
                   Export Selected
-                </Button>
+                </GlowingButton>
               )}
             </div>
           </div>
@@ -265,7 +247,7 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
 
           {/* Saved Games List */}
           <div>
-            <h3 className="text-lg font-semibold text-white mb-3 font-cinzel">Saved Games</h3>
+            <h3 className="text-lg font-semibold text-amber-100 mb-3 font-cinzel">Saved Games</h3>
             
             {savedGames.length === 0 ? (
               <div className="text-center py-8">
@@ -274,9 +256,12 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
               </div>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                {savedGames.map((save) => (
-                  <div
+                {savedGames.map((save, index) => (
+                  <motion.div
                     key={save.id}
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: index * 0.05 }}
                     className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                       selectedSave === save.id
                         ? 'bg-blue-600/20 border-blue-500/50'
@@ -314,31 +299,27 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                       </div>
                       
                       <div className="flex gap-1 ml-2">
-                        <Button
-                          variant="outline"
+                        <GlowingButton
+                          variant="secondary"
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             loadGame(save.id);
                           }}
-                          className="border-green-600 text-green-300 hover:bg-green-600/20"
-                        >
-                          <FolderOpen className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          variant="outline"
+                          icon={<FolderOpen />}
+                        />
+                        <GlowingButton
+                          variant="destructive"
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             deleteSave(save.id);
                           }}
-                          className="border-red-600 text-red-300 hover:bg-red-600/20"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
+                          icon={<Trash2 />}
+                        />
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             )}
@@ -346,18 +327,18 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
 
           {/* Load Button */}
           {selectedSave && (
-            <div className="flex justify-center">
-              <Button
+            <div className="flex justify-center pt-4">
+              <GlowingButton
                 onClick={() => loadGame(selectedSave)}
-                className="bg-green-600 hover:bg-green-700 px-8"
+                icon={<FolderOpen />}
+                size="lg"
               >
-                <FolderOpen className="w-4 h-4 mr-2" />
                 Load Selected Game
-              </Button>
+              </GlowingButton>
             </div>
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </div>
+    </PanelShell>
   );
 }
