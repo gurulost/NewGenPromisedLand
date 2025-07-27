@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Crown, Swords, Shield } from 'lucide-react';
 import { PlayerState } from '../../../shared/types/game';
+import { AvatarBadge } from '../primitives/AvatarBadge';
+import { getFaction } from '@shared/data/factions';
 
 interface TurnTransitionProps {
   isVisible: boolean;
@@ -60,7 +62,7 @@ export function TurnTransition({
 
         {/* Content */}
         <div className="relative text-center space-y-8">
-          {/* Player Icon */}
+          {/* Player Avatar */}
           <motion.div
             className="flex justify-center"
             initial={{ scale: 0, rotate: -180 }}
@@ -75,9 +77,13 @@ export function TurnTransition({
               duration: 0.6 
             }}
           >
-            <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full flex items-center justify-center shadow-2xl border-4 border-white/20">
-              <Crown className="w-12 h-12 text-white" />
-            </div>
+            <AvatarBadge 
+              playerId={currentPlayer.id}
+              playerName={currentPlayer.name}
+              factionId={currentPlayer.factionId as any}
+              size="large"
+              className="shadow-2xl shadow-amber-500/30"
+            />
           </motion.div>
 
           {/* Player Name */}
@@ -91,11 +97,11 @@ export function TurnTransition({
             }}
             transition={{ delay: 0.3, duration: 0.6 }}
           >
-            <h1 className="text-4xl font-bold text-white font-cinzel">
+            <h1 className="text-4xl font-bold text-amber-100 font-cinzel">
               {currentPlayer.name}'s Turn
             </h1>
-            <p className="text-xl text-slate-300 font-body">
-              Faction: {currentPlayer.factionId}
+            <p className="text-xl text-amber-300 font-body">
+              {getFaction(currentPlayer.factionId as any)?.name || currentPlayer.factionId}
             </p>
           </motion.div>
 
@@ -182,13 +188,13 @@ function StatCard({
 }) {
   return (
     <motion.div
-      className="bg-slate-800/50 rounded-lg p-4 border border-slate-600 backdrop-blur-sm"
-      whileHover={{ scale: 1.05 }}
+      className="bg-gradient-to-br from-slate-800/50 via-slate-700/30 to-slate-800/50 rounded-lg p-4 border border-amber-600/30 backdrop-blur-sm shadow-lg shadow-black/40"
+      whileHover={{ scale: 1.05, borderColor: 'rgb(245 158 11 / 0.5)' }}
       transition={{ type: "spring", stiffness: 300 }}
     >
       <div className="flex items-center gap-2 mb-1">
         <div className={color}>{icon}</div>
-        <span className="text-sm text-slate-300">{label}</span>
+        <span className="text-sm text-amber-100/80">{label}</span>
       </div>
       <div className={`text-2xl font-bold ${color}`}>
         {value}

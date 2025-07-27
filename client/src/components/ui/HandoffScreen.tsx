@@ -1,8 +1,13 @@
-import { Button } from "./button";
-import { Card, CardContent, CardHeader, CardTitle } from "./card";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { getFaction } from "@shared/data/factions";
-import { useState, useEffect } from "react";
+import { GlowingButton } from "../primitives/GlowingButton";
+import { AvatarBadge } from "../primitives/AvatarBadge";
+import { ContentShell } from "../primitives/ContentShell";
+import { PanelHeader } from "../primitives/PanelHeader";
+import { Play, Clock, Eye, EyeOff } from "lucide-react";
+import { useHotkeys } from "../../hooks/useHotkeys";
 
 // List of all available background images
 const BACKGROUND_IMAGES = [
@@ -65,6 +70,10 @@ export default function HandoffScreen() {
   const { gameState, setGamePhase } = useLocalGame();
   const [backgroundImage, setBackgroundImage] = useState<string>('');
   const [imageLoaded, setImageLoaded] = useState<boolean>(false);
+  const [showPrivacyMode, setShowPrivacyMode] = useState(false);
+
+  useHotkeys('Space', () => setGamePhase('playing'));
+  useHotkeys('Enter', () => setGamePhase('playing'));
 
   // Select a random background image when component mounts
   useEffect(() => {
@@ -109,41 +118,92 @@ export default function HandoffScreen() {
         opacity: imageLoaded ? 1 : 0.8
       }}
     >
-      {/* No overlay - let the beautiful images show in full glory */}
-      
-      {/* Compact overlay positioned in bottom quarter */}
-      <div className="relative z-10 w-full h-full flex items-end justify-center pb-16">
-        <div className="w-80 bg-black/30 backdrop-blur-md border border-white/20 rounded-2xl text-white text-center shadow-2xl overflow-hidden">
-          {/* Elegant gradient border effect */}
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 via-transparent to-blue-500/20 rounded-2xl"></div>
-          
-          <div className="relative p-6 space-y-4">
-            {/* Player info with improved styling */}
-            <div className="flex items-center justify-center gap-3">
-              <div 
-                className="w-8 h-8 rounded-full border-2 border-white/30 shadow-lg"
-                style={{ backgroundColor: faction.color }}
-              />
+      {/* Privacy overlay */}
+      {showPrivacyMode && (
+        <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-xl z-40" />
+      )}
+
+      {/* Elegant handoff panel with improved styling */}
+      <div className="relative z-10 w-full h-full flex items-center justify-center">
+        <ContentShell size="md">
+          <div className="p-6 space-y-6 text-center">
+            <PanelHeader
+              icon={<Clock />}
+              title={`${currentPlayer.name}'s Turn`}
+              description="Pass the device to the next player"
+            />
+            
+            {/* Player info with AvatarBadge */}
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.3, type: "spring", duration: 0.8 }}
+              className="flex flex-col items-center gap-4"
+            >
+              {!showPrivacyMode && (
+                <AvatarBadge 
+                  playerId={currentPlayer.id}
+                  playerName={currentPlayer.name}
+                  factionId={currentPlayer.factionId as any}
+                  size="large"
+                  className="shadow-2xl shadow-amber-500/30"
+                />
+              )}
               <div className="text-center">
-                <div className="text-xl font-bold font-body text-white">{currentPlayer.name}</div>
-                <div className="text-sm text-amber-300 font-cinzel">{faction.name}</div>
+                <div className="text-2xl font-bold font-cinzel text-amber-100">
+                  {showPrivacyMode ? "Next Player's Turn" : currentPlayer.name}
+                </div>
+                <div className="text-lg text-amber-300 font-body">
+                  {showPrivacyMode ? "Hidden for Privacy" : faction.name}
+                </div>
               </div>
-            </div>
+            </motion.div>
             
             {/* Turn indicator */}
-            <div className="text-sm text-white/80 font-body">
-              Turn {gameState.turn}
-            </div>
-            
-            {/* Elegant call-to-action button */}
-            <Button
-              onClick={handleStartTurn}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-3 text-lg rounded-xl border border-white/20 shadow-lg transition-all duration-300 hover:scale-105 font-semibold"
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.5, duration: 0.6 }}
+              className="flex items-center justify-center gap-2 text-amber-100/70 font-body"
             >
-              Start Turn
-            </Button>
+              <Clock className="w-4 h-4" />
+              <span>Turn {gameState.turn}</span>
+            </motion.div>
+            
+            {/* Privacy toggle */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.7, duration: 0.6 }}
+            >
+              <GlowingButton
+                onClick={() => setShowPrivacyMode(!showPrivacyMode)}
+                icon={showPrivacyMode ? <Eye /> : <EyeOff />}
+                variant="secondary"
+                size="sm"
+                className="mb-4"
+              >
+                {showPrivacyMode ? 'Show Details' : 'Privacy Mode'}
+              </GlowingButton>
+            </motion.div>
+            
+            {/* Call-to-action button */}
+            <motion.div
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.9, duration: 0.6 }}
+            >
+              <GlowingButton
+                onClick={handleStartTurn}
+                icon={<Play />}
+                className="w-full"
+                size="lg"
+              >
+                Start Turn
+              </GlowingButton>
+            </motion.div>
           </div>
-        </div>
+        </ContentShell>
       </div>
     </div>
   );

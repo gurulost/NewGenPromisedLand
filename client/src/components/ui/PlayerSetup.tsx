@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { Button } from "./button";
-import { Card, CardContent, CardHeader, CardTitle } from "./card";
+import { motion } from "framer-motion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 import { Input } from "./input";
 import { Label } from "./label";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Users, Map, ArrowLeft, Play } from "lucide-react";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { getAllFactions } from "@shared/data/factions";
 import { FactionId } from "@shared/types/faction";
 import { MAP_SIZE_CONFIGS, MapSize } from "@shared/utils/mapGenerator";
+import { ContentShell } from "../primitives/ContentShell";
+import { PanelHeader } from "../primitives/PanelHeader";
+import { GlowingButton } from "../primitives/GlowingButton";
+import { useHotkeys } from "../../hooks/useHotkeys";
 
 interface PlayerSetupData {
   id: string;
@@ -26,6 +29,8 @@ export default function PlayerSetup() {
 
   const factions = getAllFactions();
   const usedFactions = players.map(p => p.factionId).filter(Boolean);
+
+  useHotkeys('Escape', () => setGamePhase('menu'));
 
   // Helper function to get recommended player count for each map size
   const getRecommendedPlayers = (mapSize: MapSize): string => {
@@ -87,152 +92,156 @@ export default function PlayerSetup() {
       }}
     >
       <div className="min-h-full flex items-center justify-center py-8">
-        <Card className="w-full max-w-2xl bg-black/80 border-amber-600/50 text-white">
-        <CardHeader>
-          <CardTitle className="text-2xl font-cinzel text-amber-400 text-center font-semibold tracking-wide">
-            Local Game Setup
-          </CardTitle>
-          <p className="text-gray-300 text-center text-sm font-body">
-            Configure players for pass-and-play mode
-          </p>
-        </CardHeader>
-        
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
-            {players.map((player, index) => (
-              <Card key={player.id} className="bg-gray-800/50 border-gray-600">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1 space-y-2">
-                      <Label htmlFor={`name-${player.id}`}>Player Name</Label>
-                      <Input
-                        id={`name-${player.id}`}
-                        value={player.name}
-                        onChange={(e) => updatePlayer(player.id, 'name', e.target.value)}
-                        className="bg-gray-700 border-gray-600 text-white"
-                        placeholder="Enter player name"
-                      />
+        <div className="w-full max-w-2xl">
+          <ContentShell size="2xl">
+            <div className="p-6 space-y-6">
+              <PanelHeader
+                icon={<Users />}
+                title="Local Game Setup"
+                description="Configure players for pass-and-play mode"
+              />
+              
+              <div className="space-y-4">
+                {players.map((player, index) => (
+                  <motion.div
+                    key={player.id}
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="bg-slate-800/50 border border-slate-600 rounded-lg p-4"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 space-y-2">
+                        <Label htmlFor={`name-${player.id}`} className="text-amber-100">Player Name</Label>
+                        <Input
+                          id={`name-${player.id}`}
+                          value={player.name}
+                          onChange={(e) => updatePlayer(player.id, 'name', e.target.value)}
+                          className="bg-slate-700 border-slate-600 text-white"
+                          placeholder="Enter player name"
+                        />
+                      </div>
+                      
+                      <div className="flex-1 space-y-2">
+                        <Label htmlFor={`faction-${player.id}`} className="text-amber-100">Faction</Label>
+                        <Select
+                          value={player.factionId || ""}
+                          onValueChange={(value) => updatePlayer(player.id, 'factionId', value)}
+                        >
+                          <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                            <SelectValue placeholder="Choose faction" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-slate-800 border-slate-600">
+                            {factions.map(faction => (
+                              <SelectItem 
+                                key={faction.id} 
+                                value={faction.id}
+                                disabled={usedFactions.includes(faction.id) && player.factionId !== faction.id}
+                                className="text-white hover:bg-slate-700"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div 
+                                    className="w-3 h-3 rounded-full"
+                                    style={{ backgroundColor: faction.color }}
+                                  />
+                                  {faction.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {players.length > 2 && (
+                        <GlowingButton
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => removePlayer(player.id)}
+                          icon={<X />}
+                        />
+                      )}
                     </div>
-                    
-                    <div className="flex-1 space-y-2">
-                      <Label htmlFor={`faction-${player.id}`}>Faction</Label>
-                      <Select
-                        value={player.factionId || ""}
-                        onValueChange={(value) => updatePlayer(player.id, 'factionId', value)}
-                      >
-                        <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
-                          <SelectValue placeholder="Choose faction" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-gray-800 border-gray-600">
-                          {factions.map(faction => (
-                            <SelectItem 
-                              key={faction.id} 
-                              value={faction.id}
-                              disabled={usedFactions.includes(faction.id) && player.factionId !== faction.id}
-                              className="text-white hover:bg-gray-700"
-                            >
-                              <div className="flex items-center gap-2">
-                                <div 
-                                  className="w-3 h-3 rounded-full"
-                                  style={{ backgroundColor: faction.color }}
-                                />
-                                {faction.name}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    {players.length > 2 && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => removePlayer(player.id)}
-                        className="border-red-600 text-red-400 hover:bg-red-600/20"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {players.length < 6 && (
-            <Button
-              variant="outline"
-              onClick={addPlayer}
-              className="w-full border-gray-600 text-gray-300 hover:bg-gray-800"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Player (Max 6)
-            </Button>
-          )}
-
-          {/* Map Size Selection */}
-          <Card className="bg-gray-800/50 border-gray-600">
-            <CardContent className="p-4">
-              <div className="space-y-3">
-                <Label htmlFor="map-size">Map Size</Label>
-                <Select value={selectedMapSize} onValueChange={(value: MapSize) => setSelectedMapSize(value)}>
-                  <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-600">
-                    {Object.entries(MAP_SIZE_CONFIGS).map(([size, config]) => (
-                      <SelectItem 
-                        key={size} 
-                        value={size}
-                        className="text-white hover:bg-gray-700"
-                      >
-                        <div className="flex flex-col">
-                          <span className="font-medium">{config.name}</span>
-                          <span className="text-xs text-gray-400">
-                            {config.tiles} tiles • Recommended for {getRecommendedPlayers(size as MapSize)}
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-400">
-                  Selected: {MAP_SIZE_CONFIGS[selectedMapSize].name} map with {MAP_SIZE_CONFIGS[selectedMapSize].tiles} tiles
-                </p>
+                  </motion.div>
+                ))}
               </div>
-            </CardContent>
-          </Card>
 
-          <div className="flex gap-4 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setGamePhase('menu')}
-              className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
-            >
-              Back to Menu
-            </Button>
-            
-            <Button
-              onClick={handleStartGame}
-              disabled={!canStart}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-600 disabled:text-gray-400"
-            >
-              Start Game
-            </Button>
-          </div>
+              {players.length < 6 && (
+                <GlowingButton
+                  variant="secondary"
+                  onClick={addPlayer}
+                  icon={<Plus />}
+                  className="w-full"
+                >
+                  Add Player (Max 6)
+                </GlowingButton>
+              )}
 
-          {!canStart && (
-            <div className="text-center">
-              <p className="text-sm text-red-400">
-                {players.some(p => !p.name.trim()) && "All players need names. "}
-                {players.some(p => !p.factionId) && "All players need factions. "}
-                {new Set(players.map(p => p.factionId)).size !== players.length && "Each player needs a unique faction."}
-              </p>
+              {/* Map Size Selection */}
+              <div className="bg-slate-800/50 border border-slate-600 rounded-lg p-4">
+                <div className="space-y-3">
+                  <Label htmlFor="map-size" className="text-amber-100 flex items-center gap-2">
+                    <Map className="w-4 h-4" />
+                    Map Size
+                  </Label>
+                  <Select value={selectedMapSize} onValueChange={(value: MapSize) => setSelectedMapSize(value)}>
+                    <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-slate-600">
+                      {Object.entries(MAP_SIZE_CONFIGS).map(([size, config]) => (
+                        <SelectItem 
+                          key={size} 
+                          value={size}
+                          className="text-white hover:bg-slate-700"
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-medium">{config.name}</span>
+                            <span className="text-xs text-slate-400">
+                              {config.tiles} tiles • Recommended for {getRecommendedPlayers(size as MapSize)}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-400">
+                    Selected: {MAP_SIZE_CONFIGS[selectedMapSize].name} map with {MAP_SIZE_CONFIGS[selectedMapSize].tiles} tiles
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <GlowingButton
+                  variant="secondary"
+                  onClick={() => setGamePhase('menu')}
+                  icon={<ArrowLeft />}
+                  className="flex-1"
+                >
+                  Back to Menu
+                </GlowingButton>
+                
+                <GlowingButton
+                  onClick={handleStartGame}
+                  disabled={!canStart}
+                  icon={<Play />}
+                  className="flex-1"
+                >
+                  Start Game
+                </GlowingButton>
+              </div>
+
+              {!canStart && (
+                <div className="text-center p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <p className="text-sm text-red-400">
+                    {players.some(p => !p.name.trim()) && "All players need names. "}
+                    {players.some(p => !p.factionId) && "All players need factions. "}
+                    {new Set(players.map(p => p.factionId)).size !== players.length && "Each player needs a unique faction."}
+                  </p>
+                </div>
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </ContentShell>
+        </div>
       </div>
     </div>
   );
