@@ -1,0 +1,129 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Token Snapshot Sanity Tests > creates snapshot baseline for visual regression > tokens-structure-snapshot 1`] = `
+{
+  "properties": {
+    "costStars": {
+      "colorFamily": "yellow",
+      "hasBackground": true,
+      "hasBorder": true,
+      "hasColor": true,
+      "hasGlow": true,
+      "hasIcon": true,
+      "hasName": true,
+      "iconCharacter": "✪",
+    },
+    "dissent": {
+      "colorFamily": "orange",
+      "hasBackground": true,
+      "hasBorder": true,
+      "hasColor": true,
+      "hasGlow": true,
+      "hasIcon": true,
+      "hasName": true,
+      "iconCharacter": "⚡",
+    },
+    "faith": {
+      "colorFamily": "blue",
+      "hasBackground": true,
+      "hasBorder": true,
+      "hasColor": true,
+      "hasGlow": true,
+      "hasIcon": true,
+      "hasName": true,
+      "iconCharacter": "✠",
+    },
+    "population": {
+      "colorFamily": "green",
+      "hasBackground": true,
+      "hasBorder": true,
+      "hasColor": true,
+      "hasGlow": true,
+      "hasIcon": true,
+      "hasName": true,
+      "iconCharacter": "👥",
+    },
+    "pride": {
+      "colorFamily": "red",
+      "hasBackground": true,
+      "hasBorder": true,
+      "hasColor": true,
+      "hasGlow": true,
+      "hasIcon": true,
+      "hasName": true,
+      "iconCharacter": "⚔",
+    },
+    "stars": {
+      "colorFamily": "yellow",
+      "hasBackground": true,
+      "hasBorder": true,
+      "hasColor": true,
+      "hasGlow": true,
+      "hasIcon": true,
+      "hasName": true,
+      "iconCharacter": "✦",
+    },
+  },
+  "structure": [
+    "costStars",
+    "dissent",
+    "faith",
+    "population",
+    "pride",
+    "stars",
+  ],
+}
+`;
+
+exports[`Token Snapshot Sanity Tests > validates TOKENS object structure and prevents regression 1`] = `
+{
+  "costStars": {
+    "bg": "bg-slate-900/40",
+    "border": "border-yellow-400/40",
+    "color": "text-yellow-300",
+    "glow": "shadow-yellow-400/25",
+    "icon": "✪",
+    "name": "Star Cost",
+  },
+  "dissent": {
+    "bg": "bg-gradient-to-r from-orange-500/20 to-amber-600/20",
+    "border": "border-orange-400/40",
+    "color": "text-orange-300",
+    "glow": "shadow-orange-400/25",
+    "icon": "⚡",
+    "name": "Dissent",
+  },
+  "faith": {
+    "bg": "bg-gradient-to-r from-blue-500/20 to-sky-500/20",
+    "border": "border-blue-400/40",
+    "color": "text-blue-300",
+    "glow": "shadow-blue-400/25",
+    "icon": "✠",
+    "name": "Faith",
+  },
+  "population": {
+    "bg": "bg-gradient-to-r from-emerald-500/20 to-green-600/20",
+    "border": "border-green-400/40",
+    "color": "text-green-300",
+    "glow": "shadow-green-400/25",
+    "icon": "👥",
+    "name": "Population",
+  },
+  "pride": {
+    "bg": "bg-gradient-to-r from-red-500/20 to-rose-500/20",
+    "border": "border-red-400/40",
+    "color": "text-red-300",
+    "glow": "shadow-red-400/25",
+    "icon": "⚔",
+    "name": "Pride",
+  },
+  "stars": {
+    "bg": "bg-gradient-to-r from-yellow-500/20 to-amber-500/20",
+    "border": "border-yellow-400/40",
+    "color": "text-yellow-300",
+    "glow": "shadow-yellow-400/25",
+    "icon": "✦",
+    "name": "Stars",
+  },
+}
+`;
