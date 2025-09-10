@@ -21,7 +21,7 @@ interface PlayerHUDProps {
 }
 
 export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructionHall }: PlayerHUDProps) {
-  const faction = getFaction(player.factionId);
+  const faction = getFaction(player.factionId as any);
   
   // Moved expensive calculations to selector
   const playerStats = useMemo(() => 

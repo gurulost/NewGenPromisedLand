@@ -281,10 +281,9 @@ export default function GameUI() {
       {/* Player HUD */}
       <PlayerHUD
         player={currentPlayer}
-        faction={faction}
+        gameState={gameState}
         onShowTechPanel={() => setShowTechPanel(true)}
         onShowConstructionHall={handleShowConstructionHall}
-        onEndTurn={handleEndTurn}
       />
 
       {/* Selected Unit Panel - Unified interface with all unit actions */}
@@ -298,16 +297,21 @@ export default function GameUI() {
 
       {/* Tech Panel Modal */}
       <TechPanel
-        open={showTechPanel}
+        isOpen={showTechPanel}
         onClose={() => setShowTechPanel(false)}
+        gameState={gameState}
+        currentPlayer={currentPlayer}
+        onResearchTech={() => {}}
       />
 
       {/* City Panel Modal */}
       {selectedCityId && (
         <CityPanel
-          open={showCityPanel}
+          isOpen={showCityPanel}
           onClose={() => setShowCityPanel(false)}
-          cityId={selectedCityId as string}
+          city={gameState.cities?.find(c => c.id === selectedCityId)!}
+          gameState={gameState}
+          currentPlayer={currentPlayer}
         />
       )}
 
