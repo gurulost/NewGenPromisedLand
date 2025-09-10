@@ -34,7 +34,7 @@ export function CityPanel({ isOpen, onClose, city, gameState, currentPlayer }: C
       <PanelHeader
         icon={<Building className="w-5 h-5" />}
         title={city.name}
-        description={`Population: ${city.population} • Founded by ${city.foundedBy}`}
+        description={`Population: ${city.population} • Level ${city.level}`}
         onClose={onClose}
       />
 
@@ -124,7 +124,7 @@ const CityOverviewTab = React.memo(({ city, gameState }: {
       <div className="space-y-2 text-sm">
         <div className="flex justify-between">
           <span className="text-amber-300/80">Controlled Tiles:</span>
-          <span className="text-amber-100">{city.controlledTiles.length}</span>
+          <span className="text-amber-100">-</span>
         </div>
         <div className="flex justify-between">
           <span className="text-amber-300/80">Resources:</span>

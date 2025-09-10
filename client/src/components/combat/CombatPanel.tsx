@@ -6,6 +6,7 @@ import { GlowingButton } from '../primitives/GlowingButton';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 
 import { Unit } from '@shared/types/unit';
+import { getUnitDefinition } from '@shared/data/units';
 import { getCombatOdds, CombatOdds } from '../../selectors/combat';
 
 interface CombatPanelProps {
@@ -62,10 +63,10 @@ const AttackerSection = React.memo(({ unit }: { unit: Unit }) => (
   <div className="rounded-lg bg-slate-800/30 p-3 border border-amber-500/20">
     <div className="flex items-center gap-3 mb-2">
       <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center">
-        <span className="text-xs font-bold text-slate-900">{unit.name[0]}</span>
+        <span className="text-xs font-bold text-slate-900">{getUnitDefinition(unit.type).name[0]}</span>
       </div>
       <div>
-        <h4 className="font-cinzel font-semibold text-amber-200">{unit.name}</h4>
+        <h4 className="font-cinzel font-semibold text-amber-200">{getUnitDefinition(unit.type).name}</h4>
         <p className="text-xs text-amber-300/70">Your {unit.type}</p>
       </div>
     </div>
@@ -74,21 +75,21 @@ const AttackerSection = React.memo(({ unit }: { unit: Unit }) => (
       <div className="text-center">
         <div className="text-red-300 font-semibold flex items-center justify-center gap-1">
           <Sword className="w-3 h-3" />
-          {unit.combat.attack}
+          {getUnitDefinition(unit.type).baseStats.attack}
         </div>
         <div className="text-amber-300/60">Attack</div>
       </div>
       <div className="text-center">
         <div className="text-blue-300 font-semibold flex items-center justify-center gap-1">
           <Shield className="w-3 h-3" />
-          {unit.combat.defense}
+          {getUnitDefinition(unit.type).baseStats.defense}
         </div>
         <div className="text-amber-300/60">Defense</div>
       </div>
       <div className="text-center">
         <div className="text-green-300 font-semibold flex items-center justify-center gap-1">
           <Heart className="w-3 h-3" />
-          {unit.health}/{unit.maxHealth}
+          {unit.hp}/{unit.maxHp}
         </div>
         <div className="text-amber-300/60">Health</div>
       </div>
@@ -139,10 +140,10 @@ const EnemyCard = React.memo(({ enemy, attacker, onAttack }: {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
-            <span className="text-xs font-bold text-white">{enemy.name[0]}</span>
+            <span className="text-xs font-bold text-white">{getUnitDefinition(enemy.type).name[0]}</span>
           </div>
           <div>
-            <h5 className="font-medium text-red-200">{enemy.name}</h5>
+            <h5 className="font-medium text-red-200">{getUnitDefinition(enemy.type).name}</h5>
             <p className="text-xs text-red-300/70">{enemy.type}</p>
           </div>
         </div>
@@ -152,15 +153,15 @@ const EnemyCard = React.memo(({ enemy, attacker, onAttack }: {
       
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div className="text-center">
-          <div className="text-red-300 font-semibold">{enemy.combat.attack}</div>
+          <div className="text-red-300 font-semibold">{getUnitDefinition(enemy.type).baseStats.attack}</div>
           <div className="text-amber-300/60">ATK</div>
         </div>
         <div className="text-center">
-          <div className="text-blue-300 font-semibold">{enemy.combat.defense}</div>
+          <div className="text-blue-300 font-semibold">{getUnitDefinition(enemy.type).baseStats.defense}</div>
           <div className="text-amber-300/60">DEF</div>
         </div>
         <div className="text-center">
-          <div className="text-green-300 font-semibold">{enemy.health}/{enemy.maxHealth}</div>
+          <div className="text-green-300 font-semibold">{enemy.hp}/{enemy.maxHp}</div>
           <div className="text-amber-300/60">HP</div>
         </div>
       </div>
