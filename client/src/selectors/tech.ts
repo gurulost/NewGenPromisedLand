@@ -1,5 +1,5 @@
-import { GameState, Player } from '../../../shared/types/game';
-import { TECHNOLOGIES } from '../../../shared/data/technologies';
+import { GameState, PlayerState } from '@shared/types/game';
+import { TECHNOLOGIES } from '@shared/data/technologies';
 
 export interface TechValidation {
   canResearch: (techId: string) => boolean;
@@ -9,7 +9,7 @@ export interface TechValidation {
   getResearchProgress: () => { researched: number; total: number };
 }
 
-export function getTechValidation(player: Player, gameState: GameState): TechValidation {
+export function getTechValidation(player: PlayerState, gameState: GameState): TechValidation {
   
   const canAfford = (techId: string): boolean => {
     const tech = TECHNOLOGIES[techId as keyof typeof TECHNOLOGIES];
