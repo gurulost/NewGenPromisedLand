@@ -9,12 +9,12 @@ import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Progress } from '../ui/progress';
 import { InfoTooltip } from '../primitives/InfoTooltip';
 
-import { Player, GameState } from '../../../../shared/types/game';
-import { getFaction } from '../../../../shared/data/factions';
+import { PlayerState, GameState } from '@shared/types/game';
+import { getFaction } from '@shared/data/factions';
 import { getPlayerStats, PlayerStats } from '../../selectors/player';
 
 interface PlayerHUDProps {
-  player: Player;
+  player: PlayerState;
   gameState: GameState;
   onShowTechPanel: () => void;
   onShowConstructionHall: () => void;

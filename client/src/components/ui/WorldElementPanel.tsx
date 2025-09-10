@@ -7,10 +7,10 @@ import clsx from 'clsx';
 import { Button } from './button';
 import { Badge } from './badge';
 import { Separator } from './separator';
-import { HexCoordinate } from '../../../../shared/types/coordinates';
-import { getWorldElement } from '../../../../shared/data/worldElements';
-import { canExecuteElementAction } from '../../../../shared/logic/worldElementActions';
-import { GameState } from '../../../../shared/types/game';
+import { HexCoordinate } from '@shared/types/coordinates';
+import { getWorldElement } from '@shared/data/worldElements';
+import { canExecuteElementAction } from '@shared/logic/worldElementActions';
+import { GameState } from '@shared/types/game';
 
 import { TOKENS } from '../../theme/tokens';          // central colour tokens
 import { useHotkeys } from '../../hooks/useHotkeys'; // tiny custom hook

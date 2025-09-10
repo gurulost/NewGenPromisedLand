@@ -5,7 +5,7 @@ import { HUDShell } from '../primitives/HUDShell';
 import { GlowingButton } from '../primitives/GlowingButton';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 
-import { Unit } from '../../../../shared/types/unit';
+import { Unit } from '@shared/types/unit';
 import { getCombatOdds, CombatOdds } from '../../selectors/combat';
 
 interface CombatPanelProps {

@@ -19,7 +19,7 @@ import { WorldElementPanel } from "../ui/WorldElementPanel";
 import MovementControls from "../game/MovementControls";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
-import { getWorldElement, WORLD_ELEMENTS } from "../../../../shared/data/worldElements";
+import { getWorldElement, WORLD_ELEMENTS } from "@shared/data/worldElements";
 import type { Unit } from "@shared/types/unit";
 
 export default function GameUI() {

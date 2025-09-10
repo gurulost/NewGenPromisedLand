@@ -6,8 +6,8 @@ import { PanelShell } from '../primitives/PanelShell';
 import { PanelHeader } from '../primitives/PanelHeader';
 import { ResourceDeltaBadge } from '../ui/WorldElementPanel';
 
-import { City } from '../../../../shared/types/city';
-import { GameState, Player } from '../../../../shared/types/game';
+import { City } from '@shared/types/city';
+import { GameState, PlayerState } from '@shared/types/game';
 import { getCityValidation, CityValidation } from '../../selectors/city';
 
 interface CityPanelProps {
@@ -15,7 +15,7 @@ interface CityPanelProps {
   onClose: () => void;
   city: City;
   gameState: GameState;
-  currentPlayer: Player;
+  currentPlayer: PlayerState;
 }
 
 export function CityPanel({ isOpen, onClose, city, gameState, currentPlayer }: CityPanelProps) {
@@ -138,7 +138,7 @@ const CityOverviewTab = React.memo(({ city, gameState }: {
 const CityStructuresTab = React.memo(({ city, cityValidation, currentPlayer }: {
   city: City;
   cityValidation: CityValidation;
-  currentPlayer: Player;
+  currentPlayer: PlayerState;
 }) => {
   const availableStructures = cityValidation.getAvailableStructures();
   
@@ -163,7 +163,7 @@ const CityStructuresTab = React.memo(({ city, cityValidation, currentPlayer }: {
 const CityMilitaryTab = React.memo(({ city, cityValidation, currentPlayer }: {
   city: City;
   cityValidation: CityValidation;
-  currentPlayer: Player;
+  currentPlayer: PlayerState;
 }) => (
   <div className="space-y-4">
     <h3 className="font-cinzel font-semibold text-amber-200">Military Units</h3>
@@ -193,7 +193,7 @@ const StructureCard = React.memo(({ structureId, canAfford, hasPrerequisites, cu
   structureId: string;
   canAfford: boolean;
   hasPrerequisites: boolean;
-  currentPlayer: Player;
+  currentPlayer: PlayerState;
 }) => {
   // Structure definitions lookup (simplified for demo)
   const structureData = {

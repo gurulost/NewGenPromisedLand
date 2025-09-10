@@ -7,15 +7,15 @@ import { PanelHeader } from '../primitives/PanelHeader';
 import { GlowingButton } from '../primitives/GlowingButton';
 import { ResourceDeltaBadge } from '../ui/WorldElementPanel';
 
-import { GameState, Player } from '../../../../shared/types/game';
+import { GameState, PlayerState } from '@shared/types/game';
 import { getTechValidation } from '../../selectors/tech';
-import { TECHNOLOGIES } from '../../../../shared/data/technologies';
+import { TECHNOLOGIES } from '@shared/data/technologies';
 
 interface TechPanelProps {
   isOpen: boolean;
   onClose: () => void;
   gameState: GameState;
-  currentPlayer: Player;
+  currentPlayer: PlayerState;
   onResearchTech: (techId: string) => void;
 }
 
@@ -117,7 +117,7 @@ export function TechPanel({ isOpen, onClose, gameState, currentPlayer, onResearc
 
 const TechTree = React.memo(({ technologies, currentPlayer, techValidation, onSelectTech, selectedTech }: {
   technologies: any;
-  currentPlayer: Player;
+  currentPlayer: PlayerState;
   techValidation: any;
   onSelectTech: (techId: string) => void;
   selectedTech: string | null;
@@ -187,7 +187,7 @@ const TechNode = React.memo(({ techId, tech, isResearched, canResearch, isSelect
 
 const TechDetailsPanel = React.memo(({ techId, currentPlayer, techValidation, onResearch, onClose }: {
   techId: string;
-  currentPlayer: Player;
+  currentPlayer: PlayerState;
   techValidation: any;
   onResearch: (techId: string) => void;
   onClose: () => void;
@@ -215,24 +215,26 @@ const TechDetailsPanel = React.memo(({ techId, currentPlayer, techValidation, on
         {tech.description}
       </p>
       
-      {tech.scriptureReference && (
+      {tech.description && (
         <div className="bg-blue-900/20 rounded-lg p-3 border border-blue-500/20">
           <p className="text-xs text-blue-200 italic">
-            "{tech.scriptureReference}"
+            Additional details about this technology...
           </p>
         </div>
       )}
       
-      {tech.unlocks && tech.unlocks.length > 0 && (
+      {tech.unlocks && Object.values(tech.unlocks).some(arr => arr && arr.length > 0) && (
         <div>
           <h4 className="font-cinzel font-semibold text-amber-200 mb-2">Unlocks:</h4>
           <ul className="space-y-1">
-            {tech.unlocks.map((unlock: string, index: number) => (
-              <li key={index} className="text-sm text-amber-300/70 flex items-center gap-2">
-                <CheckCircle className="w-3 h-3 text-green-400" />
-                {unlock}
-              </li>
-            ))}
+            {Object.entries(tech.unlocks).map(([category, items]) => 
+              items && items.length > 0 ? items.map((item: string, index: number) => (
+                <li key={`${category}-${index}`} className="text-sm text-amber-300/70 flex items-center gap-2">
+                  <CheckCircle className="w-3 h-3 text-green-400" />
+                  {item} ({category})
+                </li>
+              )) : null
+            ).flat().filter(Boolean)}
           </ul>
         </div>
       )}
