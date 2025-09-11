@@ -20,6 +20,8 @@ interface LocalGameStore {
     name: string;
     factionId: string;
     turnOrder: number;
+    isAI?: boolean;
+    aiDifficulty?: 'easy' | 'normal' | 'hard';
   }>, mapSize?: MapSize) => void;
   endTurn: (playerId: string) => void;
   moveUnit: (unitId: string, targetCoordinate: any) => void;
@@ -52,11 +54,15 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       id: setup.id,
       name: setup.name,
       factionId: setup.factionId,
+      isAI: setup.isAI || false,
+      aiDifficulty: setup.aiDifficulty || 'normal',
       stats: {
         faith: 50,
         pride: 30,
         internalDissent: 10,
       },
+      modifiers: [],
+      constructionQueue: [],
       visibilityMask: [],
       exploredTiles: [],
       isEliminated: false,

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useKeyboardControls } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
+import { useAITurn } from "../../hooks/useAITurn";
 import { getFaction } from "@shared/data/factions";
 import { PlayerHUD } from "../hud/PlayerHUD";
 import SelectedUnitPanel from "../ui/SelectedUnitPanel";
@@ -25,6 +26,9 @@ import type { Unit } from "@shared/types/unit";
 export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
   const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates } = useGameState();
+  
+  // Initialize AI turn handling
+  useAITurn();
   const [subscribeKeys] = useKeyboardControls();
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);

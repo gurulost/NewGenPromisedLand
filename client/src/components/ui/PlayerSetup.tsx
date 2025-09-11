@@ -17,13 +17,15 @@ interface PlayerSetupData {
   id: string;
   name: string;
   factionId: FactionId | null;
+  isAI: boolean;
+  aiDifficulty: 'easy' | 'normal' | 'hard';
 }
 
 export default function PlayerSetup() {
   const { setGamePhase, startLocalGame } = useLocalGame();
   const [players, setPlayers] = useState<PlayerSetupData[]>([
-    { id: '1', name: 'Player 1', factionId: null },
-    { id: '2', name: 'Player 2', factionId: null },
+    { id: '1', name: 'Player 1', factionId: null, isAI: false, aiDifficulty: 'normal' },
+    { id: '2', name: 'AI Player', factionId: null, isAI: true, aiDifficulty: 'normal' },
   ]);
   const [selectedMapSize, setSelectedMapSize] = useState<MapSize>('normal');
 
@@ -49,7 +51,9 @@ export default function PlayerSetup() {
       setPlayers([...players, {
         id: (players.length + 1).toString(),
         name: `Player ${players.length + 1}`,
-        factionId: null
+        factionId: null,
+        isAI: false,
+        aiDifficulty: 'normal'
       }]);
     }
   };
@@ -76,7 +80,9 @@ export default function PlayerSetup() {
         id: p.id,
         name: p.name,
         factionId: p.factionId!,
-        turnOrder: index
+        turnOrder: index,
+        isAI: p.isAI,
+        aiDifficulty: p.aiDifficulty
       })), selectedMapSize);
     }
   };
@@ -157,7 +163,6 @@ export default function PlayerSetup() {
                           variant="destructive"
                           size="sm"
                           onClick={() => removePlayer(player.id)}
-                          icon={<X />}
                         />
                       )}
                     </div>
@@ -169,7 +174,6 @@ export default function PlayerSetup() {
                 <GlowingButton
                   variant="secondary"
                   onClick={addPlayer}
-                  icon={<Plus />}
                   className="w-full"
                 >
                   Add Player (Max 6)
@@ -214,7 +218,6 @@ export default function PlayerSetup() {
                 <GlowingButton
                   variant="secondary"
                   onClick={() => setGamePhase('menu')}
-                  icon={<ArrowLeft />}
                   className="flex-1"
                 >
                   Back to Menu
@@ -223,7 +226,6 @@ export default function PlayerSetup() {
                 <GlowingButton
                   onClick={handleStartGame}
                   disabled={!canStart}
-                  icon={<Play />}
                   className="flex-1"
                 >
                   Start Game
