@@ -82,6 +82,8 @@ export const PlayerStateSchema = z.object({
   id: z.string(),
   name: z.string(),
   factionId: z.string(),
+  isAI: z.boolean().default(false), // Flag to differentiate AI vs human players
+  aiDifficulty: z.enum(['easy', 'normal', 'hard']).optional(), // AI difficulty level
   stars: z.number().default(10), // Currency for building/recruiting (starting stars)
   stats: GameStatsSchema,
   modifiers: z.array(z.any()).default([]),

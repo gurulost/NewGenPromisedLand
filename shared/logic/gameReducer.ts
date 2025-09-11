@@ -12,6 +12,7 @@ import { executeUnitAction } from "./unitActions";
 import { executeAbility } from "./abilitySystem";
 import { executeElementHarvest, executeElementBuild } from "./worldElementActions";
 import { HexCoordinate } from "../types/coordinates";
+import { AITurnManager } from "../ai/aiTurnManager";
 
 // Tech Research Handler
 function handleResearchTech(
