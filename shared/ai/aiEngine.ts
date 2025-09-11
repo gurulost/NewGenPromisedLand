@@ -6,6 +6,9 @@ import { getUnitDefinition } from '../data/units';
 import { TECHNOLOGIES } from '../data/technologies';
 import { GAME_RULES } from '../data/gameRules';
 import { getFaction } from '../data/factions';
+import { TacticalEngine, TacticalTarget } from './aiTacticalEngine';
+import { FactionPersonalityEngine } from './aiFactionPersonality';
+import { SeededRNG, aiDebugOverlay } from './aiFoundation';
 
 export type AIDifficulty = 'easy' | 'normal' | 'hard';
 
@@ -29,34 +32,64 @@ export class AIEngine {
   private difficulty: AIDifficulty;
   private gameState: GameState;
   private aiPlayer: PlayerState;
+  private tacticalEngine: TacticalEngine;
+  private personalityEngine: FactionPersonalityEngine;
+  private rng: SeededRNG;
 
   constructor(gameState: GameState, aiPlayer: PlayerState) {
     this.gameState = gameState;
     this.aiPlayer = aiPlayer;
     this.difficulty = aiPlayer.aiDifficulty || 'normal';
+    
+    // Initialize advanced AI systems
+    const seed = this.generateSeed();
+    this.tacticalEngine = new TacticalEngine(gameState, aiPlayer, seed);
+    this.personalityEngine = new FactionPersonalityEngine(aiPlayer, seed);
+    this.rng = new SeededRNG(seed);
   }
 
   /**
-   * Main AI decision-making function
+   * Enhanced AI decision-making with tactical engine and personality
    * Returns the best action for the AI to take this turn
    */
   public makeDecision(): AIDecision[] {
+    const startTime = performance.now();
     const decisions: AIDecision[] = [];
     
-    // 1. Evaluate combat opportunities (highest priority)
-    decisions.push(...this.evaluateCombatOptions());
+    // Update AI mood based on current game state
+    this.updatePersonalityMood();
     
-    // 2. Evaluate unit movement for exploration/positioning
-    decisions.push(...this.evaluateMovementOptions());
+    // Generate influence map for tactical awareness
+    const influenceMap = this.tacticalEngine.generateInfluenceMap();
     
-    // 3. Evaluate technology research
-    decisions.push(...this.evaluateTechResearch());
+    // 1. Enhanced combat evaluation with tactical engine
+    decisions.push(...this.evaluateAdvancedCombat());
     
-    // 4. Evaluate city building and improvements
-    decisions.push(...this.evaluateCityBuilding());
+    // 2. Intelligent movement with threat assessment
+    decisions.push(...this.evaluateIntelligentMovement());
     
-    // 5. Sort by priority and return top decisions
-    return decisions.sort((a, b) => b.priority - a.priority).slice(0, 5);
+    // 3. Personality-driven technology research
+    decisions.push(...this.evaluatePersonalityTechResearch());
+    
+    // 4. Faction-specific city building
+    decisions.push(...this.evaluateFactionCityBuilding());
+    
+    // 5. Advanced unit abilities usage
+    decisions.push(...this.evaluateAbilityUsage());
+    
+    // Apply personality modifiers to decisions
+    this.applyPersonalityModifiers(decisions);
+    
+    // Sort by priority and limit actions based on difficulty
+    const maxActions = this.getMaxActionsPerTurn();
+    const finalDecisions = decisions
+      .sort((a, b) => b.priority - a.priority)
+      .slice(0, maxActions);
+    
+    // Update debug overlay
+    this.updateDebugInfo(influenceMap, decisions, performance.now() - startTime);
+    
+    return finalDecisions;
   }
 
   /**
@@ -397,6 +430,422 @@ export class AIEngine {
     
     const totalStrength = enemyStrength + myStrength;
     return totalStrength > 0 ? enemyStrength / totalStrength : 0;
+  }
+
+  // Enhanced AI methods using tactical engine and personality
+
+  /**
+   * Enhanced combat evaluation using tactical engine
+   */
+  private evaluateAdvancedCombat(): AIDecision[] {
+    const decisions: AIDecision[] = [];
+    const myUnits = this.getMyUnits();
+
+    for (const unit of myUnits) {
+      if (unit.remainingMovement <= 0) continue;
+
+      // Get tactical targets from advanced engine
+      const targets = this.tacticalEngine.findTacticalTargets(unit);
+      
+      for (const target of targets.slice(0, 3)) { // Top 3 targets per unit
+        if (target.targetType === 'unit' && target.unitId) {
+          // Check if we should attack based on personality
+          const advantage = this.calculateCombatAdvantage(unit, target);
+          const riskLevel = this.assessCombatRisk(unit, target);
+          
+          if (this.personalityEngine.shouldAttack(advantage, riskLevel)) {
+            decisions.push({
+              type: 'ATTACK_UNIT',
+              unitId: unit.id,
+              targetId: target.unitId,
+              priority: target.priority * this.personalityEngine.getDecisionModifier('attack'),
+            });
+          }
+        }
+      }
+
+      // Check for retreat if unit is damaged
+      if (unit.hp < unit.maxHp * 0.6) {
+        const advantage = this.calculateUnitAdvantage(unit);
+        if (this.personalityEngine.shouldRetreat(unit.hp / unit.maxHp, advantage)) {
+          const retreatPositions = this.tacticalEngine.findRetreatPositions(unit);
+          
+          if (retreatPositions.length > 0) {
+            decisions.push({
+              type: 'MOVE_UNIT',
+              unitId: unit.id,
+              targetCoordinate: retreatPositions[0],
+              priority: 80 + this.personalityEngine.getDecisionModifier('retreat') * 20,
+            });
+          }
+        }
+      }
+    }
+
+    return decisions;
+  }
+
+  /**
+   * Intelligent movement with escort logic and threat assessment
+   */
+  private evaluateIntelligentMovement(): AIDecision[] {
+    const decisions: AIDecision[] = [];
+    const myUnits = this.getMyUnits();
+
+    for (const unit of myUnits) {
+      if (unit.remainingMovement <= 0) continue;
+
+      const unitDef = getUnitDefinition(unit.type);
+      
+      // Escort logic for vulnerable units  
+      if (unit.type === 'worker') {
+        const escortPriority = this.tacticalEngine.calculateEscortPriority(unit);
+        
+        if (escortPriority > 0.5) {
+          // Find nearby military units to escort
+          const escorts = this.findNearbyMilitaryUnits(unit.coordinate);
+          if (escorts.length === 0) {
+            // Move to safety
+            const retreatPositions = this.tacticalEngine.findRetreatPositions(unit);
+            if (retreatPositions.length > 0) {
+              decisions.push({
+                type: 'MOVE_UNIT',
+                unitId: unit.id,
+                targetCoordinate: retreatPositions[0],
+                priority: 70,
+              });
+            }
+          }
+        }
+      }
+
+      // Formation bonuses
+      const formationBonus = this.tacticalEngine.calculateFormationBonus(unit);
+      if (formationBonus < 0.1) {
+        // Try to move closer to friendly units
+        const friendlyUnits = this.getMyUnits().filter(u => u.id !== unit.id);
+        if (friendlyUnits.length > 0) {
+          const nearestFriendly = this.findNearestUnit(unit.coordinate, friendlyUnits);
+          if (nearestFriendly && hexDistance(unit.coordinate, nearestFriendly.coordinate) > 2) {
+            const moveTarget = this.findPositionNear(nearestFriendly.coordinate, 2);
+            if (moveTarget) {
+              decisions.push({
+                type: 'MOVE_UNIT',
+                unitId: unit.id,
+                targetCoordinate: moveTarget,
+                priority: 40,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return decisions;
+  }
+
+  /**
+   * Personality-driven technology research
+   */
+  private evaluatePersonalityTechResearch(): AIDecision[] {
+    const decisions: AIDecision[] = [];
+    
+    if (this.aiPlayer.currentResearch) {
+      return decisions; // Already researching
+    }
+
+    const availableTechs = this.getAvailableTechnologies();
+    
+    for (const tech of availableTechs) {
+      let priority = this.calculateTechValue(tech);
+      
+      // Apply personality modifiers
+      if (tech.category === 'faith' || tech.category === 'religious') {
+        priority *= (1 + this.personalityEngine.getDecisionModifier('tech_faith'));
+      }
+      
+      if (tech.category === 'military' || tech.category === 'warfare') {
+        priority *= (1 + this.personalityEngine.getDecisionModifier('tech_military'));
+      }
+      
+      // Faction-specific tech priorities
+      const factionBonus = this.personalityEngine.getPersonality().techPriorities.includes(tech.id) ? 1.5 : 1.0;
+      priority *= factionBonus;
+      
+      if (priority > 30 && this.aiPlayer.stars >= tech.cost) {
+        decisions.push({
+          type: 'RESEARCH_TECH',
+          techId: tech.id,
+          priority: priority,
+        });
+      }
+    }
+
+    return decisions;
+  }
+
+  /**
+   * Faction-specific city building
+   */
+  private evaluateFactionCityBuilding(): AIDecision[] {
+    const decisions: AIDecision[] = [];
+    const myCities = this.getMyCities();
+
+    for (const city of myCities) {
+      if (city.currentProduction) continue; // Already building
+
+      const availableBuildings = this.getAvailableBuildings(city);
+      
+      for (const building of availableBuildings) {
+        let priority = this.calculateBuildingValue(building, city);
+        
+        // Apply personality-based building preferences
+        const personalityBonus = this.personalityEngine.getBuildingPriority(building.type);
+        priority *= (1 + personalityBonus);
+        
+        if (priority > 25 && this.canAffordBuilding(building)) {
+          decisions.push({
+            type: 'BUILD_STRUCTURE',
+            buildingType: building.type,
+            cityId: city.id,
+            priority: priority,
+          });
+        }
+      }
+    }
+
+    return decisions;
+  }
+
+  /**
+   * Enhanced ability usage
+   */
+  private evaluateAbilityUsage(): AIDecision[] {
+    const decisions: AIDecision[] = [];
+    const myUnits = this.getMyUnits();
+
+    for (const unit of myUnits) {
+      const availableAbilities = this.getAvailableAbilities(unit);
+      
+      for (const ability of availableAbilities) {
+        const priority = this.calculateAbilityPriority(unit, ability);
+        
+        if (priority > 40) {
+          decisions.push({
+            type: 'USE_ABILITY',
+            unitId: unit.id,
+            abilityId: ability.id,
+            priority: priority,
+          });
+        }
+      }
+    }
+
+    return decisions;
+  }
+
+  /**
+   * Apply personality modifiers to all decisions
+   */
+  private applyPersonalityModifiers(decisions: AIDecision[]): void {
+    for (const decision of decisions) {
+      const modifier = this.getPersonalityModifier(decision.type);
+      decision.priority *= modifier;
+    }
+  }
+
+  /**
+   * Update personality mood based on game state
+   */
+  private updatePersonalityMood(): void {
+    // Calculate recent events for mood update
+    const recentVictories = 0; // TODO: Track from game history
+    const recentDefeats = 0;
+    const territoryLost = 0;
+    const faithGained = this.aiPlayer.stats.faith;
+    const enemyThreat = this.assessEnemyThreat();
+
+    this.personalityEngine.updateMood({
+      recentVictories,
+      recentDefeats,
+      territoryLost,
+      faithGained,
+      enemyThreat
+    });
+  }
+
+  /**
+   * Update debug information for visualization
+   */
+  private updateDebugInfo(influenceMap: any, decisions: AIDecision[], decisionTime: number): void {
+    if (aiDebugOverlay.isEnabled()) {
+      const personality = this.personalityEngine.getPersonality();
+      
+      aiDebugOverlay.updateDebugInfo(this.aiPlayer.id, {
+        influenceMap: influenceMap.influences,
+        threatAssessment: new Map(),
+        strategicGoals: [personality.preferredVictory],
+        currentPlan: this.getStrategicPlan(),
+        resourcePriorities: {
+          stars: this.getResourcePriority('stars'),
+          faith: this.getResourcePriority('faith'),
+          pride: this.getResourcePriority('pride')
+        },
+        factionMood: {
+          aggression: personality.aggression,
+          piety: personality.piety,
+          opportunism: personality.opportunism,
+          riskTolerance: personality.riskTolerance
+        }
+      });
+    }
+  }
+
+  // Helper methods
+
+  private generateSeed(): number {
+    return Date.now() + parseInt(this.aiPlayer.id) * 1000;
+  }
+
+  private getMaxActionsPerTurn(): number {
+    switch (this.difficulty) {
+      case 'easy': return 2;
+      case 'normal': return 3;
+      case 'hard': return 4;
+      default: return 3;
+    }
+  }
+
+  private calculateCombatAdvantage(attacker: Unit, target: TacticalTarget): number {
+    // Simplified advantage calculation
+    return this.rng.nextFloat(0.3, 0.8);
+  }
+
+  private assessCombatRisk(attacker: Unit, target: TacticalTarget): number {
+    // Simplified risk assessment
+    return this.rng.nextFloat(0.2, 0.7);
+  }
+
+  private calculateUnitAdvantage(unit: Unit): number {
+    // Calculate local military advantage
+    return this.rng.nextFloat(-0.5, 0.5);
+  }
+
+  private findNearbyMilitaryUnits(coord: HexCoordinate): Unit[] {
+    return this.getMyUnits().filter(unit => {
+      const unitDef = getUnitDefinition(unit.type);
+      return unitDef.baseStats.attack > 0 && hexDistance(coord, unit.coordinate) <= 3;
+    });
+  }
+
+  private findNearestUnit(coord: HexCoordinate, units: Unit[]): Unit | null {
+    if (units.length === 0) return null;
+    
+    return units.reduce((nearest, unit) => {
+      const distance = hexDistance(coord, unit.coordinate);
+      const nearestDistance = hexDistance(coord, nearest.coordinate);
+      return distance < nearestDistance ? unit : nearest;
+    });
+  }
+
+  private findPositionNear(coord: HexCoordinate, distance: number): HexCoordinate | null {
+    // Find valid position near target coordinate
+    const neighbors = hexNeighbors(coord);
+    return neighbors.find(pos => this.isValidMovePosition(pos)) || null;
+  }
+
+  private isValidMovePosition(coord: HexCoordinate): boolean {
+    const tile = this.gameState.map.tiles.find(t => 
+      t.coordinate.q === coord.q && t.coordinate.r === coord.r
+    );
+    return tile ? tile.terrain !== 'water' : false;
+  }
+
+  private getPersonalityModifier(actionType: string): number {
+    return this.personalityEngine.getDecisionModifier(actionType);
+  }
+
+  private getStrategicPlan(): string {
+    const personality = this.personalityEngine.getPersonality();
+    return `Pursuing ${personality.preferredVictory} victory`;
+  }
+
+  private getResourcePriority(resource: string): number {
+    const personality = this.personalityEngine.getPersonality();
+    
+    switch (resource) {
+      case 'stars': return 70;
+      case 'faith': return Math.round(personality.piety * 100);
+      case 'pride': return Math.round((1 - personality.piety) * 100);
+      default: return 50;
+    }
+  }
+
+  private calculateAbilityPriority(unit: Unit, ability: any): number {
+    // Simplified ability priority calculation
+    return this.rng.nextFloat(20, 60);
+  }
+
+  private getAvailableAbilities(unit: Unit): any[] {
+    // TODO: Implement proper ability system
+    return [];
+  }
+
+  private canAffordBuilding(building: any): boolean {
+    return this.aiPlayer.stars >= (building.cost || 50);
+  }
+
+  private getAvailableBuildings(city: any): any[] {
+    // TODO: Implement proper building system
+    return [];
+  }
+
+  private getAvailableTechnologies(): any[] {
+    return Object.keys(TECHNOLOGIES).filter(techId => {
+      const tech = TECHNOLOGIES[techId];
+      const playerTechs = this.aiPlayer.researchedTechs || [];
+      return !playerTechs.includes(techId) &&
+             tech.prerequisites.every(prereq => playerTechs.includes(prereq));
+    }).map(techId => ({ ...TECHNOLOGIES[techId], id: techId }));
+  }
+
+  private calculateTechValue(tech: any): number {
+    // Base tech value calculation
+    let value = 50;
+    
+    // Bonus for faction alignment
+    const personality = this.personalityEngine.getPersonality();
+    if (personality.techPriorities.includes(tech.id)) {
+      value += 30;
+    }
+    
+    // Bonus for urgent needs (military vs economic)
+    const enemyThreat = this.assessEnemyThreat();
+    if (enemyThreat > 0.6 && tech.category === 'military') {
+      value += 25;
+    } else if (enemyThreat < 0.4 && tech.category === 'economic') {
+      value += 20;
+    }
+    
+    return value;
+  }
+
+  private calculateBuildingValue(building: any, city: any): number {
+    // Base building value calculation
+    let value = 40;
+    
+    // Bonus for faction preferences
+    const personality = this.personalityEngine.getPersonality();
+    if (personality.buildingPriorities.includes(building.type)) {
+      value += 25;
+    }
+    
+    // Bonus based on city needs
+    if (city.population > 5 && building.type === 'granary') {
+      value += 20;
+    }
+    
+    return value;
   }
 }
 
