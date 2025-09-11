@@ -9,6 +9,8 @@ import { GAME_RULES, GameRuleHelpers } from "@shared/data/gameRules";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { InfoTooltip, StarProductionTooltip, FaithSystemTooltip, PrideSystemTooltip, TechnologyTooltip } from "./TooltipSystem";
+import { AudioControls } from "./AudioControls";
+import { useAudioIntegration } from "../../hooks/useAudioIntegration";
 
 interface PlayerHUDProps {
   player: PlayerState;
@@ -26,6 +28,9 @@ export default function PlayerHUD({
   onEndTurn 
 }: PlayerHUDProps) {
   const { gameState } = useLocalGame();
+  
+  // Initialize audio system on component mount
+  useAudioIntegration();
 
   // Memoize expensive stat calculations including star production
   const playerStats = useMemo(() => {
@@ -210,7 +215,14 @@ export default function PlayerHUD({
                   <Book className="w-3 h-3 mr-1 flex-shrink-0" />
                   <span>Sacred Knowledge</span>
                 </Button>
-                <InfoTooltip content={<TechnologyTooltip />} />
+                <InfoTooltip content={
+                  <div className="space-y-2">
+                    <div className="font-semibold text-blue-300">Sacred Knowledge</div>
+                    <div className="text-xs text-slate-300">
+                      Access the technology tree to research divine abilities, spiritual practices, and sacred innovations that will guide your civilization.
+                    </div>
+                  </div>
+                } />
               </div>
               
               <Button
@@ -235,6 +247,11 @@ export default function PlayerHUD({
           </div>
         </CardContent>
       </Card>
+      
+      {/* Audio Controls - Compact version */}
+      <div className="mt-2">
+        <AudioControls compact={true} />
+      </div>
     </div>
   );
 }
