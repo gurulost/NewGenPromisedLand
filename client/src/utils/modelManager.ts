@@ -5,25 +5,30 @@ import { useGLTF } from '@react-three/drei';
 
 // Define all model paths in one place for easy management
 export const MODEL_PATHS = {
-  // Upgraded unit models from attached assets
+  // Enhanced unit models with faction-specific variants
   units: {
-    warrior: '/models/warrior.glb', // Upgraded warrior model
-    worker: '/models/settler.glb', // Upgraded settler model for worker units
-    scout: '/models/scout.glb',
-
-    // Use standard models for all unit types for consistency
-    spearman: '/models/warrior.glb', // Use warrior model
-    commander: '/models/warrior.glb', // Use warrior model  
-    stripling_warrior: '/models/stripling_warrior.glb', // Upgraded stripling warrior model
-    guard: '/models/warrior.glb', // Use warrior model
-    peacekeeping_guard: '/models/warrior.glb', // Use warrior model
-    ancient_giant: '/models/warrior.glb', // Use warrior model
-    wilderness_hunter: '/models/scout.glb', // Use scout model
-    royal_envoy: '/models/scout.glb', // Use scout model
-    missionary: '/models/missionary.glb', // Upgraded missionary model
-    boat: '/models/boat.glb', // Upgraded boat model
-    catapult: '/models/warrior.glb', // Use warrior model
-    cavalry: '/models/cavalry.glb', // Upgraded cavalry model (war elephant)
+    // Core civilization units - foundational types
+    warrior: '/models/warrior.glb',          // Standard melee fighter
+    worker: '/models/settler.glb',           // Civilian builder
+    scout: '/models/scout.glb',              // Reconnaissance unit
+    spearman: '/models/warrior.glb',         // Spear formation fighter
+    commander: '/models/warrior.glb',        // Military leader
+    guard: '/models/warrior.glb',            // Defensive unit
+    
+    // Faction-specific elite units with unique models
+    stripling_warrior: '/models/stripling_warrior.glb', // Nephite: Faithful young warriors (2,000 sons)
+    missionary: '/models/missionary.glb',               // Nephite: Religious conversion specialists
+    cavalry: '/models/cavalry.glb',                     // Mulekite: War elephants/mounted cavalry
+    
+    // Cultural variant units using enhanced fallbacks
+    peacekeeping_guard: '/models/warrior.glb',     // Anti-Nephi-Lehi: Pacifist defenders
+    ancient_giant: '/models/warrior.glb',           // Jaredite: Powerful giant warriors
+    wilderness_hunter: '/models/scout.glb',         // Lamanite: Expert wilderness trackers
+    royal_envoy: '/models/missionary.glb',          // Zoramite: Diplomatic representatives
+    
+    // Naval and siege specialists
+    boat: '/models/boat.glb',                       // Naval transport and combat
+    catapult: '/models/warrior.glb',                // Siege warfare engine
   },
   // Village models
   village: '/models/village.glb', // Upgraded village model
@@ -70,9 +75,131 @@ export const preloadAllModels = () => {
   });
 };
 
-// Get model path for a specific unit type
-export const getUnitModelPath = (unitType: string): string => {
-  return MODEL_PATHS.units[unitType as keyof typeof MODEL_PATHS.units] || MODEL_PATHS.units.warrior;
+// Enhanced unit model path resolver with intelligent fallbacks
+export const getUnitModelPath = (unitType: string, factionId?: string): string => {
+  // First, try to find faction-specific variant if factionId is provided
+  if (factionId) {
+    const factionSpecificKey = `${unitType}_${factionId.toLowerCase()}` as keyof typeof MODEL_PATHS.units;
+    const factionSpecificPath = MODEL_PATHS.units[factionSpecificKey];
+    if (factionSpecificPath) {
+      return factionSpecificPath;
+    }
+    
+    // Try alternative faction naming conventions
+    const shortFactionId = getFactionShortName(factionId);
+    if (shortFactionId) {
+      const altFactionKey = `${unitType}_${shortFactionId}` as keyof typeof MODEL_PATHS.units;
+      const altFactionPath = MODEL_PATHS.units[altFactionKey];
+      if (altFactionPath) {
+        return altFactionPath;
+      }
+    }
+  }
+  
+  // Get base model path
+  const basePath = MODEL_PATHS.units[unitType as keyof typeof MODEL_PATHS.units];
+  if (basePath) {
+    return basePath;
+  }
+  
+  // Intelligent fallbacks based on unit role and faction
+  const fallbackPath = getUnitFallbackPath(unitType, factionId);
+  return fallbackPath;
+};
+
+// Helper function to get faction short names for model variants
+const getFactionShortName = (factionId: string): string | null => {
+  switch (factionId.toUpperCase()) {
+    case 'NEPHITES':
+      return 'nephite';
+    case 'LAMANITES':
+      return 'lamanite';
+    case 'MULEKITES':
+      return 'mulekite';
+    case 'JAREDITES':
+      return 'jaredite';
+    case 'ANTI_NEPHI_LEHI':
+      return 'anl';
+    case 'ZORAMITES':
+      return 'zoramite';
+    default:
+      return null;
+  }
+};
+
+// Enhanced fallback system with faction awareness
+const getUnitFallbackPath = (unitType: string, factionId?: string): string => {
+  // Faction-specific intelligent fallbacks
+  if (factionId) {
+    switch (factionId.toUpperCase()) {
+      case 'NEPHITES':
+        // Nephites prefer religious/elite units
+        if (['commander', 'guard'].includes(unitType)) {
+          return MODEL_PATHS.units.stripling_warrior || MODEL_PATHS.units.warrior;
+        }
+        if (['priest', 'elder'].includes(unitType)) {
+          return MODEL_PATHS.units.missionary;
+        }
+        break;
+        
+      case 'LAMANITES':
+        // Lamanites prefer wilderness/hunting units
+        if (['tracker', 'ranger'].includes(unitType)) {
+          return MODEL_PATHS.units.scout;
+        }
+        break;
+        
+      case 'MULEKITES':
+        // Mulekites prefer cavalry and mounted units
+        if (['mounted_warrior', 'war_elephant'].includes(unitType)) {
+          return MODEL_PATHS.units.cavalry;
+        }
+        break;
+        
+      case 'JAREDITES':
+        // Jaredites prefer ancient/powerful units
+        if (['giant_warrior', 'ancient_commander'].includes(unitType)) {
+          return MODEL_PATHS.units.warrior; // Will get enhanced scaling for giants
+        }
+        break;
+    }
+  }
+  
+  // Standard intelligent fallbacks based on unit role
+  switch (unitType) {
+    // Military units fallback to warrior
+    case 'spearman':
+    case 'guard':
+    case 'commander':
+    case 'ancient_giant':
+    case 'peacekeeping_guard':
+      return MODEL_PATHS.units.warrior;
+      
+    // Exploration units fallback to scout
+    case 'wilderness_hunter':
+    case 'tracker':
+    case 'ranger':
+      return MODEL_PATHS.units.scout;
+      
+    // Diplomatic/religious units fallback to missionary
+    case 'royal_envoy':
+    case 'priest':
+    case 'elder':
+      return MODEL_PATHS.units.missionary;
+      
+    // Naval units fallback to boat
+    case 'naval_unit':
+      return MODEL_PATHS.units.boat;
+      
+    // Siege units fallback to warrior (representing crew)
+    case 'catapult':
+    case 'siege_engine':
+      return MODEL_PATHS.units.warrior;
+      
+    // Default fallback
+    default:
+      return MODEL_PATHS.units.warrior;
+  }
 };
 
 // Get model path for village
@@ -118,6 +245,63 @@ export const getResourceModelPath = (resourceType: string): string | null => {
     default:
       return null;
   }
+};
+
+// Enhanced model scaling and material variants
+export const getUnitModelScale = (unitType: string): number => {
+  switch (unitType) {
+    // Large impressive units
+    case 'ancient_giant':
+      return 0.85; // Jaredite giants are notably larger
+    case 'cavalry':
+      return 0.8;  // War elephants are imposing
+    case 'commander':
+      return 0.75; // Leaders stand out
+      
+    // Elite specialized units
+    case 'stripling_warrior':
+      return 0.7;  // Young but well-trained
+    case 'missionary':
+    case 'royal_envoy':
+      return 0.68; // Diplomatic units are notable
+      
+    // Standard military units
+    case 'warrior':
+    case 'spearman':
+    case 'guard':
+    case 'peacekeeping_guard':
+      return 0.65; // Standard military scale
+      
+    // Agile reconnaissance units
+    case 'scout':
+    case 'wilderness_hunter':
+      return 0.6;  // Faster, more agile
+      
+    // Civilian units
+    case 'worker':
+      return 0.55; // Smaller civilian scale
+      
+    // Naval units (boat scale handled separately)
+    case 'boat':
+      return 1.0;  // Full scale for naval vessels
+      
+    default:
+      return 0.65; // Standard fallback
+  }
+};
+
+// Get unit material enhancements based on faction
+export const getUnitMaterialEnhancements = (unitType: string, factionId?: string) => {
+  return {
+    // Faction-specific color tinting
+    colorMultiplier: factionId === 'NEPHITES' ? 1.1 : 
+                     factionId === 'LAMANITES' ? 0.95 : 1.0,
+    // Elite unit glow effects
+    emissiveIntensity: ['stripling_warrior', 'ancient_giant', 'commander'].includes(unitType) ? 0.1 : 0.05,
+    // Unit-specific material properties
+    metallic: ['commander', 'cavalry', 'ancient_giant'].includes(unitType) ? 0.3 : 0.1,
+    roughness: unitType === 'scout' ? 0.8 : 0.6
+  };
 };
 
 // Initialize model preloading

@@ -16,11 +16,11 @@ export function AIPlayerIndicator({ player, isCurrentPlayer = false }: AIPlayerI
   const getDifficultyIcon = () => {
     switch (player.aiDifficulty) {
       case 'easy':
-        return <Zap className="w-3 h-3" />;
+        return <Zap className="w-3 h-3 animate-pulse" />;
       case 'normal':
         return <Brain className="w-3 h-3" />;
       case 'hard':
-        return <Target className="w-3 h-3" />;
+        return <Target className="w-3 h-3 text-red-500 animate-pulse" />;
       default:
         return <Bot className="w-3 h-3" />;
     }
@@ -29,13 +29,13 @@ export function AIPlayerIndicator({ player, isCurrentPlayer = false }: AIPlayerI
   const getDifficultyColor = () => {
     switch (player.aiDifficulty) {
       case 'easy':
-        return 'text-green-400 bg-green-500/20 border-green-500/30';
+        return 'text-green-400 bg-green-500/20 border-green-500/30 shadow-green-500/20 shadow-lg';
       case 'normal':
-        return 'text-blue-400 bg-blue-500/20 border-blue-500/30';
+        return 'text-blue-400 bg-blue-500/20 border-blue-500/30 shadow-blue-500/20 shadow-md';
       case 'hard':
-        return 'text-red-400 bg-red-500/20 border-red-500/30';
+        return 'text-red-400 bg-red-500/20 border-red-500/30 shadow-red-500/30 shadow-xl animate-pulse';
       default:
-        return 'text-amber-400 bg-amber-500/20 border-amber-500/30';
+        return 'text-amber-400 bg-amber-500/20 border-amber-500/30 shadow-amber-500/20 shadow-md';
     }
   };
 
@@ -44,12 +44,16 @@ export function AIPlayerIndicator({ player, isCurrentPlayer = false }: AIPlayerI
   };
 
   return (
-    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-medium ${getDifficultyColor()}`}>
+    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-medium transition-all duration-300 hover:scale-105 ${getDifficultyColor()}`}>
       <Bot className="w-3 h-3" />
       {getDifficultyIcon()}
-      <span>{getDifficultyText()}</span>
+      <span className="font-semibold">{getDifficultyText()}</span>
       {isCurrentPlayer && (
-        <div className="ml-1 w-1.5 h-1.5 bg-current rounded-full animate-pulse" />
+        <div className="ml-1 flex items-center gap-0.5">
+          <div className="w-1 h-1 bg-current rounded-full animate-bounce [animation-delay:-0.3s]" />
+          <div className="w-1 h-1 bg-current rounded-full animate-bounce [animation-delay:-0.15s]" />
+          <div className="w-1 h-1 bg-current rounded-full animate-bounce" />
+        </div>
       )}
     </div>
   );
