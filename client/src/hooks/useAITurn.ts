@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { useLocalGame } from '../lib/stores/useLocalGame';
 import { AITurnManager } from '@shared/ai/aiTurnManager';
+import { useToastContext } from '../components/ui/ToastProvider';
 
 /**
  * Hook to handle AI turns automatically
  */
 export function useAITurn() {
   const { gameState, dispatch } = useLocalGame();
+  const toast = useToastContext();
   const aiTurnManagerRef = useRef<AITurnManager | null>(null);
   const isExecutingRef = useRef(false);
 
@@ -22,12 +24,19 @@ export function useAITurn() {
         aiTurnManagerRef.current = new AITurnManager(gameState, dispatch);
       }
 
+      // Show AI turn progress feedback
+      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+      toast?.info('AI Turn Starting', `${currentPlayer.name} is thinking...`);
+
       // Execute AI turn with a small delay for visual feedback
       const executeAITurn = async () => {
         try {
+          toast?.info('AI Processing', `${currentPlayer.name} is making decisions and taking actions...`);
           await aiTurnManagerRef.current!.executeAIPlayerTurn();
+          toast?.success('AI Turn Complete', `${currentPlayer.name} has finished their turn`);
         } catch (error) {
           console.error('Error executing AI turn:', error);
+          toast?.error('AI Turn Failed', `${currentPlayer.name} encountered an error during their turn`);
         } finally {
           isExecutingRef.current = false;
         }

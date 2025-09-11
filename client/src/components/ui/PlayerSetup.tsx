@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 import { Input } from "./input";
 import { Label } from "./label";
-import { X, Plus, Users, Map, ArrowLeft, Play } from "lucide-react";
+import { X, Plus, Users, Map, ArrowLeft, Play, Loader2 } from "lucide-react";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { getAllFactions } from "@shared/data/factions";
 import { FactionId } from "@shared/types/faction";
@@ -12,6 +12,8 @@ import { ContentShell } from "../primitives/ContentShell";
 import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
 import { useHotkeys } from "../../hooks/useHotkeys";
+import { useToastContext } from "./ToastProvider";
+import { EnhancedButton } from "./EnhancedButton";
 
 interface PlayerSetupData {
   id: string;
@@ -23,11 +25,14 @@ interface PlayerSetupData {
 
 export default function PlayerSetup() {
   const { setGamePhase, startLocalGame } = useLocalGame();
+  const toast = useToastContext();
   const [players, setPlayers] = useState<PlayerSetupData[]>([
     { id: '1', name: 'Player 1', factionId: null, isAI: false, aiDifficulty: 'normal' },
     { id: '2', name: 'AI Player', factionId: null, isAI: true, aiDifficulty: 'normal' },
   ]);
   const [selectedMapSize, setSelectedMapSize] = useState<MapSize>('normal');
+  const [isStartingGame, setIsStartingGame] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
 
   const factions = getAllFactions();
   const usedFactions = players.map(p => p.factionId).filter(Boolean);
@@ -55,12 +60,19 @@ export default function PlayerSetup() {
         isAI: false,
         aiDifficulty: 'normal'
       }]);
+      toast?.success('Player Added', `Player ${players.length + 1} added to the game`);
+    } else {
+      toast?.warning('Maximum Players', 'Cannot add more than 6 players to a game');
     }
   };
 
   const removePlayer = (id: string) => {
     if (players.length > 2) {
+      const playerName = players.find(p => p.id === id)?.name || 'Player';
       setPlayers(players.filter(p => p.id !== id));
+      toast?.info('Player Removed', `${playerName} removed from the game`);
+    } else {
+      toast?.warning('Minimum Players', 'At least 2 players are required for a game');
     }
   };
 
@@ -74,8 +86,19 @@ export default function PlayerSetup() {
                    players.every(p => p.name.trim() && p.factionId) &&
                    new Set(players.map(p => p.factionId)).size === players.length;
 
-  const handleStartGame = () => {
-    if (canStart) {
+  const handleStartGame = async () => {
+    if (!canStart) {
+      toast?.error('Cannot Start Game', 'Please ensure all players have names and unique factions');
+      return;
+    }
+
+    setIsStartingGame(true);
+    toast?.info('Starting Game', 'Generating world and initializing players...');
+
+    try {
+      // Add a small delay to show the loading state
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
       startLocalGame(players.map((p, index) => ({
         id: p.id,
         name: p.name,
@@ -84,6 +107,19 @@ export default function PlayerSetup() {
         isAI: p.isAI,
         aiDifficulty: p.aiDifficulty
       })), selectedMapSize);
+      
+      setGameStarted(true);
+      toast?.success('Game Started!', `Welcome to Chronicles of the Promised Land with ${players.length} players`);
+      
+      // Reset states after a short delay
+      setTimeout(() => {
+        setIsStartingGame(false);
+        setGameStarted(false);
+      }, 2000);
+    } catch (error) {
+      setIsStartingGame(false);
+      toast?.error('Failed to Start Game', 'An error occurred while starting the game. Please try again.');
+      console.error('Game start error:', error);
     }
   };
 
@@ -163,7 +199,9 @@ export default function PlayerSetup() {
                           variant="destructive"
                           size="sm"
                           onClick={() => removePlayer(player.id)}
-                        />
+                        >
+                          <X className="w-4 h-4" />
+                        </GlowingButton>
                       )}
                     </div>
                   </motion.div>
@@ -223,13 +261,17 @@ export default function PlayerSetup() {
                   Back to Menu
                 </GlowingButton>
                 
-                <GlowingButton
+                <EnhancedButton
                   onClick={handleStartGame}
-                  disabled={!canStart}
+                  disabled={!canStart || isStartingGame}
+                  loading={isStartingGame}
+                  variant={gameStarted ? "success" : "primary"}
                   className="flex-1"
+                  icon={gameStarted ? undefined : (isStartingGame ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />)}
+                  glow
                 >
-                  Start Game
-                </GlowingButton>
+                  {isStartingGame ? "Starting Game..." : gameStarted ? "Game Started!" : "Start Game"}
+                </EnhancedButton>
               </div>
 
               {!canStart && (
