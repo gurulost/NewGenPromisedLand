@@ -594,7 +594,7 @@ export class AIEngine {
     for (const city of myCities) {
       if (city.currentProduction) continue; // Already building
 
-      const availableBuildings = this.getAvailableBuildings(city);
+      const availableBuildings = this.getAvailableBuildings(city.id);
       
       for (const building of availableBuildings) {
         let priority = this.calculateBuildingValue(building, city);
@@ -659,7 +659,8 @@ export class AIEngine {
    */
   private updatePersonalityMood(): void {
     // Calculate recent events for mood update
-    const recentVictories = 0; // TODO: Track from game history
+    // Track recent victories from game history (placeholder for future game history feature)
+    const recentVictories = 0; // TODO: Implement when GameState includes gameHistory and currentTurn
     const recentDefeats = 0;
     const territoryLost = 0;
     const faithGained = this.aiPlayer.stats.faith;
@@ -787,17 +788,51 @@ export class AIEngine {
   }
 
   private getAvailableAbilities(unit: Unit): any[] {
-    // TODO: Implement proper ability system
-    return [];
+    // Get unit abilities from definition
+    const unitDef = getUnitDefinition(unit.type);
+    const abilities = unitDef.abilities || [];
+    
+    // Filter abilities based on unit state and game conditions
+    return abilities.filter(ability => {
+      // Check if unit can use this ability (has movement, not on cooldown, etc.)
+      if (ability === 'heal' && unit.hp >= unit.maxHp) return false;
+      if (ability === 'build_village' && unit.type !== 'worker') return false;
+      if (ability === 'fortify' && unit.remainingMovement <= 0) return false;
+      return true;
+    }).map(ability => ({ name: ability, cost: 0, available: true }));
   }
 
   private canAffordBuilding(building: any): boolean {
     return this.aiPlayer.stars >= (building.cost || 50);
   }
 
-  private getAvailableBuildings(city: any): any[] {
-    // TODO: Implement proper building system
-    return [];
+  private getAvailableBuildings(cityId: string): any[] {
+    const availableBuildings = [];
+    const city = this.getMyCities().find(c => c.id === cityId);
+    if (!city) return [];
+    
+    // Define basic building types with requirements
+    const buildingTypes = [
+      { type: 'temple', cost: 20, requiredTech: 'prayer', category: 'religious' },
+      { type: 'barracks', cost: 15, requiredTech: 'warrior_code', category: 'military' },
+      { type: 'market', cost: 25, requiredTech: 'trade', category: 'economic' },
+      { type: 'granary', cost: 18, requiredTech: 'farming', category: 'economic' },
+      { type: 'forge', cost: 30, requiredTech: 'metalworking', category: 'military' },
+      { type: 'observatory', cost: 35, requiredTech: 'astronomy', category: 'exploration' }
+    ];
+    
+    for (const building of buildingTypes) {
+      // Check if player has required tech and resources
+      const hasReqTech = !building.requiredTech || this.aiPlayer.researchedTechs.includes(building.requiredTech);
+      const hasResources = this.aiPlayer.stars >= building.cost;
+      const notAlreadyBuilt = !city.structures || !city.structures.includes(building.type);
+      
+      if (hasReqTech && hasResources && notAlreadyBuilt) {
+        availableBuildings.push(building);
+      }
+    }
+    
+    return availableBuildings;
   }
 
   private getAvailableTechnologies(): any[] {
