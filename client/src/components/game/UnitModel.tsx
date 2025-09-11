@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { Unit } from '@shared/types/unit';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
-import { getUnitModelPath } from '../../utils/modelManager';
+import { getUnitModelPath, getUnitModelScale, getUnitMaterialEnhancements } from '../../utils/modelManager';
 import { GroundedModel } from './GroundedModel';
 
 interface UnitModelProps {
@@ -19,35 +19,38 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   const player = gameState?.players.find(p => p.id === unit.playerId);
   const playerFaction = player?.factionId;
 
-  const modelPath = getUnitModelPath(unit.type);
+  const modelPath = getUnitModelPath(unit.type, playerFaction);
   const { scene } = useGLTF(modelPath);
   
-  // Calculate unit scale based on type - increased for better visibility
+  // Use centralized scaling system from modelManager
   const unitScale = useMemo(() => {
-    if (unit.type === 'worker') {
-      return 0.55; // Increased for civilian units
-    } else if (unit.type === 'scout' || unit.type === 'wilderness_hunter') {
-      return 0.6; // Increased for ranged units
-    } else if (unit.type === 'missionary' || unit.type === 'royal_envoy') {
-      return 0.58; // Increased for religious units
-    } else if (unit.type === 'stripling_warrior') {
-      return 0.7; // Slightly larger for elite Nephite warriors
-    } else if (unit.type === 'cavalry') {
-      return 0.8; // Larger for mounted units and war elephants
-    }
-    return 0.65; // Increased default scale for most units
+    return getUnitModelScale(unit.type);
   }, [unit.type]);
   
   // Clone and modify the scene for materials and status effects
   const clonedScene = useMemo(() => {
     const clone = scene.clone();
     
-    // Adjust materials based on ownership and unit status
+    // Get material enhancements from centralized system
+    const enhancements = getUnitMaterialEnhancements(unit.type, playerFaction);
+    
+    // Adjust materials based on ownership, unit status, and faction
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         if (child.material) {
           // Clone material to avoid modifying the original
           const material = child.material.clone();
+          
+          // Apply centralized material enhancements
+          if (material.color) {
+            material.color.multiplyScalar(enhancements.colorMultiplier);
+          }
+          
+          // Set metallic and roughness properties
+          if (material instanceof THREE.MeshStandardMaterial || material instanceof THREE.MeshPhysicalMaterial) {
+            material.metalness = enhancements.metallic;
+            material.roughness = enhancements.roughness;
+          }
           
           // Adjust colors based on ownership
           if (isPlayerUnit) {
@@ -57,6 +60,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
             }
             if (material.emissive) {
               material.emissive.setHex(0x002200); // Subtle green tint
+              material.emissiveIntensity = enhancements.emissiveIntensity;
             }
           } else {
             // Enemy units get cooler colors
@@ -65,6 +69,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
             }
             if (material.emissive) {
               material.emissive.setHex(0x220000); // Subtle red tint
+              material.emissiveIntensity = enhancements.emissiveIntensity;
             }
           }
           
@@ -75,10 +80,12 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
           } else if (unit.status === 'siege_mode') {
             if (material.emissive) {
               material.emissive.setHex(0x442200); // Orange glow for siege mode
+              material.emissiveIntensity = Math.max(enhancements.emissiveIntensity, 0.2);
             }
           } else if (unit.status === 'formation') {
             if (material.emissive) {
               material.emissive.setHex(0x000044); // Blue glow for formation
+              material.emissiveIntensity = Math.max(enhancements.emissiveIntensity, 0.15);
             }
           }
           
@@ -88,7 +95,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     });
     
     return clone;
-  }, [scene, isPlayerUnit, unit.status]);
+  }, [scene, isPlayerUnit, unit.status, unit.type, playerFaction]);
   
   // Apply auto-grounding to the cloned scene
   const groundedScene = useMemo(() => {
