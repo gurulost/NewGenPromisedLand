@@ -9,6 +9,7 @@ import HandoffScreen from "./components/ui/HandoffScreen";
 import GameCanvas from "./components/game/GameCanvas";
 import GameUI from "./components/game/GameUI";
 import { CombatEffectsDemo } from "./components/effects/CombatEffectsDemo";
+import { ToastProvider } from "./components/ui/ToastProvider";
 import "@fontsource/inter";
 
 const queryClient = new QueryClient();
@@ -32,15 +33,18 @@ function App() {
   if (isDemoRoute) {
     return (
       <QueryClientProvider client={queryClient}>
-        <CombatEffectsDemo />
+        <ToastProvider>
+          <CombatEffectsDemo />
+        </ToastProvider>
       </QueryClientProvider>
     );
   }
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
-        <KeyboardControls map={controls}>
+      <ToastProvider>
+        <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
+          <KeyboardControls map={controls}>
           {gamePhase === 'menu' && <MainMenu />}
           
           {gamePhase === 'playerSetup' && <PlayerSetup />}
@@ -87,8 +91,9 @@ function App() {
               <GameUI />
             </>
           )}
-        </KeyboardControls>
-      </div>
+          </KeyboardControls>
+        </div>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

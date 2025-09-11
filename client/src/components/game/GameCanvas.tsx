@@ -4,6 +4,7 @@ import { OrbitControls, useTexture } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { getVisibleUnits } from "@shared/logic/unitLogic";
+import { useUserPreferences } from "../../hooks/useUserPreferences";
 import HexGridInstanced from "./HexGridInstanced";
 
 
@@ -24,6 +25,7 @@ export default function GameCanvas() {
   const { camera } = useThree();
   const controlsRef = useRef<any>();
   const debug = useGameDebugger();
+  const { preferences } = useUserPreferences();
   
   // Enhanced selection and effects
   const {
@@ -46,7 +48,7 @@ export default function GameCanvas() {
           const tile = gameState.map.tiles.find(t => 
             t.coordinate.q === coord.q && t.coordinate.r === coord.r
           );
-          return tile && tile.terrain !== 'water';
+          return Boolean(tile && tile.terrain !== 'water');
         }
       );
       setReachableCoordinates(reachable);
@@ -69,11 +71,11 @@ export default function GameCanvas() {
       
       // Enable panning (click and drag to move)
       controlsRef.current.enablePan = true;
-      controlsRef.current.panSpeed = 1.0;
+      controlsRef.current.panSpeed = preferences?.camera.cameraSpeed || 1.0;
       
       // Enable zooming with mouse wheel
       controlsRef.current.enableZoom = true;
-      controlsRef.current.zoomSpeed = 1.0;
+      controlsRef.current.zoomSpeed = preferences?.camera.zoomSpeed || 1.0;
       
       // Set zoom limits based on map size - fix terrain disappearing
       const mapSize = Math.max(gameState.map.width || 10, gameState.map.height || 10);
@@ -113,61 +115,77 @@ export default function GameCanvas() {
     }
   }, [camera, gameState]);
 
-  // Disabled automatic camera repositioning when players change turns
-  // Let players control camera position manually like in Polytopia
-  // useEffect(() => {
-  //   if (controlsRef.current && gameState) {
-  //     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  //     const playerCity = gameState.cities?.find(city => 
-  //       currentPlayer.citiesOwned.includes(city.id)
-  //     );
-  //     
-  //     if (playerCity) {
-  //       // Convert hex coordinates to world position
-  //       const pixelPos = hexToPixel(playerCity.coordinate, 1);
-  //       const cameraTargetPosition = { x: pixelPos.x, z: pixelPos.y };
-  //       
-  //       // Smoothly move camera to focus on current player's area
-  //       const mapSize = Math.max(gameState.map.width || 10, gameState.map.height || 10);
-  //       const distance = mapSize * 1.2;
-  //       
-  //       // Use GSAP for smooth camera transition
-  //       gsap.to(camera.position, {
-  //         x: cameraTargetPosition.x,
-  //         y: distance,
-  //         z: cameraTargetPosition.z + distance,
-  //         duration: 1,
-  //         ease: "power2.inOut",
-  //       });
-  //       
-  //       gsap.to(controlsRef.current.target, {
-  //         x: cameraTargetPosition.x,
-  //         y: 0,
-  //         z: cameraTargetPosition.z,
-  //         duration: 1,
-  //         ease: "power2.inOut",
-  //       });
-  //     }
-  //   }
-  // }, [gameState?.currentPlayerIndex, camera, gameState]);
+  // Smooth camera repositioning when players change turns (user configurable)
+  useEffect(() => {
+    if (controlsRef.current && gameState && preferences?.camera.autoFollowTurnChange && preferences.ui.showAnimations && !preferences.ui.reducedMotion) {
+      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+      const playerCity = gameState.cities?.find(city => 
+        currentPlayer.citiesOwned.includes(city.id)
+      );
+      
+      if (playerCity) {
+        // Convert hex coordinates to world position
+        const pixelPos = hexToPixel(playerCity.coordinate, 1);
+        const cameraTargetPosition = { x: pixelPos.x, z: pixelPos.y };
+        
+        // Smoothly move camera to focus on current player's area
+        const mapSize = Math.max(gameState.map.width || 10, gameState.map.height || 10);
+        const distance = mapSize * 1.2;
+        
+        // Use GSAP for smooth camera transition with user-configured speed
+        const animationDuration = (2 - preferences.camera.cameraSpeed) * 0.8; // Faster = shorter duration
+        
+        gsap.to(camera.position, {
+          x: cameraTargetPosition.x,
+          y: distance,
+          z: cameraTargetPosition.z + distance * 0.7,
+          duration: animationDuration,
+          ease: "power2.inOut",
+        });
+        
+        gsap.to(controlsRef.current.target, {
+          x: cameraTargetPosition.x,
+          y: 0,
+          z: cameraTargetPosition.z,
+          duration: animationDuration,
+          ease: "power2.inOut",
+        });
 
-  // Disabled automatic camera centering on unit selection - let players control the view manually
-  // In Polytopia, the camera stays where the player positioned it
-  // useEffect(() => {
-  //   if (selectedUnit && controlsRef.current) {
-  //     const pixelPos = hexToPixel(selectedUnit.coordinate, 1);
-  //     const targetPosition = new THREE.Vector3(pixelPos.x, 0, pixelPos.y);
-  //
-  //     // Use GSAP to animate the camera target
-  //     gsap.to(controlsRef.current.target, {
-  //       x: targetPosition.x,
-  //       y: targetPosition.y,
-  //       z: targetPosition.z,
-  //       duration: 0.5,
-  //       ease: "power2.inOut",
-  //     });
-  //   }
-  // }, [selectedUnit]);
+        debug.logRendering('Camera transition to new player', {
+          playerId: currentPlayer.id,
+          playerName: currentPlayer.name,
+          cityCoordinate: playerCity.coordinate,
+          animationDuration
+        });
+      }
+    }
+  }, [gameState?.currentPlayerIndex, camera, gameState, preferences, debug]);
+
+  // Optional camera centering on unit selection (user configurable)
+  useEffect(() => {
+    if (selectedUnit && controlsRef.current && preferences?.camera.autoFollowUnitSelection && preferences.ui.showAnimations && !preferences.ui.reducedMotion) {
+      const pixelPos = hexToPixel(selectedUnit.coordinate, 1);
+      const targetPosition = new THREE.Vector3(pixelPos.x, 0, pixelPos.y);
+
+      // Use GSAP to animate the camera target with user-configured speed
+      const animationDuration = (2 - preferences.camera.cameraSpeed) * 0.4; // Faster = shorter duration
+      
+      gsap.to(controlsRef.current.target, {
+        x: targetPosition.x,
+        y: targetPosition.y,
+        z: targetPosition.z,
+        duration: animationDuration,
+        ease: "power2.inOut",
+      });
+
+      debug.logUIInteraction('Camera focused on selected unit', {
+        unitId: selectedUnit.id,
+        unitType: selectedUnit.type,
+        coordinate: selectedUnit.coordinate,
+        animationDuration
+      });
+    }
+  }, [selectedUnit, preferences, debug]);
 
   useFrame(() => {
     if (controlsRef.current) {

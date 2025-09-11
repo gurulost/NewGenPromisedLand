@@ -22,10 +22,12 @@ import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/ci
 import { UNIT_DEFINITIONS } from "@shared/data/units";
 import { getWorldElement, WORLD_ELEMENTS } from "@shared/data/worldElements";
 import type { Unit } from "@shared/types/unit";
+import { useToastContext } from "../ui/ToastProvider";
 
 export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
   const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates } = useGameState();
+  const toast = useToastContext();
   
   // Initialize AI turn handling
   useAITurn();
@@ -55,6 +57,9 @@ export default function GameUI() {
     const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
     const nextPlayer = gameState.players[nextPlayerIndex];
     
+    // Show toast feedback for ending turn
+    toast?.info('Turn Ended', `${currentPlayer.name}'s turn is complete. Passing to ${nextPlayer.name}...`);
+    
     // Start turn transition animation
     startTransition(nextPlayer);
     
@@ -62,6 +67,9 @@ export default function GameUI() {
     setTimeout(() => {
       endTurn(currentPlayer.id); // Pass the current player's ID
       completeTransition();
+      
+      // Toast notification for new turn start
+      toast?.success('New Turn Started', `It's now ${nextPlayer.name}'s turn!`);
     }, 1000);
   };
 
@@ -111,6 +119,12 @@ export default function GameUI() {
   const handleWorldElementAction = (actionType: 'harvest' | 'build') => {
     if (!selectedWorldElement) return;
     
+    const elementData = WORLD_ELEMENTS[selectedWorldElement.elementId];
+    const actionName = actionType === 'harvest' ? 'Harvesting' : 'Building on';
+    
+    // Show toast feedback for the action
+    toast?.info(`${actionName} Resource`, `${actionName} ${elementData?.name || selectedWorldElement.elementId}...`);
+    
     const action = {
       type: actionType === 'harvest' ? 'WORLD_ELEMENT_HARVEST' : 'WORLD_ELEMENT_BUILD',
       payload: {
@@ -120,9 +134,21 @@ export default function GameUI() {
       }
     } as any;
     
-    // Dispatch the action through the game reducer
-    useLocalGame.getState().dispatch(action);
-    setSelectedWorldElement(null);
+    try {
+      // Dispatch the action through the game reducer
+      useLocalGame.getState().dispatch(action);
+      
+      // Success feedback
+      const successMessage = actionType === 'harvest' 
+        ? `Successfully harvested ${elementData?.name || selectedWorldElement.elementId}!`
+        : `Successfully built on ${elementData?.name || selectedWorldElement.elementId}!`;
+      toast?.success('Action Complete', successMessage);
+      
+      setSelectedWorldElement(null);
+    } catch (error) {
+      toast?.error('Action Failed', `Could not ${actionType} ${elementData?.name || selectedWorldElement.elementId}. Please try again.`);
+      console.error(`World element ${actionType} error:`, error);
+    }
   };
 
   // Detect clicks on world element tiles

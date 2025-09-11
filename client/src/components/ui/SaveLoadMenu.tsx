@@ -6,13 +6,15 @@ import { Separator } from "./separator";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { 
   Save, FolderOpen, Trash2, Calendar, 
-  Users, Clock, X, Download, Upload 
+  Users, Clock, X, Download, Upload, Loader2, CheckCircle 
 } from "lucide-react";
 import { compress, decompress } from "lz-string";
 import { PanelShell } from "../primitives/PanelShell";
 import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
 import { useHotkeys } from "../../hooks/useHotkeys";
+import { useToastContext } from "./ToastProvider";
+import { EnhancedButton } from "./EnhancedButton";
 
 interface SaveLoadMenuProps {
   onClose: () => void;
@@ -33,9 +35,13 @@ interface SavedGame {
 
 export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
   const { gameState, setGameState } = useLocalGame();
+  const toast = useToastContext();
   const [savedGames, setSavedGames] = useState<SavedGame[]>([]);
   const [saveName, setSaveName] = useState("");
   const [selectedSave, setSelectedSave] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   useHotkeys('Escape', onClose);
   useHotkeys('KeyB', onClose);
@@ -71,56 +77,95 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
     }
   };
 
-  const saveGame = () => {
-    if (!gameState || !saveName.trim()) return;
+  const saveGame = async () => {
+    if (!gameState || !saveName.trim()) {
+      toast?.warning('Invalid Save', 'Please enter a save name');
+      return;
+    }
 
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    const save: SavedGame = {
-      id: `save_${Date.now()}`,
-      name: saveName.trim(),
-      timestamp: Date.now(),
-      gameState: gameState,
-      metadata: {
-        currentPlayer: currentPlayer.name,
-        turn: gameState.turn || 1,
-        playerCount: gameState.players.length,
-        mapSize: `${gameState.map.width}x${gameState.map.height}`
-      }
-    };
+    setIsSaving(true);
+    toast?.info('Saving Game', 'Compressing and storing game data...');
 
     try {
+      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+      const save: SavedGame = {
+        id: `save_${Date.now()}`,
+        name: saveName.trim(),
+        timestamp: Date.now(),
+        gameState: gameState,
+        metadata: {
+          currentPlayer: currentPlayer.name,
+          turn: gameState.turn || 1,
+          playerCount: gameState.players.length,
+          mapSize: `${gameState.map.width}x${gameState.map.height}`
+        }
+      };
+
+      // Add small delay to show loading state
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
       const compressed = compress(JSON.stringify(save));
       localStorage.setItem(`chronicles_save_${save.id}`, compressed);
       setSaveName("");
       loadSavedGamesList();
       
-      console.log('Game saved successfully:', save.name);
+      setSaveSuccess(true);
+      toast?.success('Game Saved!', `Successfully saved "${save.name}"`);
+      
+      // Reset success state after a delay
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 2000);
     } catch (error) {
+      toast?.error('Save Failed', 'Could not save the game. Please try again.');
       console.error('Failed to save game:', error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const loadGame = (saveId: string) => {
+  const loadGame = async (saveId: string) => {
     const save = savedGames.find(s => s.id === saveId);
-    if (!save) return;
+    if (!save) {
+      toast?.error('Load Failed', 'Save file not found');
+      return;
+    }
+
+    setIsLoading(true);
+    toast?.info('Loading Game', `Loading "${save.name}"...`);
 
     try {
+      // Add small delay to show loading state
+      await new Promise(resolve => setTimeout(resolve, 600));
+      
       setGameState(save.gameState);
-      onClose();
-      console.log('Game loaded successfully:', save.name);
+      toast?.success('Game Loaded!', `Successfully loaded "${save.name}"`);
+      
+      // Close the menu after a brief delay
+      setTimeout(() => {
+        onClose();
+      }, 1000);
     } catch (error) {
+      toast?.error('Load Failed', 'Could not load the game. The save file may be corrupted.');
       console.error('Failed to load game:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const deleteSave = (saveId: string) => {
+    const save = savedGames.find(s => s.id === saveId);
+    const saveName = save?.name || 'Unknown Save';
+    
     try {
       localStorage.removeItem(`chronicles_save_${saveId}`);
       loadSavedGamesList();
       if (selectedSave === saveId) {
         setSelectedSave(null);
       }
+      toast?.success('Save Deleted', `"${saveName}" has been deleted`);
     } catch (error) {
+      toast?.error('Delete Failed', 'Could not delete the save file');
       console.error('Failed to delete save:', error);
     }
   };
@@ -199,13 +244,16 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                   className="flex-1 bg-slate-800 border-slate-600 text-white"
                   onKeyPress={(e) => e.key === 'Enter' && saveName.trim() && saveGame()}
                 />
-                <GlowingButton
+                <EnhancedButton
                   onClick={saveGame}
-                  disabled={!saveName.trim()}
-                  icon={<Save />}
+                  disabled={!saveName.trim() || isSaving}
+                  loading={isSaving}
+                  variant={saveSuccess ? "success" : "primary"}
+                  icon={saveSuccess ? <CheckCircle className="w-4 h-4" /> : (isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />)}
+                  glow
                 >
-                  Save
-                </GlowingButton>
+                  {isSaving ? "Saving..." : saveSuccess ? "Saved!" : "Save"}
+                </EnhancedButton>
               </div>
             </div>
           )}

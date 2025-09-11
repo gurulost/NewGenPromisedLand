@@ -20,14 +20,16 @@ import {
   Pickaxe,
   Home,
   Castle,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
 import { City, GameState, PlayerState } from '@shared/types/game';
 import { InfoTooltip, ActionTooltip, StarProductionTooltip, FaithSystemTooltip, PrideSystemTooltip, DissentTooltip } from './TooltipSystem';
 import { BuildingMenuBackground } from './AnimatedBackground';
-import { PrimaryButton, SuccessButton, GhostButton } from './EnhancedButton';
+import { PrimaryButton, SuccessButton, GhostButton, EnhancedButton } from './EnhancedButton';
 import { getUnitDefinition, UNIT_DEFINITIONS } from '@shared/data/units';
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '@shared/types/city';
+import { useToastContext } from './ToastProvider';
 
 interface BuildingOption {
   id: string;
@@ -61,10 +63,13 @@ interface BuildingMenuProps {
 }
 
 export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShowCities }: BuildingMenuProps) {
+  const toast = useToastContext();
   const [selectedCategory, setSelectedCategory] = useState<'units' | 'structures' | 'improvements'>('units');
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'cost' | 'name' | 'buildTime'>('cost');
+  const [isBuilding, setIsBuilding] = useState(false);
+  const [buildSuccess, setBuildSuccess] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Calculate star production breakdown
@@ -381,11 +386,34 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
                       setSelectedOption(option.id);
                       playSound('hover');
                     }}
-                    onBuild={() => {
+                    onBuild={async () => {
                       if (canAfford(option) && option.unlocked) {
-                        onBuild(option.id);
+                        setIsBuilding(true);
+                        toast?.info('Starting Construction', `Building ${option.name}...`);
                         playSound('build');
+                        
+                        try {
+                          // Add delay to show loading state
+                          await new Promise(resolve => setTimeout(resolve, 800));
+                          onBuild(option.id);
+                          setBuildSuccess(true);
+                          toast?.success('Construction Started!', `${option.name} construction has begun!`);
+                          
+                          // Reset success state
+                          setTimeout(() => {
+                            setBuildSuccess(false);
+                          }, 2000);
+                        } catch (error) {
+                          toast?.error('Construction Failed', `Could not build ${option.name}. Please try again.`);
+                        } finally {
+                          setIsBuilding(false);
+                        }
                       } else {
+                        if (!option.unlocked) {
+                          toast?.warning('Not Available', `${option.name} is not yet unlocked`);
+                        } else {
+                          toast?.warning('Insufficient Resources', `You need ${option.cost.stars} stars to build ${option.name}`);
+                        }
                         playSound('error');
                       }
                     }}
