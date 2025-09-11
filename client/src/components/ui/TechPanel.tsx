@@ -7,6 +7,7 @@ import { Separator } from "./separator";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { TECHNOLOGIES, getAvailableTechnologies, calculateResearchCost, type Technology } from "@shared/data/technologies";
 import { Star, Book, Swords, Church, Map, Lock, CheckCircle, Clock, Sparkles } from "lucide-react";
+import { InfoTooltip, TechnologyTooltip, ActionTooltip } from './TooltipSystem';
 
 interface TechPanelProps {
   open: boolean;
@@ -305,8 +306,13 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                             {tech.category}
                           </div>
                         </div>
-                        <div className="ml-2">
+                        <div className="ml-2 flex items-center gap-1">
                           {getTechStatusIcon(status)}
+                          <InfoTooltip 
+                            content={<TechnologyTooltip tech={tech} player={currentPlayer} />}
+                            placement="top"
+                            className="w-6 h-6"
+                          />
                         </div>
                       </div>
                       
