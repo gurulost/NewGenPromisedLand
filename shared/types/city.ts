@@ -5,6 +5,8 @@ export const ImprovementTypeSchema = z.enum([
   'farm',
   'mine', 
   'forest_camp',
+  'lumber_hut',
+  'sawmill',
   'plantation',
   'irrigation',
   'workshop',
@@ -87,6 +89,9 @@ export interface ImprovementDefinition {
   validTerrain: string[];
   requiredTech: string;
   constructionTime: number; // Turns to build
+  effects?: {
+    populationGrowth?: number;
+  };
 }
 
 export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinition> = {
@@ -108,6 +113,17 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     cost: 8,
     starProduction: 3,
     validTerrain: ['mountain'],
+    requiredTech: 'organization',
+    constructionTime: 1
+  },
+  
+  forest_camp: {
+    id: 'forest_camp',
+    name: 'Forest Camp',
+    description: 'Basic forest resource extraction',
+    cost: 4,
+    starProduction: 1,
+    validTerrain: ['forest'],
     requiredTech: 'organization',
     constructionTime: 1
   },
