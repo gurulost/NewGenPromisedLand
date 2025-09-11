@@ -7,6 +7,7 @@ import { GameState } from '../types/game';
 import { HexCoordinate } from '../types/coordinates';
 import { getWorldElement, RUIN_REWARDS, RuinReward } from '../data/worldElements';
 import { getUnitDefinition } from '../data/units';
+import { getAvailableTechnologies } from '../data/technologies';
 import type { UnitType } from '../types/unit';
 
 export interface WorldElementActionResult {
@@ -24,6 +25,9 @@ export interface WorldElementActionResult {
     tileTransformed?: boolean;
     newTerrain?: string;
     ruinReward?: RuinReward;
+    technologyGranted?: string;
+    unitCreated?: string;
+    capitalsRevealed?: string[];
   };
 }
 
@@ -36,6 +40,16 @@ function hasRequiredTag(unitType: UnitType, requiredTag: string): boolean {
   // Naval commander tag check for sea beast harvesting
   if (requiredTag === 'naval_commander') {
     return unitType === 'commander' && unitDef.abilities.includes('NAVAL_COMMAND');
+  }
+  
+  // Explorer tag for special exploration abilities
+  if (requiredTag === 'explorer') {
+    return unitType === 'scout' || unitType === 'commander';
+  }
+  
+  // Religious leader tag for faith-based actions
+  if (requiredTag === 'religious_leader') {
+    return unitDef.abilities.includes('BLESSING') || unitDef.abilities.includes('CONVERSION');
   }
   
   return false;
@@ -293,6 +307,11 @@ function executeRuinExploration(
   let starGain = 0;
   let popGain = 0;
   let message = `Ruins explored - discovered ancient Jaredite history (+1 Faith)`;
+  
+  // Track effect results
+  let grantedTechId: string | undefined;
+  let createdUnitId: string | undefined;
+  let revealedCapitalId: string | undefined;
 
   // Apply specific reward
   switch (reward.type) {
@@ -304,20 +323,178 @@ function executeRuinExploration(
       popGain = reward.value || 3;
       message += ` and gained ${popGain} population from ancient knowledge!`;
       break;
-    case 'tech':
-      message += ` and discovered a technology scroll!`;
-      // TODO: Grant random technology
+    case 'tech': {
+      // Grant random available technology
+      const player = gameState.players.find(p => p.id === playerId)!;
+      const availableTechs = getAvailableTechnologies(player.researchedTechs);
+      
+      if (availableTechs.length > 0) {
+        const randomTech = availableTechs[Math.floor(Math.random() * availableTechs.length)];
+        message += ` and discovered a ${randomTech.name} technology scroll!`;
+        
+        // Update gameState to grant the technology
+        gameState = {
+          ...gameState,
+          players: gameState.players.map(p => 
+            p.id === playerId 
+              ? { ...p, researchedTechs: [...p.researchedTechs, randomTech.id] }
+              : p
+          )
+        };
+        
+        // Store the granted technology for effects
+        grantedTechId = randomTech.id;
+      } else {
+        message += ` and discovered ancient knowledge, but no new technologies could be learned.`;
+      }
       break;
-    case 'unit':
+    }
+    case 'unit': {
       message += ` and awakened a Title of Liberty Giant!`;
-      // TODO: Create giant unit
+      
+      // Generate unique ID for the giant unit
+      const unitId = `unit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Get unit definition for spearman as base
+      const unitDef = getUnitDefinition('spearman');
+      
+      // Create a giant unit at the ruin location with all required properties
+      const giantUnit = {
+        id: unitId,
+        type: 'spearman' as UnitType,
+        playerId: playerId,
+        coordinate: coordinate,
+        hp: unitDef.baseStats.hp,
+        maxHp: unitDef.baseStats.hp,
+        attack: unitDef.baseStats.attack + 5, // Giant bonus
+        defense: unitDef.baseStats.defense + 3, // Giant bonus
+        movement: unitDef.baseStats.movement,
+        remainingMovement: unitDef.baseStats.movement,
+        status: 'active' as const,
+        rallyBuff: false,
+        tacticalCommand: false,
+        abilities: [...unitDef.abilities],
+        level: 2, // Giants start at higher level
+        experience: 0,
+        visionRadius: unitDef.baseStats.visionRadius,
+        attackRange: unitDef.baseStats.attackRange,
+        hasAttacked: false
+      };
+      
+      // Add the giant to the game state
+      gameState = {
+        ...gameState,
+        units: [...gameState.units, giantUnit]
+      };
+      
+      // Store the created unit ID for effects
+      createdUnitId = unitId;
       break;
-    case 'reveal':
+    }
+    case 'reveal': {
       message += ` and revealed the location of an enemy capital!`;
-      // TODO: Reveal enemy capital
+      
+      // Find enemy capital cities (first city in each enemy player's citiesOwned list)
+      const player = gameState.players.find(p => p.id === playerId)!;
+      const enemyPlayers = gameState.players.filter(p => p.id !== playerId && !p.isEliminated);
+      const enemyCapitals = [];
+      
+      for (const enemyPlayer of enemyPlayers) {
+        if (enemyPlayer.citiesOwned.length > 0) {
+          // First city is the capital
+          const capitalId = enemyPlayer.citiesOwned[0];
+          const capitalCity = gameState.cities?.find(city => city.id === capitalId);
+          if (capitalCity && capitalCity.ownerId === enemyPlayer.id) {
+            enemyCapitals.push(capitalCity);
+          }
+        }
+      }
+      
+      if (enemyCapitals.length > 0) {
+        // Reveal the nearest enemy capital
+        let nearestCapital = enemyCapitals[0];
+        let nearestDistance = Math.sqrt(
+          Math.pow(coordinate.q - nearestCapital.coordinate.q, 2) + 
+          Math.pow(coordinate.r - nearestCapital.coordinate.r, 2)
+        );
+        
+        for (const capital of enemyCapitals) {
+          const distance = Math.sqrt(
+            Math.pow(coordinate.q - capital.coordinate.q, 2) + 
+            Math.pow(coordinate.r - capital.coordinate.r, 2)
+          );
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestCapital = capital;
+          }
+        }
+        
+        // Mark the capital tile as explored for this player (avoid duplicates)
+        gameState = {
+          ...gameState,
+          map: {
+            ...gameState.map,
+            tiles: gameState.map.tiles.map(tile =>
+              tile.coordinate.q === nearestCapital.coordinate.q && 
+              tile.coordinate.r === nearestCapital.coordinate.r && 
+              !tile.exploredBy.includes(playerId)
+                ? { ...tile, exploredBy: [...tile.exploredBy, playerId] }
+                : tile
+            )
+          }
+        };
+        
+        const capitalOwner = gameState.players.find(p => p.id === nearestCapital.ownerId);
+        message += ` The ${capitalOwner?.factionId || 'enemy'} capital at ${nearestCapital.name} has been revealed!`;
+        
+        // Store the revealed capital for effects
+        revealedCapitalId = nearestCapital.id;
+      } else {
+        message += ` But no enemy capitals remain hidden from your knowledge.`;
+      }
       break;
+    }
   }
 
+  // Apply population gain to nearest city if any
+  if (popGain > 0) {
+    const player = gameState.players.find(p => p.id === playerId)!;
+    const playerCities = gameState.cities?.filter(city => 
+      player.citiesOwned.includes(city.id)
+    ) || [];
+    
+    if (playerCities.length > 0) {
+      // Find nearest city
+      let closestCity = playerCities[0];
+      let closestDistance = Math.sqrt(
+        Math.pow(coordinate.q - closestCity.coordinate.q, 2) + 
+        Math.pow(coordinate.r - closestCity.coordinate.r, 2)
+      );
+      
+      for (const city of playerCities) {
+        const distance = Math.sqrt(
+          Math.pow(coordinate.q - city.coordinate.q, 2) + 
+          Math.pow(coordinate.r - city.coordinate.r, 2)
+        );
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestCity = city;
+        }
+      }
+      
+      // Apply population gain to nearest city
+      gameState = {
+        ...gameState,
+        cities: gameState.cities?.map(city => 
+          city.id === closestCity.id
+            ? { ...city, population: Math.min(city.maxPopulation || 20, city.population + popGain) }
+            : city
+        ) || []
+      };
+    }
+  }
+
+  // Apply base star and faith gains from the exploration
   const newState = {
     ...gameState,
     players: gameState.players.map(p => 
@@ -334,10 +511,10 @@ function executeRuinExploration(
     )
   };
 
-  // Remove the ruin after exploration
+  // Remove the ruin after exploration and transform terrain to plains
   newState.map.tiles = newState.map.tiles.map(tile =>
     tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
-      ? { ...tile, resources: [] }
+      ? { ...tile, resources: [], terrain: 'plains' }
       : tile
   );
 
@@ -355,7 +532,10 @@ function executeRuinExploration(
     effects: {
       tileTransformed: true,
       newTerrain: 'plains',
-      ruinReward: reward
+      ruinReward: reward,
+      technologyGranted: grantedTechId,
+      unitCreated: createdUnitId,
+      capitalsRevealed: revealedCapitalId ? [revealedCapitalId] : undefined
     }
   };
 }
