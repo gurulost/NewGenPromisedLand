@@ -5,6 +5,7 @@ import clsx from 'clsx';
 
 import { useSfxEngine } from '../../hooks/useSfx';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { useAudioIntegration } from '../../hooks/useAudioIntegration';
 
 interface GlowingButtonProps extends Omit<ButtonProps, 'onClick'> {
   onClick?: () => void;
@@ -53,11 +54,26 @@ export function GlowingButton({
 }: GlowingButtonProps) {
   const reducedMotion = useReducedMotion();
   const playSfx = useSfxEngine();
+  
+  // Enhanced audio integration for comprehensive feedback
+  const { playSfx: audioSfx } = useAudioIntegration();
 
   const handleClick = () => {
     if (!disabled && onClick) {
       playSfx('cta-click');
       onClick();
+    }
+  };
+  
+  const handleHover = () => {
+    if (!disabled) {
+      try {
+        playSfx('hover');
+      } catch (error) {
+        // Fallback to audio integration if useSfxEngine fails
+        console.debug('SFX engine unavailable, using audio integration');
+        audioSfx('hover');
+      }
     }
   };
 
@@ -77,6 +93,7 @@ export function GlowingButton({
     <motion.div {...motionProps}>
       <Button
         onClick={handleClick}
+        onMouseEnter={handleHover}
         disabled={disabled}
         className={clsx(
           "relative overflow-hidden transition-all duration-200",

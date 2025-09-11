@@ -30,6 +30,7 @@ import { PrimaryButton, SuccessButton, GhostButton, EnhancedButton } from './Enh
 import { getUnitDefinition, UNIT_DEFINITIONS } from '@shared/data/units';
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '@shared/types/city';
 import { useToastContext } from './ToastProvider';
+import { useGameAudio } from '../../hooks/useAudioIntegration';
 
 interface BuildingOption {
   id: string;
@@ -107,10 +108,24 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
     breakdown.push({ source: `Structures (${playerStructures.length})`, amount: structureStars });
   }
 
-  // Play UI sounds
+  // Enhanced audio feedback for building actions
+  const gameAudio = useGameAudio();
+  
   const playSound = (soundType: 'hover' | 'select' | 'build' | 'error') => {
-    // Sound effects would be implemented here
-    console.log(`Playing ${soundType} sound`);
+    switch (soundType) {
+      case 'hover':
+        gameAudio.onButtonHover();
+        break;
+      case 'select':
+        gameAudio.onButtonClick();
+        break;
+      case 'build':
+        gameAudio.onBuildingBuilt();
+        break;
+      case 'error':
+        gameAudio.onError();
+        break;
+    }
   };
 
   // Generate building options from actual game data

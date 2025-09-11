@@ -6,6 +6,7 @@ import { gameReducer } from "@shared/logic/gameReducer";
 import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenerator";
 import { useGameState } from "./useGameState";
 import { gameDebugger } from "../../utils/gameDebug";
+import { audioService } from "../../services/AudioService";
 
 type GamePhase = 'menu' | 'playerSetup' | 'handoff' | 'playing' | 'gameOver';
 
@@ -33,7 +34,8 @@ interface LocalGameStore {
   harvestResource: (unitId: string, resourceCoordinate: any, cityId: string) => void;
 }
 
-export const useLocalGame = create<LocalGameStore>((set, get) => ({
+export const useLocalGame = create<LocalGameStore>((set, get) => {
+  return {
   gamePhase: 'menu',
   gameState: null,
   
@@ -263,6 +265,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     // Clear selected unit when turn changes
     useGameState.getState().setSelectedUnit(null);
     
+    // Play audio feedback for ending turn
+    audioService.onTurnEnd();
+    
     set({ 
       gameState: newGameState,
       gamePhase: 'handoff'
@@ -282,6 +287,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
 
     const newGameState = gameReducer(gameState, action);
     console.log('Game state updated:', newGameState);
+    
+    // Play audio feedback for unit movement
+    audioService.onUnitMove();
+    
     set({ gameState: newGameState });
   },
 
@@ -298,6 +307,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
 
     const newGameState = gameReducer(gameState, action);
     console.log('Combat result:', newGameState);
+    
+    // Play audio feedback for unit attack
+    audioService.onUnitAttack();
+    
     set({ gameState: newGameState });
   },
   
@@ -311,6 +324,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     };
 
     const newGameState = gameReducer(gameState, action);
+    
+    // Play audio feedback for ability use
+    audioService.onNotification();
+    
     set({ gameState: newGameState });
   },
   
@@ -319,6 +336,44 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     if (!gameState) return;
     
     const newGameState = gameReducer(gameState, action);
+    
+    // Add audio feedback for various action types via generic dispatch
+    switch (action.type) {
+      case 'RESEARCH_TECH':
+        audioService.onTechResearch();
+        break;
+      case 'BUILD_STRUCTURE':
+      case 'START_CONSTRUCTION':
+        audioService.onBuildingBuilt();
+        break;
+      case 'BUILD_UNIT':
+        audioService.onUnitBuilt();
+        break;
+      case 'CAPTURE_VILLAGE':
+        audioService.onVillageCapture();
+        break;
+      case 'CAPTURE_CITY':
+        audioService.onCityCapture();
+        break;
+      case 'MOVE_UNIT':
+        audioService.onUnitMove();
+        break;
+      case 'ATTACK_UNIT':
+        audioService.onUnitAttack();
+        break;
+      case 'END_TURN':
+        audioService.onTurnEnd();
+        break;
+      case 'HARVEST_RESOURCE':
+      case 'WORLD_ELEMENT_HARVEST':
+        audioService.onResourceCollect();
+        break;
+      default:
+        // Generic notification for other actions
+        audioService.onNotification();
+        break;
+    }
+    
     set({ gameState: newGameState });
   },
   
@@ -346,6 +401,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     };
 
     const newGameState = gameReducer(gameState, action);
+    
+    // Play audio feedback for resource harvest
+    audioService.onResourceCollect();
+    
     set({ gameState: newGameState });
   },
-}));
+}});
