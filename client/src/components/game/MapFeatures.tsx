@@ -286,15 +286,15 @@ export default function MapFeatures() {
       return city !== undefined;
     }) || [];
     
-    // Filter villages that are currently visible only (not just explored)
+    // Filter villages that are explored (visible OR previously explored)
     const villages = gameState.map.tiles.filter(tile => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      const isCurrentlyVisible = visible.has(tileKey); // Only currently visible, not explored
+      const isExplored = explored.has(tileKey); // Show on explored tiles, not just currently visible
       const isVillage = tile.feature === 'village';
       
 
       
-      return isCurrentlyVisible && isVillage;
+      return isExplored && isVillage;
     });
     
     return { 
@@ -307,24 +307,24 @@ export default function MapFeatures() {
     };
   }, [gameState, currentPlayer]);
   
-  // Get currently visible tiles with resources (not just explored)
+  // Get explored tiles with resources (visible OR previously explored)
   const visibleTilesWithFeatures = useMemo(() => {
     if (!gameState) return [];
     
     const filteredTiles = gameState.map.tiles.filter(tile => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      const isCurrentlyVisible = visibleTiles.has(tileKey); // Only currently visible, not explored
+      const isExplored = exploredTiles.has(tileKey); // Show on explored tiles, not just currently visible
       const hasFeatures = tile.resources.length > 0; // Add improvements check when available
       
 
       
-      return isCurrentlyVisible && hasFeatures;
+      return isExplored && hasFeatures;
     });
     
 
     
     return filteredTiles;
-  }, [gameState, visibleTiles]);
+  }, [gameState, exploredTiles]);
   
   if (!gameState) return null;
   
