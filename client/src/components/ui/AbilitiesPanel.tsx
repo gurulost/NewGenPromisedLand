@@ -241,31 +241,58 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         setAttackMode(true);
         break;
       case 'heal':
-        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'heal' });
+        dispatch({ 
+          type: 'USE_ABILITY', 
+          payload: { unitId: unit.id, abilityType: 'heal' }
+        });
         break;
       case 'stealth':
-        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'stealth' });
+        dispatch({ 
+          type: 'USE_ABILITY', 
+          payload: { unitId: unit.id, abilityType: 'stealth' }
+        });
         break;
       case 'reconnaissance':
-        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'reconnaissance' });
+        dispatch({ 
+          type: 'USE_ABILITY', 
+          payload: { unitId: unit.id, abilityType: 'reconnaissance' }
+        });
         break;
       case 'rally_troops':
-        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'rally_troops' });
+        dispatch({ 
+          type: 'USE_ABILITY', 
+          payload: { unitId: unit.id, abilityType: 'rally_troops' }
+        });
         break;
       case 'bombardment':
-        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'bombardment' });
+        dispatch({ 
+          type: 'USE_ABILITY', 
+          payload: { unitId: unit.id, abilityType: 'bombardment' }
+        });
         break;
       case 'build_road':
-        dispatch({ type: 'BUILD_ROAD', unitId: unit.id });
+        dispatch({ 
+          type: 'BUILD_ROAD', 
+          payload: { unitId: unit.id }
+        });
         break;
       case 'build_improvement':
-        dispatch({ type: 'BUILD_IMPROVEMENT', unitId: unit.id });
+        dispatch({ 
+          type: 'BUILD_IMPROVEMENT', 
+          payload: { unitId: unit.id }
+        });
         break;
       case 'harvest_resource':
-        dispatch({ type: 'HARVEST_RESOURCE', unitId: unit.id });
+        dispatch({ 
+          type: 'HARVEST_RESOURCE', 
+          payload: { unitId: unit.id }
+        });
         break;
       case 'convert':
-        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'convert' });
+        dispatch({ 
+          type: 'USE_ABILITY', 
+          payload: { unitId: unit.id, abilityType: 'convert' }
+        });
         break;
       default:
         console.warn('Action not implemented:', action.id);
