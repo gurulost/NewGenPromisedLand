@@ -141,10 +141,19 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
   return (
     <div 
       className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-      style={{ pointerEvents: 'auto' }}
+      style={{ pointerEvents: 'auto', touchAction: 'pan-y pinch-zoom' }}
       onClick={(e) => {
         console.log('🏛️ CityPanel backdrop clicked:', e.target === e.currentTarget);
         if (e.target === e.currentTarget) {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+      onTouchEnd={(e) => {
+        if (e.target === e.currentTarget) {
+          e.preventDefault();
+          e.stopPropagation();
           onClose();
         }
       }}
