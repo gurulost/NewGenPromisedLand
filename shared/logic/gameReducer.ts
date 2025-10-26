@@ -338,7 +338,7 @@ function handleCaptureCity(
   // Update city ownership
   const updatedCities = state.cities?.map(city =>
     city.id === cityId
-      ? { ...city, playerId }
+      ? { ...city, ownerId: playerId }
       : city
   );
   
@@ -353,7 +353,7 @@ function handleCaptureCity(
     // Transfer structures to new owner
     updatedStructures = updatedStructures.map(structure =>
       structure.cityId === cityId
-        ? { ...structure, playerId }
+        ? { ...structure, ownerId: playerId }
         : structure
     );
   }
@@ -369,7 +369,7 @@ function handleCaptureCity(
     // Transfer improvements to new owner
     updatedImprovements = updatedImprovements.map(improvement =>
       improvement.cityId === cityId
-        ? { ...improvement, playerId }
+        ? { ...improvement, ownerId: playerId }
         : improvement
     );
   }
@@ -1686,11 +1686,19 @@ function checkVictoryConditions(state: GameState, players: PlayerState[]): strin
     }
   }
   
-  // Elimination Victory: Only one player with units left
+  // Elimination Victory: Only one player still alive (has units OR cities)
   if (GAME_RULES.victory.eliminationRequired) {
     const playersWithUnits = new Set(state.units.map(unit => unit.playerId));
-    if (playersWithUnits.size === 1) {
-      return Array.from(playersWithUnits)[0];
+    const playersWithCities = new Set(
+      (state.cities?.map(city => city.ownerId) || []).filter(Boolean) // Filter out neutral cities (undefined ownerId)
+    );
+    
+    // A player is alive if they have either units OR cities
+    const alivePlayers = new Set([...playersWithUnits, ...playersWithCities]);
+    
+    // Victory only if all other players are eliminated (no units AND no cities)
+    if (alivePlayers.size === 1) {
+      return Array.from(alivePlayers)[0];
     }
   }
   
