@@ -123,7 +123,7 @@ export default function GameUI() {
     const actionName = actionType === 'harvest' ? 'Harvesting' : 'Building on';
     
     // Show toast feedback for the action
-    toast?.info(`${actionName} Resource`, `${actionName} ${elementData?.name || selectedWorldElement.elementId}...`);
+    toast?.info(`${actionName} Resource`, `${actionName} ${elementData?.displayName || selectedWorldElement.elementId}...`);
     
     const action = {
       type: actionType === 'harvest' ? 'WORLD_ELEMENT_HARVEST' : 'WORLD_ELEMENT_BUILD',
@@ -140,13 +140,13 @@ export default function GameUI() {
       
       // Success feedback
       const successMessage = actionType === 'harvest' 
-        ? `Successfully harvested ${elementData?.name || selectedWorldElement.elementId}!`
-        : `Successfully built on ${elementData?.name || selectedWorldElement.elementId}!`;
+        ? `Successfully harvested ${elementData?.displayName || selectedWorldElement.elementId}!`
+        : `Successfully built on ${elementData?.displayName || selectedWorldElement.elementId}!`;
       toast?.success('Action Complete', successMessage);
       
       setSelectedWorldElement(null);
     } catch (error) {
-      toast?.error('Action Failed', `Could not ${actionType} ${elementData?.name || selectedWorldElement.elementId}. Please try again.`);
+      toast?.error('Action Failed', `Could not ${actionType} ${elementData?.displayName || selectedWorldElement.elementId}. Please try again.`);
       console.error(`World element ${actionType} error:`, error);
     }
   };

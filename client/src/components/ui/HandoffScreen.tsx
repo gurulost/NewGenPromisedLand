@@ -103,6 +103,19 @@ export default function HandoffScreen() {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const faction = getFaction(currentPlayer.factionId as any);
 
+  // Map faction IDs to colors
+  const getFactionColor = (factionId: string) => {
+    const colors: Record<string, string> = {
+      NEPHITES: '#3b82f6',
+      LAMANITES: '#ef4444',
+      MULEKITES: '#10b981',
+      ANTI_NEPHI_LEHIES: '#fbbf24',
+      ZORAMITES: '#8b5cf6',
+      JAREDITES: '#6366f1'
+    };
+    return colors[factionId] || '#f59e0b';
+  };
+
   const handleStartTurn = () => {
     setGamePhase('playing');
   };
@@ -142,12 +155,15 @@ export default function HandoffScreen() {
             >
               {!showPrivacyMode && (
                 <AvatarBadge 
-                  playerId={currentPlayer.id}
-                  playerName={currentPlayer.name}
-                  factionId={currentPlayer.factionId as any}
-                  size="large"
+                  color={getFactionColor(currentPlayer.factionId)}
+                  size="xl"
                   className="shadow-2xl shadow-amber-500/30"
-                />
+                  aria-label={`${currentPlayer.name} - ${faction.name}`}
+                >
+                  <div className="text-2xl font-bold text-white">
+                    {currentPlayer.name.charAt(0)}
+                  </div>
+                </AvatarBadge>
               )}
               <div className="text-center">
                 <div className="text-2xl font-bold font-cinzel text-amber-100">
@@ -178,12 +194,11 @@ export default function HandoffScreen() {
             >
               <GlowingButton
                 onClick={() => setShowPrivacyMode(!showPrivacyMode)}
-                icon={showPrivacyMode ? <Eye /> : <EyeOff />}
                 variant="secondary"
                 size="sm"
                 className="mb-4"
               >
-                {showPrivacyMode ? 'Show Details' : 'Privacy Mode'}
+                {showPrivacyMode ? <><Eye className="w-4 h-4 inline mr-2" />Show Details</> : <><EyeOff className="w-4 h-4 inline mr-2" />Privacy Mode</>}
               </GlowingButton>
             </motion.div>
             
@@ -195,10 +210,10 @@ export default function HandoffScreen() {
             >
               <GlowingButton
                 onClick={handleStartTurn}
-                icon={<Play />}
                 className="w-full"
                 size="lg"
               >
+                <Play className="w-5 h-5 inline mr-2" />
                 Start Turn
               </GlowingButton>
             </motion.div>
