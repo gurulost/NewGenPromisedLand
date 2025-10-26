@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Save, Trash2, Download, Upload, Calendar, Clock, Users } from 'lucide-react';
 import { GameState } from '@shared/types/game';
 import { compress, decompress } from 'lz-string';
+import { PanelShell } from '../primitives/PanelShell';
 
 interface SaveSlot {
   id: string;
@@ -238,36 +239,28 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
   };
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50"
-      onClick={(e) => {
-        // Close system if clicking on backdrop
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
+    <PanelShell
+      isOpen={true}
+      onClose={onClose}
+      size="full"
+      fullScreen
+      aria-labelledby="save-system-title"
+      className="bg-slate-900 border border-slate-700 flex flex-col"
     >
-      <motion.div
-        className="bg-slate-900 rounded-xl border border-slate-600 w-[800px] max-h-[80vh] overflow-hidden shadow-2xl"
-        onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-      >
-        {/* Header */}
-        <div className="bg-slate-800 px-6 py-4 border-b border-slate-600">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white font-cinzel">Save & Load Game</h2>
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-white transition-colors"
-            >
-              ✕
-            </button>
-          </div>
+      {/* Header */}
+      <div className="bg-slate-800 px-6 py-4 border-b border-slate-600">
+        <div className="flex items-center justify-between">
+          <h2 id="save-system-title" className="text-xl font-bold text-white font-cinzel">Save & Load Game</h2>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white transition-colors"
+          >
+            ✕
+          </button>
         </div>
+      </div>
 
-        <div className="p-6 space-y-6 max-h-[calc(80vh-80px)] overflow-y-auto">
+      <div className="p-6 space-y-6 flex-1 overflow-y-auto">
           {/* Quick Save */}
           <div className="space-y-3">
             <h3 className="text-lg font-semibold text-white font-cinzel">Quick Save</h3>
@@ -348,9 +341,8 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
               </div>
             )}
           </div>
-        </div>
-      </motion.div>
-    </div>
+      </div>
+    </PanelShell>
   );
 }
 

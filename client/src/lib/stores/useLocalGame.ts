@@ -56,8 +56,8 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       id: setup.id,
       name: setup.name,
       factionId: setup.factionId,
-      isAI: setup.isAI || false,
-      aiDifficulty: setup.aiDifficulty || 'normal',
+      isAI: Boolean(setup.isAI),
+      aiDifficulty: setup.isAI ? (setup.aiDifficulty || 'normal') : undefined,
       stats: {
         faith: 50,
         pride: 30,

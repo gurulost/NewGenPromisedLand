@@ -605,9 +605,21 @@ function BuildingCard({
               </>
             )}
           </motion.button>
-          <ActionTooltip
-            title={canAfford && option.unlocked ? "Build Now" : "Cannot Build"}
-            description={!option.unlocked ? "Requirements not met" : !canAfford ? "Insufficient resources" : `Build ${option.name} (${option.cost.stars || 0} stars, ${option.buildTime} turns)`}
+          <InfoTooltip
+            className="ml-2"
+            placement="left"
+            content={
+              <ActionTooltip
+                title={canAfford && option.unlocked ? "Build Now" : "Cannot Build"}
+                description={
+                  !option.unlocked
+                    ? "Requirements not met"
+                    : !canAfford
+                      ? "Insufficient resources"
+                      : `Build ${option.name} (${option.cost.stars || 0} stars, ${option.buildTime} turns)`
+                }
+              />
+            }
           />
         </div>
       </div>
