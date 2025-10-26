@@ -325,18 +325,29 @@ export default function GameCanvas() {
             console.log('Movement tile hovered:', coord);
           }}
           onTileClick={(coord) => {
-            // Execute unit movement
-            if (selectedUnit && gameState) {
-              console.log('Executing unit movement:', selectedUnit.id, 'to', coord);
-              dispatch({
-                type: 'MOVE_UNIT',
-                payload: {
-                  unitId: selectedUnit.id,
-                  targetCoordinate: coord
-                }
-              });
-              setMovementMode(false);
-              setReachableCoordinates([]);
+            if (!selectedUnit || !gameState) return;
+            
+            console.log('Executing unit movement:', selectedUnit.id, 'to', coord);
+            dispatch({
+              type: 'MOVE_UNIT',
+              payload: {
+                unitId: selectedUnit.id,
+                targetCoordinate: coord
+              }
+            });
+
+            setMovementMode(false);
+            setReachableCoordinates([]);
+
+            const latestState = useLocalGame.getState().gameState;
+            const updatedUnit = latestState?.units.find(u => u.id === selectedUnit.id);
+
+            if (updatedUnit) {
+              setSelectedUnit(updatedUnit);
+              selectUnit(updatedUnit.coordinate, [], []);
+            } else {
+              setSelectedUnit(null);
+              clearSelection();
             }
           }}
         />

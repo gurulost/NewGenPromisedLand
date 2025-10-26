@@ -186,6 +186,7 @@ export class MapGenerator {
   private noise2D: ReturnType<typeof createNoise2D>;
   private config: MapGenerationConfig;
   private playerFactions: string[] = [];
+  private capitalPositions: HexCoordinate[] = [];
 
   constructor(config: MapGenerationConfig, playerFactions?: string[]) {
     this.config = config;
@@ -222,6 +223,7 @@ export class MapGenerator {
 
     // Step 2: Determine capital spawns (player starting positions)
     const capitalPositions = this.generateCapitalSpawns(mapRadius);
+    this.capitalPositions = capitalPositions;
     
     // Step 3: Place neutral villages/cities
     this.placeCities(tiles, mapRadius, capitalPositions);
@@ -246,6 +248,10 @@ export class MapGenerator {
       width: this.config.width,
       height: this.config.height,
     };
+  }
+
+  public getCapitalPositions(): HexCoordinate[] {
+    return [...this.capitalPositions];
   }
 
   /**

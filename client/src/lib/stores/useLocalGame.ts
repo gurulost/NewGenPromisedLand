@@ -94,26 +94,35 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     }, playerFactions);
     
     const map = mapGenerator.generateMap();
+    const capitalPositions = mapGenerator.getCapitalPositions();
     
-    // Find city tiles from the generated map for player starting positions
-    const cityTiles = map.tiles.filter(tile => tile.hasCity);
-    
-    // CRITICAL: Ensure we have enough cities for all players
-    if (cityTiles.length < players.length) {
-      console.error(`❌ CRITICAL: Not enough cities generated! Need ${players.length}, got ${cityTiles.length}`);
-      console.error('Map generation failed to create sufficient starting cities');
-      throw new Error(`Map generation failed: need ${players.length} cities for ${players.length} players, but only ${cityTiles.length} were generated`);
+    if (capitalPositions.length < players.length) {
+      throw new Error(`Map generation failed: expected ${players.length} capital positions, but only ${capitalPositions.length} were generated`);
     }
     
-    // Assign cities to players (first cities generated are best positioned for players)
-    const cities = players.map((player, index) => {
-      const cityTile = cityTiles[index];
-      
-      if (!cityTile) {
-        console.error(`❌ CRITICAL: No city tile for player ${index} (${player.name})`);
-        throw new Error(`No city tile available for player ${player.name}`);
+    const playerCapitalTiles = players.map((player, index) => {
+      const capitalCoordinate = capitalPositions[index];
+      if (!capitalCoordinate) {
+        throw new Error(`No capital coordinate generated for player index ${index}`);
       }
       
+      const tile = map.tiles.find(t =>
+        t.coordinate.q === capitalCoordinate.q &&
+        t.coordinate.r === capitalCoordinate.r &&
+        t.coordinate.s === capitalCoordinate.s
+      );
+      
+      if (!tile || !tile.hasCity) {
+        console.error(`❌ CRITICAL: Capital tile missing for player ${player.name}`, { capitalCoordinate });
+        throw new Error(`Map generation failed: no capital city tile found for ${player.name}`);
+      }
+      
+      return tile;
+    });
+    
+    // Assign cities to players using their dedicated capital tiles
+    const cities = players.map((player, index) => {
+      const cityTile = playerCapitalTiles[index];
       return {
         id: `city-${player.id}`,
         name: `${player.name}'s Capital`,
