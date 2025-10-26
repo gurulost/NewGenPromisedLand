@@ -100,7 +100,45 @@ export default function HandoffScreen() {
     return null;
   }
 
+  // Defensive check: ensure currentPlayerIndex is valid
+  if (gameState.currentPlayerIndex >= gameState.players.length || gameState.currentPlayerIndex < 0) {
+    console.error('❌ CRITICAL: currentPlayerIndex out of bounds!', {
+      currentPlayerIndex: gameState.currentPlayerIndex,
+      playerCount: gameState.players.length,
+      players: gameState.players.map(p => ({ id: p.id, name: p.name }))
+    });
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-slate-900 text-white p-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Error: Invalid Player Index</h2>
+          <p className="mb-4">Current player index ({gameState.currentPlayerIndex}) is out of bounds for {gameState.players.length} players.</p>
+          <button onClick={() => setGamePhase('menu')} className="px-4 py-2 bg-blue-600 rounded">
+            Return to Menu
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  if (!currentPlayer) {
+    console.error('❌ CRITICAL: Current player is undefined!', {
+      currentPlayerIndex: gameState.currentPlayerIndex,
+      players: gameState.players
+    });
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-slate-900 text-white p-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Error: Player Not Found</h2>
+          <p className="mb-4">Could not find player at index {gameState.currentPlayerIndex}.</p>
+          <button onClick={() => setGamePhase('menu')} className="px-4 py-2 bg-blue-600 rounded">
+            Return to Menu
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const faction = getFaction(currentPlayer.factionId as any);
 
   // Map faction IDs to colors
