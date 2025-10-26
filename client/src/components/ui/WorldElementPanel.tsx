@@ -14,7 +14,7 @@ import { GameState } from '@shared/types/game';
 
 import { TOKENS } from '../../theme/tokens';          // central colour tokens
 import { useHotkeys } from '../../hooks/useHotkeys'; // tiny custom hook
-import { useSfxEngine } from '../../hooks/useSfx';         // optional SFX hook
+import { useSfxEngine, type SfxType } from '../../hooks/useSfx';         // optional SFX hook
 import { StaggeredContent, StaggeredContainer } from '../primitives/StaggeredContent';
 import { RequirementBanner } from '../primitives/RequirementBanner';
 
@@ -142,6 +142,7 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
                   canExecute={harvest}
                   onClick={() => onAction('harvest')}
                   theme="red"
+                  playSfx={playSfx}
                 />
               </StaggeredContent>
             )}
@@ -162,6 +163,7 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
                   canExecute={build}
                   onClick={() => onAction('build')}
                   theme="blue"
+                  playSfx={playSfx}
                 />
               </StaggeredContent>
             )}
@@ -240,9 +242,10 @@ interface ActionSectionProps {
   canExecute: { canExecute: boolean; reason?: string };
   onClick: () => void; 
   theme: 'red' | 'blue';
+  playSfx: (type: SfxType) => void;
 }
 
-function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }: ActionSectionProps) {
+function ActionSection({ label, badgeColor, action, canExecute, onClick, theme, playSfx }: ActionSectionProps) {
   const isImmediate = theme === 'red';
   
   // Transform legacy action data to structured format
