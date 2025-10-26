@@ -23,7 +23,8 @@ import {
   AlertTriangle,
   Loader2
 } from 'lucide-react';
-import { City, GameState, PlayerState } from '@shared/types/game';
+import { GameState, PlayerState } from '@shared/types/game';
+import { City } from '@shared/types/city';
 import { InfoTooltip, ActionTooltip, StarProductionTooltip, FaithSystemTooltip, PrideSystemTooltip, DissentTooltip } from './TooltipSystem';
 import { BuildingMenuBackground } from './AnimatedBackground';
 import { PrimaryButton, SuccessButton, GhostButton, EnhancedButton } from './EnhancedButton';
@@ -145,7 +146,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       ],
       buildTime: 1,
       icon: <Users className="w-6 h-6" />,
-      rarity: unit.factionSpecific.length > 0 ? 'rare' : 'common' as const,
+      rarity: (unit.factionSpecific.length > 0 ? 'rare' : 'common') as 'common' | 'rare',
       unlocked: unit.factionSpecific.length === 0 || unit.factionSpecific.includes(player.factionId)
     })),
     
@@ -176,7 +177,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       ],
       buildTime: 1,
       icon: <Castle className="w-6 h-6" />,
-      rarity: structure.effects.starProduction >= 3 ? 'epic' : 'common' as const,
+      rarity: (structure.effects.starProduction >= 3 ? 'epic' : 'common') as 'common' | 'epic',
       unlocked: player.researchedTechs.includes(structure.requiredTech)
     })),
     
@@ -196,7 +197,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       ],
       buildTime: improvement.constructionTime,
       icon: <TrendingUp className="w-6 h-6" />,
-      rarity: improvement.starProduction >= 3 ? 'rare' : 'common' as const,
+      rarity: (improvement.starProduction >= 3 ? 'rare' : 'common') as 'common' | 'rare',
       unlocked: player.researchedTechs.includes(improvement.requiredTech)
     }))
   ];
@@ -606,8 +607,7 @@ function BuildingCard({
           </motion.button>
           <ActionTooltip
             title={canAfford && option.unlocked ? "Build Now" : "Cannot Build"}
-            description={!option.unlocked ? "Requirements not met" : !canAfford ? "Insufficient resources" : `Build ${option.name}`}
-            cost={`${option.cost.stars || 0} stars, ${option.buildTime} turns`}
+            description={!option.unlocked ? "Requirements not met" : !canAfford ? "Insufficient resources" : `Build ${option.name} (${option.cost.stars || 0} stars, ${option.buildTime} turns)`}
           />
         </div>
       </div>
