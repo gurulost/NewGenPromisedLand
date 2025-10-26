@@ -255,12 +255,27 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     const { gameState } = get();
     if (!gameState) return;
 
+    console.log('🔄 END_TURN called', {
+      playerId,
+      currentPlayerIndex: gameState.currentPlayerIndex,
+      playerCount: gameState.players.length,
+      players: gameState.players.map(p => ({ id: p.id, name: p.name }))
+    });
+
     const action = {
       type: 'END_TURN' as const,
       payload: { playerId }
     };
 
     const newGameState = gameReducer(gameState, action);
+    
+    console.log('🔄 END_TURN completed', {
+      oldPlayerIndex: gameState.currentPlayerIndex,
+      newPlayerIndex: newGameState.currentPlayerIndex,
+      playerCount: newGameState.players.length,
+      currentPlayerName: newGameState.players[newGameState.currentPlayerIndex]?.name || 'UNDEFINED',
+      turn: newGameState.turn
+    });
     
     // Clear selected unit when turn changes
     useGameState.getState().setSelectedUnit(null);
