@@ -249,7 +249,7 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                   disabled={!saveName.trim() || isSaving}
                   loading={isSaving}
                   variant={saveSuccess ? "success" : "primary"}
-                  icon={saveSuccess ? <CheckCircle className="w-4 h-4" /> : (isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />)}
+                  icon={saveSuccess ? CheckCircle : (isSaving ? Loader2 : Save)}
                   glow
                 >
                   {isSaving ? "Saving..." : saveSuccess ? "Saved!" : "Save"}
@@ -274,8 +274,8 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
               <GlowingButton
                 variant="secondary"
                 onClick={() => document.getElementById('import-save')?.click()}
-                icon={<Upload />}
               >
+                <Upload className="w-4 h-4 mr-2" />
                 Import Save
               </GlowingButton>
               
@@ -283,8 +283,8 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                 <GlowingButton
                   variant="secondary"
                   onClick={() => exportSave(selectedSave)}
-                  icon={<Download />}
                 >
+                  <Download className="w-4 h-4 mr-2" />
                   Export Selected
                 </GlowingButton>
               )}
@@ -350,21 +350,21 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                         <GlowingButton
                           variant="secondary"
                           size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          onClick={() => {
                             loadGame(save.id);
                           }}
-                          icon={<FolderOpen />}
-                        />
+                        >
+                          <FolderOpen className="w-4 h-4" />
+                        </GlowingButton>
                         <GlowingButton
                           variant="destructive"
                           size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          onClick={() => {
                             deleteSave(save.id);
                           }}
-                          icon={<Trash2 />}
-                        />
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </GlowingButton>
                       </div>
                     </div>
                   </motion.div>
@@ -378,9 +378,9 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
             <div className="flex justify-center pt-4">
               <GlowingButton
                 onClick={() => loadGame(selectedSave)}
-                icon={<FolderOpen />}
                 size="lg"
               >
+                <FolderOpen className="w-5 h-5 mr-2" />
                 Load Selected Game
               </GlowingButton>
             </div>

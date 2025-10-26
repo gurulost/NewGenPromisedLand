@@ -39,6 +39,19 @@ export default function VictoryScreen({
     return () => clearTimeout(timer);
   }, []);
 
+  // Map faction IDs to colors
+  const getFactionColor = (factionId: string) => {
+    const colors: Record<string, string> = {
+      NEPHITES: '#3b82f6',
+      LAMANITES: '#ef4444',
+      MULEKITES: '#10b981',
+      ANTI_NEPHI_LEHIES: '#fbbf24',
+      ZORAMITES: '#8b5cf6',
+      JAREDITES: '#6366f1'
+    };
+    return colors[factionId] || '#f59e0b';
+  };
+
   if (!gameState) return null;
 
   const winner = gameState.players.find(p => p.id === winnerId);
@@ -154,12 +167,15 @@ export default function VictoryScreen({
           className="text-center space-y-4"
         >
           <AvatarBadge 
-            playerId={winner.id}
-            playerName={winner.name}
-            factionId={winner.factionId as any}
-            size="large"
+            color={getFactionColor(winner.factionId)}
+            size="xl"
             className="mx-auto shadow-2xl shadow-amber-500/30"
-          />
+            aria-label={`${winner.name} - ${faction.name}`}
+          >
+            <div className="text-3xl font-bold text-white">
+              {winner.name.charAt(0)}
+            </div>
+          </AvatarBadge>
           
           <h3 className="text-3xl font-semibold text-amber-100 font-cinzel">
             {winner.name} Victorious!
@@ -307,11 +323,14 @@ export default function VictoryScreen({
                       <div className="flex items-center gap-3">
                         <div className="text-lg font-bold text-amber-100">#{index + 1}</div>
                         <AvatarBadge 
-                          playerId={player.id}
-                          playerName={player.name}
-                          factionId={player.factionId as any}
-                          size="small"
-                        />
+                          color={getFactionColor(player.factionId)}
+                          size="sm"
+                          aria-label={`${player.name} - ${playerFaction.name}`}
+                        >
+                          <div className="text-sm font-bold text-white">
+                            {player.name.charAt(0)}
+                          </div>
+                        </AvatarBadge>
                         <div>
                           <div className="font-semibold text-amber-100">{player.name}</div>
                           <div className="text-xs text-amber-100/60">{playerFaction.name}</div>
@@ -336,20 +355,20 @@ export default function VictoryScreen({
           >
             <GlowingButton
               onClick={onPlayAgain}
-              icon={<RotateCw />}
               className="flex-1"
               size="lg"
             >
+              <RotateCw className="w-4 h-4 mr-2" />
               Play Again
             </GlowingButton>
             
             <GlowingButton
               onClick={onMainMenu}
               variant="secondary"
-              icon={<Home />}
               className="flex-1"
               size="lg"
             >
+              <Home className="w-4 h-4 mr-2" />
               Main Menu
             </GlowingButton>
           </motion.div>
