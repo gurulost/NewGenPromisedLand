@@ -98,9 +98,21 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     // Find city tiles from the generated map for player starting positions
     const cityTiles = map.tiles.filter(tile => tile.hasCity);
     
+    // CRITICAL: Ensure we have enough cities for all players
+    if (cityTiles.length < players.length) {
+      console.error(`❌ CRITICAL: Not enough cities generated! Need ${players.length}, got ${cityTiles.length}`);
+      console.error('Map generation failed to create sufficient starting cities');
+      throw new Error(`Map generation failed: need ${players.length} cities for ${players.length} players, but only ${cityTiles.length} were generated`);
+    }
+    
     // Assign cities to players (first cities generated are best positioned for players)
     const cities = players.map((player, index) => {
-      const cityTile = cityTiles[index] || cityTiles[0]; // Fallback to first city if not enough
+      const cityTile = cityTiles[index];
+      
+      if (!cityTile) {
+        console.error(`❌ CRITICAL: No city tile for player ${index} (${player.name})`);
+        throw new Error(`No city tile available for player ${player.name}`);
+      }
       
       return {
         id: `city-${player.id}`,

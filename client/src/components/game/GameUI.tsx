@@ -25,7 +25,7 @@ import type { Unit } from "@shared/types/unit";
 import { useToastContext } from "../ui/ToastProvider";
 
 export default function GameUI() {
-  const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
+  const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState, dispatch } = useLocalGame();
   const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates } = useGameState();
   const toast = useToastContext();
   
@@ -336,7 +336,13 @@ export default function GameUI() {
         onClose={() => setShowTechPanel(false)}
         gameState={gameState}
         currentPlayer={currentPlayer}
-        onResearchTech={() => {}}
+        onResearchTech={(techId) => {
+          dispatch({
+            type: 'RESEARCH_TECHNOLOGY',
+            payload: { playerId: currentPlayer.id, technologyId: techId }
+          });
+          toast?.success('Technology Researched', `You have unlocked new capabilities!`);
+        }}
       />
 
       {/* City Panel Modal */}
