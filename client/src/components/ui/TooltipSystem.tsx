@@ -27,14 +27,12 @@ interface InfoTooltipProps extends BaseTooltipProps {}
 interface ActionTooltipProps {
   title?: string;
   description?: string;
-  cost?: number;
-  faith?: number;
-  pride?: number;
+  cost?: number | string;
+  faith?: number | string;
+  pride?: number | string;
   requirements?: string[];
   effects?: string[];
   hotkey?: string;
-  placement?: TooltipPlacement;
-  disabled?: boolean;
 }
 
 // Enhanced InfoTooltip component with premium visual design and modal awareness
@@ -359,7 +357,7 @@ function getArrowClasses(placement: string): string {
   }
 }
 
-// Enhanced ActionTooltip component - Shows comprehensive contextual information about actions
+// Enhanced ActionTooltip component - renders rich contextual content for tooltips or inline descriptions
 export function ActionTooltip({ 
   title, 
   description, 
@@ -368,88 +366,80 @@ export function ActionTooltip({
   pride, 
   requirements = [], 
   effects = [], 
-  hotkey,
-  placement = 'top', 
-  disabled = false 
+  hotkey
 }: ActionTooltipProps) {
-  const tooltipContent = (
-    <div className="space-y-3">
-      {/* Title and Description */}
-      {title && (
+  const formatResource = (value: number | string | undefined, suffix: string) => {
+    if (value === undefined) return null;
+    if (typeof value === 'string') return value;
+    return `${value} ${suffix}`;
+  };
+
+  const costLabel = formatResource(cost, 'stars');
+  const faithLabel = formatResource(faith, 'faith');
+  const prideLabel = formatResource(pride, 'pride');
+
+  return (
+    <div className="space-y-3 text-left">
+      {(title || description) && (
         <div>
-          <div className="font-semibold text-white text-sm">{title}</div>
-          {description && (
-            <div className="text-xs text-slate-300 mt-1">{description}</div>
-          )}
+          {title && <div className="font-semibold text-sm text-white">{title}</div>}
+          {description && <p className="text-xs text-slate-300 mt-1 leading-relaxed">{description}</p>}
         </div>
       )}
-      
-      {/* Cost Section */}
-      {(cost !== undefined || faith !== undefined || pride !== undefined) && (
-        <div className="flex flex-wrap items-center gap-3">
-          {cost !== undefined && (
-            <div className="flex items-center gap-1">
-              <span className="text-yellow-400">⭐</span>
-              <span className="text-yellow-400 font-semibold text-sm">{cost}</span>
+
+      {(costLabel || faithLabel || prideLabel) && (
+        <div className="space-y-1 text-xs">
+          {costLabel && (
+            <div className="flex items-center gap-2">
+              <span className="text-yellow-300 font-semibold">Cost:</span>
+              <span className="text-slate-100">{costLabel}</span>
             </div>
           )}
-          {faith !== undefined && (
-            <div className="flex items-center gap-1">
-              <span className="text-blue-400">✝</span>
-              <span className="text-blue-400 font-semibold text-sm">{faith}</span>
+          {faithLabel && (
+            <div className="flex items-center gap-2">
+              <span className="text-blue-300 font-semibold">Faith:</span>
+              <span className="text-slate-100">{faithLabel}</span>
             </div>
           )}
-          {pride !== undefined && (
-            <div className="flex items-center gap-1">
-              <span className="text-red-400">⚔</span>
-              <span className="text-red-400 font-semibold text-sm">{pride}</span>
+          {prideLabel && (
+            <div className="flex items-center gap-2">
+              <span className="text-red-300 font-semibold">Pride:</span>
+              <span className="text-slate-100">{prideLabel}</span>
             </div>
           )}
         </div>
       )}
-      
-      {/* Requirements Section */}
+
       {requirements.length > 0 && (
         <div>
-          <div className="text-red-400 font-semibold mb-2 text-sm">Requirements:</div>
-          <ul className="text-xs space-y-1">
+          <div className="text-xs font-semibold text-red-300 uppercase tracking-wide">Requirements</div>
+          <ul className="mt-1 text-xs text-slate-200 space-y-1">
             {requirements.map((req, index) => (
-              <li key={index} className="flex items-start gap-2">
-                <span className="text-red-400 mt-0.5 text-xs">•</span>
-                <span className="text-red-300">{req}</span>
-              </li>
+              <li key={`${req}-${index}`}>{req}</li>
             ))}
           </ul>
         </div>
       )}
-      
-      {/* Effects Section */}
+
       {effects.length > 0 && (
         <div>
-          <div className="text-green-400 font-semibold mb-2 text-sm">Effects:</div>
-          <ul className="text-xs space-y-1">
+          <div className="text-xs font-semibold text-green-300 uppercase tracking-wide">Effects</div>
+          <ul className="mt-1 text-xs text-slate-200 space-y-1">
             {effects.map((effect, index) => (
-              <li key={index} className="flex items-start gap-2">
-                <span className="text-green-400 mt-0.5 text-xs">•</span>
-                <span className="text-green-300">{effect}</span>
-              </li>
+              <li key={`${effect}-${index}`}>{effect}</li>
             ))}
           </ul>
         </div>
       )}
-      
-      {/* Hotkey Section */}
+
       {hotkey && (
-        <div className="border-t border-slate-600 pt-2">
-          <div className="text-slate-400 text-xs">
-            Hotkey: <span className="bg-slate-700 px-1.5 py-0.5 rounded text-slate-200 font-mono">{hotkey}</span>
-          </div>
+        <div className="border-t border-slate-700 pt-2">
+          <span className="text-xs text-slate-300">Hotkey: </span>
+          <kbd className="bg-slate-700 px-2 py-0.5 rounded text-xs font-mono text-slate-100">{hotkey}</kbd>
         </div>
       )}
     </div>
   );
-
-  return <InfoTooltip content={tooltipContent} placement={placement} disabled={disabled} />;
 }
 
 // Enhanced specialized tooltip content components with proper types

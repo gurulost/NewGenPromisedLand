@@ -21,6 +21,7 @@ import MovementControls from "../game/MovementControls";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
 import { getWorldElement, WORLD_ELEMENTS } from "@shared/data/worldElements";
+import { TECHNOLOGIES } from "@shared/data/technologies";
 import type { Unit } from "@shared/types/unit";
 import { useToastContext } from "../ui/ToastProvider";
 
@@ -122,6 +123,29 @@ export default function GameUI() {
     const elementData = WORLD_ELEMENTS[selectedWorldElement.elementId];
     const actionName = actionType === 'harvest' ? 'Harvesting' : 'Building on';
     
+    if (!elementData) {
+      toast?.error('Action Failed', 'Unknown world element selected.');
+      return;
+    }
+
+    const techRequirement = elementData.techPrerequisite;
+    if (techRequirement && !currentPlayer.researchedTechs.includes(techRequirement)) {
+      toast?.warning('Technology Required', `${elementData.displayName} requires ${techRequirement} before you can ${actionType}.`);
+      return;
+    }
+
+    if (actionType === 'build') {
+      const buildInfo = elementData.longTermBuild;
+      if (!buildInfo) {
+        toast?.warning('Unavailable', `You cannot build on ${elementData.displayName}.`);
+        return;
+      }
+      if (currentPlayer.stars < buildInfo.costStars) {
+        toast?.warning('Not Enough Stars', `Need ${buildInfo.costStars}★ to build ${buildInfo.name}.`);
+        return;
+      }
+    }
+
     // Show toast feedback for the action
     toast?.info(`${actionName} Resource`, `${actionName} ${elementData?.displayName || selectedWorldElement.elementId}...`);
     
@@ -339,14 +363,9 @@ export default function GameUI() {
       <TechPanel
         isOpen={showTechPanel}
         onClose={() => setShowTechPanel(false)}
-        gameState={gameState}
-        currentPlayer={currentPlayer}
-        onResearchTech={(techId) => {
-          dispatch({
-            type: 'RESEARCH_TECHNOLOGY',
-            payload: { playerId: currentPlayer.id, technologyId: techId }
-          });
-          toast?.success('Technology Researched', `You have unlocked new capabilities!`);
+        onResearchComplete={(techId) => {
+          const techName = TECHNOLOGIES?.[techId]?.name || 'New technology';
+          toast?.success('Technology Researched', `${techName} unlocked!`);
         }}
       />
 

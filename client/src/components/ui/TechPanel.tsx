@@ -8,10 +8,13 @@ import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { TECHNOLOGIES, getAvailableTechnologies, calculateResearchCost, type Technology } from "@shared/data/technologies";
 import { Star, Book, Swords, Church, Map, Lock, CheckCircle, Clock, Sparkles } from "lucide-react";
 import { InfoTooltip, TechnologyTooltip, ActionTooltip } from './TooltipSystem';
+import { useToastContext } from "./ToastProvider";
 
 interface TechPanelProps {
-  open: boolean;
+  isOpen?: boolean;
+  open?: boolean;
   onClose: () => void;
+  onResearchComplete?: (techId: string) => void;
 }
 
 // Define tech tree layout positions with proper spacing
@@ -34,10 +37,12 @@ const TECH_POSITIONS: Record<string, { x: number; y: number; tier: number }> = {
 
 type TechStatus = 'researched' | 'available' | 'locked' | 'researching';
 
-export default function TechPanel({ open, onClose }: TechPanelProps) {
+export default function TechPanel({ isOpen, open, onClose, onResearchComplete }: TechPanelProps) {
   const { gameState, dispatch } = useLocalGame();
   const [selectedTech, setSelectedTech] = useState<string | null>(null);
   const [hoveredTech, setHoveredTech] = useState<string | null>(null);
+  const visible = typeof isOpen === 'boolean' ? isOpen : Boolean(open);
+  const toast = useToastContext();
   
   // Always call hooks before any early returns
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
@@ -61,8 +66,9 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           currentPlayer.researchedTechs.includes(prereq)
         );
         
-        // Check if player can afford the research
-        const canAfford = currentPlayer.stars >= tech.cost;
+        // Check if player can afford the research (dynamic scaling)
+        const scaledCost = calculateResearchCost(tech, currentPlayer.researchedTechs.length);
+        const canAfford = currentPlayer.stars >= scaledCost;
         
         if (hasPrerequisites && canAfford) {
           statuses[techId] = 'available';
@@ -78,7 +84,9 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
       } else if (currentPlayer.currentResearch === techId) {
         statuses[techId] = 'researching';
       } else if (availableTechs.some(tech => tech.id === techId)) {
-        statuses[techId] = 'available';
+        const tech = TECHNOLOGIES[techId];
+        const scaledCost = calculateResearchCost(tech, currentPlayer.researchedTechs.length);
+        statuses[techId] = currentPlayer.stars >= scaledCost ? 'available' : 'locked';
       } else {
         statuses[techId] = 'locked';
       }
@@ -88,7 +96,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   }, [currentPlayer, availableTechs]);
   
   // Early return after all hooks are called
-  if (!open || !gameState || !currentPlayer) return null;
+  if (!visible || !gameState || !currentPlayer) return null;
   
   const handleResearchTech = (techId: string) => {
     const tech = TECHNOLOGIES[techId];
@@ -104,6 +112,13 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           technologyId: techId,
         }
       });
+      if (onResearchComplete) {
+        onResearchComplete(techId);
+      } else {
+        toast?.success('Technology Researched', `${tech.name} unlocked!`);
+      }
+    } else {
+      toast?.error?.('Not enough stars', `Need ${cost} stars to research ${tech.name}.`);
     }
   };
   
@@ -170,27 +185,15 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   };
   
   return (
-    <div 
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4"
-      style={{ pointerEvents: 'auto', touchAction: 'pan-y pinch-zoom' }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          e.preventDefault();
-          e.stopPropagation();
-          onClose();
-        }
-      }}
-      onTouchEnd={(e) => {
-        if (e.target === e.currentTarget) {
-          e.preventDefault();
-          e.stopPropagation();
-          onClose();
-        }
-      }}
+    <PanelShell
+      isOpen={visible}
+      onClose={onClose}
+      size="full"
+      fullScreen
+      aria-labelledby="tech-panel-title"
+      className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col"
     >
-      <div className="w-full h-full max-w-7xl max-h-[90vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 rounded-2xl shadow-2xl shadow-amber-500/10 overflow-hidden"
-           onClick={(e) => e.stopPropagation()}>
-        
+      <div className="flex flex-col h-full">
         {/* Header */}
         <div className="bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20 p-6">
           <div className="flex justify-between items-center">
@@ -199,7 +202,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                 <Book className="w-7 h-7 text-amber-100" />
               </div>
               <div>
-                <h1 className="font-cinzel text-2xl font-bold text-amber-100">Sacred Knowledge Tree</h1>
+                <h1 id="tech-panel-title" className="font-cinzel text-2xl font-bold text-amber-100">Sacred Knowledge Tree</h1>
                 <p className="text-amber-300/70 text-sm">— Book of Mormon Technologies —</p>
               </div>
             </div>
@@ -361,10 +364,12 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
         
         {/* Centered Modal for Selected Tech */}
         {selectedTech && (
-          <div 
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4"
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tech-detail-title"
             onClick={(e) => {
-              // Close modal if clicking on backdrop
               if (e.target === e.currentTarget) {
                 setSelectedTech(null);
               }
@@ -372,7 +377,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           >
             <div 
               className="w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-slate-600/50 shadow-2xl"
-              onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
+              onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
               <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-slate-600/50 p-6">
@@ -464,6 +469,6 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           </div>
         )}
       </div>
-    </div>
+    </PanelShell>
   );
 }

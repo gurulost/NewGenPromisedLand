@@ -1650,20 +1650,22 @@ function handleResearchTechnology(
     return state;
   }
   
+  const dynamicCost = calculateResearchCost(tech, player.researchedTechs.length);
+  
   // Check cost
-  if (player.stars < tech.cost) {
-    console.log(`Cannot research ${tech.name}: insufficient stars (need ${tech.cost}, have ${player.stars})`);
+  if (player.stars < dynamicCost) {
+    console.log(`Cannot research ${tech.name}: insufficient stars (need ${dynamicCost}, have ${player.stars})`);
     return state;
   }
   
-  console.log(`Player ${player.name} researched ${tech.name} for ${tech.cost} stars`);
+  console.log(`Player ${player.name} researched ${tech.name} for ${dynamicCost} stars`);
   
   // Update player with new technology
   const updatedPlayers = state.players.map(p => {
     if (p.id === playerId) {
       return {
         ...p,
-        stars: p.stars - tech.cost,
+        stars: p.stars - dynamicCost,
         researchedTechs: [...p.researchedTechs, technologyId],
       };
     }
