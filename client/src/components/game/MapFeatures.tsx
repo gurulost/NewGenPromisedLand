@@ -329,26 +329,33 @@ export default function MapFeatures() {
   if (!gameState) return null;
   
   // Function to render resource models with enhanced visuals and tooltips
-  const renderResource = (resource: string, position: { x: number; y: number }, key: string) => {
+  const renderResource = (resource: string, position: { x: number; y: number }, key: string, hasUnit: boolean = false) => {
     const y = 0.2; // Proper elevation above hex tiles
+    
+    // Offset position if a unit is on this tile to prevent occlusion
+    const renderPosition = hasUnit ? {
+      x: position.x + 0.35,  // Offset to the side
+      y: position.y + 0.35
+    } : position;
     
     const getResourceModel = (resource: string) => {
       switch (resource) {
         // Unified World Elements System - All resources now provide moral choices
         case 'timber_grove':
-          return <WorldElementModel elementId="timber_grove" position={position} />; 
+          return <WorldElementModel elementId="timber_grove" position={renderPosition} />; 
         case 'wild_goats':
-          return <WorldElementModel elementId="wild_goats" position={position} />; 
+          return <WorldElementModel elementId="wild_goats" position={renderPosition} />; 
         case 'grain_patch':
-          return <WorldElementModel elementId="grain_patch" position={position} />; 
+          return <WorldElementModel elementId="grain_patch" position={renderPosition} />; 
         case 'ore_vein':
-          return <WorldElementModel elementId="ore_vein" position={position} />; 
+          return <WorldElementModel elementId="ore_vein" position={renderPosition} />; 
         case 'fishing_shoal':
-          return <WorldElementModel elementId="fishing_shoal" position={position} />; 
+          return <WorldElementModel elementId="fishing_shoal" position={renderPosition} />; 
         case 'sea_beast':
-          return <WorldElementModel elementId="sea_beast" position={position} />; 
+          return <WorldElementModel elementId="sea_beast" position={renderPosition} />; 
         case 'jaredite_ruins':
-          return <WorldElementModel elementId="jaredite_ruins" position={position} />; 
+          // Ruins should be prominently visible even with units
+          return <WorldElementModel elementId="jaredite_ruins" position={renderPosition} />; 
         
         default:
           return null;
@@ -362,7 +369,7 @@ export default function MapFeatures() {
       <ResourceWithTooltip 
         key={`resource-${key}`} 
         resourceType={resource} 
-        position={position}
+        position={renderPosition}
       >
         {model}
       </ResourceWithTooltip>
@@ -645,12 +652,18 @@ export default function MapFeatures() {
           imp.coordinate.q === tile.coordinate.q && imp.coordinate.r === tile.coordinate.r
         );
         
+        // Check if there's a unit on this tile
+        const hasUnit = gameState.units.some(unit =>
+          unit.coordinate.q === tile.coordinate.q && 
+          unit.coordinate.r === tile.coordinate.r
+        );
+        
         if (hasImprovement) return null; // Don't render raw resources on improved tiles
         
         return (
           <group key={`tile-features-${tileKey}`}>
             {tile.resources.map((resource, index) => 
-              renderResource(resource, position, `${tileKey}-${index}`)
+              renderResource(resource, position, `${tileKey}-${index}`, hasUnit)
             )}
           </group>
         );
