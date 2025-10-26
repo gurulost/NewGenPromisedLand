@@ -250,9 +250,19 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
   return (
     <div 
       className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto p-4"
+      style={{ touchAction: 'pan-y pinch-zoom' }}
       onClick={(e) => {
         // Close menu if clicking on backdrop
         if (e.target === e.currentTarget) {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+      onTouchEnd={(e) => {
+        if (e.target === e.currentTarget) {
+          e.preventDefault();
+          e.stopPropagation();
           onClose();
         }
       }}
@@ -260,6 +270,8 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       <motion.div
         className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border-2 border-amber-500/30 w-full max-w-[1200px] h-full max-h-[90vh] overflow-hidden shadow-2xl shadow-amber-500/10"
         onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
+        onTouchEnd={(e) => e.stopPropagation()} // Prevent touches inside modal from closing it
+        style={{ touchAction: 'pan-y' }} // Allow vertical scrolling
         initial={{ scale: 0.8, opacity: 0, y: 50 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.8, opacity: 0, y: 50 }}

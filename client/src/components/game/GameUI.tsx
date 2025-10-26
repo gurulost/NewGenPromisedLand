@@ -353,9 +353,18 @@ export default function GameUI() {
       {showConstructionHall && selectedCityId && (
         <div 
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-auto"
+          style={{ touchAction: 'pan-y pinch-zoom' }}
           onClick={(e) => {
             e.stopPropagation();
             if (e.target === e.currentTarget) {
+              e.preventDefault();
+              setShowConstructionHall(false);
+            }
+          }}
+          onTouchEnd={(e) => {
+            e.stopPropagation();
+            if (e.target === e.currentTarget) {
+              e.preventDefault();
               setShowConstructionHall(false);
             }
           }}
@@ -424,9 +433,18 @@ export default function GameUI() {
       {selectedWorldElement && (
         <div 
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm pointer-events-auto"
+          style={{ touchAction: 'pan-y pinch-zoom' }}
           onClick={(e) => {
             e.stopPropagation();
             if (e.target === e.currentTarget) {
+              e.preventDefault();
+              setSelectedWorldElement(null);
+            }
+          }}
+          onTouchEnd={(e) => {
+            e.stopPropagation();
+            if (e.target === e.currentTarget) {
+              e.preventDefault();
               setSelectedWorldElement(null);
             }
           }}

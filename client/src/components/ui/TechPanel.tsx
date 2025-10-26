@@ -172,9 +172,18 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   return (
     <div 
       className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4"
-      style={{ pointerEvents: 'auto' }}
+      style={{ pointerEvents: 'auto', touchAction: 'pan-y pinch-zoom' }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+      onTouchEnd={(e) => {
+        if (e.target === e.currentTarget) {
+          e.preventDefault();
+          e.stopPropagation();
           onClose();
         }
       }}

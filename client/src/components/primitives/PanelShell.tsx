@@ -42,9 +42,21 @@ export function PanelShell({
     useSfx('panel-open');
   }
   
-  // Hotkeys for closing
-  useHotkeys('Escape', onClose);
-  useHotkeys('KeyB', onClose);
+  // Hotkeys for closing - only when panel is open to avoid conflicts
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.code === 'KeyB') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Focus trap and body scroll lock
   useEffect(() => {
@@ -69,6 +81,16 @@ export function PanelShell({
         transition: { type: 'spring', stiffness: 300, damping: 30 }
       };
 
+  // Handle backdrop clicks properly for both mouse and touch
+  const handleBackdropInteraction = (e: React.MouseEvent | React.TouchEvent) => {
+    // Only close if clicking directly on backdrop, not child elements
+    if (e.target === e.currentTarget) {
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    }
+  };
+
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog 
@@ -79,8 +101,9 @@ export function PanelShell({
         )}
         onClose={onClose}
         aria-labelledby={ariaLabelledBy}
+        style={{ touchAction: 'pan-y pinch-zoom' }} // Allow scrolling but prevent other gestures
       >
-        {/* Backdrop */}
+        {/* Backdrop - iPad/Touch optimized */}
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -90,7 +113,13 @@ export function PanelShell({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md" />
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-md cursor-pointer" 
+            onClick={handleBackdropInteraction}
+            onTouchEnd={handleBackdropInteraction}
+            style={{ touchAction: 'auto' }} // Allow taps on backdrop
+            aria-label="Close dialog"
+          />
         </Transition.Child>
 
         {/* Panel */}
@@ -105,6 +134,8 @@ export function PanelShell({
         >
           <motion.div
             {...motionProps}
+            onClick={(e) => e.stopPropagation()} // Prevent backdrop close when clicking inside
+            onTouchEnd={(e) => e.stopPropagation()} // Prevent backdrop close on touch inside
             className={clsx(
               "relative w-full text-amber-100 shadow-2xl shadow-black/60",
               fullScreen 
@@ -117,6 +148,7 @@ export function PanelShell({
                   ),
               className
             )}
+            style={{ touchAction: 'pan-y' }} // Allow vertical scrolling on touch devices
           >
             {/* Particle sparkle overlay (disabled for reduced motion) */}
             {!reducedMotion && (

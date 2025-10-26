@@ -43,8 +43,7 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  useHotkeys('Escape', onClose);
-  useHotkeys('KeyB', onClose);
+  // Note: Hotkeys are handled by PanelShell, no need to duplicate here
 
   useEffect(() => {
     loadSavedGamesList();
