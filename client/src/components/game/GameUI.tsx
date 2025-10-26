@@ -187,33 +187,37 @@ export default function GameUI() {
     };
   }, []);
 
-  // Check for victory conditions
-  useEffect(() => {
-    if (gameState?.winner) {
-      // Victory screen will be shown
-      return;
-    }
-    
-    // Check faith victory
-    const faithWinner = gameState?.players.find(p => p.stats.faith >= 100);
-    if (faithWinner) {
-      // Set winner and trigger victory screen
-      const updatedState = { ...gameState, winner: faithWinner.id };
-      // This would ideally be handled by the game reducer
-      return;
-    }
-    
-    // Check elimination victory
-    const activePlayers = gameState?.players.filter(p => !p.isEliminated);
-    if (activePlayers && activePlayers.length === 1) {
-      // Set winner and trigger victory screen
-      const updatedState = { ...gameState, winner: activePlayers[0].id };
-      // This would ideally be handled by the game reducer
-      return;
-    }
-  }, [gameState]);
+  // Victory conditions are automatically checked in the game reducer during END_TURN
+  // The VictoryScreen component will render when gameState.winner is set
 
-  // Remove duplicate - using enhanced version above
+  // Determine victory type based on winner's stats
+  const getVictoryType = (): 'faith' | 'territorial' | 'elimination' | 'domination' => {
+    if (!gameState?.winner) return 'faith';
+    
+    const winner = gameState.players.find(p => p.id === gameState.winner);
+    if (!winner) return 'faith';
+
+    // Check faith victory
+    if (winner.stats.faith >= 100 && winner.stats.internalDissent < 10) {
+      return 'faith';
+    }
+
+    // Check territorial victory
+    const totalCities = gameState.map.tiles.filter(tile => tile.hasCity).length;
+    const playerCities = winner.citiesOwned.length;
+    if (totalCities > 0 && playerCities / totalCities >= 0.75) {
+      return 'territorial';
+    }
+
+    // Check elimination (only one player with units)
+    const playersWithUnits = new Set(gameState.units.map(unit => unit.playerId));
+    if (playersWithUnits.size === 1) {
+      return 'elimination';
+    }
+
+    // Default to domination
+    return 'domination';
+  };
 
   const handleUseAbility = (abilityId: string) => {
     useAbility(currentPlayer.id, abilityId);
@@ -397,7 +401,7 @@ export default function GameUI() {
       {gameState?.winner && (
         <VictoryScreen
           winnerId={gameState.winner}
-          victoryType="faith" // This would be determined by victory conditions
+          victoryType={getVictoryType()}
           onPlayAgain={() => {
             resetGame();
             setGamePhase('menu');
