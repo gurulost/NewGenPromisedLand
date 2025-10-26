@@ -756,7 +756,7 @@ function handleMoveUnit(
     return tile;
   });
 
-  return {
+  let newState = {
     ...state,
     units: updatedUnits,
     players: updatedPlayers,
@@ -765,6 +765,27 @@ function handleMoveUnit(
       tiles: updatedTiles
     }
   };
+
+  // Auto-capture village if unit moved onto one
+  if (targetTile.feature === 'village' && targetTile.cityOwner !== currentPlayer.id) {
+    console.log('Auto-capturing village at:', payload.targetCoordinate);
+    newState = handleCaptureVillage(newState, {
+      unitId: payload.unitId,
+      playerId: currentPlayer.id
+    });
+  }
+
+  // Auto-explore Jaredite Ruins if unit moved onto one
+  if (targetTile.resources.includes('jaredite_ruins')) {
+    console.log('Auto-exploring Jaredite Ruins at:', payload.targetCoordinate);
+    newState = handleWorldElementHarvest(newState, {
+      playerId: currentPlayer.id,
+      elementId: 'jaredite_ruins',
+      coordinate: payload.targetCoordinate
+    });
+  }
+
+  return newState;
 }
 
 function handleAttackUnit(
