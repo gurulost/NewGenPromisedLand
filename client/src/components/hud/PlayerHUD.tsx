@@ -84,7 +84,6 @@ const StarResourcesSection = React.memo(({ stars, starProduction, breakdown }: {
       <div className="flex items-center gap-2 relative">
         <Star className="w-4 h-4 text-amber-400" />
         <span className="font-semibold text-amber-200">{stars}</span>
-        <Info className="w-3 h-3 text-amber-400/60 opacity-60" />
         <InfoTooltip content={<StarProductionTooltip totalIncome={starProduction} breakdown={breakdown} />} />
       </div>
       <div className="flex items-center gap-1 text-sm text-amber-300">
@@ -121,13 +120,10 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
     {/* Faith Progress */}
     <div>
       <div className="flex justify-between text-sm mb-1">
-        <div className="relative">
-          <span className="text-blue-300 font-cinzel font-medium flex items-center gap-1">
-            Faith
-            <Info className="w-3 h-3 text-amber-400/60 opacity-60" />
-          </span>
+        <span className="text-blue-300 font-cinzel font-medium flex items-center gap-1">
+          Faith
           <InfoTooltip content={<FaithSystemTooltip />} />
-        </div>
+        </span>
         <span className="text-amber-100 font-body font-medium">{playerStats.faithPercentage}/100</span>
       </div>
       <Progress value={playerStats.faithPercentage} className="h-2" />
@@ -136,13 +132,10 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
     {/* Pride Progress */}
     <div>
       <div className="flex justify-between text-sm mb-1">
-        <div className="relative">  
-          <span className="text-purple-300 font-cinzel font-medium flex items-center gap-1">
-            Pride
-            <Info className="w-3 h-3 text-amber-400/60 opacity-60" />
-          </span>
+        <span className="text-purple-300 font-cinzel font-medium flex items-center gap-1">
+          Pride
           <InfoTooltip content={<PrideSystemTooltip />} />
-        </div>
+        </span>
         <span className="text-amber-100 font-body font-medium">{playerStats.pridePercentage}/100</span>
       </div>
       <Progress value={playerStats.pridePercentage} className="h-2" />
@@ -165,22 +158,19 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
 }) => (
   <div className="space-y-2">
     <div className="grid grid-cols-2 gap-2">
-      <div className="relative">
-        <GlowingButton
-          variant="outline"
-          size="sm"
-          glowColor="blue"
-          intensity="medium"
-          className="w-full bg-gradient-to-r from-blue-600/20 to-blue-700/20 border-blue-400/60 
-                     text-blue-100 text-xs px-2 py-2 min-h-[44px]"
-          onClick={onShowTechPanel}
-          soundEffect="cta-click"
-        >
-          <Book className="w-3 h-3 mr-1 flex-shrink-0" />
-          <span>Sacred Knowledge</span>
-        </GlowingButton>
-        <InfoTooltip content={<TechnologyTooltip />} />
-      </div>
+      <GlowingButton
+        variant="outline"
+        size="sm"
+        glowColor="blue"
+        intensity="medium"
+        className="w-full bg-gradient-to-r from-blue-600/20 to-blue-700/20 border-blue-400/60 
+                   text-blue-100 text-xs px-2 py-2 min-h-[44px]"
+        onClick={onShowTechPanel}
+        soundEffect="cta-click"
+      >
+        <Book className="w-3 h-3 mr-1 flex-shrink-0" />
+        <span>Sacred Knowledge</span>
+      </GlowingButton>
       
       <GlowingButton
         variant="outline"
