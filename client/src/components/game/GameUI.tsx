@@ -318,6 +318,7 @@ export default function GameUI() {
         gameState={gameState}
         onShowTechPanel={() => setShowTechPanel(true)}
         onShowConstructionHall={handleShowConstructionHall}
+        onEndTurn={handleEndTurn}
       />
 
       {/* Selected Unit Panel - Unified interface with all unit actions */}

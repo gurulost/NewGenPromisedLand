@@ -18,9 +18,10 @@ interface PlayerHUDProps {
   gameState: GameState;
   onShowTechPanel: () => void;
   onShowConstructionHall: () => void;
+  onEndTurn: () => void;
 }
 
-export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructionHall }: PlayerHUDProps) {
+export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructionHall, onEndTurn }: PlayerHUDProps) {
   const faction = getFaction(player.factionId as any);
   
   // Moved expensive calculations to selector
@@ -66,6 +67,7 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
           <ActionButtonsSection 
             onShowTechPanel={onShowTechPanel}
             onShowConstructionHall={onShowConstructionHall}
+            onEndTurn={onEndTurn}
           />
         </CardContent>
       </Card>
@@ -152,9 +154,10 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
   </>
 ));
 
-const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHall }: {
+const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHall, onEndTurn }: {
   onShowTechPanel: () => void;
   onShowConstructionHall: () => void;
+  onEndTurn: () => void;
 }) => (
   <div className="space-y-2">
     <div className="grid grid-cols-2 gap-2">
@@ -188,6 +191,19 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
         </div>
       </GlowingButton>
     </div>
+    
+    <GlowingButton
+      variant="default"
+      size="sm"
+      glowColor="green"
+      intensity="high"
+      className="w-full bg-gradient-to-r from-green-600/30 to-green-700/30 border-green-400/60 
+                 text-green-100 text-sm px-3 py-3 min-h-[48px] font-semibold"
+      onClick={onEndTurn}
+      soundEffect="cta-click"
+    >
+      End Turn
+    </GlowingButton>
   </div>
 ));
 
