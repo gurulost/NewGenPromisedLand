@@ -14,6 +14,11 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { getUnitDefinition } from "@shared/data/units";
 import { getActionAvailability } from "../../lib/helpers/actionAvailabilityHelpers";
 import type { Unit } from "@shared/types/unit";
+import type { City, ImprovementType } from "@shared/types/city";
+import type { Tile, PlayerState } from "@shared/types/game";
+import { IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
+import { hexDistance } from "@shared/utils/hex";
+import { useToastContext } from "./ToastProvider";
 
 interface UnitActionsPanelProps {
   unit: Unit;
@@ -37,8 +42,9 @@ interface ActionDefinition {
 }
 
 export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProps) {
-  const { gameState, dispatch } = useLocalGame();
+  const { gameState, dispatch, harvestResource } = useLocalGame();
   const { setMovementMode, setAttackMode } = useGameState();
+  const toast = useToastContext();
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [actionToConfirm, setActionToConfirm] = useState<ActionDefinition | null>(null);
@@ -49,6 +55,18 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const isPlayerTurn = currentPlayer.id === unit.playerId;
   const actionAvailability = getActionAvailability(unit, gameState);
+  const getTileUnderUnit = (): Tile | undefined =>
+    gameState.map.tiles.find(
+      (tile) =>
+        tile.coordinate.q === unit.coordinate.q &&
+        tile.coordinate.r === unit.coordinate.r
+    );
+  const getControllingCity = (coordinate = unit.coordinate): City | undefined =>
+    gameState.cities?.find(
+      (city) =>
+        city.ownerId === unit.playerId &&
+        hexDistance(city.coordinate, coordinate) <= 2
+    );
 
   // Generate available actions based on unit type and game state
   const getUnitActions = (): ActionDefinition[] => {
@@ -229,6 +247,36 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     }
   };
 
+  const suggestImprovementForTile = (tile: Tile | undefined, player: PlayerState): ImprovementType | null => {
+    if (!tile) return null;
+    const resourcePriority: ImprovementType[] = [];
+    if (tile.resources?.includes('ore_vein')) resourcePriority.push('mine');
+    if (tile.resources?.includes('grain_patch')) resourcePriority.push('farm');
+    if (tile.resources?.includes('timber_grove')) resourcePriority.push('forest_camp');
+    
+    const terrainPriority: Record<string, ImprovementType[]> = {
+      plains: ['farm', 'irrigation', 'plantation', 'workshop', 'sawmill'],
+      desert: ['farm', 'irrigation'],
+      forest: ['forest_camp', 'lumber_hut', 'plantation'],
+      mountain: ['mine', 'workshop'],
+      swamp: ['irrigation'],
+    };
+    
+    const candidates = [...resourcePriority, ...(terrainPriority[tile.terrain] || [])];
+    const seen = new Set<ImprovementType>();
+    
+    for (const candidate of candidates) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      const def = IMPROVEMENT_DEFINITIONS[candidate];
+      if (!def) continue;
+      if (!def.validTerrain.includes(tile.terrain)) continue;
+      if (def.requiredTech && !player.researchedTechs.includes(def.requiredTech)) continue;
+      return candidate;
+    }
+    return null;
+  };
+
   const handleActionExecute = (action: ActionDefinition) => {
     if (!action.available) return;
     
@@ -270,24 +318,59 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           payload: { unitId: unit.id, abilityType: 'bombardment' }
         });
         break;
-      case 'build_road':
-        dispatch({ 
-          type: 'BUILD_ROAD', 
-          payload: { unitId: unit.id }
+      case 'build_road': {
+        const tile = getTileUnderUnit();
+        if (!tile) {
+          toast?.error('Unable to build road', 'Unknown tile data for this unit.');
+          return;
+        }
+        dispatch({
+          type: 'BUILD_ROAD',
+          payload: {
+            unitId: unit.id,
+            playerId: unit.playerId,
+            targetCoordinate: tile.coordinate
+          }
         });
         break;
-      case 'build_improvement':
-        dispatch({ 
-          type: 'BUILD_IMPROVEMENT', 
-          payload: { unitId: unit.id }
+      }
+      case 'build_improvement': {
+        const tile = getTileUnderUnit();
+        const controllingCity = getControllingCity();
+        if (!tile || !controllingCity) {
+          toast?.warning('Outside city borders', 'Move within 2 tiles of one of your cities to build improvements.');
+          return;
+        }
+        const improvementType = suggestImprovementForTile(tile, currentPlayer);
+        if (!improvementType) {
+          toast?.info('No valid improvements', 'Research the appropriate technology or move to a more suitable tile.');
+          return;
+        }
+        dispatch({
+          type: 'BUILD_IMPROVEMENT',
+          payload: {
+            playerId: unit.playerId,
+            coordinate: tile.coordinate,
+            improvementType,
+            cityId: controllingCity.id
+          }
         });
         break;
-      case 'harvest_resource':
-        dispatch({ 
-          type: 'HARVEST_RESOURCE', 
-          payload: { unitId: unit.id }
-        });
+      }
+      case 'harvest_resource': {
+        const tile = getTileUnderUnit();
+        const controllingCity = getControllingCity();
+        if (!tile || !tile.resources || tile.resources.length === 0) {
+          toast?.info('Nothing to harvest', 'Move onto a tile with an unharvested resource first.');
+          return;
+        }
+        if (!controllingCity) {
+          toast?.warning('Outside city influence', 'Harvesting requires a friendly city within 2 tiles.');
+          return;
+        }
+        harvestResource(unit.id, tile.coordinate, controllingCity.id);
         break;
+      }
       case 'convert':
         dispatch({ 
           type: 'USE_ABILITY', 

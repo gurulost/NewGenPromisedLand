@@ -241,6 +241,11 @@ export default function GameUI() {
 
   const handleAttackUnit = (attackerId: string, targetId: string) => {
     attackUnit(attackerId, targetId);
+    setAttackMode(false);
+
+    const latestState = useLocalGame.getState().gameState;
+    const updatedUnit = latestState?.units.find(u => u.id === attackerId);
+    setSelectedUnit(updatedUnit || null);
   };
 
   const handleUnitAction = (action: string) => {

@@ -1187,7 +1187,16 @@ function handleEndTurn(
   });
 
   // Check for victory conditions
-  const winner = checkVictoryConditions(state, updatedPlayers);
+  const updatedStateForVictory: GameState = {
+    ...state,
+    players: updatedPlayers,
+    units: updatedUnits,
+    improvements: updatedImprovements,
+    structures: updatedStructures,
+    cities: state.cities,
+  };
+
+  const winner = checkVictoryConditions(updatedStateForVictory, updatedPlayers);
 
   return {
     ...state,
