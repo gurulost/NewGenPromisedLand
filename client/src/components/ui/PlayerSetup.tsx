@@ -28,7 +28,7 @@ export default function PlayerSetup() {
   const toast = useToastContext();
   const [players, setPlayers] = useState<PlayerSetupData[]>([
     { id: '1', name: 'Player 1', factionId: null, isAI: false, aiDifficulty: 'normal' },
-    { id: '2', name: 'AI Player', factionId: null, isAI: true, aiDifficulty: 'normal' },
+    { id: '2', name: 'Player 2', factionId: null, isAI: false, aiDifficulty: 'normal' },
   ]);
   const [selectedMapSize, setSelectedMapSize] = useState<MapSize>('normal');
   const [isStartingGame, setIsStartingGame] = useState(false);
