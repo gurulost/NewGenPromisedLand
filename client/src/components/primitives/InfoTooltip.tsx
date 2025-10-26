@@ -71,22 +71,21 @@ export function InfoTooltip({
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
     >
-      {/* Tooltip trigger - premium glowing orb */}
+      {/* Tooltip trigger - subtle info icon */}
       {children || (
         <motion.div
-          whileHover={reducedMotion ? {} : { scale: 1.1, rotate: 5 }}
-          whileTap={reducedMotion ? {} : { scale: 0.95 }}
+          whileHover={reducedMotion ? {} : { scale: 1.15 }}
           className={clsx(
-            "w-8 h-8 rounded-full flex items-center justify-center cursor-help",
-            "bg-gradient-to-br from-blue-500 to-blue-600 text-blue-100",
-            "border border-blue-400/50 shadow-lg shadow-blue-500/25",
-            "hover:shadow-blue-400/40 transition-shadow duration-300",
-            "animate-pulse",
+            "w-5 h-5 rounded-full flex items-center justify-center cursor-help",
+            "bg-slate-700/40 text-amber-400/70",
+            "border border-amber-500/20",
+            "hover:bg-slate-600/60 hover:text-amber-300 hover:border-amber-500/40",
+            "transition-all duration-200",
             className
           )}
           aria-label="Information"
         >
-          <span className="text-xs font-bold">?</span>
+          <span className="text-xs">?</span>
         </motion.div>
       )}
 
