@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
@@ -26,6 +26,8 @@ export default function GameCanvas() {
   const controlsRef = useRef<any>();
   const debug = useGameDebugger();
   const { preferences } = useUserPreferences();
+  const activeAnimationsRef = useRef<gsap.core.Tween[]>([]);
+  const [isUserInteracting, setIsUserInteracting] = useState(false);
   
   // Enhanced selection and effects
   const {
@@ -59,12 +61,18 @@ export default function GameCanvas() {
   
   // Combat effects moved to GameUI to avoid HTML in R3F
 
+  // Kill all active GSAP animations
+  const killActiveAnimations = () => {
+    activeAnimationsRef.current.forEach(anim => anim.kill());
+    activeAnimationsRef.current = [];
+  };
+
   // Setup camera controls - Pure panning like RTS games
   useEffect(() => {
     if (controlsRef.current && gameState) {
-      // Enable smooth damping for responsive feel
+      // Enable smooth damping for responsive feel - increased for stability
       controlsRef.current.enableDamping = true;
-      controlsRef.current.dampingFactor = 0.1;
+      controlsRef.current.dampingFactor = 0.25; // Increased from 0.1 for more stability
       
       // Disable rotation completely - only allow panning and zooming
       controlsRef.current.enableRotate = false;
@@ -112,11 +120,29 @@ export default function GameCanvas() {
       
       // Set the orbit target to the player's starting area
       controlsRef.current.target.set(cameraTargetPosition.x, 0, cameraTargetPosition.z);
+      
+      // Add event listeners to detect user interaction
+      const startHandler = () => {
+        setIsUserInteracting(true);
+        killActiveAnimations(); // Stop any ongoing animations
+      };
+      const endHandler = () => setIsUserInteracting(false);
+      
+      controlsRef.current.addEventListener('start', startHandler);
+      controlsRef.current.addEventListener('end', endHandler);
+      
+      return () => {
+        controlsRef.current?.removeEventListener('start', startHandler);
+        controlsRef.current?.removeEventListener('end', endHandler);
+      };
     }
   }, [camera, gameState]);
 
   // Smooth camera repositioning when players change turns (user configurable)
   useEffect(() => {
+    // Don't animate if user is currently interacting with the camera
+    if (isUserInteracting) return;
+    
     if (controlsRef.current && gameState && preferences?.camera.autoFollowTurnChange && preferences.ui.showAnimations && !preferences.ui.reducedMotion) {
       const currentPlayer = gameState.players[gameState.currentPlayerIndex];
       const playerCity = gameState.cities?.find(city => 
@@ -124,6 +150,9 @@ export default function GameCanvas() {
       );
       
       if (playerCity) {
+        // Kill any existing animations before starting new ones
+        killActiveAnimations();
+        
         // Convert hex coordinates to world position
         const pixelPos = hexToPixel(playerCity.coordinate, 1);
         const cameraTargetPosition = { x: pixelPos.x, z: pixelPos.y };
@@ -135,7 +164,7 @@ export default function GameCanvas() {
         // Use GSAP for smooth camera transition with user-configured speed
         const animationDuration = (2 - preferences.camera.cameraSpeed) * 0.8; // Faster = shorter duration
         
-        gsap.to(camera.position, {
+        const posAnim = gsap.to(camera.position, {
           x: cameraTargetPosition.x,
           y: distance,
           z: cameraTargetPosition.z + distance * 0.7,
@@ -143,13 +172,16 @@ export default function GameCanvas() {
           ease: "power2.inOut",
         });
         
-        gsap.to(controlsRef.current.target, {
+        const targetAnim = gsap.to(controlsRef.current.target, {
           x: cameraTargetPosition.x,
           y: 0,
           z: cameraTargetPosition.z,
           duration: animationDuration,
           ease: "power2.inOut",
         });
+        
+        // Store animations for cleanup
+        activeAnimationsRef.current = [posAnim, targetAnim];
 
         debug.logRendering('Camera transition to new player', {
           playerId: currentPlayer.id,
@@ -159,24 +191,33 @@ export default function GameCanvas() {
         });
       }
     }
-  }, [gameState?.currentPlayerIndex, camera, gameState, preferences, debug]);
+  }, [gameState?.currentPlayerIndex, camera, gameState, preferences, debug, isUserInteracting]);
 
   // Optional camera centering on unit selection (user configurable)
   useEffect(() => {
+    // Don't animate if user is currently interacting with the camera
+    if (isUserInteracting) return;
+    
     if (selectedUnit && controlsRef.current && preferences?.camera.autoFollowUnitSelection && preferences.ui.showAnimations && !preferences.ui.reducedMotion) {
+      // Kill any existing animations before starting new one
+      killActiveAnimations();
+      
       const pixelPos = hexToPixel(selectedUnit.coordinate, 1);
       const targetPosition = new THREE.Vector3(pixelPos.x, 0, pixelPos.y);
 
       // Use GSAP to animate the camera target with user-configured speed
       const animationDuration = (2 - preferences.camera.cameraSpeed) * 0.4; // Faster = shorter duration
       
-      gsap.to(controlsRef.current.target, {
+      const targetAnim = gsap.to(controlsRef.current.target, {
         x: targetPosition.x,
         y: targetPosition.y,
         z: targetPosition.z,
         duration: animationDuration,
         ease: "power2.inOut",
       });
+      
+      // Store animation for cleanup
+      activeAnimationsRef.current = [targetAnim];
 
       debug.logUIInteraction('Camera focused on selected unit', {
         unitId: selectedUnit.id,
@@ -185,7 +226,14 @@ export default function GameCanvas() {
         animationDuration
       });
     }
-  }, [selectedUnit, preferences, debug]);
+  }, [selectedUnit, preferences, debug, isUserInteracting]);
+
+  // Cleanup animations on unmount
+  useEffect(() => {
+    return () => {
+      killActiveAnimations();
+    };
+  }, []);
 
   useFrame(() => {
     if (controlsRef.current) {
