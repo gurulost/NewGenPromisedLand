@@ -256,6 +256,7 @@ export default function GameCanvas() {
         enablePan={true}
         enableZoom={true}
         enableRotate={false}
+        makeDefault
         mouseButtons={{
           LEFT: THREE.MOUSE.PAN,
           MIDDLE: THREE.MOUSE.DOLLY,
@@ -263,7 +264,7 @@ export default function GameCanvas() {
         }}
         touches={{
           ONE: THREE.TOUCH.PAN,
-          TWO: THREE.TOUCH.DOLLY_PAN
+          TWO: THREE.TOUCH.DOLLY_ROTATE
         }}
       />
       
