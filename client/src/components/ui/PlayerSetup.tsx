@@ -267,7 +267,7 @@ export default function PlayerSetup() {
                   loading={isStartingGame}
                   variant={gameStarted ? "success" : "primary"}
                   className="flex-1"
-                  icon={gameStarted ? undefined : (isStartingGame ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />)}
+                  icon={gameStarted ? undefined : (isStartingGame ? Loader2 : Play)}
                   glow
                 >
                   {isStartingGame ? "Starting Game..." : gameStarted ? "Game Started!" : "Start Game"}
