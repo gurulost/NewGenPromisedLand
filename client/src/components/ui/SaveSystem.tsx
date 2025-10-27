@@ -4,6 +4,7 @@ import { Save, Trash2, Download, Upload, Calendar, Clock, Users } from 'lucide-r
 import { GameState } from '@shared/types/game';
 import { compress, decompress } from 'lz-string';
 import { PanelShell } from '../primitives/PanelShell';
+import { useToastContext } from './ToastProvider';
 
 interface SaveSlot {
   id: string;
@@ -28,6 +29,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
   const [saveName, setSaveName] = useState('');
   const [selectedSave, setSelectedSave] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const toast = useToastContext();
 
   useEffect(() => {
     loadSaveSlots();
@@ -107,7 +109,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
       setSaveName('');
     } catch (error) {
       console.error('Failed to save game:', error);
-      alert('Failed to save game. Storage might be full.');
+      toast.error('Save Failed', 'Storage might be full or local storage quota was exceeded.');
     }
   };
 
@@ -158,7 +160,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Failed to export save:', error);
-      alert('Failed to export save file.');
+      toast.error('Export Failed', 'Unable to generate a downloadable save file.');
     } finally {
       setIsExporting(false);
     }
@@ -194,10 +196,10 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
         localStorage.setItem('game_save_indices', JSON.stringify(saveIndices));
 
         loadSaveSlots();
-        alert('Save file imported successfully!');
+        toast.success('Import Complete', 'Save file added to your local slots.');
       } catch (error) {
         console.error('Failed to import save:', error);
-        alert('Failed to import save file. Please check the file format.');
+        toast.error('Import Failed', 'Please verify the file format and try again.');
       }
     };
     
@@ -346,7 +348,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
   );
 }
 
-function SaveSlotCard({
+const SaveSlotCard = React.memo(function SaveSlotCard({
   save,
   isSelected,
   onSelect,
@@ -458,4 +460,4 @@ function SaveSlotCard({
       </div>
     </motion.div>
   );
-}
+});

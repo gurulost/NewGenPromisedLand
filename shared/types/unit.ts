@@ -36,6 +36,16 @@ export const UnitStatusSchema = z.enum([
 
 export type UnitStatus = z.infer<typeof UnitStatusSchema>;
 
+const UnitTemporaryEffectSchema = z.object({
+  id: z.string(),
+  type: z.enum(['status_immunity', 'attack_buff']),
+  amount: z.number().optional(),
+  turnsRemaining: z.number(),
+  source: z.string().optional(),
+});
+
+export type UnitTemporaryEffect = z.infer<typeof UnitTemporaryEffectSchema>;
+
 export const UnitSchema = z.object({
   id: z.string(),
   type: UnitTypeSchema,
@@ -57,6 +67,7 @@ export const UnitSchema = z.object({
   visionRadius: z.number().default(2),
   attackRange: z.number().default(1),
   hasAttacked: z.boolean().default(false),
+  temporaryEffects: z.array(UnitTemporaryEffectSchema).optional(),
 });
 
 export type Unit = z.infer<typeof UnitSchema>;
