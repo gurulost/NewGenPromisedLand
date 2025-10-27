@@ -1,5 +1,5 @@
 import { GameState, GameAction, PlayerState } from "../types/game";
-import { Unit, UnitType } from "../types/unit";
+import { Unit, UnitType, UnitTemporaryEffect } from "../types/unit";
 import { hexDistance, hexNeighbors } from "../utils/hex";
 import { getUnitDefinition } from "../data/units";
 import { getActiveModifiers, getUnitModifiers, GameModifier } from "../data/modifiers";
@@ -944,6 +944,12 @@ function handleUseAbility(
       return applyRameumptom(state, player);
     case 'COVENANT_OF_PEACE':
       return applyCovenantOfPeace(state, player);
+    case 'DIVINE_WARD':
+      return applyDivineWard(state, player, payload);
+    case 'SPIRITUAL_WARFARE':
+      return applySpiritualWarfare(state, player);
+    case 'RIGHTEOUS_FURY':
+      return applyRighteousFury(state, player, payload);
     
     // Nephite faction abilities
     case 'nephite_righteous_charge':
@@ -1185,6 +1191,9 @@ function handleEndTurn(
     }
     return u;
   });
+
+  // Decrement temporary ability effects and clean up expired buffs
+  updatedUnits = tickUnitTemporaryEffects(updatedUnits);
 
   // Check for victory conditions
   const updatedStateForVictory: GameState = {
@@ -2107,6 +2116,208 @@ function applyMaritimeExpansion(state: GameState, payload: any): GameState {
         : u
     )
   };
+}
+
+function applyDivineWard(
+  state: GameState,
+  player: PlayerState,
+  payload: { unitId?: string; targetUnitId?: string }
+): GameState {
+  const faithCost = ABILITIES.DIVINE_WARD.requirements?.faith || 0;
+  const duration = ABILITIES.DIVINE_WARD.duration || 3;
+  const targetUnit = state.units.find(
+    u =>
+      u.id === payload.unitId ||
+      u.id === payload.targetUnitId
+  ) || state.units.find(u => u.playerId === player.id);
+
+  if (!targetUnit || targetUnit.playerId !== player.id) {
+    return state;
+  }
+
+  const protectionEffect: UnitTemporaryEffect = {
+    id: `divine_ward_${targetUnit.id}_${Date.now()}`,
+    type: 'status_immunity',
+    turnsRemaining: duration,
+    source: 'DIVINE_WARD'
+  };
+
+  const updatedUnits = state.units.map(unit => {
+    if (unit.id !== targetUnit.id) return unit;
+
+    const existingEffects = (unit.temporaryEffects || []).filter(
+      effect => effect.source !== 'DIVINE_WARD'
+    );
+
+    return {
+      ...unit,
+      status: 'active',
+      hasAttacked: false,
+      remainingMovement: unit.movement,
+      temporaryEffects: [...existingEffects, protectionEffect]
+    };
+  });
+
+  const updatedPlayers = state.players.map(p =>
+    p.id === player.id && faithCost > 0
+      ? {
+          ...p,
+          stats: {
+            ...p.stats,
+            faith: Math.max(0, p.stats.faith - faithCost)
+          }
+        }
+      : p
+  );
+
+  return {
+    ...state,
+    units: updatedUnits,
+    players: updatedPlayers
+  };
+}
+
+function applySpiritualWarfare(state: GameState, player: PlayerState): GameState {
+  const friendlyUnits = state.units.filter(u => u.playerId === player.id);
+  if (friendlyUnits.length === 0) return state;
+
+  const drains: Record<string, number> = {};
+  const drainPerContact = 2;
+
+  friendlyUnits.forEach(friendly => {
+    state.units.forEach(enemy => {
+      if (enemy.playerId === player.id) return;
+      if (hexDistance(friendly.coordinate, enemy.coordinate) <= 1) {
+        drains[enemy.playerId] = (drains[enemy.playerId] || 0) + drainPerContact;
+      }
+    });
+  });
+
+  if (Object.keys(drains).length === 0) return state;
+
+  const totalDrain = Object.values(drains).reduce((sum, value) => sum + value, 0);
+
+  return {
+    ...state,
+    players: state.players.map(p => {
+      if (p.id === player.id) {
+        return {
+          ...p,
+          stats: {
+            ...p.stats,
+            faith: Math.min(100, p.stats.faith + Math.ceil(totalDrain / 2))
+          }
+        };
+      }
+
+      if (drains[p.id]) {
+        return {
+          ...p,
+          stats: {
+            ...p.stats,
+            faith: Math.max(0, p.stats.faith - drains[p.id])
+          }
+        };
+      }
+
+      return p;
+    })
+  };
+}
+
+function applyRighteousFury(
+  state: GameState,
+  player: PlayerState,
+  payload: { unitId?: string; targetUnitId?: string }
+): GameState {
+  const sourceUnit =
+    state.units.find(
+      u => u.id === payload.unitId || u.id === payload.targetUnitId
+    ) || state.units.find(u => u.playerId === player.id);
+
+  if (!sourceUnit || sourceUnit.playerId !== player.id) {
+    return state;
+  }
+
+  const duration = ABILITIES.RIGHTEOUS_FURY.duration || 3;
+  const buffAmount = 3;
+  const buffRadius = 2;
+
+  const affectedUnitIds = state.units
+    .filter(
+      u =>
+        u.playerId === player.id &&
+        hexDistance(u.coordinate, sourceUnit.coordinate) <= buffRadius
+    )
+    .map(u => u.id);
+
+  if (affectedUnitIds.length === 0) return state;
+
+  const updatedUnits = state.units.map(unit => {
+    if (!affectedUnitIds.includes(unit.id)) return unit;
+
+    const furyEffect: UnitTemporaryEffect = {
+      id: `righteous_fury_${unit.id}_${Date.now()}`,
+      type: 'attack_buff',
+      amount: buffAmount,
+      turnsRemaining: duration,
+      source: 'RIGHTEOUS_FURY'
+    };
+
+    return {
+      ...unit,
+      attack: unit.attack + buffAmount,
+      temporaryEffects: [...(unit.temporaryEffects || []), furyEffect]
+    };
+  });
+
+  return {
+    ...state,
+    units: updatedUnits
+  };
+}
+
+function tickUnitTemporaryEffects(units: Unit[]): Unit[] {
+  return units.map(unit => {
+    if (!unit.temporaryEffects || unit.temporaryEffects.length === 0) {
+      return unit;
+    }
+
+    let attackAdjustment = 0;
+    let hasActiveStatusImmunity = false;
+    const remainingEffects: UnitTemporaryEffect[] = [];
+
+    unit.temporaryEffects.forEach(effect => {
+      const updatedTurns = effect.turnsRemaining - 1;
+      if (updatedTurns > 0) {
+        const updatedEffect = { ...effect, turnsRemaining: updatedTurns };
+        remainingEffects.push(updatedEffect);
+        if (effect.type === 'status_immunity') {
+          hasActiveStatusImmunity = true;
+        }
+      } else if (effect.type === 'attack_buff' && effect.amount) {
+        attackAdjustment -= effect.amount;
+      }
+    });
+
+    let updatedUnit = unit;
+
+    if (attackAdjustment !== 0) {
+      updatedUnit = {
+        ...updatedUnit,
+        attack: Math.max(1, updatedUnit.attack + attackAdjustment)
+      };
+    }
+
+    if (hasActiveStatusImmunity && updatedUnit.status === 'exhausted') {
+      updatedUnit = { ...updatedUnit, status: 'active' };
+    }
+
+    return {
+      ...updatedUnit,
+      temporaryEffects: remainingEffects.length > 0 ? remainingEffects : undefined
+    };
+  });
 }
 
 // Advanced Diplomacy and Trade Mechanics
