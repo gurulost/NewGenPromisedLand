@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import CityPanel from '../client/src/components/ui/CityPanel';
+import { CityPanel } from '../client/src/components/city/CityPanel';
 import { GameState, PlayerState, City } from '../shared/types/game';
 
 // Mock the BuildingMenu component
@@ -18,6 +18,25 @@ vi.mock('../client/src/components/ui/BuildingMenu', () => ({
 vi.mock('../client/src/components/ui/TooltipSystem', () => ({
   Tooltip: ({ children }: any) => children,
   ActionTooltip: ({ title }: any) => <div>{title}</div>
+}));
+
+// Mock ToastProvider
+vi.mock('../client/src/components/ui/ToastProvider', () => ({
+  ToastProvider: ({ children }: any) => children,
+  useToastContext: () => ({
+    showToast: vi.fn()
+  })
+}));
+
+// Mock useGameAudio with correct API
+vi.mock('../client/src/hooks/useAudioIntegration', () => ({
+  useGameAudio: () => ({
+    onButtonClick: vi.fn(),
+    onButtonHover: vi.fn(),
+    onBuildingBuilt: vi.fn(),
+    onPanelOpen: vi.fn(),
+    onPanelClose: vi.fn()
+  })
 }));
 
 // Mock game store

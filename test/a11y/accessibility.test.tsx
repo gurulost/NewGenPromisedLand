@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { axe, toHaveNoViolations } from 'jest-axe';
 import { PlayerHUD } from '../../client/src/components/ui/PlayerHUD';
-import { CityPanel } from '../../client/src/components/ui/CityPanel';
+import { CityPanel } from '../../client/src/components/city/CityPanel';
 import { TechPanel } from '../../client/src/components/ui/TechPanel';
 import { CombatPanel } from '../../client/src/components/ui/CombatPanel';
 

@@ -9,6 +9,24 @@ import type { GameState } from '../shared/types/game';
 vi.mock('../client/src/lib/stores/useGameState');
 vi.mock('../client/src/lib/stores/useLocalGame');
 
+// Mock ToastProvider
+vi.mock('../client/src/components/ui/ToastProvider', () => ({
+  ToastProvider: ({ children }: any) => children,
+  useToastContext: () => ({
+    showToast: vi.fn()
+  })
+}));
+
+// Mock useGameAudio with correct API
+vi.mock('../client/src/hooks/useAudioIntegration', () => ({
+  useGameAudio: () => ({
+    onUnitSelect: vi.fn(),
+    onUnitMove: vi.fn(),
+    onButtonClick: vi.fn(),
+    onButtonHover: vi.fn()
+  })
+}));
+
 describe('Movement System Core Logic Tests', () => {
   let mockUnit: Unit;
   let mockGameState: GameState;
