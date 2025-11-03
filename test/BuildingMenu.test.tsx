@@ -67,7 +67,7 @@ describe('BuildingMenu Component', () => {
       },
       modifiers: [],
       researchedTechs: ['writing', 'organization'],
-      researchProgress: 0,
+      researchInspiration: 0,
       citiesOwned: ['city1'],
       constructionQueue: [],
       visibilityMask: [],

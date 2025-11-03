@@ -64,6 +64,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         internalDissent: 10,
       },
       modifiers: [],
+      abilityCooldowns: {},
       constructionQueue: [],
       visibilityMask: [],
       exploredTiles: [],
@@ -71,9 +72,8 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       turnOrder: setup.turnOrder,
       stars: 10, // Starting currency
       researchedTechs: [], // No starting technologies
-      researchProgress: 0,
+      researchInspiration: 0,
       citiesOwned: [],
-      currentResearch: undefined,
     }));
 
     // Extract faction IDs for terrain generation
@@ -276,27 +276,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     const { gameState } = get();
     if (!gameState) return;
 
-    console.log('🔄 END_TURN called', {
-      playerId,
-      currentPlayerIndex: gameState.currentPlayerIndex,
-      playerCount: gameState.players.length,
-      players: gameState.players.map(p => ({ id: p.id, name: p.name }))
-    });
-
     const action = {
       type: 'END_TURN' as const,
       payload: { playerId }
     };
 
     const newGameState = gameReducer(gameState, action);
-    
-    console.log('🔄 END_TURN completed', {
-      oldPlayerIndex: gameState.currentPlayerIndex,
-      newPlayerIndex: newGameState.currentPlayerIndex,
-      playerCount: newGameState.players.length,
-      currentPlayerName: newGameState.players[newGameState.currentPlayerIndex]?.name || 'UNDEFINED',
-      turn: newGameState.turn
-    });
     
     // Clear selected unit when turn changes
     useGameState.getState().setSelectedUnit(null);
@@ -314,15 +299,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     const { gameState } = get();
     if (!gameState) return;
 
-    console.log('Moving unit:', unitId, 'to:', targetCoordinate);
-
     const action = {
       type: 'MOVE_UNIT' as const,
       payload: { unitId, targetCoordinate }
     };
 
     const newGameState = gameReducer(gameState, action);
-    console.log('Game state updated:', newGameState);
     
     // Play audio feedback for unit movement
     audioService.onUnitMove();
@@ -334,15 +316,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     const { gameState } = get();
     if (!gameState) return;
 
-    console.log('Unit attacking:', attackerId, 'target:', targetId);
-
     const action = {
       type: 'ATTACK_UNIT' as const,
       payload: { attackerId, targetId }
     };
 
     const newGameState = gameReducer(gameState, action);
-    console.log('Combat result:', newGameState);
     
     // Play audio feedback for unit attack
     audioService.onUnitAttack();
@@ -376,6 +355,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     // Add audio feedback for various action types via generic dispatch
     switch (action.type) {
       case 'RESEARCH_TECH':
+      case 'RESEARCH_TECHNOLOGY':
         audioService.onTechResearch();
         break;
       case 'BUILD_STRUCTURE':

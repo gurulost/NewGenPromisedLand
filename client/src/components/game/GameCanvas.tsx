@@ -14,14 +14,14 @@ import { useGameDebugger } from "../../utils/gameDebug";
 import { hexToPixel } from "@shared/utils/hex";
 import { gsap } from "gsap";
 import * as THREE from "three";
-import { UnitSelectionEffects, useUnitSelection } from "../effects/UnitSelection";
+import { AbilityTargetHighlights, UnitSelectionEffects, useUnitSelection } from "../effects/UnitSelection";
 import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import MovementOverlay from "./MovementOverlay";
 import { getReachableTiles } from "@shared/logic/pathfinding";
 
 export default function GameCanvas() {
   const { gameState, dispatch } = useLocalGame();
-  const { selectedUnit, hoveredTile, setSelectedUnit, isMovementMode, setMovementMode, reachableCoordinates, setReachableCoordinates } = useGameState();
+  const { selectedUnit, hoveredTile, setSelectedUnit, isMovementMode, setMovementMode, reachableCoordinates, setReachableCoordinates, abilityTargetMode } = useGameState();
   const { camera } = useThree();
   const controlsRef = useRef<any>();
   const debug = useGameDebugger();
@@ -39,6 +39,15 @@ export default function GameCanvas() {
     clearSelection,
     hoverTile
   } = useUnitSelection();
+
+  const abilityTargetCoordinates = abilityTargetMode?.isActive && gameState
+    ? abilityTargetMode.eligibleUnitIds
+        .map((unitId) => gameState.units.find((unit) => unit.id === unitId)?.coordinate)
+        .filter((coordinate): coordinate is { q: number; r: number; s: number } => Boolean(coordinate))
+    : [];
+  const selectedAbilityTargetCoordinate = abilityTargetMode?.selectedUnitId && gameState
+    ? gameState.units.find((unit) => unit.id === abilityTargetMode.selectedUnitId)?.coordinate || null
+    : null;
 
   // Calculate reachable tiles when movement mode is activated
   useEffect(() => {
@@ -303,6 +312,13 @@ export default function GameCanvas() {
         ));
       })()}
 
+      {abilityTargetCoordinates.length > 0 && (
+        <AbilityTargetHighlights
+          coordinates={abilityTargetCoordinates}
+          selectedCoordinate={selectedAbilityTargetCoordinate}
+        />
+      )}
+
       {/* Enhanced Unit Selection Effects */}
       <UnitSelectionEffects
         selectedCoordinate={selectedCoordinate}
@@ -322,12 +338,9 @@ export default function GameCanvas() {
           } : null}
           onTileHover={(coord) => {
             // Handle tile hover for movement preview
-            console.log('Movement tile hovered:', coord);
           }}
           onTileClick={(coord) => {
             if (!selectedUnit || !gameState) return;
-            
-            console.log('Executing unit movement:', selectedUnit.id, 'to', coord);
             dispatch({
               type: 'MOVE_UNIT',
               payload: {

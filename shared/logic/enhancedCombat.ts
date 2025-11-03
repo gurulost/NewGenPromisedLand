@@ -17,7 +17,6 @@ export function handleEnhancedAttack(
   const target = state.units.find(u => u.id === targetId);
   
   if (!attacker || !target) {
-    console.log('Attacker or target not found');
     return state;
   }
 
@@ -31,7 +30,6 @@ export function handleEnhancedAttack(
   const combatResult = calculateCombatDamage(attacker, target, state, targetTile?.terrain);
   
   if (!combatResult.success) {
-    console.log('Combat failed:', combatResult.message);
     return state;
   }
 
@@ -61,10 +59,7 @@ export function handleEnhancedAttack(
   if (combatResult.defenderKilled) {
     updatedUnits = updatedUnits.filter(unit => unit.id !== targetId);
   }
-
-  console.log('Enhanced combat result:', combatResult.message);
   if (combatResult.specialEffects.length > 0) {
-    console.log('Special effects:', combatResult.specialEffects.join(', '));
   }
 
   return {
@@ -84,18 +79,17 @@ export function handleRangedBombardment(
     return state;
   }
 
-  const bombardmentResult = calculateRangedAttack(attacker, targetCoordinate, state);
+  const bombardmentResult = calculateRangedAttack(state, attacker, targetCoordinate);
   
   if (!bombardmentResult.success) {
-    console.log('Bombardment failed:', bombardmentResult.message);
     return state;
   }
 
   // Apply area damage
   const updatedUnits = state.units.map(unit => {
-    const isAffected = bombardmentResult.affectedUnits.some(affected => affected.id === unit.id);
-    if (isAffected) {
-      const newHp = Math.max(0, unit.hp - bombardmentResult.damage);
+    const impact = bombardmentResult.impacts.find(entry => entry.unit.id === unit.id);
+    if (impact) {
+      const newHp = Math.max(0, unit.hp - impact.damage);
       return { ...unit, hp: newHp };
     }
     if (unit.id === attackerId) {
@@ -103,12 +97,9 @@ export function handleRangedBombardment(
     }
     return unit;
   }).filter(unit => {
-    // Remove killed units
-    const wasAffected = bombardmentResult.affectedUnits.some(affected => affected.id === unit.id);
+    const wasAffected = bombardmentResult.impacts.some(entry => entry.unit.id === unit.id);
     return !wasAffected || unit.hp > 0;
   });
-
-  console.log('Bombardment result:', bombardmentResult.message);
 
   return {
     ...state,
@@ -130,7 +121,6 @@ export function handleUnitHealing(
   const healingResult = calculateHealing(healer, targetArea, state);
   
   if (!healingResult.success) {
-    console.log('Healing failed:', healingResult.message);
     return state;
   }
 
@@ -156,8 +146,6 @@ export function handleUnitHealing(
     return player;
   });
 
-  console.log('Healing result:', healingResult.message);
-
   return {
     ...state,
     units: updatedUnits,
@@ -181,7 +169,6 @@ export function handleUnitConversion(
   const conversionResult = calculateConversion(converter, target, state);
   
   if (!conversionResult.success) {
-    console.log('Conversion failed:', conversionResult.message);
     return state;
   }
 
@@ -215,15 +202,12 @@ export function handleUnitConversion(
       return unit;
     });
 
-    console.log(`Conversion successful! ${target.type} joins your cause.`);
-
     return {
       ...state,
       units: updatedUnits,
       players: updatedPlayers
     };
   } else {
-    console.log(`Conversion failed. ${target.type} resists.`);
     
     return {
       ...state,

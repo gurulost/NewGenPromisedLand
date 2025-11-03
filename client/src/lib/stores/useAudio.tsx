@@ -66,21 +66,18 @@ export const useAudio = create<AudioState>((set, get) => ({
       backgroundMusic.loop = true;
       backgroundMusic.volume = get().musicVolume;
       backgroundMusic.onerror = () => {
-        console.warn('Background music failed to load: /sounds/background.mp3');
       };
       
       // Validate and load hit sound with fallback
       const hitSound = new Audio('/sounds/hit.mp3');
       hitSound.volume = get().sfxVolume;
       hitSound.onerror = () => {
-        console.warn('Hit sound failed to load: /sounds/hit.mp3');
       };
       
       // Validate and load success sound with fallback
       const successSound = new Audio('/sounds/success.mp3');
       successSound.volume = get().sfxVolume;
       successSound.onerror = () => {
-        console.warn('Success sound failed to load: /sounds/success.mp3');
       };
       
       // Load additional game sounds using the same hit/success files with different settings
@@ -102,10 +99,7 @@ export const useAudio = create<AudioState>((set, get) => ({
         notificationSound,
         isInitialized: true 
       });
-      
-      console.log('🎵 Audio system initialized successfully');
     } catch (error) {
-      console.warn('Audio initialization failed:', error);
     }
   },
   
@@ -142,7 +136,6 @@ export const useAudio = create<AudioState>((set, get) => ({
     }
     
     set({ isMuted: newMutedState });
-    console.log(`🔊 Sound ${newMutedState ? 'muted' : 'unmuted'}`);
   },
   
   // Background music controls
@@ -150,7 +143,6 @@ export const useAudio = create<AudioState>((set, get) => ({
     const { backgroundMusic, isMuted } = get();
     if (backgroundMusic && !isMuted) {
       backgroundMusic.play().catch(() => {
-        console.log('Background music autoplay prevented by browser');
       });
     }
   },
@@ -168,7 +160,6 @@ export const useAudio = create<AudioState>((set, get) => ({
     if (hitSound) {
       // If sound is muted, don't play anything
       if (isMuted) {
-        console.log("Hit sound skipped (muted)");
         return;
       }
       
@@ -176,7 +167,6 @@ export const useAudio = create<AudioState>((set, get) => ({
       const soundClone = hitSound.cloneNode() as HTMLAudioElement;
       soundClone.volume = 0.3;
       soundClone.play().catch(error => {
-        console.log("Hit sound play prevented:", error);
       });
     }
   },
@@ -186,7 +176,6 @@ export const useAudio = create<AudioState>((set, get) => ({
     if (successSound && !isMuted) {
       successSound.currentTime = 0;
       successSound.play().catch(error => {
-        console.log("Success sound play prevented:", error);
       });
     }
   },

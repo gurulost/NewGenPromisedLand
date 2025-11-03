@@ -64,7 +64,6 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                 saves.push(saveData);
               }
             } catch (e) {
-              console.warn('Failed to load save:', key, e);
             }
           }
         }
@@ -204,7 +203,6 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
           const compressed = compress(JSON.stringify(imported));
           localStorage.setItem(`chronicles_save_${imported.id}`, compressed);
           loadSavedGamesList();
-          console.log('Save imported successfully:', imported.name);
         }
       } catch (error) {
         console.error('Failed to import save:', error);
