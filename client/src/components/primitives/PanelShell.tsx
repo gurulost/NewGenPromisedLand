@@ -36,11 +36,14 @@ export function PanelShell({
   'aria-labelledby': ariaLabelledBy
 }: PanelShellProps) {
   const reducedMotion = useReducedMotion();
+  const sfx = useSfx('panel-open');
   
-  // Sound effects
-  if (isOpen) {
-    useSfx('panel-open');
-  }
+  // Sound effects - play when panel opens
+  useEffect(() => {
+    if (isOpen) {
+      sfx();
+    }
+  }, [isOpen, sfx]);
   
   // Hotkeys for closing - only when panel is open to avoid conflicts
   useEffect(() => {
