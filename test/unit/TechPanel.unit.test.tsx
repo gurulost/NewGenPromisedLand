@@ -1,165 +1,117 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
 import { TechPanel } from '../../client/src/components/ui/TechPanel';
+import type { GameState, PlayerState } from '../../shared/types/game';
 
-const mockTechStatuses = {
-  organization: { status: 'researched', turnsRemaining: 0 },
-  hunting: { status: 'researching', turnsRemaining: 2 },
-  agriculture: { status: 'available', turnsRemaining: 0 },
-  metallurgy: { status: 'locked', turnsRemaining: 0 },
-  engineering: { status: 'available', turnsRemaining: 0 }
+const createPlayer = (overrides: Partial<PlayerState> = {}): PlayerState => ({
+  id: 'player1',
+  name: 'Test Player',
+  factionId: 'NEPHITES',
+  isAI: false,
+  stars: 40,
+  stats: { faith: 30, pride: 20, internalDissent: 5 },
+  modifiers: [],
+  abilityCooldowns: {},
+  researchedTechs: ['organization'],
+  researchInspiration: 0,
+  citiesOwned: [],
+  constructionQueue: [],
+  visibilityMask: [],
+  exploredTiles: [],
+  isEliminated: false,
+  turnOrder: 0,
+  ...overrides,
+});
+
+const createGameState = (player: PlayerState): GameState => ({
+  id: 'game-1',
+  players: [player],
+  currentPlayerIndex: 0,
+  turn: 1,
+  phase: 'playing',
+  map: { tiles: [], width: 5, height: 5 },
+  units: [],
+  cities: [],
+  improvements: [],
+  structures: [],
+});
+
+const renderPanel = (overrides: Partial<PlayerState> = {}) => {
+  const player = createPlayer(overrides);
+  const gameState = createGameState(player);
+  const onResearchTech = vi.fn();
+
+  const renderResult = render(
+    <TechPanel
+      isOpen
+      onClose={vi.fn()}
+      gameState={gameState}
+      currentPlayer={player}
+      onResearchTech={onResearchTech}
+    />
+  );
+
+  return { ...renderResult, player, gameState, onResearchTech };
 };
 
-const mockGameState = {
-  players: [{
-    id: 'player1',
-    stars: 20,
-    technologies: ['organization'],
-    researchProgress: { hunting: { turnsInvested: 1, totalTurns: 3 } }
-  }]
-};
+describe('TechPanel Component', () => {
+  it('renders tier badges and prerequisite chips for each technology', () => {
+    renderPanel();
 
-// Mock ToastProvider
-vi.mock('../../client/src/components/ui/ToastProvider', () => ({
-  ToastProvider: ({ children }: any) => children,
-  useToastContext: () => ({
-    showToast: vi.fn()
-  })
-}));
+    const node = screen.getByText('Organization').closest('[data-testid="tech-node"]');
+    expect(node).not.toBeNull();
+    expect(within(node!).getByText('Tier I')).toBeInTheDocument();
 
-// Mock useGameAudio
-vi.mock('../../client/src/hooks/useAudioIntegration', () => ({
-  useGameAudio: () => ({
-    onTechResearch: vi.fn(),
-    onButtonClick: vi.fn(),
-    onButtonHover: vi.fn(),
-    onPanelOpen: vi.fn(),
-    onPanelClose: vi.fn()
-  })
-}));
-
-describe('TechPanel Unit Tests', () => {
-  it('snapshots tech tree with different status pillars', () => {
-    const component = render(
-      <TechPanel 
-        gameState={mockGameState}
-        playerId="player1"
-        onClose={vi.fn()}
-        onResearch={vi.fn()}
-      />
-    );
-    
-    // Verify researched tech has completed styling
-    expect(screen.getByText('Organization')).toBeInTheDocument();
-    const orgTech = screen.getByText('Organization').closest('[data-testid="tech-node"]');
-    expect(orgTech).toHaveClass('bg-green'); // Completed styling
-    
-    // Verify researching tech has progress styling
-    expect(screen.getByText('Hunting')).toBeInTheDocument();
-    const huntingTech = screen.getByText('Hunting').closest('[data-testid="tech-node"]');
-    expect(huntingTech).toHaveClass('bg-yellow'); // In-progress styling
-    
-    // Verify available tech has glow effects
-    expect(screen.getByText('Agriculture')).toBeInTheDocument();
-    const agriTech = screen.getByText('Agriculture').closest('[data-testid="tech-node"]');
-    expect(agriTech).toHaveClass('glow-effect'); // Available glow
-    
-    // Verify locked tech has disabled styling
-    expect(screen.getByText('Metallurgy')).toBeInTheDocument();
-    const metalTech = screen.getByText('Metallurgy').closest('[data-testid="tech-node"]');
-    expect(metalTech).toHaveClass('opacity-50'); // Locked styling
-    
-    // Snapshot the entire tree structure
-    expect(component.container.firstChild).toMatchSnapshot();
+    const forestryNode = screen.getByText('Forestry').closest('[data-testid="tech-node"]');
+    expect(forestryNode).not.toBeNull();
+    expect(within(forestryNode!).getByText('Tier II')).toBeInTheDocument();
   });
 
-  it('displays progress indicators for researching technologies', () => {
-    render(
-      <TechPanel 
-        gameState={mockGameState}
-        playerId="player1"
-        onClose={vi.fn()}
-        onResearch={vi.fn()}
-      />
-    );
-    
-    // Should show progress bar for hunting (1/3 turns)
-    expect(screen.getByText('Hunting')).toBeInTheDocument();
-    const progressBar = screen.getByRole('progressbar');
-    expect(progressBar).toBeInTheDocument();
-    expect(progressBar).toHaveAttribute('value', '33'); // 1/3 = 33%
+  it('draws connector paths between prerequisite technologies', () => {
+    const { container } = renderPanel();
+    const connectors = container.querySelectorAll('svg path');
+    expect(connectors.length).toBeGreaterThan(0);
   });
 
-  it('validates tech prerequisite connections', () => {
-    render(
-      <TechPanel 
-        gameState={mockGameState}
-        playerId="player1"
-        onClose={vi.fn()}
-        onResearch={vi.fn()}
-      />
-    );
-    
-    // Should show connection lines between prerequisites
-    const connections = screen.getAllByTestId('tech-connection');
-    expect(connections.length).toBeGreaterThan(0);
-    
-    // Metallurgy should be locked (requires Engineering)
-    const metalTech = screen.getByText('Metallurgy');
-    expect(metalTech.closest('[data-testid="tech-node"]')).toHaveClass('opacity-50');
+  it('disables research button when prerequisites are missing', async () => {
+    const user = userEvent.setup();
+    renderPanel({ researchedTechs: ['organization'] });
+
+    await user.click(screen.getByText('Bronze Working'));
+
+    expect(screen.getByText('Bronze Working')).toBeInTheDocument();
+    expect(screen.getByText('Prerequisites not met.')).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: /requirements not met/i });
+    expect(button).toBeDisabled();
   });
 
-  it('handles pinch-zoom and pan gestures', () => {
-    const component = render(
-      <TechPanel 
-        gameState={mockGameState}
-        playerId="player1"
-        onClose={vi.fn()}
-        onResearch={vi.fn()}
-      />
-    );
-    
-    // Should have gesture-enabled container
-    const gestureContainer = component.container.querySelector('[data-testid="gesture-container"]');
-    expect(gestureContainer).toBeInTheDocument();
-    expect(gestureContainer).toHaveStyle('touch-action: none');
+  it('displays research inspiration discount in details', async () => {
+    const user = userEvent.setup();
+    renderPanel({
+      stars: 50,
+      researchedTechs: ['organization'],
+      researchInspiration: 5,
+    });
+
+    await user.click(screen.getByText('Agriculture'));
+
+    expect(screen.getByText(/saved 5 \\(base 12\\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/research for 7 stars/i)).toBeInTheDocument();
   });
 
-  it('validates modal system with proper z-index', () => {
-    render(
-      <TechPanel 
-        gameState={mockGameState}
-        playerId="player1"
-        onClose={vi.fn()}
-        onResearch={vi.fn()}
-      />
-    );
-    
-    // Tech panel should have modal z-index
-    const modal = screen.getByRole('dialog');
-    expect(modal).toBeInTheDocument();
-    expect(modal).toHaveClass('z-100'); // Modal z-index level
-  });
+  it('invokes callback when researching an available technology', async () => {
+    const user = userEvent.setup();
+    const { onResearchTech } = renderPanel({
+      researchedTechs: ['organization', 'hunting', 'mining'],
+      stars: 200,
+    });
 
-  it('displays tech costs and research buttons correctly', () => {
-    render(
-      <TechPanel 
-        gameState={mockGameState}
-        playerId="player1"
-        onClose={vi.fn()}
-        onResearch={vi.fn()}
-      />
-    );
-    
-    // Available techs should show research buttons
-    const agriTech = screen.getByText('Agriculture');
-    const researchButton = agriTech.closest('[data-testid="tech-node"]')?.querySelector('button');
-    expect(researchButton).toBeInTheDocument();
-    expect(researchButton).not.toBeDisabled();
-    
-    // Locked techs should not have active research buttons
-    const metalTech = screen.getByText('Metallurgy');
-    const lockedButton = metalTech.closest('[data-testid="tech-node"]')?.querySelector('button');
-    expect(lockedButton).toBeDisabled();
+    await user.click(screen.getByText('Bronze Working'));
+    const button = screen.getByRole('button', { name: /research for/i });
+    await user.click(button);
+
+    expect(onResearchTech).toHaveBeenCalledWith('bronze_working');
   });
 });

@@ -112,8 +112,9 @@ export class AISandbox {
       stars: 0,
       stats: { faith: 0, pride: 0, internalDissent: 0 },
       modifiers: [],
+      abilityCooldowns: {},
       researchedTechs: [],
-      researchProgress: 0,
+      researchInspiration: 0,
       citiesOwned: [],
       exploredTiles: [],
       visibilityMask: [],
@@ -357,7 +358,6 @@ export class AISandbox {
 
   private log(message: string, level: string): void {
     if (this.shouldLog(level)) {
-      console.log(`[Sandbox] ${message}`);
     }
   }
 

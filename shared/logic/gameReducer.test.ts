@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { gameReducer } from './gameReducer';
+import { subscribeTelemetry, type TelemetryEvent } from './telemetry';
 import type { GameState, GameAction, PlayerState } from '../types/game';
 import type { Unit } from '../types/unit';
 import type { HexCoordinate } from '../types/coordinates';
+import { GAME_RULES } from '../data/gameRules';
 
 describe('Game Reducer', () => {
   let mockGameState: GameState;
@@ -25,7 +27,7 @@ describe('Game Reducer', () => {
       turnOrder: 0,
       visibilityMask: [],
       exploredTiles: [],
-      researchProgress: 0,
+      researchInspiration: 0,
       citiesOwned: []
     };
 
@@ -241,7 +243,7 @@ describe('Game Reducer', () => {
       const player = newState.players.find(p => p.id === 'player1');
       
       expect(player?.researchedTechs).toContain('agriculture');
-      expect(player?.stars).toBeLessThan(100); // Stars should be deducted
+      expect(player?.stars).toBe(88); // 100 - 12 scaled cost
     });
 
     it('should not allow research without sufficient stars', () => {
@@ -261,6 +263,215 @@ describe('Game Reducer', () => {
       
       expect(player?.researchedTechs).not.toContain('agriculture');
       expect(player?.stars).toBe(5); // Stars should remain unchanged
+    });
+
+    it('applies research inspiration discounts when researching', () => {
+      mockGameState.players[0].stars = 50;
+      mockGameState.players[0].researchedTechs = ['organization'];
+      mockGameState.players[0].researchInspiration = 5;
+
+      const researchAction: GameAction = {
+        type: 'RESEARCH_TECH',
+        payload: {
+          playerId: 'player1',
+          techId: 'agriculture'
+        }
+      };
+
+      const newState = gameReducer(mockGameState, researchAction);
+      const player = newState.players.find(p => p.id === 'player1');
+
+      expect(player?.stars).toBe(50 - 7);
+      expect(player?.researchInspiration).toBe(0);
+      expect(player?.researchedTechs).toContain('agriculture');
+    });
+
+    it('emits telemetry when research succeeds', () => {
+      mockGameState.players[0].stars = 200;
+      mockGameState.players[0].researchedTechs = ['organization'];
+
+      const events: TelemetryEvent[] = [];
+      const unsubscribe = subscribeTelemetry(event => events.push(event));
+
+      const researchAction: GameAction = {
+        type: 'RESEARCH_TECH',
+        payload: {
+          playerId: 'player1',
+          techId: 'agriculture'
+        }
+      };
+
+      gameReducer(mockGameState, researchAction);
+      unsubscribe();
+
+      const technologyEvents = events.filter(event => event.channel === 'technology');
+      expect(technologyEvents.length).toBeGreaterThan(0);
+      const last = technologyEvents.at(-1)!;
+      expect(last.status).toBe('success');
+      expect(last.technologyId).toBe('agriculture');
+      expect(last.metadata?.cost).toBe(12);
+      expect(last.metadata?.discount).toBe(0);
+    });
+  });
+
+  describe('Inspiration mechanics', () => {
+    const villageCoordinate = { q: 0, r: 1, s: -1 } as HexCoordinate;
+
+    const setupVillageState = () => {
+      mockPlayer.researchInspiration = GAME_RULES.research.maxInspiration - 1;
+      mockPlayer.citiesOwned = [];
+      mockPlayer.stats = { faith: 10, pride: 5, internalDissent: 2 };
+      mockGameState.players = [mockPlayer];
+      mockGameState.units = [{
+        id: 'unit1',
+        type: 'warrior',
+        playerId: 'player1',
+        coordinate: villageCoordinate,
+        hp: 10,
+        maxHp: 10,
+        attack: 3,
+        defense: 2,
+        movement: 2,
+        remainingMovement: 2,
+        visionRadius: 2,
+        attackRange: 1,
+        status: 'active',
+        experience: 0,
+        abilities: [],
+        level: 1
+      }];
+      mockGameState.map.tiles = [
+        {
+          coordinate: villageCoordinate,
+          terrain: 'plains',
+          resources: [],
+          hasCity: false,
+          exploredBy: ['player1'],
+          feature: 'village',
+        },
+      ];
+    };
+
+    it('caps inspiration when gaining from villages', () => {
+      setupVillageState();
+
+      const action: GameAction = {
+        type: 'CAPTURE_VILLAGE',
+        payload: { unitId: 'unit1', playerId: 'player1' }
+      };
+
+      const newState = gameReducer(mockGameState, action);
+      const player = newState.players.find(p => p.id === 'player1');
+      expect(player?.researchInspiration).toBe(GAME_RULES.research.maxInspiration);
+    });
+
+    it('decays inspiration each end turn', () => {
+      const secondPlayer: PlayerState = {
+        ...mockPlayer,
+        id: 'player2',
+        name: 'AI',
+        researchInspiration: 4,
+      };
+
+      mockPlayer.researchInspiration = 5;
+      mockGameState.players = [mockPlayer, secondPlayer];
+      mockGameState.currentPlayerIndex = 0;
+
+      const action: GameAction = {
+        type: 'END_TURN',
+        payload: { playerId: 'player1' }
+      };
+
+      const newState = gameReducer(mockGameState, action);
+      const decay = GAME_RULES.research.inspirationDecayPerTurn;
+      const player1 = newState.players.find(p => p.id === 'player1');
+      const player2 = newState.players.find(p => p.id === 'player2');
+
+      expect(player1?.researchInspiration).toBe(Math.max(0, 5 - decay));
+      expect(player2?.researchInspiration).toBe(Math.max(0, 4 - decay));
+    });
+  });
+
+  describe('START_CONSTRUCTION action', () => {
+    const baseCity = {
+      id: 'city1',
+      name: 'Test City',
+      coordinate: { q: 0, r: 0, s: 0 },
+      ownerId: 'player1',
+      population: 2,
+      maxPopulation: 4,
+      level: 1,
+      starProduction: 2,
+      improvements: [],
+      structures: [],
+    };
+
+    const ensureCityTile = () => {
+      mockGameState.map.tiles = mockGameState.map.tiles.map(tile =>
+        tile.coordinate.q === 0 && tile.coordinate.r === 0
+          ? { ...tile, hasCity: true, cityOwner: 'player1' }
+          : tile
+      );
+    };
+
+    it('queues construction and emits telemetry on success', () => {
+      mockPlayer.stars = 50;
+      mockPlayer.citiesOwned = ['city1'];
+      mockPlayer.researchedTechs = ['organization'];
+      mockGameState.players = [mockPlayer];
+      mockGameState.cities = [baseCity as any];
+      ensureCityTile();
+
+      const events: TelemetryEvent[] = [];
+      const unsubscribe = subscribeTelemetry(event => events.push(event));
+
+      const action: GameAction = {
+        type: 'START_CONSTRUCTION',
+        payload: {
+          playerId: 'player1',
+          buildingType: 'farm',
+          category: 'improvements',
+          coordinate: { q: 0, r: 0, s: 0 },
+          cityId: 'city1',
+        },
+      };
+
+      const newState = gameReducer(mockGameState, action);
+      unsubscribe();
+
+      const player = newState.players.find(p => p.id === 'player1');
+      expect(player?.constructionQueue?.length).toBe(1);
+      expect(player?.stars).toBe(45);
+      expect(events.some(evt => evt.reason === 'construction_started')).toBe(true);
+    });
+
+    it('emits blocked telemetry when resources are insufficient', () => {
+      mockPlayer.stars = 2;
+      mockPlayer.citiesOwned = ['city1'];
+      mockGameState.players = [mockPlayer];
+      mockGameState.cities = [baseCity as any];
+      ensureCityTile();
+
+      const events: TelemetryEvent[] = [];
+      const unsubscribe = subscribeTelemetry(event => events.push(event));
+
+      const action: GameAction = {
+        type: 'START_CONSTRUCTION',
+        payload: {
+          playerId: 'player1',
+          buildingType: 'farm',
+          category: 'improvements',
+          coordinate: { q: 0, r: 0, s: 0 },
+          cityId: 'city1',
+        },
+      };
+
+      const newState = gameReducer(mockGameState, action);
+      unsubscribe();
+
+      const player = newState.players.find(p => p.id === 'player1');
+      expect(player?.constructionQueue?.length || 0).toBe(0);
+      expect(events.some(evt => evt.reason === 'construction_insufficient_resources')).toBe(true);
     });
   });
 
@@ -375,7 +586,7 @@ describe('Game Reducer', () => {
           turnOrder: 1,
           stars: 50,
           researchedTechs: [],
-          researchProgress: 0,
+          researchInspiration: 0,
           citiesOwned: []
         });
       }
@@ -484,7 +695,7 @@ describe('Game Reducer', () => {
         turnOrder: 1,
         stars: 10,
         researchedTechs: [],
-        researchProgress: 0,
+        researchInspiration: 0,
         citiesOwned: []
       };
       

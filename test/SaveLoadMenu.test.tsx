@@ -68,7 +68,7 @@ describe('SaveLoadMenu', () => {
         turnOrder: 0,
         stars: 20,
         researchedTechs: [],
-        researchProgress: 0,
+        researchInspiration: 0,
         citiesOwned: ['city1']
       }
     ],

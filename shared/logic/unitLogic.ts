@@ -240,19 +240,6 @@ export function getVisibleUnits(
   );
   
   // Debug logging
-  console.log('🎮 getVisibleUnits Debug:', {
-    currentPlayerId: playerId,
-    totalUnits: allUnits.length,
-    visibleUnits: visibleUnits.length,
-    allUnitsInfo: allUnits.map(u => ({
-      id: u.id,
-      playerId: u.playerId,
-      coordinate: u.coordinate,
-      visionRadius: u.visionRadius,
-      attackRange: u.attackRange,
-      isVisible: isUnitVisibleToPlayer(u, playerId, gameState)
-    }))
-  });
   
   return visibleUnits;
 }

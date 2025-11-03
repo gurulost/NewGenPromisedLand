@@ -16,10 +16,20 @@ vi.mock('@react-three/drei', () => ({
 }));
 
 // Mock complex components to focus on navigation logic
-vi.mock('../client/src/components/ui/TechPanel', () => ({
-  default: ({ open, onClose }: any) => 
-    open ? <div data-testid="tech-panel">Tech Panel <button onClick={onClose}>Close Tech</button></div> : null
-}));
+vi.mock('../client/src/components/ui/TechPanel', () => {
+  const MockTechPanel = ({ isOpen, onClose }: any) =>
+    isOpen ? (
+      <div data-testid="tech-panel">
+        Tech Panel <button onClick={onClose}>Close Tech</button>
+      </div>
+    ) : null;
+
+  return {
+    __esModule: true,
+    TechPanel: MockTechPanel,
+    default: MockTechPanel,
+  };
+});
 
 vi.mock('../client/src/components/ui/CityPanel', () => ({
   default: ({ open, onClose }: any) => 
@@ -101,7 +111,7 @@ describe('GameUI Navigation Integration Tests', () => {
       stats: { faith: 50, pride: 30, internalDissent: 10 },
       modifiers: [],
       researchedTechs: ['writing', 'organization'],
-      researchProgress: 0,
+      researchInspiration: 0,
       citiesOwned: ['city1'],
       constructionQueue: [],
       visibilityMask: [],

@@ -1,19 +1,38 @@
 import { GameState, PlayerState } from '../types/game';
-import { Unit, UnitType } from '../types/unit';
+import { Unit, UnitType, UnitDefinition } from '../types/unit';
 import { HexCoordinate } from '../types/coordinates';
 import { hexDistance, hexNeighbors } from '../utils/hex';
-import { getUnitDefinition } from '../data/units';
+import { UNIT_DEFINITIONS, getUnitDefinition } from '../data/units';
 import { TECHNOLOGIES } from '../data/technologies';
 import { GAME_RULES } from '../data/gameRules';
 import { getFaction } from '../data/factions';
+import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '../types/city';
 import { TacticalEngine, TacticalTarget } from './aiTacticalEngine';
 import { FactionPersonalityEngine } from './aiFactionPersonality';
 import { SeededRNG, aiDebugOverlay } from './aiFoundation';
+import { emitTelemetry } from '../logic/telemetry';
+import { getTechCostDetails } from '../logic/technologyHelpers';
+import { resolveMeleeCombat } from '../logic/combatSystem';
+import type { Technology } from '../data/technologies';
+import type { City, StructureDefinition, StructureType } from '../types/city';
+import type { Tile } from '../types/game';
+import type { FactionPersonality } from './aiFactionPersonality';
 
 export type AIDifficulty = 'easy' | 'normal' | 'hard';
 
 export interface AIDecision {
-  type: 'MOVE_UNIT' | 'ATTACK_UNIT' | 'RESEARCH_TECH' | 'BUILD_STRUCTURE' | 'END_TURN' | 'USE_ABILITY';
+  type:
+    | 'MOVE_UNIT'
+    | 'ATTACK_UNIT'
+    | 'RESEARCH_TECH'
+    | 'BUILD_STRUCTURE'
+    | 'END_TURN'
+    | 'USE_ABILITY'
+    | 'HEAL_UNIT'
+    | 'APPLY_STEALTH'
+    | 'FORMATION_FIGHTING'
+    | 'SIEGE_MODE'
+    | 'RALLY_TROOPS';
   unitId?: string;
   targetCoordinate?: HexCoordinate;
   targetId?: string;
@@ -21,8 +40,72 @@ export interface AIDecision {
   buildingType?: string;
   cityId?: string;
   abilityId?: string;
+  constructionCategory?: 'improvements' | 'structures' | 'units';
   priority: number; // Higher = more important
 }
+
+interface AITechTarget {
+  id: string;
+  priority: number;
+  cost: number;
+  discount: number;
+}
+
+interface AICityPlanEntry {
+  optionId: string;
+  category: 'improvements' | 'structures' | 'units';
+  priority: number;
+  cost: number;
+  reason: string;
+  coordinate?: HexCoordinate;
+  faithCost?: number;
+  prideCost?: number;
+}
+
+interface AIStrategyGoal {
+  id: string;
+  type: 'tech' | 'structure' | 'improvement' | 'unit';
+  targetId: string;
+  cityId?: string;
+  priority: number;
+  reason: string;
+}
+
+interface AIImprovementJob {
+  id: string;
+  cityId: string;
+  improvementId: string;
+  coordinate: HexCoordinate;
+  priority: number;
+  reason: string;
+}
+
+interface AIExplorationGoal {
+  id: string;
+  target: HexCoordinate;
+  priority: number;
+  reason: string;
+}
+
+interface AIBudgetState {
+  totalStars: number;
+  reservedStars: number;
+  availableStars: number;
+  savingForTech: boolean;
+  targetCost?: number;
+}
+
+interface AIStrategicPlan {
+  techTarget?: AITechTarget;
+  savingsNeeded: number;
+  budget: AIBudgetState;
+  cityPlans: Record<string, AICityPlanEntry[]>;
+  goalQueue: AIStrategyGoal[];
+  improvementJobs: AIImprovementJob[];
+  explorationGoals: AIExplorationGoal[];
+}
+
+const CITY_WORK_RADIUS = 2;
 
 /**
  * Core AI Engine for Chronicles of the Promised Land
@@ -35,6 +118,8 @@ export class AIEngine {
   private tacticalEngine: TacticalEngine;
   private personalityEngine: FactionPersonalityEngine;
   private rng: SeededRNG;
+  private strategy: AIStrategicPlan;
+  private reservedUnits: Set<string>;
 
   constructor(gameState: GameState, aiPlayer: PlayerState) {
     this.gameState = gameState;
@@ -46,6 +131,20 @@ export class AIEngine {
     this.tacticalEngine = new TacticalEngine(gameState, aiPlayer, seed);
     this.personalityEngine = new FactionPersonalityEngine(aiPlayer, seed);
     this.rng = new SeededRNG(seed);
+    this.strategy = {
+      savingsNeeded: 0,
+      budget: {
+        totalStars: aiPlayer.stars,
+        reservedStars: 0,
+        availableStars: aiPlayer.stars,
+        savingForTech: false,
+      },
+      cityPlans: {},
+      goalQueue: [],
+      improvementJobs: [],
+      explorationGoals: [],
+    };
+    this.reservedUnits = new Set();
   }
 
   /**
@@ -58,23 +157,30 @@ export class AIEngine {
     
     // Update AI mood based on current game state
     this.updatePersonalityMood();
+    this.recalculateStrategy();
     
     // Generate influence map for tactical awareness
     const influenceMap = this.tacticalEngine.generateInfluenceMap();
-    
-    // 1. Enhanced combat evaluation with tactical engine
+
+    // 1. Economy automation – execute improvement jobs before other actions
+    decisions.push(...this.evaluateWorkerAutomation());
+
+    // 2. Directed exploration before combat commitments
+    decisions.push(...this.evaluateExplorationGoals());
+
+    // 3. Enhanced combat evaluation with tactical engine
     decisions.push(...this.evaluateAdvancedCombat());
-    
-    // 2. Intelligent movement with threat assessment
+
+    // 4. Intelligent movement with threat assessment
     decisions.push(...this.evaluateIntelligentMovement());
-    
-    // 3. Personality-driven technology research
+
+    // 5. Personality-driven technology research
     decisions.push(...this.evaluatePersonalityTechResearch());
-    
-    // 4. Faction-specific city building
+
+    // 6. Faction-specific city building
     decisions.push(...this.evaluateFactionCityBuilding());
-    
-    // 5. Advanced unit abilities usage
+
+    // 7. Advanced unit abilities usage
     decisions.push(...this.evaluateAbilityUsage());
     
     // Apply personality modifiers to decisions
@@ -159,11 +265,6 @@ export class AIEngine {
   private evaluateTechResearch(): AIDecision[] {
     const decisions: AIDecision[] = [];
     
-    if (this.aiPlayer.currentResearch) {
-      // Already researching something
-      return decisions;
-    }
-
     const availableTechs = Object.keys(TECHNOLOGIES).filter(techId => {
       const tech = TECHNOLOGIES[techId];
       return !this.aiPlayer.researchedTechs.includes(techId) &&
@@ -171,8 +272,13 @@ export class AIEngine {
     });
 
     for (const techId of availableTechs) {
-      const priority = this.evaluateTechPriority(techId);
-      
+      const tech = TECHNOLOGIES[techId];
+      const { finalCost, discount } = getTechCostDetails(tech, this.aiPlayer);
+      if (this.aiPlayer.stars < finalCost) continue;
+
+      let priority = this.evaluateTechPriority(techId);
+      priority += discount * 2;
+
       if (priority > 30) { // Only consider worthwhile techs
         decisions.push({
           type: 'RESEARCH_TECH',
@@ -318,28 +424,19 @@ export class AIEngine {
     return priority;
   }
 
-  /**
-   * Evaluate building options for a city
-   */
-  private evaluateBuildingOptions(cityId: string): AIDecision[] {
-    const decisions: AIDecision[] = [];
-    
-    // This would evaluate what structures/improvements to build
-    // For now, return basic structure building
-    decisions.push({
-      type: 'BUILD_STRUCTURE',
-      cityId,
-      buildingType: 'temple', // Basic structure
-      priority: 35
-    });
-
-    return decisions;
-  }
-
   // Helper methods for AI decision making
 
   private getMyUnits(): Unit[] {
     return this.gameState.units.filter(unit => unit.playerId === this.aiPlayer.id);
+  }
+
+  private canBuildStructure(structureId: string): boolean {
+    const def = STRUCTURE_DEFINITIONS[structureId as keyof typeof STRUCTURE_DEFINITIONS];
+    if (!def) return false;
+    if (def.requiredTech && !this.aiPlayer.researchedTechs.includes(def.requiredTech)) {
+      return false;
+    }
+    return true;
   }
 
   private getEnemyUnitsInRange(): Unit[] {
@@ -349,8 +446,8 @@ export class AIEngine {
     );
   }
 
-  private getMyCities() {
-    return this.gameState.cities?.filter(city => city.ownerId === this.aiPlayer.id) || [];
+  private getMyCities(): City[] {
+    return (this.gameState.cities || []).filter(city => city.ownerId === this.aiPlayer.id);
   }
 
   private getReachableTiles(unit: Unit): HexCoordinate[] {
@@ -442,6 +539,7 @@ export class AIEngine {
     const myUnits = this.getMyUnits();
 
     for (const unit of myUnits) {
+      if (this.reservedUnits.has(unit.id)) continue;
       if (unit.remainingMovement <= 0) continue;
 
       // Get tactical targets from advanced engine
@@ -454,11 +552,13 @@ export class AIEngine {
           const riskLevel = this.assessCombatRisk(unit, target);
           
           if (this.personalityEngine.shouldAttack(advantage, riskLevel)) {
+            const basePriority = target.priority + advantage * 60 - riskLevel * 30;
+            const modifier = this.personalityEngine.getDecisionModifier('attack');
             decisions.push({
               type: 'ATTACK_UNIT',
               unitId: unit.id,
               targetId: target.unitId,
-              priority: target.priority * this.personalityEngine.getDecisionModifier('attack'),
+              priority: Math.max(10, basePriority * modifier),
             });
           }
         }
@@ -493,6 +593,7 @@ export class AIEngine {
     const myUnits = this.getMyUnits();
 
     for (const unit of myUnits) {
+      if (this.reservedUnits.has(unit.id)) continue;
       if (unit.remainingMovement <= 0) continue;
 
       const unitDef = getUnitDefinition(unit.type);
@@ -539,6 +640,178 @@ export class AIEngine {
           }
         }
       }
+
+      if (unit.remainingMovement > 0 && (unit.type === 'scout' || (unit.abilities || []).includes('reconnaissance'))) {
+        const exploration = this.findExplorationMove(unit);
+        if (exploration) {
+          decisions.push({
+            type: 'MOVE_UNIT',
+            unitId: unit.id,
+            targetCoordinate: exploration.target,
+            priority: exploration.priority,
+          });
+        }
+      }
+    }
+
+    return decisions;
+  }
+
+  private evaluateWorkerAutomation(): AIDecision[] {
+    const decisions: AIDecision[] = [];
+    const jobs = this.strategy.improvementJobs;
+    if (!jobs.length) return decisions;
+
+    const workers = this.getMyUnits().filter(unit => unit.type === 'worker' && unit.remainingMovement > 0 && !this.reservedUnits.has(unit.id));
+    if (workers.length === 0) return decisions;
+
+    const assignedWorkers = new Set<string>();
+    const improvementCache = new Map<string, Map<string, string>>();
+    const queuedImprovementCache = new Map<string, Map<string, string>>();
+    let remainingBudget = Math.max(0, this.strategy.budget?.availableStars ?? this.aiPlayer.stars);
+
+    const getImprovementMaps = (cityId: string) => {
+      if (!improvementCache.has(cityId)) {
+        improvementCache.set(cityId, this.getCityImprovementsMap(cityId));
+      }
+      if (!queuedImprovementCache.has(cityId)) {
+        queuedImprovementCache.set(cityId, this.getQueuedImprovements(cityId));
+      }
+      return {
+        existing: improvementCache.get(cityId)!,
+        queued: queuedImprovementCache.get(cityId)!,
+      };
+    };
+
+    const availableWorkers = [...workers];
+
+    const sortedJobs = [...jobs].sort((a, b) => b.priority - a.priority);
+
+    for (const job of sortedJobs) {
+      const { existing, queued } = getImprovementMaps(job.cityId);
+      const key = this.getImprovementKey(job.coordinate);
+
+      if (existing.has(key) || queued.has(key)) {
+        continue;
+      }
+
+      const improvementDef = IMPROVEMENT_DEFINITIONS[job.improvementId as keyof typeof IMPROVEMENT_DEFINITIONS];
+      if (!improvementDef) continue;
+
+      if (remainingBudget < improvementDef.cost) {
+        continue;
+      }
+
+      const worker = this.findBestWorkerForJob(job, availableWorkers, assignedWorkers);
+      if (!worker) continue;
+
+      const distance = hexDistance(worker.coordinate, job.coordinate);
+      if (distance === 0) {
+        decisions.push({
+          type: 'BUILD_STRUCTURE',
+          buildingType: job.improvementId,
+          cityId: job.cityId,
+          constructionCategory: 'improvements',
+          targetCoordinate: job.coordinate,
+          priority: 95 + job.priority / 10,
+        });
+        this.reservedUnits.add(worker.id);
+        assignedWorkers.add(worker.id);
+        remainingBudget = Math.max(0, remainingBudget - improvementDef.cost);
+        emitTelemetry({
+          channel: 'system',
+          status: 'info',
+          playerId: this.aiPlayer.id,
+          reason: 'ai_worker_build_improvement',
+          metadata: {
+            improvementId: job.improvementId,
+            cityId: job.cityId,
+            coordinate: `${job.coordinate.q},${job.coordinate.r}`,
+          },
+        });
+        continue;
+      }
+
+      const nextStep = this.getNextStepTowards(worker, job.coordinate);
+      if (!nextStep) continue;
+      if (hexDistance(worker.coordinate, nextStep) > worker.remainingMovement) continue;
+
+      decisions.push({
+        type: 'MOVE_UNIT',
+        unitId: worker.id,
+        targetCoordinate: nextStep,
+        priority: 80 + job.priority / 10,
+      });
+      this.reservedUnits.add(worker.id);
+      assignedWorkers.add(worker.id);
+      emitTelemetry({
+        channel: 'system',
+        status: 'info',
+        playerId: this.aiPlayer.id,
+        reason: 'ai_worker_move_job',
+        metadata: {
+          improvementId: job.improvementId,
+          cityId: job.cityId,
+          from: `${worker.coordinate.q},${worker.coordinate.r}`,
+          to: `${nextStep.q},${nextStep.r}`,
+        },
+      });
+    }
+
+    return decisions;
+  }
+
+  private evaluateExplorationGoals(): AIDecision[] {
+    const decisions: AIDecision[] = [];
+    const goals = this.strategy.explorationGoals;
+    if (!goals.length) return decisions;
+
+    const explorers = this.getMyUnits().filter(unit => this.isExplorerUnit(unit) && unit.remainingMovement > 0 && !this.reservedUnits.has(unit.id));
+    if (!explorers.length) return decisions;
+
+    const assignedExplorers = new Set<string>();
+    const sortedGoals = [...goals].sort((a, b) => b.priority - a.priority);
+
+    for (const goal of sortedGoals) {
+      const tile = this.gameState.map.tiles.find(t => t.coordinate.q === goal.target.q && t.coordinate.r === goal.target.r);
+      if (!tile) continue;
+      if (tile.exploredBy.includes(this.aiPlayer.id)) continue;
+
+      const explorer = this.findBestExplorer(goal, explorers, assignedExplorers);
+      if (!explorer) continue;
+
+      const distance = hexDistance(explorer.coordinate, goal.target);
+      if (distance === 0) {
+        // Already on tile – no move needed this turn
+        this.reservedUnits.add(explorer.id);
+        assignedExplorers.add(explorer.id);
+        continue;
+      }
+
+      const nextStep = this.getNextStepTowards(explorer, goal.target);
+      if (!nextStep) continue;
+      if (hexDistance(explorer.coordinate, nextStep) > explorer.remainingMovement) continue;
+
+      decisions.push({
+        type: 'MOVE_UNIT',
+        unitId: explorer.id,
+        targetCoordinate: nextStep,
+        priority: 70 + goal.priority / 10,
+      });
+
+      this.reservedUnits.add(explorer.id);
+      assignedExplorers.add(explorer.id);
+      emitTelemetry({
+        channel: 'system',
+        status: 'info',
+        playerId: this.aiPlayer.id,
+        reason: 'ai_exploration_move',
+        metadata: {
+          unitId: explorer.id,
+          target: `${goal.target.q},${goal.target.r}`,
+          step: `${nextStep.q},${nextStep.r}`,
+        },
+      });
     }
 
     return decisions;
@@ -549,36 +822,67 @@ export class AIEngine {
    */
   private evaluatePersonalityTechResearch(): AIDecision[] {
     const decisions: AIDecision[] = [];
-    
-    if (this.aiPlayer.currentResearch) {
-      return decisions; // Already researching
-    }
+    const target = this.strategy.techTarget;
+    const budget = this.strategy.budget;
 
-    const availableTechs = this.getAvailableTechnologies();
-    
-    for (const tech of availableTechs) {
-      let priority = this.calculateTechValue(tech);
-      
-      // Apply personality modifiers
-      if (tech.category === 'faith' || tech.category === 'religious') {
-        priority *= (1 + this.personalityEngine.getDecisionModifier('tech_faith'));
-      }
-      
-      if (tech.category === 'military' || tech.category === 'warfare') {
-        priority *= (1 + this.personalityEngine.getDecisionModifier('tech_military'));
-      }
-      
-      // Faction-specific tech priorities
-      const factionBonus = this.personalityEngine.getPersonality().techPriorities.includes(tech.id) ? 1.5 : 1.0;
-      priority *= factionBonus;
-      
-      if (priority > 30 && this.aiPlayer.stars >= tech.cost) {
+    if (target && !this.aiPlayer.researchedTechs.includes(target.id)) {
+      if (this.aiPlayer.stars >= target.cost) {
+        const tech = TECHNOLOGIES[target.id];
+        const categoryModifier =
+          tech.category === 'religious'
+            ? this.personalityEngine.getDecisionModifier('tech_faith')
+            : tech.category === 'military'
+            ? this.personalityEngine.getDecisionModifier('tech_military')
+            : 0.5;
+
+        const urgencyBonus = budget.savingForTech ? 50 : 30;
+        const priority = target.priority + urgencyBonus * (1 + categoryModifier);
+
         decisions.push({
           type: 'RESEARCH_TECH',
-          techId: tech.id,
-          priority: priority,
+          techId: target.id,
+          priority,
         });
+        return decisions;
       }
+
+      // Not enough stars yet – keep saving and skip alternative techs
+      return decisions;
+    }
+
+    const availableBudget = budget?.availableStars ?? this.aiPlayer.stars;
+    if (availableBudget <= 0) {
+      return decisions;
+    }
+
+    let bestChoice: { techId: string; priority: number } | null = null;
+    const availableTechs = this.getAvailableTechnologies();
+
+    for (const tech of availableTechs) {
+      if (target && tech.id === target.id) continue;
+      const { finalCost, discount } = getTechCostDetails(tech, this.aiPlayer);
+      if (finalCost > availableBudget) continue;
+
+      let priority = this.calculateTechValue(tech);
+      priority += discount * 1.5;
+
+      if (tech.category === 'religious') {
+        priority *= 1 + this.personalityEngine.getDecisionModifier('tech_faith');
+      } else if (tech.category === 'military') {
+        priority *= 1 + this.personalityEngine.getDecisionModifier('tech_military');
+      }
+
+      if (priority > 25 && (!bestChoice || priority > bestChoice.priority)) {
+        bestChoice = { techId: tech.id, priority };
+      }
+    }
+
+    if (bestChoice) {
+      decisions.push({
+        type: 'RESEARCH_TECH',
+        techId: bestChoice.techId,
+        priority: bestChoice.priority,
+      });
     }
 
     return decisions;
@@ -589,28 +893,42 @@ export class AIEngine {
    */
   private evaluateFactionCityBuilding(): AIDecision[] {
     const decisions: AIDecision[] = [];
-    const myCities = this.getMyCities();
+    let remainingBudget = Math.max(0, this.strategy.budget?.availableStars ?? this.aiPlayer.stars);
 
-    for (const city of myCities) {
-      if (city.currentProduction) continue; // Already building
+    for (const city of this.getMyCities()) {
+      if (city.currentProduction || remainingBudget <= 0) continue;
 
-      const availableBuildings = this.getAvailableBuildings(city.id);
-      
-      for (const building of availableBuildings) {
-        let priority = this.calculateBuildingValue(building, city);
-        
-        // Apply personality-based building preferences
-        const personalityBonus = this.personalityEngine.getBuildingPriority(building.type);
-        priority *= (1 + personalityBonus);
-        
-        if (priority > 25 && this.canAffordBuilding(building)) {
-          decisions.push({
-            type: 'BUILD_STRUCTURE',
-            buildingType: building.type,
-            cityId: city.id,
-            priority: priority,
-          });
+      const plans = this.strategy.cityPlans[city.id] ?? [];
+      for (const plan of plans) {
+        if (plan.cost > remainingBudget) continue;
+
+        if (plan.category === 'structures' && !this.isStructurePlanValid(city, plan.optionId as StructureType)) {
+          continue;
         }
+
+        if (plan.category === 'improvements' && (!plan.coordinate || !this.canScheduleImprovement(city, plan))) {
+          continue;
+        }
+
+        if (plan.category === 'units' && !this.canScheduleUnit(plan)) {
+          continue;
+        }
+
+        const decision: AIDecision = {
+          type: 'BUILD_STRUCTURE',
+          buildingType: plan.optionId,
+          cityId: city.id,
+          constructionCategory: plan.category,
+          priority: plan.priority,
+        };
+
+        if (plan.coordinate) {
+          decision.targetCoordinate = plan.coordinate;
+        }
+
+        decisions.push(decision);
+        remainingBudget -= plan.cost;
+        break;
       }
     }
 
@@ -625,17 +943,58 @@ export class AIEngine {
     const myUnits = this.getMyUnits();
 
     for (const unit of myUnits) {
-      const availableAbilities = this.getAvailableAbilities(unit);
-      
-      for (const ability of availableAbilities) {
-        const priority = this.calculateAbilityPriority(unit, ability);
-        
-        if (priority > 40) {
+      if (this.reservedUnits.has(unit.id)) continue;
+      const abilitySet = new Set((unit.abilities || []).map(a => a.toLowerCase()));
+
+      if (abilitySet.has('heal') && !unit.hasAttacked && this.aiPlayer.stats.faith >= 5) {
+        const healValue = this.evaluateHealOpportunity(unit);
+        if (healValue > 0) {
           decisions.push({
-            type: 'USE_ABILITY',
+            type: 'HEAL_UNIT',
             unitId: unit.id,
-            abilityId: ability.id,
-            priority: priority,
+            priority: 80 + healValue,
+          });
+        }
+      }
+
+      if (abilitySet.has('siege') && unit.status !== 'siege_mode' && unit.remainingMovement === 0) {
+        if (this.hasSiegeOpportunity(unit)) {
+          decisions.push({
+            type: 'SIEGE_MODE',
+            unitId: unit.id,
+            priority: 70,
+          });
+        }
+      }
+
+      if (abilitySet.has('stealth') && unit.status !== 'stealthed' && !unit.hasAttacked) {
+        if (this.shouldApplyStealth(unit)) {
+          decisions.push({
+            type: 'APPLY_STEALTH',
+            unitId: unit.id,
+            priority: 45,
+          });
+        }
+      }
+
+      if (abilitySet.has('formation_fighting') && unit.status !== 'formation' && !unit.hasAttacked) {
+        const adjacentAllies = this.countAdjacentAllies(unit, 1);
+        if (adjacentAllies >= 1) {
+          decisions.push({
+            type: 'FORMATION_FIGHTING',
+            unitId: unit.id,
+            priority: 55 + adjacentAllies * 5,
+          });
+        }
+      }
+
+      if (abilitySet.has('rally') && !unit.hasAttacked && this.aiPlayer.stats.pride >= 5) {
+        const allies = this.countAlliesInRadius(unit, 2);
+        if (allies >= 2) {
+          decisions.push({
+            type: 'RALLY_TROOPS',
+            unitId: unit.id,
+            priority: 60 + allies * 5,
           });
         }
       }
@@ -658,12 +1017,17 @@ export class AIEngine {
    * Update personality mood based on game state
    */
   private updatePersonalityMood(): void {
-    // Calculate recent events for mood update
-    // Track recent victories from game history (placeholder for future game history feature)
-    const recentVictories = 0; // TODO: Implement when GameState includes gameHistory and currentTurn
-    const recentDefeats = 0;
-    const territoryLost = 0;
-    const faithGained = this.aiPlayer.stats.faith;
+    // Calculate recent events for mood update using current board state as approximation
+    const myCities = this.getMyCities().length;
+    const enemyCities = (this.gameState.cities || []).filter(city => city.ownerId && city.ownerId !== this.aiPlayer.id).length;
+    const myUnits = this.getMyUnits().length;
+    const enemyUnits = this.gameState.units.filter(unit => unit.playerId !== this.aiPlayer.id).length;
+
+    const netAdvantage = (myCities + myUnits) - (enemyCities + enemyUnits);
+    const recentVictories = Math.max(0, netAdvantage);
+    const recentDefeats = Math.max(0, -netAdvantage);
+    const territoryLost = Math.max(0, enemyCities - myCities) / Math.max(1, enemyCities + myCities);
+    const faithGained = Math.max(0, Math.min(1, this.aiPlayer.stats.faith / 100));
     const enemyThreat = this.assessEnemyThreat();
 
     this.personalityEngine.updateMood({
@@ -673,6 +1037,975 @@ export class AIEngine {
       faithGained,
       enemyThreat
     });
+
+    if (process.env.NODE_ENV !== 'production') {
+      const moodSnapshot = this.personalityEngine.getPersonality().currentMood;
+      emitTelemetry({
+        channel: 'system',
+        status: 'info',
+        playerId: this.aiPlayer.id,
+        reason: 'ai_mood_update',
+        metadata: {
+          confidence: moodSnapshot.confidence,
+          desperation: moodSnapshot.desperation,
+          zealotry: moodSnapshot.zealotry,
+          pragmatism: moodSnapshot.pragmatism,
+          netAdvantage,
+          enemyThreat,
+        },
+      });
+    }
+  }
+
+  private recalculateStrategy(): void {
+    const personality = this.personalityEngine.getPersonality();
+    const techCandidates: AITechTarget[] = [];
+
+    for (const techId of Object.keys(TECHNOLOGIES)) {
+      if (this.aiPlayer.researchedTechs.includes(techId)) continue;
+      const tech = TECHNOLOGIES[techId];
+      if (!tech.prerequisites.every(prereq => this.aiPlayer.researchedTechs.includes(prereq))) continue;
+
+      const { finalCost, discount } = getTechCostDetails(tech, this.aiPlayer);
+      const guidance = tech.aiGuidance ?? { priority: 60, minFaith: 200, recommendedCities: 4 };
+      const personalityWeight = this.personalityEngine.getTechPreferenceWeight?.(techId) ??
+        (personality.techPriorities.includes(techId) ? 1.25 : 1);
+      const situationalModifier = this.getSituationalTechModifier(techId, tech, personality);
+      const priority = guidance.priority * personalityWeight * situationalModifier + discount * 0.5;
+
+      techCandidates.push({ id: techId, cost: finalCost, discount, priority });
+    }
+
+    techCandidates.sort((a, b) => b.priority - a.priority || a.cost - b.cost);
+    const techTarget = techCandidates[0];
+    const savingsNeeded = techTarget ? Math.max(0, techTarget.cost - this.aiPlayer.stars) : 0;
+    const savingForTech = !!techTarget && this.aiPlayer.stars < techTarget.cost;
+    const reservedStars = techTarget
+      ? (savingForTech ? this.aiPlayer.stars : Math.min(this.aiPlayer.stars, Math.ceil(techTarget.cost * 0.25)))
+      : 0;
+    const availableStars = Math.max(0, this.aiPlayer.stars - reservedStars);
+    const budget: AIBudgetState = {
+      totalStars: this.aiPlayer.stars,
+      reservedStars,
+      availableStars,
+      savingForTech,
+      targetCost: techTarget?.cost,
+    };
+
+    const playerFaith = this.aiPlayer.stats.faith;
+    const targetFaith = techTarget ? (TECHNOLOGIES[techTarget.id].aiGuidance?.minFaith ?? playerFaith) : playerFaith;
+    const faithDeficit = Math.max(0, targetFaith - playerFaith);
+
+    const cityPlans = this.buildCityPlans(personality, faithDeficit, availableStars);
+    const improvementJobs = this.createImprovementJobs(cityPlans);
+    const explorationGoals = this.buildExplorationGoals(personality);
+    const goalQueue: AIStrategyGoal[] = [];
+
+    if (techTarget) {
+      goalQueue.push({
+        id: `tech:${techTarget.id}`,
+        type: 'tech',
+        targetId: techTarget.id,
+        priority: techTarget.priority,
+        reason: 'Primary research focus',
+      });
+    }
+
+    for (const [cityId, plans] of Object.entries(cityPlans)) {
+      if (plans.length === 0) continue;
+      const top = plans[0];
+      goalQueue.push({
+        id: `city:${cityId}:${top.optionId}`,
+        type: top.category === 'structures' ? 'structure' : top.category === 'improvements' ? 'improvement' : 'unit',
+        targetId: top.optionId,
+        cityId,
+        priority: top.priority,
+        reason: top.reason,
+      });
+    }
+
+    this.strategy = {
+      techTarget,
+      savingsNeeded,
+      budget,
+      cityPlans,
+      goalQueue,
+      improvementJobs,
+      explorationGoals,
+    };
+
+    if (process.env.NODE_ENV !== 'production') {
+      emitTelemetry({
+        channel: 'system',
+        status: 'info',
+        playerId: this.aiPlayer.id,
+        reason: 'ai_strategy_update',
+        metadata: {
+          techTarget: techTarget?.id,
+          reservedStars,
+          availableStars,
+          savingForTech,
+          savingsNeeded,
+          faithDeficit,
+          cityPlanCount: Object.keys(cityPlans).length,
+          goalsTracked: goalQueue.length,
+          improvementJobs: improvementJobs.length,
+          explorationGoals: explorationGoals.length,
+        },
+      });
+    }
+  }
+
+  private getSituationalTechModifier(techId: string, tech: Technology, personality: FactionPersonality): number {
+    let modifier = 1;
+    const enemyThreat = this.assessEnemyThreat();
+    const myCities = this.getMyCities();
+
+    switch (tech.category) {
+      case 'military':
+        modifier += enemyThreat * 0.6 + personality.aggression * 0.2;
+        break;
+      case 'religious':
+        modifier += personality.piety * 0.3;
+        if (this.aiPlayer.stats.faith < 60) {
+          modifier += 0.1;
+        }
+        break;
+      case 'economic': {
+        const avgProduction = myCities.reduce((sum, city) => sum + city.starProduction, 0) / Math.max(1, myCities.length);
+        if (avgProduction < 3) {
+          modifier += 0.25;
+        }
+        break;
+      }
+      case 'exploration': {
+        const unexploredTiles = this.gameState.map.tiles.length - this.aiPlayer.exploredTiles.length;
+        if (unexploredTiles > this.gameState.map.tiles.length * 0.4) {
+          modifier += 0.2 + personality.expansionism * 0.1;
+        }
+        break;
+      }
+      default:
+        break;
+    }
+
+    if (tech.unlocks?.units?.some(unitId => personality.unitPreferences.includes(unitId))) {
+      modifier += 0.1;
+    }
+
+    return Math.max(0.5, modifier);
+  }
+
+  private buildCityPlans(personality: FactionPersonality, faithDeficit: number, availableStars: number): Record<string, AICityPlanEntry[]> {
+    const plans: Record<string, AICityPlanEntry[]> = {};
+    const myCities = this.getMyCities();
+
+    for (const city of myCities) {
+      const entries: AICityPlanEntry[] = [];
+      const threatLevel = this.tacticalEngine.assessThreat(city.coordinate).threatLevel;
+      const structuresOwned = this.getCityStructuresSet(city.id);
+      const queuedStructures = this.getQueuedStructures(city.id);
+      const existingImprovements = this.getCityImprovementsMap(city.id);
+      const queuedImprovements = this.getQueuedImprovements(city.id);
+
+      for (const structure of Object.values(STRUCTURE_DEFINITIONS)) {
+        if (structuresOwned.has(structure.id)) continue;
+        if (queuedStructures.has(structure.id)) continue;
+        if (!this.canBuildStructure(structure.id)) continue;
+        if (structure.id === 'lighthouse' && !this.isCoastalCity(city)) continue;
+
+        const { score, reason } = this.evaluateStructurePlan(city, structure, personality, faithDeficit, threatLevel);
+        if (score <= 0) continue;
+
+        entries.push({
+          optionId: structure.id,
+          category: 'structures',
+          priority: score,
+          cost: structure.cost,
+          reason,
+        });
+      }
+
+      entries.push(
+        ...this.evaluateImprovementPlans(
+          city,
+          personality,
+          availableStars,
+          threatLevel,
+          existingImprovements,
+          queuedImprovements
+        )
+      );
+
+      entries.push(
+        ...this.evaluateUnitPlans(city, personality, threatLevel)
+      );
+
+      entries.sort((a, b) => b.priority - a.priority);
+      if (entries.length > 0) {
+        plans[city.id] = entries;
+      }
+    }
+
+    return plans;
+  }
+
+  private evaluateStructurePlan(
+    city: City,
+    structure: StructureDefinition,
+    personality: FactionPersonality,
+    faithDeficit: number,
+    threatLevel: number
+  ): { score: number; reason: string } {
+    let score = 10;
+    const reasons: string[] = [];
+    const mood = personality.currentMood;
+
+    const preferenceIndex = personality.buildingPriorities.indexOf(structure.id);
+    if (preferenceIndex >= 0) {
+      score += Math.max(0, 25 - preferenceIndex * 4);
+      reasons.push('faction preference');
+    }
+
+    switch (structure.id) {
+      case 'temple': {
+        score += personality.piety * 35 + faithDeficit * 0.2 + mood.zealotry * 20;
+        if (faithDeficit > 0) reasons.push('faith deficit');
+        break;
+      }
+      case 'cathedral': {
+        score += personality.piety * 25 + faithDeficit * 0.25;
+        reasons.push('long-term faith');
+        break;
+      }
+      case 'granary': {
+        const growthPressure = city.population >= city.maxPopulation ? 30 : (city.population / city.maxPopulation) * 20;
+        if (growthPressure > 0) reasons.push('population pressure');
+        score += growthPressure + mood.pragmatism * 10;
+        break;
+      }
+      case 'lighthouse': {
+        if (!this.isCoastalCity(city)) {
+          return { score: 0, reason: '' };
+        }
+        score += 25 + personality.opportunism * 15 + mood.pragmatism * 5;
+        reasons.push('coastal trade');
+        break;
+      }
+      case 'academy':
+      case 'library': {
+        const knowledgeBoost = 15 + personality.opportunism * 5 + mood.pragmatism * 12;
+        score += knowledgeBoost;
+        reasons.push('knowledge economy');
+        break;
+      }
+      case 'fortress': {
+        const defenseScore = threatLevel * 90 + personality.aggression * 10 - personality.riskTolerance * 10;
+        score += defenseScore;
+        if (threatLevel > 0.15) reasons.push('threat response');
+        break;
+      }
+      default:
+        break;
+    }
+
+    if (structure.effects.starProduction > 0) {
+      score += structure.effects.starProduction * 6;
+      reasons.push('star production');
+    }
+    if (structure.effects.populationGrowth > 0) {
+      score += structure.effects.populationGrowth * 4;
+    }
+    if (structure.effects.defenseBonus > 0) {
+      score += structure.effects.defenseBonus * 5;
+    }
+
+    return score > 20
+      ? { score, reason: reasons.join(', ') || 'strategic priority' }
+      : { score: 0, reason: '' };
+  }
+
+  private evaluateImprovementPlans(
+    city: City,
+    personality: FactionPersonality,
+    availableStars: number,
+    threatLevel: number,
+    existingImprovements: Map<string, string>,
+    queuedImprovements: Map<string, string>
+  ): AICityPlanEntry[] {
+    const entries: AICityPlanEntry[] = [];
+    const playerId = this.aiPlayer.id;
+    const workableTiles = this.getCityWorkableTiles(city);
+    const capitalMood = personality.currentMood;
+
+    workableTiles.forEach(tile => {
+      const tileKey = this.getImprovementKey(tile.coordinate);
+      if (existingImprovements.has(tileKey)) return;
+      if (queuedImprovements.has(tileKey)) return;
+      if (!tile.exploredBy.includes(playerId)) return;
+      if (tile.feature) return;
+
+      Object.values(IMPROVEMENT_DEFINITIONS).forEach(improvement => {
+        if (!improvement.validTerrain.includes(tile.terrain)) return;
+        if (!this.aiPlayer.researchedTechs.includes(improvement.requiredTech)) return;
+
+        if (improvement.id === 'port' && !this.isCoastalCity(city)) {
+          return;
+        }
+
+        if (improvement.id === 'sawmill') {
+          const adjacentHuts = this.countAdjacentImprovements(
+            city.id,
+            tile.coordinate,
+            'lumber_hut',
+            existingImprovements,
+            queuedImprovements
+          );
+          if (adjacentHuts === 0) return;
+        }
+
+        let score = 10;
+        const reasons: string[] = [];
+
+        if (improvement.starProduction > 0) {
+          score += improvement.starProduction * 8;
+          reasons.push('star income');
+        }
+
+        if (tile.resources.length > 0) {
+          score += tile.resources.length * 5;
+          reasons.push('leverages resources');
+        }
+
+        if (improvement.effects?.populationGrowth) {
+          score += improvement.effects.populationGrowth * 6;
+          reasons.push('population growth');
+        }
+
+        if (improvement.id === 'farm' || improvement.id === 'plantation' || improvement.id === 'irrigation') {
+          score += 8 + personality.expansionism * 10;
+          reasons.push('food economy');
+        }
+
+        if (improvement.id === 'lumber_hut' || improvement.id === 'forest_camp') {
+          score += 5 + personality.expansionism * 6;
+          reasons.push('forest industry');
+        }
+
+        if (improvement.id === 'workshop' || improvement.id === 'mine') {
+          score += 6 + personality.aggression * 8 + capitalMood.pragmatism * 10;
+          reasons.push('production boost');
+          if (threatLevel > 0.35) {
+            score += threatLevel * 15;
+            reasons.push('war footing');
+          }
+        }
+
+        if (improvement.id === 'port') {
+          score += 12 + personality.opportunism * 10;
+          reasons.push('trade network');
+        }
+
+        if (improvement.id === 'sawmill') {
+          score += 10;
+          reasons.push('timber hub');
+        }
+
+        if (improvement.cost > availableStars) {
+          score -= 5;
+          reasons.push('requires savings');
+        }
+
+        if (score <= 20) return;
+
+        entries.push({
+          optionId: improvement.id,
+          category: 'improvements',
+          priority: score,
+          cost: improvement.cost,
+          coordinate: tile.coordinate,
+          reason: reasons.join(', ') || 'infrastructure expansion',
+        });
+      });
+    });
+
+    return entries.sort((a, b) => b.priority - a.priority);
+  }
+
+  private evaluateUnitPlans(
+    city: City,
+    personality: FactionPersonality,
+    threatLevel: number
+  ): AICityPlanEntry[] {
+    const entries: AICityPlanEntry[] = [];
+    const factionId = (this.aiPlayer.factionId || '').toUpperCase();
+    const unitCounts = this.getMyUnits().reduce<Record<string, number>>((acc, unit) => {
+      acc[unit.type] = (acc[unit.type] || 0) + 1;
+      return acc;
+    }, {});
+    const queuedUnits = new Set(
+      (this.aiPlayer.constructionQueue || [])
+        .filter(item => item.cityId === city.id && item.category === 'units')
+        .map(item => item.type)
+    );
+    const cityHasHarbor = this.isCoastalCity(city);
+
+    Object.values(UNIT_DEFINITIONS).forEach(unitDef => {
+      if (!this.canRecruitUnit(unitDef, factionId)) return;
+      if (queuedUnits.has(unitDef.type)) return;
+      if (!this.cityCanProduceUnit(city, unitDef, cityHasHarbor)) return;
+
+      const { score, reason } = this.scoreUnitPlan(
+        unitDef,
+        personality,
+        threatLevel,
+        unitCounts
+      );
+
+      if (score <= 25) {
+        return;
+      }
+
+      entries.push({
+        optionId: unitDef.type,
+        category: 'units',
+        priority: score,
+        cost: unitDef.cost,
+        reason,
+        faithCost: unitDef.requirements?.faith,
+        prideCost: unitDef.requirements?.pride,
+      });
+    });
+
+    return entries.sort((a, b) => b.priority - a.priority);
+  }
+
+  private getCityStructuresSet(cityId: string): Set<StructureType> {
+    const ownedStructures = new Set<StructureType>();
+    const structures = (this.gameState.structures || []).filter(
+      structure => structure.cityId === cityId && structure.ownerId === this.aiPlayer.id
+    );
+    structures.forEach(structure => ownedStructures.add(structure.type as StructureType));
+
+    const city = this.gameState.cities?.find(c => c.id === cityId);
+    if (city) {
+      (city.structures || []).forEach(structureId => {
+        if (STRUCTURE_DEFINITIONS[structureId as StructureType]) {
+          ownedStructures.add(structureId as StructureType);
+        }
+      });
+    }
+
+    return ownedStructures;
+  }
+
+  private getQueuedStructures(cityId: string): Set<StructureType> {
+    return new Set(
+      (this.aiPlayer.constructionQueue || [])
+        .filter(item => item.cityId === cityId && item.category === 'structures')
+        .map(item => item.type as StructureType)
+    );
+  }
+
+  private getCityImprovementsMap(cityId: string): Map<string, string> {
+    const map = new Map<string, string>();
+    (this.gameState.improvements || [])
+      .filter(improvement => improvement.cityId === cityId && improvement.ownerId === this.aiPlayer.id)
+      .forEach(improvement => {
+        map.set(this.getImprovementKey(improvement.coordinate), improvement.type);
+      });
+    return map;
+  }
+
+  private getQueuedImprovements(cityId: string): Map<string, string> {
+    const queueMap = new Map<string, string>();
+    (this.aiPlayer.constructionQueue || [])
+      .filter(item => item.cityId === cityId && item.category === 'improvements' && item.coordinate)
+      .forEach(item => {
+        queueMap.set(this.getImprovementKey(item.coordinate as HexCoordinate), item.type);
+      });
+    return queueMap;
+  }
+
+  private getImprovementKey(coordinate: HexCoordinate): string {
+    return `${coordinate.q},${coordinate.r}`;
+  }
+
+  private isStructureQueued(cityId: string, structureId: StructureType): boolean {
+    return (this.aiPlayer.constructionQueue || []).some(
+      item => item.cityId === cityId && item.category === 'structures' && item.type === structureId
+    );
+  }
+
+  private isStructurePlanValid(city: City, structureId: StructureType): boolean {
+    if (!this.canBuildStructure(structureId)) return false;
+    if (this.getCityStructuresSet(city.id).has(structureId)) return false;
+    if (this.isStructureQueued(city.id, structureId)) return false;
+    if (structureId === 'lighthouse' && !this.isCoastalCity(city)) return false;
+    return true;
+  }
+
+  private isCoastalCity(city: City): boolean {
+    const neighbors = hexNeighbors(city.coordinate);
+    return neighbors.some(coord => {
+      const tile = this.gameState.map.tiles.find(t => t.coordinate.q === coord.q && t.coordinate.r === coord.r);
+      return tile?.terrain === 'water';
+    });
+  }
+
+  private getCityWorkableTiles(city: City): Tile[] {
+    return this.gameState.map.tiles.filter(tile => {
+      const distance = hexDistance(tile.coordinate, city.coordinate);
+      if (distance === 0) return false;
+      return distance <= CITY_WORK_RADIUS;
+    });
+  }
+
+  private simulateCombatOutcome(attacker: Unit, defender: Unit) {
+    const distance = hexDistance(attacker.coordinate, defender.coordinate);
+    if (distance > attacker.attackRange) {
+      return null;
+    }
+    return resolveMeleeCombat(this.gameState, attacker, defender);
+  }
+
+  private calculateLocalStrength(center: HexCoordinate, playerId: string, radius: number): number {
+    return this.gameState.units.reduce((total, unit) => {
+      if (unit.playerId !== playerId) return total;
+      if (hexDistance(unit.coordinate, center) > radius) return total;
+      const healthFactor = unit.hp / Math.max(1, unit.maxHp);
+      return total + unit.attack + unit.defense + healthFactor * 5;
+    }, 0);
+  }
+
+  private calculateEnemyStrength(center: HexCoordinate, playerId: string, radius: number): number {
+    return this.gameState.units.reduce((total, unit) => {
+      if (unit.playerId === playerId) return total;
+      if (hexDistance(unit.coordinate, center) > radius) return total;
+      const healthFactor = unit.hp / Math.max(1, unit.maxHp);
+      return total + unit.attack + unit.defense + healthFactor * 5;
+    }, 0);
+  }
+
+  private getCoordinateKey(coordinate: HexCoordinate): string {
+    return `${coordinate.q},${coordinate.r}`;
+  }
+
+  private isTileOccupiedByEnemy(coordinate: HexCoordinate, playerId: string): boolean {
+    return this.gameState.units.some(unit =>
+      unit.playerId !== playerId &&
+      unit.coordinate.q === coordinate.q &&
+      unit.coordinate.r === coordinate.r &&
+      unit.coordinate.s === coordinate.s
+    );
+  }
+
+  private isTileOccupiedByFriendly(coordinate: HexCoordinate, playerId: string): boolean {
+    return this.gameState.units.some(unit =>
+      unit.playerId === playerId &&
+      unit.coordinate.q === coordinate.q &&
+      unit.coordinate.r === coordinate.r &&
+      unit.coordinate.s === coordinate.s &&
+      !this.reservedUnits.has(unit.id)
+    );
+  }
+
+  private countUnexploredNeighbors(coordinate: HexCoordinate): number {
+    return hexNeighbors(coordinate).reduce((count, neighbor) => {
+      const key = this.getCoordinateKey(neighbor);
+      return count + (this.aiPlayer.exploredTiles.includes(key) ? 0 : 1);
+    }, 0);
+  }
+
+  private findExplorationMove(unit: Unit): { target: HexCoordinate; priority: number } | null {
+    const reachable = this.getReachableTiles(unit);
+    let best: { target: HexCoordinate; priority: number } | null = null;
+
+    for (const coordinate of reachable) {
+      if (this.isTileOccupiedByEnemy(coordinate, unit.playerId)) continue;
+      const key = this.getCoordinateKey(coordinate);
+      const isUnexplored = !this.aiPlayer.exploredTiles.includes(key);
+      const frontierScore = this.countUnexploredNeighbors(coordinate);
+      if (!isUnexplored && frontierScore === 0) continue;
+
+      let priority = 50 + frontierScore * 5;
+      if (isUnexplored) {
+        priority += 15;
+      }
+      if (unit.type === 'scout') {
+        priority += 10;
+      }
+
+      if (!best || priority > best.priority) {
+        best = { target: coordinate, priority };
+      }
+    }
+
+    return best;
+  }
+
+  private evaluateHealOpportunity(unit: Unit): number {
+    let bestDeficit = 0;
+    this.gameState.units.forEach(ally => {
+      if (ally.playerId !== unit.playerId || ally.id === unit.id) return;
+      const distance = hexDistance(unit.coordinate, ally.coordinate);
+      if (distance > 2) return;
+      const deficit = ally.maxHp - ally.hp;
+      if (deficit > bestDeficit) {
+        bestDeficit = deficit;
+      }
+    });
+    return bestDeficit;
+  }
+
+  private hasSiegeOpportunity(unit: Unit): boolean {
+    const attackRange = unit.attackRange || 1;
+    const enemyUnitNearby = this.gameState.units.some(enemy =>
+      enemy.playerId !== unit.playerId &&
+      enemy.hp > 0 &&
+      hexDistance(unit.coordinate, enemy.coordinate) <= attackRange + 1
+    );
+    if (enemyUnitNearby) {
+      return true;
+    }
+    return (this.gameState.cities || []).some(city =>
+      city.ownerId &&
+      city.ownerId !== unit.playerId &&
+      hexDistance(unit.coordinate, city.coordinate) <= attackRange + 1
+    );
+  }
+
+  private shouldApplyStealth(unit: Unit): boolean {
+    const nearbyEnemy = this.gameState.units.some(enemy =>
+      enemy.playerId !== unit.playerId &&
+      hexDistance(unit.coordinate, enemy.coordinate) <= 3
+    );
+    return nearbyEnemy || this.countUnexploredNeighbors(unit.coordinate) > 0;
+  }
+
+  private countAdjacentAllies(unit: Unit, radius: number): number {
+    return this.gameState.units.reduce((count, ally) => {
+      if (ally.playerId !== unit.playerId || ally.id === unit.id) return count;
+      return count + (hexDistance(unit.coordinate, ally.coordinate) <= radius ? 1 : 0);
+    }, 0);
+  }
+
+  private countAlliesInRadius(unit: Unit, radius: number): number {
+    return this.gameState.units.reduce((count, ally) => {
+      if (ally.playerId !== unit.playerId || ally.id === unit.id) return count;
+      return count + (hexDistance(unit.coordinate, ally.coordinate) <= radius ? 1 : 0);
+    }, 0);
+  }
+
+  private canScheduleImprovement(city: City, plan: AICityPlanEntry): boolean {
+    if (!plan.coordinate) return false;
+    const improvement = IMPROVEMENT_DEFINITIONS[plan.optionId as keyof typeof IMPROVEMENT_DEFINITIONS];
+    if (!improvement) return false;
+
+    const tile = this.gameState.map.tiles.find(
+      t => t.coordinate.q === plan.coordinate!.q && t.coordinate.r === plan.coordinate!.r
+    );
+    if (!tile) return false;
+    if (!tile.exploredBy.includes(this.aiPlayer.id)) return false;
+    if (!improvement.validTerrain.includes(tile.terrain)) return false;
+
+    const existing = this.getCityImprovementsMap(city.id);
+    const queued = this.getQueuedImprovements(city.id);
+    const key = this.getImprovementKey(plan.coordinate);
+    if (existing.has(key) || queued.has(key)) return false;
+
+    if (improvement.id === 'port' && !this.isCoastalCity(city)) {
+      return false;
+    }
+
+    if (improvement.id === 'sawmill') {
+      const adjacentHuts = this.countAdjacentImprovements(city.id, plan.coordinate, 'lumber_hut', existing, queued);
+      if (adjacentHuts === 0) return false;
+    }
+
+    if (!this.aiPlayer.researchedTechs.includes(improvement.requiredTech)) return false;
+
+    return true;
+  }
+
+  private canScheduleUnit(plan: AICityPlanEntry): boolean {
+    const unitDef = UNIT_DEFINITIONS[plan.optionId as UnitType];
+    if (!unitDef) return false;
+
+    if (plan.faithCost && this.aiPlayer.stats.faith < plan.faithCost) {
+      return false;
+    }
+    if (plan.prideCost && this.aiPlayer.stats.pride < plan.prideCost) {
+      return false;
+    }
+    if (unitDef.requirements?.dissent && this.aiPlayer.stats.internalDissent < unitDef.requirements.dissent) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private countAdjacentImprovements(
+    _cityId: string,
+    coordinate: HexCoordinate,
+    improvementId: string,
+    existingImprovements: Map<string, string>,
+    queuedImprovements: Map<string, string>
+  ): number {
+    return hexNeighbors(coordinate).reduce((count, neighbor) => {
+      const key = this.getImprovementKey(neighbor);
+      const existing = existingImprovements.get(key);
+      if (existing === improvementId) {
+        return count + 1;
+      }
+      const queued = queuedImprovements.get(key);
+      if (queued === improvementId) {
+        return count + 1;
+      }
+      return count;
+    }, 0);
+  }
+
+  private canRecruitUnit(unitDef: UnitDefinition, factionId: string): boolean {
+    if (unitDef.requiredTechnology && !this.aiPlayer.researchedTechs.includes(unitDef.requiredTechnology)) {
+      return false;
+    }
+    if (unitDef.factionSpecific && unitDef.factionSpecific.length > 0) {
+      const allowed = unitDef.factionSpecific.map(f => f.toUpperCase());
+      if (!allowed.includes(factionId)) {
+        return false;
+      }
+    }
+    if (unitDef.requirements?.faith && this.aiPlayer.stats.faith < unitDef.requirements.faith) {
+      return false;
+    }
+    if (unitDef.requirements?.pride && this.aiPlayer.stats.pride < unitDef.requirements.pride) {
+      return false;
+    }
+    if (unitDef.requirements?.dissent && this.aiPlayer.stats.internalDissent < unitDef.requirements.dissent) {
+      return false;
+    }
+    if (this.aiPlayer.stars < unitDef.cost) {
+      return false;
+    }
+    return true;
+  }
+
+  private cityCanProduceUnit(city: City, unitDef: UnitDefinition, cityHasHarbor: boolean): boolean {
+    if (unitDef.type === 'boat' && !cityHasHarbor) {
+      return false;
+    }
+    return true;
+  }
+
+  private scoreUnitPlan(
+    unitDef: UnitDefinition,
+    personality: FactionPersonality,
+    threatLevel: number,
+    unitCounts: Record<string, number>
+  ): { score: number; reason: string } {
+    let score = 25;
+    const reasons: string[] = [];
+    const preference = this.personalityEngine.getUnitPreference(unitDef.type);
+    score += preference * 40;
+    if (preference > 0.6) {
+      reasons.push('faction preference');
+    }
+
+    score += unitDef.baseStats.attack * 2;
+    score += unitDef.baseStats.defense * 1.5;
+
+    if (threatLevel > 0.35) {
+      score += threatLevel * (unitDef.baseStats.defense + unitDef.baseStats.attack);
+      reasons.push('responding to threat');
+    }
+
+    if (unitDef.type === 'worker') {
+      const workerTarget = Math.max(1, this.getMyCities().length * 2);
+      const workerCount = unitCounts.worker ?? 0;
+      if (workerCount < workerTarget) {
+        score += (workerTarget - workerCount) * 10;
+        reasons.push('expand infrastructure');
+      } else {
+        score -= 15;
+      }
+    }
+
+    if (unitDef.type === 'missionary' || unitDef.type === 'royal_envoy') {
+      score += personality.piety * 20 + threatLevel * -10 + this.personalityEngine.getDecisionModifier('diplomacy') * 15;
+      reasons.push('influence push');
+    }
+
+    if (unitDef.type === 'catapult') {
+      score += threatLevel * 30 + personality.aggression * 15;
+      reasons.push('siege capability');
+    }
+
+    if (unitDef.type === 'boat') {
+      score += this.personalityEngine.getDecisionModifier('expand') * 20;
+      reasons.push('naval reach');
+    }
+
+    return { score, reason: reasons.join(', ') || 'balanced army composition' };
+  }
+
+  private createImprovementJobs(cityPlans: Record<string, AICityPlanEntry[]>): AIImprovementJob[] {
+    const jobs: AIImprovementJob[] = [];
+    Object.entries(cityPlans).forEach(([cityId, plans]) => {
+      plans
+        .filter(plan => plan.category === 'improvements' && plan.coordinate)
+        .forEach(plan => {
+          const coordinate = plan.coordinate as HexCoordinate;
+          const jobId = `improve:${cityId}:${plan.optionId}:${coordinate.q},${coordinate.r}`;
+          jobs.push({
+            id: jobId,
+            cityId,
+            improvementId: plan.optionId,
+            coordinate,
+            priority: plan.priority,
+            reason: plan.reason,
+          });
+        });
+    });
+    return jobs.sort((a, b) => b.priority - a.priority).slice(0, 12);
+  }
+
+  private buildExplorationGoals(personality: FactionPersonality): AIExplorationGoal[] {
+    const unexploredTiles = this.gameState.map.tiles.filter(tile => !tile.exploredBy.includes(this.aiPlayer.id));
+    if (unexploredTiles.length === 0) {
+      return [];
+    }
+
+    const goals: AIExplorationGoal[] = [];
+    const myUnits = this.getMyUnits();
+
+    unexploredTiles.forEach(tile => {
+      const coordinate = tile.coordinate;
+      const nearestUnitDistance = this.distanceToNearestUnit(coordinate, myUnits);
+      if (nearestUnitDistance === Infinity) {
+        return;
+      }
+
+      const score = this.scoreExplorationTile(tile, nearestUnitDistance, personality);
+      if (score <= 15) return;
+
+      goals.push({
+        id: `explore:${coordinate.q},${coordinate.r}`,
+        target: coordinate,
+        priority: score,
+        reason: tile.feature ? `Investigate ${tile.feature}` : 'Reveal frontier tiles',
+      });
+    });
+
+    goals.sort((a, b) => b.priority - a.priority);
+    return goals.slice(0, 15);
+  }
+
+  private distanceToNearestUnit(target: HexCoordinate, units: Unit[]): number {
+    let min = Infinity;
+    for (const unit of units) {
+      const distance = hexDistance(unit.coordinate, target);
+      if (distance < min) {
+        min = distance;
+      }
+    }
+    return min;
+  }
+
+  private scoreExplorationTile(
+    tile: GameState['map']['tiles'][number],
+    distance: number,
+    personality: FactionPersonality
+  ): number {
+    const hasResource = tile.resources.length > 0;
+    const isFeature = !!tile.feature;
+
+    let score = 40 - distance * 4;
+    if (hasResource) score += 12;
+    if (isFeature) score += 18;
+
+    score += personality.expansionism * 20;
+    score += personality.opportunism * 10;
+
+    const enemyPresence = this.calculateEnemyStrength(tile.coordinate, this.aiPlayer.id, 2);
+    if (enemyPresence > 0) {
+      score -= Math.min(20, enemyPresence / 3);
+    }
+
+    return score;
+  }
+
+  private findBestWorkerForJob(
+    job: AIImprovementJob,
+    workers: Unit[],
+    assignedWorkers: Set<string>
+  ): Unit | null {
+    let bestWorker: Unit | null = null;
+    let bestDistance = Infinity;
+
+    for (const worker of workers) {
+      if (assignedWorkers.has(worker.id)) continue;
+      if (worker.remainingMovement <= 0) continue;
+      const distance = hexDistance(worker.coordinate, job.coordinate);
+      if (distance < bestDistance) {
+        bestWorker = worker;
+        bestDistance = distance;
+      }
+    }
+
+    return bestWorker;
+  }
+
+  private getNextStepTowards(unit: Unit, target: HexCoordinate): HexCoordinate | null {
+    const currentDistance = hexDistance(unit.coordinate, target);
+    if (currentDistance === 0) return null;
+
+    let bestNeighbor: HexCoordinate | null = null;
+    let bestDistance = currentDistance;
+
+    for (const neighbor of hexNeighbors(unit.coordinate)) {
+      if (!this.isValidMovePosition(neighbor)) continue;
+      if (this.isTileOccupiedByFriendly(neighbor, unit.playerId)) continue;
+      if (this.isTileOccupiedByEnemy(neighbor, unit.playerId)) continue;
+
+      const distance = hexDistance(neighbor, target);
+      if (distance < bestDistance) {
+        bestNeighbor = neighbor;
+        bestDistance = distance;
+      }
+    }
+
+    return bestNeighbor;
+  }
+
+  private isExplorerUnit(unit: Unit): boolean {
+    if (unit.type === 'scout' || unit.type === 'boat') return true;
+    const abilities = new Set(unit.abilities?.map(a => a.toUpperCase()) ?? []);
+    if (abilities.has('RECONNAISSANCE') || abilities.has('NAVAL_COMMAND')) {
+      return true;
+    }
+    return unit.type === 'commander';
+  }
+
+  private findBestExplorer(
+    goal: AIExplorationGoal,
+    explorers: Unit[],
+    assignedExplorers: Set<string>
+  ): Unit | null {
+    let best: Unit | null = null;
+    let bestDistance = Infinity;
+
+    for (const explorer of explorers) {
+      if (assignedExplorers.has(explorer.id)) continue;
+      if (explorer.remainingMovement <= 0) continue;
+      const distance = hexDistance(explorer.coordinate, goal.target);
+      if (distance < bestDistance) {
+        best = explorer;
+        bestDistance = distance;
+      }
+    }
+
+    return best;
   }
 
   /**
@@ -718,18 +2051,64 @@ export class AIEngine {
   }
 
   private calculateCombatAdvantage(attacker: Unit, target: TacticalTarget): number {
-    // Simplified advantage calculation
-    return this.rng.nextFloat(0.3, 0.8);
+    if (target.targetType !== 'unit' || !target.unitId) {
+      return 0;
+    }
+
+    const defender = this.gameState.units.find(u => u.id === target.unitId);
+    if (!defender) {
+      return 0;
+    }
+
+    const outcome = this.simulateCombatOutcome(attacker, defender);
+    if (!outcome || !outcome.success) {
+      return 0;
+    }
+
+    const defenderRemaining = Math.max(0, defender.hp - outcome.damageToDefender);
+    const attackerRemaining = Math.max(0, attacker.hp - outcome.damageToAttacker);
+    const defenderLoss = defender.hp - defenderRemaining;
+    const attackerLoss = attacker.hp - attackerRemaining;
+    const lethalityBonus = outcome.defenderSurvived ? 0 : defender.hp * 0.5;
+    const netGain = defenderLoss + lethalityBonus - attackerLoss;
+    const normaliser = Math.max(1, attacker.hp + defender.hp);
+
+    return Math.max(-1, Math.min(1, netGain / normaliser));
   }
 
   private assessCombatRisk(attacker: Unit, target: TacticalTarget): number {
-    // Simplified risk assessment
-    return this.rng.nextFloat(0.2, 0.7);
+    if (target.targetType !== 'unit' || !target.unitId) {
+      return 0.5;
+    }
+
+    const defender = this.gameState.units.find(u => u.id === target.unitId);
+    if (!defender) {
+      return 0.5;
+    }
+
+    const outcome = this.simulateCombatOutcome(attacker, defender);
+    if (!outcome || !outcome.success) {
+      return 0.6;
+    }
+
+    const attackerLossRatio = outcome.damageToAttacker / Math.max(1, attacker.hp);
+    const defenderLossRatio = outcome.damageToDefender / Math.max(1, defender.hp);
+    let risk = attackerLossRatio - defenderLossRatio * 0.4;
+    if (outcome.counterOccurred) {
+      risk += 0.1;
+    }
+    if (!outcome.defenderSurvived) {
+      risk -= 0.1;
+    }
+    return Math.max(0, Math.min(1, risk + 0.3));
   }
 
   private calculateUnitAdvantage(unit: Unit): number {
-    // Calculate local military advantage
-    return this.rng.nextFloat(-0.5, 0.5);
+    const friendlyStrength = this.calculateLocalStrength(unit.coordinate, unit.playerId, 2);
+    const enemyStrength = this.calculateEnemyStrength(unit.coordinate, unit.playerId, 2);
+    const total = friendlyStrength + enemyStrength;
+    if (total === 0) return 0;
+    return (friendlyStrength - enemyStrength) / total;
   }
 
   private findNearbyMilitaryUnits(coord: HexCoordinate): Unit[] {
@@ -768,7 +2147,8 @@ export class AIEngine {
 
   private getStrategicPlan(): string {
     const personality = this.personalityEngine.getPersonality();
-    return `Pursuing ${personality.preferredVictory} victory`;
+    const techTarget = this.strategy.techTarget?.id ? ` | Tech: ${this.strategy.techTarget.id}` : '';
+    return `Pursuing ${personality.preferredVictory} victory${techTarget}`;
   }
 
   private getResourcePriority(resource: string): number {
@@ -780,59 +2160,6 @@ export class AIEngine {
       case 'pride': return Math.round((1 - personality.piety) * 100);
       default: return 50;
     }
-  }
-
-  private calculateAbilityPriority(unit: Unit, ability: any): number {
-    // Simplified ability priority calculation
-    return this.rng.nextFloat(20, 60);
-  }
-
-  private getAvailableAbilities(unit: Unit): any[] {
-    // Get unit abilities from definition
-    const unitDef = getUnitDefinition(unit.type);
-    const abilities = unitDef.abilities || [];
-    
-    // Filter abilities based on unit state and game conditions
-    return abilities.filter(ability => {
-      // Check if unit can use this ability (has movement, not on cooldown, etc.)
-      if (ability === 'heal' && unit.hp >= unit.maxHp) return false;
-      if (ability === 'build_village' && unit.type !== 'worker') return false;
-      if (ability === 'fortify' && unit.remainingMovement <= 0) return false;
-      return true;
-    }).map(ability => ({ name: ability, cost: 0, available: true }));
-  }
-
-  private canAffordBuilding(building: any): boolean {
-    return this.aiPlayer.stars >= (building.cost || 50);
-  }
-
-  private getAvailableBuildings(cityId: string): any[] {
-    const availableBuildings = [];
-    const city = this.getMyCities().find(c => c.id === cityId);
-    if (!city) return [];
-    
-    // Define basic building types with requirements
-    const buildingTypes = [
-      { type: 'temple', cost: 20, requiredTech: 'prayer', category: 'religious' },
-      { type: 'barracks', cost: 15, requiredTech: 'warrior_code', category: 'military' },
-      { type: 'market', cost: 25, requiredTech: 'trade', category: 'economic' },
-      { type: 'granary', cost: 18, requiredTech: 'farming', category: 'economic' },
-      { type: 'forge', cost: 30, requiredTech: 'metalworking', category: 'military' },
-      { type: 'observatory', cost: 35, requiredTech: 'astronomy', category: 'exploration' }
-    ];
-    
-    for (const building of buildingTypes) {
-      // Check if player has required tech and resources
-      const hasReqTech = !building.requiredTech || this.aiPlayer.researchedTechs.includes(building.requiredTech);
-      const hasResources = this.aiPlayer.stars >= building.cost;
-      const notAlreadyBuilt = !city.structures || !city.structures.includes(building.type);
-      
-      if (hasReqTech && hasResources && notAlreadyBuilt) {
-        availableBuildings.push(building);
-      }
-    }
-    
-    return availableBuildings;
   }
 
   private getAvailableTechnologies(): any[] {
@@ -865,23 +2192,6 @@ export class AIEngine {
     return value;
   }
 
-  private calculateBuildingValue(building: any, city: any): number {
-    // Base building value calculation
-    let value = 40;
-    
-    // Bonus for faction preferences
-    const personality = this.personalityEngine.getPersonality();
-    if (personality.buildingPriorities.includes(building.type)) {
-      value += 25;
-    }
-    
-    // Bonus based on city needs
-    if (city.population > 5 && building.type === 'granary') {
-      value += 20;
-    }
-    
-    return value;
-  }
 }
 
 /**

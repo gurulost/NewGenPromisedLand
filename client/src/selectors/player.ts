@@ -8,6 +8,7 @@ export interface PlayerStats {
   techCount: number;
   starProduction: number;
   starProductionBreakdown: Array<{ source: string; amount: number }>;
+  researchInspiration: number;
 }
 
 export function getPlayerStats(player: PlayerState, gameState: GameState): PlayerStats {
@@ -55,6 +56,7 @@ export function getPlayerStats(player: PlayerState, gameState: GameState): Playe
     cityCount: player.citiesOwned.length,
     techCount: player.researchedTechs.length,
     starProduction: totalStarProduction,
-    starProductionBreakdown: breakdown
+    starProductionBreakdown: breakdown,
+    researchInspiration: player.researchInspiration ?? 0,
   };
 }

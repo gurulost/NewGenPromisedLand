@@ -71,12 +71,45 @@ describe('Accessibility Tests (jest-axe)', () => {
   });
 
   it('TechPanel has no WCAG violations', async () => {
+    const accessibilityPlayer = {
+      id: 'player1',
+      name: 'Accessibility Tester',
+      factionId: 'NEPHITES',
+      isAI: false,
+      stars: 40,
+      stats: { faith: 30, pride: 15, internalDissent: 5 },
+      modifiers: [],
+      abilityCooldowns: {},
+      researchedTechs: ['organization', 'woodcraft'],
+      researchInspiration: 0,
+      citiesOwned: [],
+      constructionQueue: [],
+      visibilityMask: [],
+      exploredTiles: [],
+      isEliminated: false,
+      turnOrder: 0
+    } as const;
+
+    const accessibilityGameState = {
+      id: 'game-accessibility',
+      players: [accessibilityPlayer],
+      currentPlayerIndex: 0,
+      turn: 1,
+      phase: 'playing',
+      map: { tiles: [], width: 5, height: 5 },
+      units: [],
+      cities: [],
+      improvements: [],
+      structures: []
+    } as const;
+
     const { container } = render(
       <TechPanel 
-        gameState={mockGameState}
-        playerId="player1"
+        isOpen
         onClose={() => {}}
-        onResearch={() => {}}
+        gameState={accessibilityGameState as any}
+        currentPlayer={accessibilityPlayer as any}
+        onResearchTech={() => {}}
       />
     );
     
