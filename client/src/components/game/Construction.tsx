@@ -29,7 +29,6 @@ export default function Construction({ construction }: ConstructionProps) {
       model = gltf.scene.clone();
     }
   } catch (error) {
-    console.log(`No 3D model found for ${construction.type}, using placeholder`);
   }
   
   // Animation - gentle bobbing for ghost effect

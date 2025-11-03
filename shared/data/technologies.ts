@@ -1,3 +1,5 @@
+import { GameRuleHelpers } from './gameRules';
+
 export interface Technology {
   id: string;
   name: string;
@@ -11,10 +13,15 @@ export interface Technology {
     abilities?: string[];
   };
   category: 'military' | 'economic' | 'religious' | 'exploration';
+  aiGuidance?: {
+    priority: number;
+    minFaith: number;
+    recommendedCities: number;
+  };
 }
 
 export const TECHNOLOGIES: Record<string, Technology> = {
-  // Tier 1 - Starting Technologies
+  // Tier 1 - Foundational Technologies
   organization: {
     id: 'organization',
     name: 'Organization',
@@ -22,23 +29,55 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 5,
     prerequisites: [],
     unlocks: {
-      improvements: ['farm', 'mine'],
+      improvements: ['farm'],
       units: ['worker']
     },
-    category: 'economic'
+    category: 'economic',
+    aiGuidance: { priority: 90, minFaith: 100, recommendedCities: 1 },
+
+  },
+
+  woodcraft: {
+    id: 'woodcraft',
+    name: 'Woodcraft',
+    description: 'Following Nephi\'s example of crafting with timber in the wilderness (1 Nephi 17:10), this teaches basic lumber harvesting and carpentry for early settlements.',
+    cost: 6,
+    prerequisites: [],
+    unlocks: {
+      improvements: ['lumber_hut']
+    },
+    category: 'economic',
+    aiGuidance: { priority: 90, minFaith: 100, recommendedCities: 1 },
+
+  },
+
+  mining: {
+    id: 'mining',
+    name: 'Mining',
+    description: 'As Nephi taught his people to work in ore (2 Nephi 5:15), this unlocks the knowledge to extract metals and precious stones from the earth.',
+    cost: 7,
+    prerequisites: ['organization'],
+    unlocks: {
+      improvements: ['mine']
+    },
+    category: 'economic',
+    aiGuidance: { priority: 75, minFaith: 160, recommendedCities: 2 },
+
   },
 
   forestry: {
     id: 'forestry',
     name: 'Forestry',
     description: 'Following Nephi\'s example of constructing ships from timber (1 Nephi 18:1), this knowledge of forest management enables lumber harvesting and timber processing for construction and economic growth.',
-    cost: 5,
-    prerequisites: [],
+    cost: 9,
+    prerequisites: ['woodcraft'],
     unlocks: {
-      improvements: ['lumber_hut', 'sawmill'],
+      improvements: ['sawmill'],
       abilities: ['clear_forest']
     },
-    category: 'economic'
+    category: 'economic',
+    aiGuidance: { priority: 75, minFaith: 160, recommendedCities: 2 },
+
   },
 
   hunting: {
@@ -50,7 +89,23 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     unlocks: {
       units: ['scout']
     },
-    category: 'military'
+    category: 'military',
+    aiGuidance: { priority: 90, minFaith: 100, recommendedCities: 1 },
+
+  },
+
+  seafaring: {
+    id: 'seafaring',
+    name: 'Seafaring',
+    description: 'Guided by the Liahona, Lehi\'s family learned to traverse the seas (1 Nephi 18). This technology grants the skills needed to navigate coastal waters and harvest their resources.',
+    cost: 6,
+    prerequisites: ['hunting'],
+    unlocks: {
+      abilities: ['coastal_fishing']
+    },
+    category: 'exploration',
+    aiGuidance: { priority: 75, minFaith: 160, recommendedCities: 2 },
+
   },
 
   spirituality: {
@@ -63,7 +118,9 @@ export const TECHNOLOGIES: Record<string, Technology> = {
       structures: ['temple'],
       abilities: ['blessing']
     },
-    category: 'religious'
+    category: 'religious',
+    aiGuidance: { priority: 90, minFaith: 100, recommendedCities: 1 },
+
   },
 
   // Tier 2 - Advanced Technologies
@@ -74,10 +131,38 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 10,
     prerequisites: ['organization'],
     unlocks: {
-      improvements: ['irrigation', 'plantation'],
+      improvements: ['plantation'],
       structures: ['granary']
     },
-    category: 'economic'
+    category: 'economic',
+    aiGuidance: { priority: 75, minFaith: 160, recommendedCities: 2 },
+
+  },
+
+  husbandry: {
+    id: 'husbandry',
+    name: 'Husbandry',
+    description: 'Mosiah recorded the domestication of flocks and herds among the Nephites (Mosiah 2:3). This knowledge allows sustainable ranching of wild animals.',
+    cost: 11,
+    prerequisites: ['agriculture'],
+    unlocks: {},
+    category: 'economic',
+    aiGuidance: { priority: 60, minFaith: 220, recommendedCities: 4 },
+
+  },
+
+  irrigation: {
+    id: 'irrigation',
+    name: 'Irrigation',
+    description: 'Like the people of King Noah who built water works and towers (Mosiah 11:8), this introduces advanced water management to multiply harvests.',
+    cost: 13,
+    prerequisites: ['agriculture'],
+    unlocks: {
+      improvements: ['irrigation']
+    },
+    category: 'economic',
+    aiGuidance: { priority: 60, minFaith: 220, recommendedCities: 4 },
+
   },
 
   bronze_working: {
@@ -85,26 +170,30 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     name: 'Bronze Working',
     description: 'As Nephi "did take the sword of Laban" and later taught his people to work metals (2 Nephi 5:15), this knowledge of forging creates stronger weapons and tools for both defense and industry.',
     cost: 12,
-    prerequisites: ['hunting', 'organization'],
+    prerequisites: ['hunting', 'mining'],
     unlocks: {
       units: ['spearman'],
       improvements: ['workshop']
     },
-    category: 'military'
+    category: 'military',
+    aiGuidance: { priority: 60, minFaith: 220, recommendedCities: 4 },
+
   },
 
   sailing: {
     id: 'sailing',
     name: 'Sailing',
     description: 'Following the pattern of Lehi\'s transoceanic voyage guided by the Liahona (1 Nephi 18), this mastery of navigation enables exploration across waters to discover new lands and establish coastal settlements.',
-    cost: 8,
-    prerequisites: ['hunting'],
+    cost: 10,
+    prerequisites: ['seafaring'],
     unlocks: {
       units: ['boat'],
       improvements: ['port'],
       structures: ['lighthouse']
     },
-    category: 'exploration'
+    category: 'exploration',
+    aiGuidance: { priority: 60, minFaith: 220, recommendedCities: 4 },
+
   },
 
   priesthood: {
@@ -118,7 +207,21 @@ export const TECHNOLOGIES: Record<string, Technology> = {
       structures: ['cathedral'],
       abilities: ['conversion', 'divine_protection']
     },
-    category: 'religious'
+    category: 'religious',
+    aiGuidance: { priority: 75, minFaith: 160, recommendedCities: 2 },
+
+  },
+
+  trade: {
+    id: 'trade',
+    name: 'Trade',
+    description: 'The Mulekites and Nephites prospered by exchanging goods across lands (Helaman 6:8). Establish trade practices to connect distant settlements.',
+    cost: 14,
+    prerequisites: ['seafaring'],
+    unlocks: {},
+    category: 'economic',
+    aiGuidance: { priority: 60, minFaith: 220, recommendedCities: 4 },
+
   },
 
   // Tier 3 - Elite Technologies
@@ -132,7 +235,9 @@ export const TECHNOLOGIES: Record<string, Technology> = {
       structures: ['academy', 'library'],
       abilities: ['enlightenment']
     },
-    category: 'religious'
+    category: 'religious',
+    aiGuidance: { priority: 45, minFaith: 280, recommendedCities: 6 },
+
   },
 
   engineering: {
@@ -146,7 +251,21 @@ export const TECHNOLOGIES: Record<string, Technology> = {
       improvements: ['aqueduct'],
       structures: ['fortress']
     },
-    category: 'military'
+    category: 'military',
+    aiGuidance: { priority: 45, minFaith: 280, recommendedCities: 6 },
+
+  },
+
+  navigation: {
+    id: 'navigation',
+    name: 'Navigation',
+    description: 'The Jaredite barges and Nephite vessels relied on divine guidance and skill to cross the great waters (Ether 6; 1 Nephi 18). This refines deep-water navigation and exploration.',
+    cost: 20,
+    prerequisites: ['sailing', 'trade'],
+    unlocks: {},
+    category: 'exploration',
+    aiGuidance: { priority: 45, minFaith: 280, recommendedCities: 6 },
+
   },
 
   leadership: {
@@ -159,7 +278,9 @@ export const TECHNOLOGIES: Record<string, Technology> = {
       units: ['commander'],
       abilities: ['rally_troops', 'tactical_command']
     },
-    category: 'military'
+    category: 'military',
+    aiGuidance: { priority: 45, minFaith: 280, recommendedCities: 6 },
+
   }
 };
 
@@ -182,9 +303,7 @@ export function getAvailableTechnologies(researchedTechs: string[]): Technology[
  * Calculate research cost (can scale with number of techs researched)
  */
 export function calculateResearchCost(tech: Technology, researchedCount: number): number {
-  // Use direct scaling factor to avoid circular dependency
-  const costScalingFactor = 1.2; // From GAME_RULES.research.costScalingFactor
-  return Math.floor(tech.cost * Math.pow(costScalingFactor, researchedCount));
+  return GameRuleHelpers.calculateResearchCost(tech.cost, researchedCount);
 }
 
 /**

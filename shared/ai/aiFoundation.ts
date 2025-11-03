@@ -256,7 +256,6 @@ export class AIPerformanceMonitor {
     }
 
     if (turnTime > this.maxTurnTime) {
-      console.warn(`AI turn exceeded time budget: ${turnTime.toFixed(2)}ms (max: ${this.maxTurnTime}ms)`);
     }
 
     return turnTime;

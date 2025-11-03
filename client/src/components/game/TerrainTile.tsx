@@ -67,13 +67,11 @@ function TerrainModel({ terrain, position, color, opacity }: {
       loader.setPath('/models/');
     });
   } catch (error) {
-    console.warn(`Failed to load terrain model: ${modelPath}`, error);
     loadingError = true;
   }
   
   // Handle loading failures or invalid/empty models
   if (loadingError || !gltf || !gltf.scene) {
-    console.warn(`Using procedural fallback for terrain: ${terrain} (model: ${modelPath})`);
     return (
       <TerrainFallback 
         terrain={terrain}

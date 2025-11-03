@@ -24,7 +24,7 @@ describe('VictoryScreen', () => {
         turnOrder: 0,
         stars: 25,
         researchedTechs: ['writing'],
-        researchProgress: 0,
+        researchInspiration: 0,
         citiesOwned: ['city1']
       },
       {
@@ -38,7 +38,7 @@ describe('VictoryScreen', () => {
         turnOrder: 1,
         stars: 15,
         researchedTechs: [],
-        researchProgress: 0,
+        researchInspiration: 0,
         citiesOwned: ['city2']
       }
     ],

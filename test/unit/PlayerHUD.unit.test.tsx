@@ -1,102 +1,149 @@
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { PlayerHUD } from '../../client/src/components/ui/PlayerHUD';
+import { PlayerHUD } from '../../client/src/components/hud/PlayerHUD';
+import type { PlayerState, GameState } from '../../shared/types/game';
 
-// Mock the game store
-const mockGameState = {
-  players: [{
-    id: 'player1',
-    name: 'Test Player',
-    faction: 'nephites',
-    stars: 25,
-    faith: 8,
-    pride: 3,
-    dissent: 2,
-    population: 12,
-    cities: [
-      { 
-        id: 'city1', 
-        population: 5, 
-        structures: [{ type: 'temple', starsPerTurn: 2 }],
-        improvements: [{ type: 'farm', starsPerTurn: 1 }]
-      },
-      { 
-        id: 'city2', 
-        population: 7, 
-        structures: [],
-        improvements: [{ type: 'mine', starsPerTurn: 2 }]
-      }
-    ]
-  }],
-  currentPlayerId: 'player1'
+const basePlayer: PlayerState = {
+  id: 'player1',
+  name: 'Nephite Leader',
+  factionId: 'NEPHITES',
+  isAI: false,
+  aiDifficulty: undefined,
+  stars: 25,
+  stats: { faith: 80, pride: 20, internalDissent: 10 },
+  modifiers: [],
+  abilityCooldowns: {},
+  researchedTechs: [],
+  researchInspiration: 0,
+  citiesOwned: [],
+  constructionQueue: [],
+  visibilityMask: [],
+  exploredTiles: [],
+  isEliminated: false,
+  turnOrder: 0,
 };
 
-// Mock selectors
-vi.mock('../../client/src/selectors/player', () => ({
-  getPlayerStats: vi.fn(() => ({
-    stars: 25,
-    faith: 8,
-    pride: 3,
-    dissent: 2,
-    population: 12
-  })),
-  getPlayerIncome: vi.fn(() => ({
-    totalIncome: 8,
-    breakdown: [
-      { source: 'Base', amount: 2 },
-      { source: 'Cities', amount: 3 },
-      { source: 'Structures', amount: 2 },
-      { source: 'Improvements', amount: 1 }
-    ]
-  }))
-}));
+const baseGameState: GameState = {
+  id: 'state',
+  players: [basePlayer],
+  currentPlayerIndex: 0,
+  turn: 1,
+  phase: 'playing',
+  map: {
+    width: 5,
+    height: 5,
+    tiles: [
+      { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [] },
+    ],
+  },
+  units: [],
+  cities: [],
+  improvements: [],
+  structures: [],
+  lastAction: undefined,
+  winner: undefined,
+};
 
-describe('PlayerHUD Unit Tests', () => {
-  it('renders memoized star production breakdown correctly', () => {
-    render(<PlayerHUD gameState={mockGameState} playerId="player1" />);
-    
-    // Assert star count displays correctly
-    expect(screen.getByText('25')).toBeInTheDocument(); // Stars
-    
-    // Assert expandable breakdown matches fixture data
-    const incomeButton = screen.getByText(/8.*turn/); // "8 stars/turn" or similar
-    expect(incomeButton).toBeInTheDocument();
-    
-    // Verify memoized calculations
-    expect(screen.getByText('Faith: 8')).toBeInTheDocument();
-    expect(screen.getByText('Pride: 3')).toBeInTheDocument();
-    expect(screen.getByText('Population: 12')).toBeInTheDocument();
+describe('PlayerHUD', () => {
+  it('renders ability buttons and triggers activation', () => {
+    const onActivateAbility = vi.fn();
+
+    render(
+      <PlayerHUD
+        player={basePlayer}
+        gameState={baseGameState}
+        onShowTechPanel={() => {}}
+        onShowConstructionHall={() => {}}
+        onEndTurn={() => {}}
+        abilities={[{
+          id: 'DIVINE_WARD',
+          name: 'Divine Ward',
+          description: 'Protect a unit',
+          canUse: true,
+          requiresTarget: true,
+          meta: {},
+        }]}
+        onActivateAbility={onActivateAbility}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /Divine Ward/i });
+    fireEvent.click(button);
+    expect(onActivateAbility).toHaveBeenCalledWith('DIVINE_WARD');
   });
 
-  it('updates income breakdown when game state changes', () => {
-    const { rerender } = render(<PlayerHUD gameState={mockGameState} playerId="player1" />);
-    
-    // Modify game state
-    const updatedState = {
-      ...mockGameState,
-      players: [{
-        ...mockGameState.players[0],
-        stars: 30,
-        cities: [...mockGameState.players[0].cities, { 
-          id: 'city3', 
-          population: 3, 
-          structures: [{ type: 'barracks', starsPerTurn: 1 }],
-          improvements: []
-        }]
-      }]
-    };
-    
-    rerender(<PlayerHUD gameState={updatedState} playerId="player1" />);
-    
-    // Should reflect updated values
-    expect(screen.getByText('30')).toBeInTheDocument();
+  it('disables abilities when requirements are unmet', () => {
+    render(
+      <PlayerHUD
+        player={basePlayer}
+        gameState={baseGameState}
+        onShowTechPanel={() => {}}
+        onShowConstructionHall={() => {}}
+        onEndTurn={() => {}}
+        abilities={[{
+          id: 'RIGHTEOUS_FURY',
+          name: 'Righteous Fury',
+          description: 'Boost nearby allies',
+          canUse: false,
+          disabledReason: 'Faith 10/30',
+          requiresTarget: false,
+          meta: {},
+        }]}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /Righteous Fury/i });
+    expect(button).toBeDisabled();
+    expect(screen.getByText(/Faith 10\/30/)).toBeInTheDocument();
   });
 
-  it('handles missing player gracefully', () => {
-    const emptyState = { ...mockGameState, players: [] };
-    
-    expect(() => {
-      render(<PlayerHUD gameState={emptyState} playerId="nonexistent" />);
-    }).not.toThrow();
+  it('highlights ready and cooling abilities', () => {
+    render(
+      <PlayerHUD
+        player={basePlayer}
+        gameState={baseGameState}
+        onShowTechPanel={() => {}}
+        onShowConstructionHall={() => {}}
+        onEndTurn={() => {}}
+        abilities={[
+          {
+            id: 'ANCIENT_MIGHT',
+            name: 'Ancient Might',
+            description: 'Empower the giants',
+            canUse: true,
+            requiresTarget: false,
+            meta: { cooldown: 5 },
+          },
+          {
+            id: 'MISSIONARY_ZEAL',
+            name: 'Missionary Zeal',
+            description: 'Improve conversions',
+            canUse: false,
+            requiresTarget: false,
+            meta: { cooldown: 4, cooldownRemaining: 3 },
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getByText(/Ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/Cooling/i)).toBeInTheDocument();
+  });
+
+  it('shows research inspiration reserves', () => {
+    const inspirationalPlayer = { ...basePlayer, researchInspiration: 8 };
+
+    render(
+      <PlayerHUD
+        player={inspirationalPlayer}
+        gameState={{ ...baseGameState, players: [inspirationalPlayer] }}
+        onShowTechPanel={() => {}}
+        onShowConstructionHall={() => {}}
+        onEndTurn={() => {}}
+      />
+    );
+
+    const inspirationRow = screen.getByText(/Inspiration/i).closest('div');
+    expect(inspirationRow).toHaveTextContent('8');
   });
 });

@@ -1,5 +1,6 @@
 import { GameState, PlayerState } from '@shared/types/game';
 import { TECHNOLOGIES } from '@shared/data/technologies';
+import { getTechnology, canPlayerResearchTechnology, getEffectiveTechCostForPlayer, playerHasTechPrerequisites } from '@shared/logic/technologyHelpers';
 
 export interface TechValidation {
   canResearch: (techId: string) => boolean;
@@ -11,37 +12,33 @@ export interface TechValidation {
 
 export function getTechValidation(player: PlayerState, gameState: GameState): TechValidation {
   
+  const findTech = (techId: string) => getTechnology(techId);
+
   const canAfford = (techId: string): boolean => {
-    const tech = TECHNOLOGIES[techId as keyof typeof TECHNOLOGIES];
+    const tech = findTech(techId);
     if (!tech) return false;
-    return player.stars >= tech.cost;
+    const cost = getEffectiveTechCostForPlayer(tech, player);
+    return player.stars >= cost;
   };
 
   const hasPrerequisites = (techId: string): boolean => {
-    const tech = TECHNOLOGIES[techId as keyof typeof TECHNOLOGIES];
+    const tech = findTech(techId);
     if (!tech) return false;
-    
-    // Check if all prerequisites are researched
-    if (tech.prerequisites) {
-      return tech.prerequisites.every(prereq => player.researchedTechs.includes(prereq));
-    }
-    
-    return true;
+    return playerHasTechPrerequisites(player, tech);
   };
 
   const canResearch = (techId: string): boolean => {
-    // Can't research if already researched
-    if (player.researchedTechs.includes(techId)) {
-      return false;
-    }
-    
-    return hasPrerequisites(techId) && canAfford(techId);
+    const tech = findTech(techId);
+    if (!tech) return false;
+    return canPlayerResearchTechnology(player, tech);
   };
 
   const getAvailableTechs = (): string[] => {
-    return Object.keys(TECHNOLOGIES).filter(techId => 
-      hasPrerequisites(techId) && !player.researchedTechs.includes(techId)
-    );
+    return Object.keys(TECHNOLOGIES).filter(techId => {
+      const tech = findTech(techId);
+      if (!tech) return false;
+      return playerHasTechPrerequisites(player, tech) && !player.researchedTechs.includes(techId);
+    });
   };
 
   const getResearchProgress = () => {

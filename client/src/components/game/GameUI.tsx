@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useKeyboardControls } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
@@ -18,16 +18,76 @@ import { UnitSelectionUI } from "../effects/UnitSelection";
 import { ActionTooltip } from "../ui/TooltipSystem";
 import { WorldElementPanel } from "../ui/WorldElementPanel";
 import MovementControls from "../game/MovementControls";
+import { TelemetryPanel } from "./TelemetryPanel";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
 import { getWorldElement, WORLD_ELEMENTS } from "@shared/data/worldElements";
-import { TECHNOLOGIES } from "@shared/data/technologies";
 import type { Unit } from "@shared/types/unit";
 import { useToastContext } from "../ui/ToastProvider";
+import { AbilityTargetOverlay } from "../ui/AbilityTargetOverlay";
+import { ABILITIES } from "@shared/data/abilities";
+import { validateAbilityForPlayer } from "../../utils/abilityValidation";
+import { hexDistance } from "@shared/utils/hex";
+import { getTechnology, canPlayerResearchTechnology, getTechCostDetails, playerHasTechPrerequisites } from "@shared/logic/technologyHelpers";
+import { subscribeTelemetry } from "@shared/logic/telemetry";
+
+const TARGETED_FACTION_ABILITIES: Record<string, {
+  title: string;
+  instructions: string;
+  toast: string;
+  emptyMessage?: string;
+}> = {
+  DIVINE_WARD: {
+    title: 'Divine Ward',
+    instructions: 'Select a covenant unit to shield from negative effects for the next three turns.',
+    toast: 'Choose a friendly unit to bless with Divine Ward.',
+    emptyMessage: 'You need an active unit to receive the ward.',
+  },
+  RIGHTEOUS_FURY: {
+    title: 'Righteous Fury',
+    instructions: 'Pick the rallying unit whose nearby allies will gain +3 attack.',
+    toast: 'Select a commander or frontline unit to spark Righteous Fury.',
+    emptyMessage: 'Fields are empty—train or move units before invoking Righteous Fury.',
+  },
+};
+
+const IMPLEMENTED_FACTION_ABILITIES = new Set([
+  'TITLE_OF_LIBERTY',
+  'RIGHTEOUS_DEFENSE',
+  'COVENANT_OF_PEACE',
+  'RAMEUMPTOM',
+  'MISSIONARY_ZEAL',
+  'WARRIOR_RAGE',
+  'ANCIENT_KNOWLEDGE',
+  'CULTURAL_RECLAMATION',
+  'ANCIENT_MIGHT',
+  'PROPHETIC_COLLAPSE',
+  'DIVINE_WARD',
+  'SPIRITUAL_WARFARE',
+  'RIGHTEOUS_FURY',
+  'lamanite_guerrilla_tactics',
+  'zoramite_convert_enemy',
+  'zoramite_pride_boost',
+  'jaredite_tower_vision',
+]);
 
 export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState, dispatch } = useLocalGame();
-  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates } = useGameState();
+  const { 
+    selectedUnit, 
+    setSelectedUnit, 
+    constructionMode, 
+    cancelConstruction, 
+    isMovementMode, 
+    isAttackMode, 
+    setMovementMode, 
+    setAttackMode, 
+    reachableCoordinates,
+    abilityTargetMode,
+    startAbilityTargeting,
+    cancelAbilityTargeting,
+    setAbilityTargetSelection,
+  } = useGameState();
   const toast = useToastContext();
   
   // Initialize AI turn handling
@@ -39,11 +99,14 @@ export default function GameUI() {
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
   const [showAdvancedSaveSystem, setShowAdvancedSaveSystem] = useState(false);
+  const [showTelemetry, setShowTelemetry] = useState(false);
 
   const [selectedWorldElement, setSelectedWorldElement] = useState<{
     elementId: string;
     coordinate: { q: number; r: number; s: number };
   } | null>(null);
+
+  const systemToastRef = useRef<string | null>(null);
 
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
@@ -76,6 +139,68 @@ export default function GameUI() {
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const faction = getFaction(currentPlayer.factionId as any);
+  const factionAbilityOptions = faction.abilities
+    .filter(ability => ability.type === 'active' && IMPLEMENTED_FACTION_ABILITIES.has(ability.id))
+    .map(ability => {
+      const definition = ABILITIES[ability.id];
+      if (!definition) return null;
+
+      const unmet: string[] = [];
+      if (definition.requirements?.faith && currentPlayer.stats.faith < definition.requirements.faith) {
+        unmet.push(`Faith ${currentPlayer.stats.faith}/${definition.requirements.faith}`);
+      }
+      if (definition.requirements?.pride && currentPlayer.stats.pride < definition.requirements.pride) {
+        unmet.push(`Pride ${currentPlayer.stats.pride}/${definition.requirements.pride}`);
+      }
+      if (definition.requirements?.dissent && currentPlayer.stats.internalDissent < definition.requirements.dissent) {
+        unmet.push(`Dissent ${currentPlayer.stats.internalDissent}/${definition.requirements.dissent}`);
+      }
+
+      const currentCooldown = currentPlayer.abilityCooldowns?.[ability.id] ?? 0;
+      if (currentCooldown > 0) {
+        unmet.push(`Cooldown ${currentCooldown}`);
+      }
+
+      const cooldown = ability.cooldown ?? definition.cooldown;
+      const requirementSnapshot = definition.requirements ?? ability.requirements ?? {};
+
+      return {
+        id: ability.id,
+        name: definition.name,
+        description: definition.description,
+        canUse: unmet.length === 0,
+        disabledReason: unmet.length ? unmet.join(' • ') : undefined,
+        requiresTarget: Boolean(TARGETED_FACTION_ABILITIES[ability.id]),
+        meta: {
+          cooldown,
+          cooldownRemaining: currentCooldown,
+          cost: ability.cost,
+          requirements: requirementSnapshot,
+          target: definition.target,
+          isToggle: Boolean(definition.isToggle),
+        },
+      };
+    })
+    .filter(Boolean) as Array<{
+      id: string;
+      name: string;
+      description: string;
+      canUse: boolean;
+      disabledReason?: string;
+      requiresTarget: boolean;
+      meta?: {
+        cooldown?: number;
+        cooldownRemaining?: number;
+        cost?: number;
+        requirements?: {
+          faith?: number;
+          pride?: number;
+          dissent?: number;
+        };
+        target?: string;
+        isToggle?: boolean;
+      };
+    }>;
 
   // Keyboard controls
   useEffect(() => {
@@ -116,12 +241,94 @@ export default function GameUI() {
     return unsubscribe;
   }, [subscribeKeys]);
 
+  useEffect(() => {
+    if (!toast) {
+      return undefined;
+    }
+
+    const unsubscribe = subscribeTelemetry(event => {
+      if (event.channel !== 'system') return;
+
+      const key = `${event.timestamp}:${event.reason}:${event.playerId ?? ''}`;
+      if (systemToastRef.current === key) return;
+      systemToastRef.current = key;
+
+      const metadata = (event.metadata ?? {}) as Record<string, unknown>;
+      const formatLabel = (value?: unknown) => {
+        if (typeof value !== 'string' || value.length === 0) return 'Unknown';
+        return value
+          .split('_')
+          .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(' ');
+      };
+
+      const message = typeof metadata.message === 'string' ? metadata.message : undefined;
+
+      switch (event.reason) {
+        case 'construction_started': {
+          const building = formatLabel(metadata.buildingType);
+          const city = formatLabel(metadata.cityId);
+          const buildTime = typeof metadata.buildTime === 'number' ? metadata.buildTime : 1;
+          toast.success('Construction Queued', `${building} will complete in ${buildTime} turn${buildTime === 1 ? '' : 's'} at ${city}.`);
+          break;
+        }
+        case 'construction_insufficient_resources': {
+          const cost = metadata.cost as { stars?: number; faith?: number; pride?: number } | undefined;
+          const parts: string[] = [];
+          if (typeof cost?.stars === 'number') parts.push(`${cost.stars}★`);
+          if (typeof cost?.faith === 'number' && cost.faith > 0) parts.push(`${cost.faith} faith`);
+          if (typeof cost?.pride === 'number' && cost.pride > 0) parts.push(`${cost.pride} pride`);
+          toast.warning('Not Enough Resources', parts.length ? `Requires ${parts.join(', ')}.` : 'You need more resources for that project.');
+          break;
+        }
+        case 'construction_insufficient_faith':
+        case 'construction_insufficient_pride':
+        case 'construction_insufficient_dissent': {
+          const required = typeof metadata.required === 'number' ? metadata.required : undefined;
+          const statName = event.reason.split('_').pop()?.toUpperCase() ?? 'STAT';
+          toast.warning('Requirement Not Met', `Need at least ${required ?? '?'} ${statName}.`);
+          break;
+        }
+        case 'construction_requires_coastal_access':
+          toast.warning('Coastal Access Needed', 'Select a coastal city before building ships.');
+          break;
+        case 'construction_city_not_owned':
+          toast.warning('City Not Owned', 'Capture the city before starting construction.');
+          break;
+        case 'construction_city_not_found':
+        case 'construction_player_not_found':
+        case 'construction_invalid_improvement':
+        case 'construction_invalid_structure':
+        case 'construction_invalid_unit':
+          toast.error('Construction Failed', message || 'Unable to queue construction.');
+          break;
+        case 'world_element_harvest_success':
+          toast.success('Harvest Complete', message || 'Resources collected successfully.');
+          setSelectedWorldElement(null);
+          break;
+        case 'world_element_build_success':
+          toast.success('Stewardship Complete', message || 'Long-term improvement established.');
+          setSelectedWorldElement(null);
+          break;
+        case 'world_element_harvest_blocked':
+        case 'world_element_build_blocked':
+          toast.warning('Action Unavailable', message || 'Prerequisites not met for this action.');
+          break;
+        default:
+          if (process.env.NODE_ENV !== 'production' && message) {
+            console.info('[telemetry] system event', event.reason, metadata);
+          }
+      }
+    });
+
+    return unsubscribe;
+  }, [toast, setSelectedWorldElement]);
+
   // Handle world element actions
   const handleWorldElementAction = (actionType: 'harvest' | 'build') => {
     if (!selectedWorldElement) return;
     
     const elementData = WORLD_ELEMENTS[selectedWorldElement.elementId];
-    const actionName = actionType === 'harvest' ? 'Harvesting' : 'Building on';
     
     if (!elementData) {
       toast?.error('Action Failed', 'Unknown world element selected.');
@@ -146,8 +353,6 @@ export default function GameUI() {
       }
     }
 
-    // Show toast feedback for the action
-    toast?.info(`${actionName} Resource`, `${actionName} ${elementData?.displayName || selectedWorldElement.elementId}...`);
     
     const action = {
       type: actionType === 'harvest' ? 'WORLD_ELEMENT_HARVEST' : 'WORLD_ELEMENT_BUILD',
@@ -162,16 +367,8 @@ export default function GameUI() {
       // Dispatch the action through the game reducer
       useLocalGame.getState().dispatch(action);
       
-      // Success feedback
-      const successMessage = actionType === 'harvest' 
-        ? `Successfully harvested ${elementData?.displayName || selectedWorldElement.elementId}!`
-        : `Successfully built on ${elementData?.displayName || selectedWorldElement.elementId}!`;
-      toast?.success('Action Complete', successMessage);
-      
-      setSelectedWorldElement(null);
     } catch (error) {
       toast?.error('Action Failed', `Could not ${actionType} ${elementData?.displayName || selectedWorldElement.elementId}. Please try again.`);
-      console.error(`World element ${actionType} error:`, error);
     }
   };
 
@@ -182,24 +379,19 @@ export default function GameUI() {
         const { coordinate, resources } = event.detail;
         
         // Enhanced logging for debugging
-        console.log('🌍 World element click detected:', { coordinate, resources, availableElements: Object.keys(WORLD_ELEMENTS) });
         
         // Check if any resource is a world element
         for (const resource of resources) {
           if (WORLD_ELEMENTS[resource]) {
-            console.log('✅ Setting selected world element:', resource, coordinate);
             setSelectedWorldElement({
               elementId: resource,
               coordinate
             });
             return;
           } else {
-            console.log('❌ Resource not in WORLD_ELEMENTS:', resource);
           }
         }
-        console.log('⚠️ No world elements found in resources:', resources);
       } else {
-        console.log('⚠️ Invalid world element click event:', event.detail);
       }
     };
 
@@ -210,6 +402,45 @@ export default function GameUI() {
       window.removeEventListener('worldElementClick', handleWorldElementClick as EventListener);
     };
   }, []);
+
+  const abilityTargetUnits = abilityTargetMode.isActive
+    ? abilityTargetMode.eligibleUnitIds
+        .map(unitId => gameState.units.find(unit => unit.id === unitId))
+        .filter((unit): unit is Unit => Boolean(unit))
+    : [];
+
+  const handleAbilityTargetPick = (unitId: string) => {
+    if (!abilityTargetMode.isActive) return;
+    if (!abilityTargetMode.eligibleUnitIds.includes(unitId)) return;
+
+    if (abilityTargetMode.onSelectUnit) {
+      abilityTargetMode.onSelectUnit(unitId);
+    } else {
+      setAbilityTargetSelection(unitId);
+    }
+
+    const unit = gameState.units.find((candidate) => candidate.id === unitId);
+    if (unit) {
+      setSelectedUnit(unit);
+    }
+  };
+
+  const handleConfirmAbilityTarget = () => {
+    if (!abilityTargetMode.isActive || !abilityTargetMode.abilityId) return;
+    if (!abilityTargetMode.selectedUnitId) {
+      toast?.info('Select a Unit', 'Choose an eligible unit before confirming this ability.');
+      return;
+    }
+
+    handleActivateAbility(abilityTargetMode.abilityId, abilityTargetMode.selectedUnitId);
+  };
+
+  const activeAbilityDefinition = abilityTargetMode.isActive && abilityTargetMode.abilityId
+    ? ABILITIES[abilityTargetMode.abilityId]
+    : null;
+  const activeFactionAbility = abilityTargetMode.isActive && abilityTargetMode.abilityId
+    ? factionAbilityOptions.find(option => option.id === abilityTargetMode.abilityId)
+    : undefined;
 
   // Victory conditions are automatically checked in the game reducer during END_TURN
   // The VictoryScreen component will render when gameState.winner is set
@@ -244,26 +475,104 @@ export default function GameUI() {
   };
 
   const handleUseAbility = (abilityId: string) => {
+    const definition = ABILITIES[abilityId];
+    const validation = validateAbilityForPlayer(definition, abilityId, currentPlayer);
+    if (!validation.ok) {
+      switch (validation.reason) {
+        case 'missing':
+          toast?.error('Ability Unavailable', 'Ability definition not found.');
+          break;
+        case 'cooldown':
+          toast?.info('Cooling Down', `Available in ${validation.cooldownRemaining} turn${validation.cooldownRemaining && validation.cooldownRemaining > 1 ? 's' : ''}.`);
+          break;
+        case 'requirements':
+          toast?.info('Requirements Not Met', validation.unmetRequirements?.join(' • ') || '');
+          break;
+      }
+      return;
+    }
     useAbility(currentPlayer.id, abilityId);
   };
 
   const handleActivateAbility = (abilityId: string, targetId?: string) => {
-    // Dispatch the faction ability action through the game store
+    if (abilityTargetMode.isActive && abilityTargetMode.abilityId !== abilityId) {
+      cancelAbilityTargeting();
+    }
+
+    const targetedMeta = TARGETED_FACTION_ABILITIES[abilityId];
+    if (targetedMeta && !targetId) {
+      const eligibleUnits = gameState.units.filter(unit => unit.playerId === currentPlayer.id);
+      if (eligibleUnits.length === 0) {
+        toast?.warning('No Eligible Units', targetedMeta.emptyMessage || 'You need an active unit to use this ability.');
+        return;
+      }
+      if (eligibleUnits.length === 1) {
+        handleActivateAbility(abilityId, eligibleUnits[0].id);
+        return;
+      }
+
+      setSelectedUnit(null); // Require a fresh selection to avoid accidental triggers
+      startAbilityTargeting({
+        abilityId,
+        title: targetedMeta.title,
+        instructions: targetedMeta.instructions,
+        eligibleUnitIds: eligibleUnits.map(unit => unit.id),
+        onSelectUnit: (unitId) => setAbilityTargetSelection(unitId),
+      });
+      setAbilityTargetSelection(null);
+      toast?.info('Select Unit', targetedMeta.toast);
+      return;
+    }
+
+    cancelAbilityTargeting();
+
+    const definition = ABILITIES[abilityId];
+    const validation = validateAbilityForPlayer(definition, abilityId, currentPlayer);
+    if (!validation.ok) {
+      switch (validation.reason) {
+        case 'missing':
+          toast?.error('Ability Unavailable', 'Ability definition not found.');
+          break;
+        case 'cooldown':
+          toast?.info('Cooling Down', `Available in ${validation.cooldownRemaining} turn${validation.cooldownRemaining && validation.cooldownRemaining > 1 ? 's' : ''}.`);
+          break;
+        case 'requirements':
+          toast?.info('Requirements Not Met', validation.unmetRequirements?.join(' • ') || '');
+          break;
+      }
+      return;
+    }
+
     const action = {
-      type: 'ACTIVATE_FACTION_ABILITY' as const,
+      type: 'USE_ABILITY' as const,
       payload: {
         playerId: currentPlayer.id,
         abilityId,
-        targetId
+        targetUnitId: targetId
       }
     };
     
-    // Get dispatch from useLocalGame store
     const { dispatch } = useLocalGame.getState();
     dispatch(action);
   };
 
   const handleAttackUnit = (attackerId: string, targetId: string) => {
+    if (!gameState) return;
+
+    const attackerUnit = gameState.units.find(unit => unit.id === attackerId);
+    const defenderUnit = gameState.units.find(unit => unit.id === targetId);
+
+    if (attackerUnit && defenderUnit) {
+      const distance = hexDistance(attackerUnit.coordinate, defenderUnit.coordinate);
+      const isRangedAttack = distance > 1 && attackerUnit.attackRange > 1;
+      const isUndeployedCatapult = attackerUnit.type === 'catapult' && isRangedAttack && attackerUnit.status !== 'siege_mode';
+
+      if (isUndeployedCatapult) {
+        toast?.warning('Deploy Siege Mode', 'Deploy your catapult into siege mode before bombardment. Use the siege ability first, then fire.');
+        return;
+      }
+    }
+
     attackUnit(attackerId, targetId);
     setAttackMode(false);
 
@@ -278,17 +587,14 @@ export default function GameUI() {
     switch (action) {
       case 'attack':
         // Enter attack mode - show attack indicators
-        console.log('Attack mode activated');
         setAttackMode(true);
         break;
       case 'move':
-        // Enter move mode - show movement indicators  
-        console.log('Move mode activated');
+        // Enter move mode - show movement indicators
         setMovementMode(true);
         break;
       case 'ability':
         // Use unit ability
-        console.log('Using unit ability');
         break;
     }
   };
@@ -348,6 +654,8 @@ export default function GameUI() {
         onShowTechPanel={() => setShowTechPanel(true)}
         onShowConstructionHall={handleShowConstructionHall}
         onEndTurn={handleEndTurn}
+        abilities={factionAbilityOptions}
+        onActivateAbility={handleActivateAbility}
       />
 
       {/* Selected Unit Panel - Unified interface with all unit actions */}
@@ -363,9 +671,59 @@ export default function GameUI() {
       <TechPanel
         isOpen={showTechPanel}
         onClose={() => setShowTechPanel(false)}
-        onResearchComplete={(techId) => {
-          const techName = TECHNOLOGIES?.[techId]?.name || 'New technology';
-          toast?.success('Technology Researched', `${techName} unlocked!`);
+        gameState={gameState}
+        currentPlayer={currentPlayer}
+        onResearchTech={(techId) => {
+          const tech = getTechnology(techId);
+          if (!tech) {
+            toast?.error('Technology unavailable', 'That discovery is not currently part of this build.');
+            return;
+          }
+
+          if (currentPlayer.researchedTechs.includes(techId)) {
+            toast?.info('Already researched', `${tech.name} is already part of your civilization's knowledge.`);
+            return;
+          }
+
+          if (!playerHasTechPrerequisites(currentPlayer, tech)) {
+            const missingNames = tech.prerequisites
+              .filter(prereq => !currentPlayer.researchedTechs.includes(prereq))
+              .map(prereq => getTechnology(prereq)?.name ?? prereq.replace(/_/g, ' '))
+              .join(', ');
+            toast?.warning(
+              'Prerequisites missing',
+              missingNames
+                ? `Research ${missingNames} first.`
+                : 'Meet the prerequisite technologies before unlocking this.'
+            );
+            return;
+          }
+
+          const { baseCost, discount, finalCost } = getTechCostDetails(tech, currentPlayer);
+          if (currentPlayer.stars < finalCost) {
+            toast?.error(
+              'Not enough stars',
+              `Requires ${finalCost} stars, but you only have ${currentPlayer.stars}.`
+            );
+            return;
+          }
+
+          if (!canPlayerResearchTechnology(currentPlayer, tech)) {
+            toast?.error('Research blocked', 'This technology cannot be researched right now.');
+            return;
+          }
+
+          dispatch({
+            type: 'RESEARCH_TECHNOLOGY',
+            payload: { playerId: currentPlayer.id, technologyId: techId },
+          });
+
+          toast?.success(
+            'Technology researched',
+            discount > 0
+              ? `${tech.name} unlocked! Saved ${discount} star${discount === 1 ? '' : 's'} from inspiration (cost ${finalCost}/${baseCost}).`
+              : `${tech.name} unlocked for ${finalCost} star${finalCost === 1 ? '' : 's'}.`
+          );
         }}
       />
 
@@ -410,7 +768,6 @@ export default function GameUI() {
               gameState={gameState}
               onBuild={(optionId) => {
                 // Handle construction logic
-                console.log('Starting construction:', optionId);
                 // Determine building category
                 let category: 'improvements' | 'structures' | 'units';
                 
@@ -521,10 +878,40 @@ export default function GameUI() {
         onUnitAction={handleUnitAction}
       />
 
-      {/* Save System Button - Bottom Right */}
-      <div className="pointer-events-auto">
+      <AbilityTargetOverlay
+        isOpen={abilityTargetMode.isActive && Boolean(abilityTargetMode.abilityId)}
+        title={abilityTargetMode.title || 'Select Unit'}
+        instructions={abilityTargetMode.instructions || 'Choose an eligible unit to continue.'}
+        units={abilityTargetUnits}
+        selectedUnitId={abilityTargetMode.selectedUnitId}
+        abilityDefinition={activeAbilityDefinition || undefined}
+        abilityMeta={activeFactionAbility?.meta}
+        onSelectUnit={handleAbilityTargetPick}
+        onConfirm={handleConfirmAbilityTarget}
+        onCancel={cancelAbilityTargeting}
+      />
+
+      {showTelemetry && (
+        <div className="fixed bottom-28 right-6 z-[120] pointer-events-auto">
+          <TelemetryPanel limit={40} />
+        </div>
+      )}
+
+      {/* Action Buttons - Bottom Right */}
+      <div className="pointer-events-auto fixed bottom-6 right-6 flex flex-col gap-3">
         <button
-          className="fixed bottom-6 right-6 p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-600 transition-all shadow-lg"
+          className={`px-3 py-2 rounded-lg border transition-colors shadow-lg text-sm ${
+            showTelemetry
+              ? 'bg-purple-700/70 border-purple-400 text-white hover:bg-purple-600/80'
+              : 'bg-slate-800 border-slate-600 text-white hover:bg-slate-700'
+          }`}
+          onClick={() => setShowTelemetry(prev => !prev)}
+          title={showTelemetry ? "Hide Combat Log" : "Show Combat Log"}
+        >
+          📜 {showTelemetry ? 'Hide Combat Log' : 'Combat Log'}
+        </button>
+        <button
+          className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-600 transition-all shadow-lg text-sm"
           onClick={() => setShowAdvancedSaveSystem(true)}
           title="Advanced Save System"
         >

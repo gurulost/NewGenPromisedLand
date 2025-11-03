@@ -3,7 +3,7 @@ import { Unit, UnitType, UnitTemporaryEffect } from "../types/unit";
 import { hexDistance, hexNeighbors } from "../utils/hex";
 import { getUnitDefinition } from "../data/units";
 import { getActiveModifiers, getUnitModifiers, GameModifier } from "../data/modifiers";
-import { TECHNOLOGIES, calculateResearchCost } from "../data/technologies";
+import { TECHNOLOGIES } from "../data/technologies";
 import { GAME_RULES, GameRuleHelpers } from "../data/gameRules";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "../types/city";
 import { ABILITIES, AbilityDefinition } from "../data/abilities";
@@ -13,39 +13,267 @@ import { executeAbility } from "./abilitySystem";
 import { executeElementHarvest, executeElementBuild } from "./worldElementActions";
 import { HexCoordinate } from "../types/coordinates";
 import { AITurnManager } from "../ai/aiTurnManager";
+import { emitTelemetry } from "./telemetry";
+import { resolveMeleeCombat, calculateRangedAttack } from "./combatSystem";
+import { getTechnology, getEffectiveTechCostForPlayer, getTechCostDetails, canPlayerResearchTechnology, playerHasTechPrerequisites } from "./technologyHelpers";
+
+function normalizeAbilityId(abilityId: string): string {
+  return abilityId.toUpperCase();
+}
+
+function hasAbility(unit: Unit, abilityId: string): boolean {
+  const normalized = normalizeAbilityId(abilityId);
+  return (unit.abilities || []).some(ability => ability.toUpperCase() === normalized);
+}
+
+function getAbilitySet(unit: Unit): Set<string> {
+  return new Set((unit.abilities || []).map(ability => ability.toUpperCase()));
+}
+
+function adjustUnitStatForEffect(unit: Unit, unitDef: ReturnType<typeof getUnitDefinition>, type: UnitTemporaryEffect['type'], delta: number): Unit {
+  if (delta === 0) return unit;
+
+  switch (type) {
+    case 'attack_buff':
+      return { ...unit, attack: Math.max(unitDef.baseStats.attack, unit.attack + delta) };
+    case 'defense_buff':
+      return { ...unit, defense: Math.max(unitDef.baseStats.defense, unit.defense + delta) };
+    case 'movement_buff': {
+      const baseMovement = unitDef.baseStats.movement;
+      const nextMovement = Math.max(baseMovement, unit.movement + delta);
+      const nextRemaining = Math.min(nextMovement, Math.max(0, unit.remainingMovement + delta));
+      return { ...unit, movement: nextMovement, remainingMovement: nextRemaining };
+    }
+    default:
+      return unit;
+  }
+}
+
+function refreshTimedBuff(
+  unit: Unit,
+  unitDef: ReturnType<typeof getUnitDefinition>,
+  effectId: string,
+  type: UnitTemporaryEffect['type'],
+  amount: number,
+  duration: number,
+  source: string
+): Unit {
+  const effects = [...(unit.temporaryEffects || [])];
+  const index = effects.findIndex(effect => effect.id === effectId);
+  let updatedUnit = unit;
+
+  if (index >= 0) {
+    const existing = effects[index];
+    const currentAmount = existing.amount || 0;
+    if (currentAmount !== amount) {
+      updatedUnit = adjustUnitStatForEffect(updatedUnit, unitDef, type, amount - currentAmount);
+    }
+    effects[index] = {
+      ...existing,
+      amount,
+      turnsRemaining: duration,
+      source,
+    };
+  } else {
+    updatedUnit = adjustUnitStatForEffect(updatedUnit, unitDef, type, amount);
+    effects.push({
+      id: effectId,
+      type,
+      amount,
+      turnsRemaining: duration,
+      source,
+    });
+  }
+
+  return {
+    ...updatedUnit,
+    temporaryEffects: effects,
+  };
+}
+
+function refreshStatusEffect(
+  unit: Unit,
+  effectId: string,
+  duration: number,
+  source: string
+): Unit {
+  const effects = [...(unit.temporaryEffects || [])];
+  const statusEffect: UnitTemporaryEffect = {
+    id: effectId,
+    type: 'status_immunity',
+    turnsRemaining: duration,
+    source,
+  };
+
+  const index = effects.findIndex(effect => effect.id === effectId);
+  if (index >= 0) {
+    effects[index] = statusEffect;
+  } else {
+    effects.push(statusEffect);
+  }
+
+  return {
+    ...unit,
+    temporaryEffects: effects,
+  };
+}
+
+function updatePermanentEffect(
+  unit: Unit,
+  unitDef: ReturnType<typeof getUnitDefinition>,
+  effectId: string,
+  type: UnitTemporaryEffect['type'],
+  amount: number
+): Unit {
+  const effects = unit.temporaryEffects || [];
+  const index = effects.findIndex(effect => effect.id === effectId);
+  const currentAmount = index >= 0 ? (effects[index].amount || 0) : 0;
+  let updatedEffects = [...effects];
+  let updatedUnit = unit;
+
+  if (amount <= 0) {
+    if (index >= 0) {
+      updatedEffects.splice(index, 1);
+      updatedUnit = adjustUnitStatForEffect(updatedUnit, unitDef, type, -currentAmount);
+    }
+  } else if (index >= 0) {
+    if (currentAmount !== amount) {
+      updatedUnit = adjustUnitStatForEffect(updatedUnit, unitDef, type, amount - currentAmount);
+    }
+    updatedEffects[index] = {
+      ...updatedEffects[index],
+      amount,
+      turnsRemaining: -1,
+      source: effectId,
+    };
+  } else {
+    updatedUnit = adjustUnitStatForEffect(updatedUnit, unitDef, type, amount);
+    updatedEffects.push({
+      id: effectId,
+      type,
+      amount,
+      turnsRemaining: -1,
+      source: effectId,
+    });
+  }
+
+  return {
+    ...updatedUnit,
+    temporaryEffects: updatedEffects.length > 0 ? updatedEffects : undefined,
+  };
+}
+
+function enforceTerrainBoundEffects(
+  units: Unit[],
+  map: GameState['map']
+): Unit[] {
+  return units.map(unit => {
+    const tile = map.tiles.find(
+      t => t.coordinate.q === unit.coordinate.q && t.coordinate.r === unit.coordinate.r
+    );
+    if (!tile) return unit;
+
+    const onWildTerrain = tile.terrain === 'forest' || tile.terrain === 'swamp';
+    if (onWildTerrain) return unit;
+
+    const unitDef = getUnitDefinition(unit.type as any);
+    let updated = updatePermanentEffect(unit, unitDef, `guerrilla_tactics_defense_${unit.id}`, 'defense_buff', 0);
+    updated = updatePermanentEffect(updated, unitDef, `guerrilla_tactics_movement_${unit.id}`, 'movement_buff', 0);
+
+    if (updated.temporaryEffects?.some(effect => effect.source === 'lamanite_guerrilla_tactics')) {
+      updated = {
+        ...updated,
+        temporaryEffects: updated.temporaryEffects.filter(effect => effect.source !== 'lamanite_guerrilla_tactics'),
+      };
+    }
+
+    return updated;
+  });
+}
+
+function recalculateProtectiveBonuses(units: Unit[]): Map<string, number> {
+  const bonuses = new Map<string, number>();
+  units.forEach(unit => {
+    const abilities = getAbilitySet(unit);
+    if (!abilities.has('PROTECTIVE_STANCE')) return;
+
+    units.forEach(other => {
+      if (other.playerId !== unit.playerId || other.id === unit.id) return;
+      if (other.type !== 'worker' && other.type !== 'missionary') return;
+      const distance = hexDistance(other.coordinate, unit.coordinate);
+      if (distance <= 1) {
+        bonuses.set(other.id, Math.max(bonuses.get(other.id) || 0, 2));
+      }
+    });
+  });
+  return bonuses;
+}
+
+function applyProtectiveBonuses(
+  units: Unit[],
+  bonuses: Map<string, number>
+): Unit[] {
+  return units.map(unit => {
+    const bonus = bonuses.get(unit.id) || 0;
+    const unitDef = getUnitDefinition(unit.type as any);
+    return updatePermanentEffect(unit, unitDef, 'ability::protective_stance', 'defense_buff', bonus);
+  });
+}
+
+function applyIntrinsicUnitAbilities(
+  unit: Unit,
+  player: PlayerState | undefined,
+  state: GameState
+): Unit {
+  if (!player) return unit;
+
+  const abilitySet = getAbilitySet(unit);
+  const unitDef = getUnitDefinition(unit.type as any);
+  let updated = unit;
+
+  if (abilitySet.has('FAITHFUL_DEFENSE')) {
+    const faithBonus = Math.floor(player.stats.faith / 20);
+    updated = updatePermanentEffect(updated, unitDef, 'ability::faithful_defense', 'defense_buff', faithBonus);
+  } else {
+    updated = updatePermanentEffect(updated, unitDef, 'ability::faithful_defense', 'defense_buff', 0);
+  }
+
+  if (abilitySet.has('YOUNG_VIGOR')) {
+    if (updated.status === 'exhausted') {
+      updated = { ...updated, status: 'active' };
+    }
+    if (updated.hp <= updated.maxHp / 2) {
+      const minimumMovement = Math.ceil(unitDef.baseStats.movement / 2);
+      updated = {
+        ...updated,
+        remainingMovement: Math.max(updated.remainingMovement, minimumMovement),
+      };
+    }
+  }
+
+  if (abilitySet.has('FOREST_STEALTH')) {
+    const tile = state.map.tiles.find(tile => tile.coordinate.q === updated.coordinate.q && tile.coordinate.r === updated.coordinate.r);
+    if (tile?.terrain === 'forest') {
+      if (updated.status !== 'stealthed') {
+        updated = { ...updated, status: 'stealthed' };
+      }
+    } else if (updated.status === 'stealthed') {
+      updated = { ...updated, status: 'active' };
+    }
+  }
+
+  return updated;
+}
 
 // Tech Research Handler
 function handleResearchTech(
   state: GameState,
   payload: { playerId: string; techId: string }
 ): GameState {
-  const { playerId, techId } = payload;
-  
-  const tech = TECHNOLOGIES[techId];
-  if (!tech) return state;
-  
-  const player = state.players.find(p => p.id === playerId);
-  if (!player) return state;
-  
-  const cost = calculateResearchCost(tech, player.researchedTechs.length);
-  
-  // Check if player can afford and prerequisites are met
-  if (player.stars < cost) return state;
-  if (!tech.prerequisites.every(prereq => player.researchedTechs.includes(prereq))) return state;
-  if (player.researchedTechs.includes(techId)) return state;
-  
-  return {
-    ...state,
-    players: state.players.map(p =>
-      p.id === playerId
-        ? {
-            ...p,
-            stars: p.stars - cost,
-            researchedTechs: [...p.researchedTechs, techId],
-          }
-        : p
-    ),
-  };
+  return handleResearchTechnology(state, {
+    playerId: payload.playerId,
+    technologyId: payload.techId,
+  });
 }
 
 // Start Construction Handler - adds to construction queue
@@ -62,7 +290,39 @@ function handleStartConstruction(
   const { playerId, buildingType, category, coordinate, cityId } = payload;
   
   const player = state.players.find(p => p.id === playerId);
-  if (!player) return state;
+  const emitConstructionTelemetry = (
+    status: 'success' | 'blocked' | 'error' | 'info',
+    reason: string,
+    metadata: Record<string, unknown> = {}
+  ) =>
+    emitTelemetry({
+      channel: 'system',
+      status,
+      playerId,
+      reason,
+      metadata: {
+        category,
+        buildingType,
+        cityId,
+        ...metadata,
+      },
+    });
+
+  if (!player) {
+    emitConstructionTelemetry('error', 'construction_player_not_found');
+    return state;
+  }
+
+  const targetCity = state.cities?.find(city => city.id === cityId);
+  if (!targetCity) {
+    emitConstructionTelemetry('error', 'construction_city_not_found');
+    return state;
+  }
+
+  if (!player.citiesOwned.includes(cityId)) {
+    emitConstructionTelemetry('blocked', 'construction_city_not_owned');
+    return state;
+  }
   
   // Get building cost and time based on category
   let cost = { stars: 0, faith: 0, pride: 0 };
@@ -70,18 +330,24 @@ function handleStartConstruction(
   
   if (category === 'improvements') {
     const improvement = IMPROVEMENT_DEFINITIONS[buildingType as keyof typeof IMPROVEMENT_DEFINITIONS];
-    if (!improvement) return state;
+    if (!improvement) {
+      emitConstructionTelemetry('error', 'construction_invalid_improvement');
+      return state;
+    }
     cost.stars = improvement.cost;
     buildTime = improvement.constructionTime;
   } else if (category === 'structures') {
     const structure = STRUCTURE_DEFINITIONS[buildingType as keyof typeof STRUCTURE_DEFINITIONS];
-    if (!structure) return state;
+    if (!structure) {
+      emitConstructionTelemetry('error', 'construction_invalid_structure');
+      return state;
+    }
     cost.stars = structure.cost;
     buildTime = 1; // Default build time for structures
   } else if (category === 'units') {
     const unitDef = getUnitDefinition(buildingType as any);
     if (!unitDef) {
-      console.log(`Unit definition not found for ${buildingType}`);
+      emitConstructionTelemetry('error', 'construction_invalid_unit');
       return state;
     }
     cost.stars = unitDef.cost; // Units have direct cost number
@@ -91,12 +357,11 @@ function handleStartConstruction(
     
     // Special validation for boats - they need coastal access
     if (buildingType === 'boat') {
-      const city = state.cities?.find(c => c.id === cityId);
-      if (city) {
+      if (targetCity) {
         // Check if city has coastal access (adjacent to water)
         const cityTile = state.map.tiles.find(t => 
-          t.coordinate.q === city.coordinate.q && 
-          t.coordinate.r === city.coordinate.r
+          t.coordinate.q === targetCity.coordinate.q && 
+          t.coordinate.r === targetCity.coordinate.r
         );
         
         if (cityTile && cityTile.terrain === 'water') {
@@ -104,17 +369,32 @@ function handleStartConstruction(
         } else {
           // Check for adjacent water tiles
           const adjacentWater = state.map.tiles.some(tile => {
-            const distance = Math.abs(tile.coordinate.q - city.coordinate.q) + 
-                           Math.abs(tile.coordinate.r - city.coordinate.r) + 
-                           Math.abs(tile.coordinate.s - city.coordinate.s);
+            const distance = Math.abs(tile.coordinate.q - targetCity.coordinate.q) + 
+                           Math.abs(tile.coordinate.r - targetCity.coordinate.r) + 
+                           Math.abs(tile.coordinate.s - targetCity.coordinate.s);
             return distance === 2 && tile.terrain === 'water'; // Adjacent hex distance is 2 in cube coordinates
           });
           
           if (!adjacentWater) {
-            console.log(`Cannot build boat: city ${cityId} has no coastal access`);
+            emitConstructionTelemetry('blocked', 'construction_requires_coastal_access');
             return state;
           }
         }
+      }
+    }
+
+    if (unitDef.requirements) {
+      if (unitDef.requirements.faith && player.stats.faith < unitDef.requirements.faith) {
+        emitConstructionTelemetry('blocked', 'construction_insufficient_faith', { required: unitDef.requirements.faith });
+        return state;
+      }
+      if (unitDef.requirements.pride && player.stats.pride < unitDef.requirements.pride) {
+        emitConstructionTelemetry('blocked', 'construction_insufficient_pride', { required: unitDef.requirements.pride });
+        return state;
+      }
+      if (unitDef.requirements.dissent && player.stats.internalDissent < unitDef.requirements.dissent) {
+        emitConstructionTelemetry('blocked', 'construction_insufficient_dissent', { required: unitDef.requirements.dissent });
+        return state;
       }
     }
   }
@@ -123,12 +403,10 @@ function handleStartConstruction(
   if (player.stars < cost.stars || 
       player.stats.faith < (cost.faith || 0) || 
       player.stats.pride < (cost.pride || 0)) {
-    console.log(`Cannot afford ${buildingType}: need ${cost.stars} stars, ${cost.faith} faith, ${cost.pride} pride. Have ${player.stars} stars, ${player.stats.faith} faith, ${player.stats.pride} pride`);
+    emitConstructionTelemetry('blocked', 'construction_insufficient_resources', { cost });
     return state;
   }
-  
-  console.log(`Starting construction of ${buildingType} (${category}) for player ${playerId}`);
-  console.log(`Construction details:`, { buildingType, category, coordinate, cityId, cost, buildTime });
+
   
   // Create construction item
   const constructionId = `${buildingType}_${cityId}_${Date.now()}`;
@@ -143,8 +421,12 @@ function handleStartConstruction(
     totalTurns: buildTime,
     cost,
   };
-  
-  console.log(`Adding construction item to queue:`, constructionItem);
+
+  emitConstructionTelemetry('success', 'construction_started', {
+    cost,
+    buildTime,
+    coordinate,
+  });
   
   // Deduct costs and add to construction queue
   return {
@@ -433,7 +715,7 @@ function handleCaptureVillage(
       return {
         ...p,
         stars: p.stars + VILLAGE_STAR_REWARD,
-        researchProgress: p.researchProgress + VILLAGE_TECH_BOOST
+        researchInspiration: GameRuleHelpers.clampInspiration((p.researchInspiration || 0) + VILLAGE_TECH_BOOST)
       };
     }
     return p;
@@ -465,8 +747,33 @@ function handleWorldElementHarvest(
   const result = executeElementHarvest(state, payload.playerId, payload.elementId, payload.coordinate);
   
   if (result.success && result.newState) {
+    emitTelemetry({
+      channel: 'system',
+      status: 'success',
+      playerId: payload.playerId,
+      reason: 'world_element_harvest_success',
+      metadata: {
+        elementId: payload.elementId,
+        coordinate: payload.coordinate,
+        message: result.message,
+        deltas: result.resourceDeltas,
+        effects: result.effects,
+      },
+    });
     return result.newState;
   }
+
+  emitTelemetry({
+    channel: 'system',
+    status: 'blocked',
+    playerId: payload.playerId,
+    reason: 'world_element_harvest_blocked',
+    metadata: {
+      elementId: payload.elementId,
+      coordinate: payload.coordinate,
+      message: result.message,
+    },
+  });
   
   return state;
 }
@@ -478,8 +785,33 @@ function handleWorldElementBuild(
   const result = executeElementBuild(state, payload.playerId, payload.elementId, payload.coordinate);
   
   if (result.success && result.newState) {
+    emitTelemetry({
+      channel: 'system',
+      status: 'success',
+      playerId: payload.playerId,
+      reason: 'world_element_build_success',
+      metadata: {
+        elementId: payload.elementId,
+        coordinate: payload.coordinate,
+        message: result.message,
+        deltas: result.resourceDeltas,
+        effects: result.effects,
+      },
+    });
     return result.newState;
   }
+
+  emitTelemetry({
+    channel: 'system',
+    status: 'blocked',
+    playerId: payload.playerId,
+    reason: 'world_element_build_blocked',
+    metadata: {
+      elementId: payload.elementId,
+      coordinate: payload.coordinate,
+      message: result.message,
+    },
+  });
   
   return state;
 }
@@ -666,21 +998,17 @@ function handleMoveUnit(
 ): GameState {
   const unit = state.units.find((u: Unit) => u.id === payload.unitId);
   if (!unit) {
-    console.log('Unit not found:', payload.unitId);
     return state;
   }
 
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (unit.playerId !== currentPlayer.id) {
-    console.log('Unit does not belong to current player');
     return state;
   }
 
   // Check if movement is valid
   const distance = hexDistance(unit.coordinate, payload.targetCoordinate);
-  console.log('Movement distance:', distance, 'Remaining movement:', unit.remainingMovement);
   if (distance > unit.remainingMovement) {
-    console.log('Not enough movement');
     return state;
   }
 
@@ -689,16 +1017,12 @@ function handleMoveUnit(
     tile.coordinate.q === payload.targetCoordinate.q &&
     tile.coordinate.r === payload.targetCoordinate.r
   );
-  
-  console.log('Target tile:', targetTile);
   if (!targetTile) {
-    console.log('Target tile not found');
     return state;
   }
 
   // Check basic terrain passability
   if (GAME_RULES.terrain.impassableTypes.includes(targetTile.terrain)) {
-    console.log('Target tile terrain is impassable');
     return state;
   }
   
@@ -781,7 +1105,6 @@ function handleMoveUnit(
 
   // Auto-capture village if unit moved onto one
   if (targetTile.feature === 'village' && targetTile.cityOwner !== currentPlayer.id) {
-    console.log('Auto-capturing village at:', payload.targetCoordinate);
     newState = handleCaptureVillage(newState, {
       unitId: payload.unitId,
       playerId: currentPlayer.id
@@ -790,7 +1113,6 @@ function handleMoveUnit(
 
   // Auto-explore Jaredite Ruins if unit moved onto one
   if (targetTile.resources.includes('jaredite_ruins')) {
-    console.log('Auto-exploring Jaredite Ruins at:', payload.targetCoordinate);
     newState = handleWorldElementHarvest(newState, {
       playerId: currentPlayer.id,
       elementId: 'jaredite_ruins',
@@ -798,7 +1120,13 @@ function handleMoveUnit(
     });
   }
 
-  return newState;
+  const terrainAdjustedUnits = enforceTerrainBoundEffects(newState.units, newState.map);
+  const finalUnits = applyProtectiveBonuses(terrainAdjustedUnits, recalculateProtectiveBonuses(terrainAdjustedUnits));
+
+  return {
+    ...newState,
+    units: finalUnits,
+  };
 }
 
 function handleAttackUnit(
@@ -806,127 +1134,275 @@ function handleAttackUnit(
   payload: { attackerId: string; targetId: string }
 ): GameState {
   const attacker = state.units.find((u: Unit) => u.id === payload.attackerId);
-  const target = state.units.find((u: Unit) => u.id === payload.targetId);
+  const defender = state.units.find((u: Unit) => u.id === payload.targetId);
   
-  if (!attacker || !target) return state;
+  if (!attacker || !defender) return state;
 
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (attacker.playerId !== currentPlayer.id) return state;
 
-  // Prevent friendly fire - cannot attack units from the same player
-  if (attacker.playerId === target.playerId) return state;
-
-  // Check if unit has already attacked this turn
+  if (attacker.playerId === defender.playerId) return state;
   if (attacker.hasAttacked) return state;
 
-  // Check if units are within attack range
-  const distance = hexDistance(attacker.coordinate, target.coordinate);
+  const attackerAbilities = getAbilitySet(attacker);
+  const defenderAbilities = getAbilitySet(defender);
+  if (attackerAbilities.has('PACIFIST_DEFENSE')) return state;
+
+  const distance = hexDistance(attacker.coordinate, defender.coordinate);
   if (distance > attacker.attackRange) return state;
-  
-  // Cannot target stealthed units unless adjacent
-  if (target.status === 'stealthed' && distance > 1) {
+  if (distance > 1 && attacker.attackRange > 1 && attacker.type === 'catapult' && attacker.status !== 'siege_mode') {
+    emitTelemetry({
+      channel: 'combat',
+      status: 'blocked',
+      attackerId: attacker.id,
+      defenderId: defender.id,
+      reason: 'catapult_not_deployed',
+      metadata: { distance },
+    });
     return state;
   }
-
-  // Calculate damage using data-driven modifier system with status effects
-  let attackPower = attacker.attack;
-  let defensePower = target.defense;
-  
-  // Apply status effect bonuses
-  if (attacker.status === 'rallied') {
-    attackPower += 2; // Rally bonus
-  }
-  if (attacker.status === 'siege_mode') {
-    attackPower += 3; // Siege mode bonus
-  }
-  if (target.status === 'formation') {
-    defensePower += 2; // Formation defense bonus
-  }
+  if (defender.status === 'stealthed' && distance > 1) return state;
 
   const attackerPlayer = state.players.find(p => p.id === attacker.playerId);
-  const targetPlayer = state.players.find(p => p.id === target.playerId);
+  const defenderPlayer = state.players.find(p => p.id === defender.playerId);
+  let updatedPlayers = state.players;
 
-  // Apply attacker's combat modifiers
+  if (attacker.type === 'catapult' && attacker.attackRange > 1 && distance > 1) {
+    const bombardment = calculateRangedAttack(state, attacker, defender.coordinate);
+    if (!bombardment.success) {
+      emitTelemetry({
+        channel: 'combat',
+        status: 'info',
+        attackerId: attacker.id,
+        defenderId: defender.id,
+        reason: 'bombardment_no_targets',
+      });
+      return state;
+    }
+
+    const damageMap = new Map<string, number>();
+    bombardment.impacts.forEach(impact => {
+      damageMap.set(impact.unit.id, impact.damage);
+    });
+
+    let updatedUnits = state.units.map(unit => {
+      if (unit.id === attacker.id) {
+        const newStatus = unit.status === 'stealthed' ? 'active' : unit.status;
+        return {
+          ...unit,
+          hasAttacked: true,
+          remainingMovement: 0,
+          status: newStatus,
+        };
+      }
+      const damage = damageMap.get(unit.id);
+      if (damage) {
+        return { ...unit, hp: Math.max(0, unit.hp - damage) };
+      }
+      return unit;
+    });
+
+    const casualties = bombardment.impacts
+      .filter(impact => impact.unit.id !== attacker.id)
+      .map(impact => impact.unit)
+      .filter(unit => {
+        const updated = updatedUnits.find(u => u.id === unit.id);
+        return updated && updated.hp <= 0;
+      });
+
+    casualties.forEach(deadUnit => {
+      const result = applyUnitDeathEffects(state, updatedUnits, updatedPlayers, deadUnit);
+      updatedUnits = result.units;
+      updatedPlayers = result.players;
+    });
+
+    emitTelemetry({
+      channel: 'combat',
+      status: 'success',
+      attackerId: attacker.id,
+      defenderId: defender.id,
+      damage: damageMap.get(defender.id) ?? 0,
+      metadata: {
+        type: 'bombardment',
+        impacts: bombardment.impacts.map(impact => ({
+          unitId: impact.unit.id,
+          damage: impact.damage,
+          isCenter: impact.isCenter,
+        })),
+      },
+    });
+
+    updatedUnits = enforceTerrainBoundEffects(updatedUnits, state.map);
+    updatedUnits = applyProtectiveBonuses(updatedUnits, recalculateProtectiveBonuses(updatedUnits));
+
+    return {
+      ...state,
+      units: updatedUnits,
+      players: updatedPlayers,
+    };
+  }
+
+  let attackBonus = 0;
+  let defenseBonus = 0;
+  let counterAttackBonus = 0;
+  let counterDefenseBonus = 0;
+
   if (attackerPlayer) {
     const attackModifiers = getActiveModifiers(attackerPlayer, 'on_attack');
     attackModifiers.forEach(modifier => {
       modifier.effect.forEach(effect => {
         if (effect.stat === 'attack' && effect.target === 'self') {
-          attackPower += effect.value;
-          console.log(`Applied ${modifier.name}: +${effect.value} attack`);
+          attackBonus += effect.value;
         }
       });
     });
   }
 
-  // Apply target's defense modifiers
-  if (targetPlayer) {
-    const defenseModifiers = getActiveModifiers(targetPlayer, 'on_defend');
+  if (defenderPlayer) {
+    const defenseModifiers = getActiveModifiers(defenderPlayer, 'on_defend');
     defenseModifiers.forEach(modifier => {
       modifier.effect.forEach(effect => {
         if (effect.stat === 'defense' && effect.target === 'self') {
-          defensePower += effect.value;
-          console.log(`Applied ${modifier.name}: +${effect.value} defense`);
+          defenseBonus += effect.value;
         }
       });
     });
   }
 
-  // Calculate final damage
-  const damage = Math.max(1, attackPower - defensePower);
-  const newHp = Math.max(0, target.hp - damage);
+  if (defenderPlayer) {
+    const counterAttackModifiers = getActiveModifiers(defenderPlayer, 'on_attack');
+    counterAttackModifiers.forEach(modifier => {
+      modifier.effect.forEach(effect => {
+        if (effect.stat === 'attack' && effect.target === 'self') {
+          counterAttackBonus += effect.value;
+        }
+      });
+    });
+  }
 
-  console.log(`Combat: ${attacker.type} (${attackPower} attack) vs ${target.type} (${defensePower} defense) = ${damage} damage`);
+  if (attackerPlayer) {
+    const counterDefenseModifiers = getActiveModifiers(attackerPlayer, 'on_defend');
+    counterDefenseModifiers.forEach(modifier => {
+      modifier.effect.forEach(effect => {
+        if (effect.stat === 'defense' && effect.target === 'self') {
+          counterDefenseBonus += effect.value;
+        }
+      });
+    });
+  }
 
-  let updatedUnits = state.units.map((u: Unit) => {
-    if (u.id === payload.targetId) {
-      return { ...u, hp: newHp };
-    }
-    if (u.id === payload.attackerId) {
-      // Remove stealth when attacking
-      const newStatus = u.status === 'stealthed' ? 'active' : u.status;
-      return { ...u, hasAttacked: true, status: newStatus };
-    }
-    return u;
+  const outcome = resolveMeleeCombat(state, attacker, defender, {
+    attackBonus,
+    defenseBonus,
+    counterAttackBonus,
+    counterDefenseBonus,
   });
 
-  // Remove unit if killed
-  if (newHp <= 0) {
-    updatedUnits = updatedUnits.filter((u: Unit) => u.id !== payload.targetId);
-    
-    // Apply data-driven death modifiers
-    if (targetPlayer) {
-      const deathModifiers = getActiveModifiers(targetPlayer, 'on_death');
-      deathModifiers.forEach(modifier => {
-        modifier.effect.forEach(effect => {
-          if (effect.target === 'nearby' && effect.radius) {
-            // Find units within radius
-            const affectedUnits = updatedUnits.filter(unit => {
-              if (unit.playerId !== target.playerId) return false;
-              const distance = hexDistance(unit.coordinate, target.coordinate);
-              return distance <= effect.radius!;
-            });
-
-            // Apply effect to nearby units
-            affectedUnits.forEach(unit => {
-              const unitIndex = updatedUnits.findIndex(u => u.id === unit.id);
-              if (unitIndex !== -1) {
-                updatedUnits[unitIndex] = {
-                  ...updatedUnits[unitIndex],
-                  [effect.stat]: (updatedUnits[unitIndex][effect.stat as keyof Unit] as number) + effect.value
-                };
-                console.log(`Applied ${modifier.name} to ${unit.id}: +${effect.value} ${effect.stat}`);
-              }
-            });
-          }
-        });
-      });
-    }
+  if (outcome.negotiation && attackerPlayer && defenderPlayer) {
+    emitTelemetry({
+      channel: 'combat',
+      status: 'blocked',
+      attackerId: attacker.id,
+      defenderId: defender.id,
+      reason: outcome.reason || 'diplomacy',
+      metadata: { events: outcome.events },
+    });
+    const updatedPlayers = state.players.map(player => {
+      if (player.id === attackerPlayer.id) {
+        return {
+          ...player,
+          stats: {
+            ...player.stats,
+            pride: Math.max(0, player.stats.pride + outcome.negotiation!.attackerPrideDelta),
+          },
+        };
+      }
+      if (player.id === defenderPlayer.id) {
+        return {
+          ...player,
+          stats: {
+            ...player.stats,
+            internalDissent: Math.max(0, player.stats.internalDissent + outcome.negotiation!.defenderDissentDelta),
+          },
+        };
+      }
+      return player;
+    });
+    return {
+      ...state,
+      players: updatedPlayers,
+    };
   }
+
+  if (!outcome.success) {
+    return state;
+  }
+
+  const newHp = Math.max(0, defender.hp - outcome.damageToDefender);
+  const attackerRemainingHp = Math.max(0, attacker.hp - outcome.damageToAttacker);
+  emitTelemetry({
+    channel: 'combat',
+    status: 'success',
+    attackerId: attacker.id,
+    defenderId: defender.id,
+    damage: outcome.damageToDefender,
+    metadata: {
+      events: outcome.events,
+      counterEvents: outcome.counterEvents,
+      counterDamage: outcome.damageToAttacker,
+      defenderSurvived: outcome.defenderSurvived,
+      counterOccurred: outcome.counterOccurred,
+    },
+  });
+  const counterSummary = outcome.damageToAttacker > 0
+    ? ` ${defender.type} counters for ${outcome.damageToAttacker}.`
+    : '';
+  const counterEventSummary =
+    outcome.counterEvents.length > 0 ? ` Counter events: ${outcome.counterEvents.join(', ')}.` : '';
+
+  let updatedUnits = state.units.map(unit => {
+    if (unit.id === defender.id) {
+      return { ...unit, hp: newHp };
+    }
+    if (unit.id === attacker.id) {
+      const newStatus = unit.status === 'stealthed' ? 'active' : unit.status;
+      return { ...unit, hp: attackerRemainingHp, hasAttacked: true, status: newStatus };
+    }
+    return unit;
+  });
+
+  if (newHp <= 0) {
+    const result = applyUnitDeathEffects(state, updatedUnits, updatedPlayers, defender);
+    updatedUnits = result.units;
+    updatedPlayers = result.players;
+  }
+
+  if (attackerRemainingHp <= 0) {
+    const result = applyUnitDeathEffects(state, updatedUnits, updatedPlayers, attacker);
+    updatedUnits = result.units;
+    updatedPlayers = result.players;
+  }
+
+  if (defenderAbilities.has('NON_VIOLENCE')) {
+    updatedPlayers = updatedPlayers.map(player => {
+      if (player.id !== attacker.playerId) return player;
+      return {
+        ...player,
+        stats: {
+          ...player.stats,
+          pride: Math.max(0, player.stats.pride - 2),
+        },
+      };
+    });
+  }
+
+  updatedUnits = enforceTerrainBoundEffects(updatedUnits, state.map);
+  updatedUnits = applyProtectiveBonuses(updatedUnits, recalculateProtectiveBonuses(updatedUnits));
 
   return {
     ...state,
-    units: updatedUnits
+    units: updatedUnits,
+    players: updatedPlayers,
   };
 }
 
@@ -938,72 +1414,197 @@ function handleUseAbility(
   if (!player) return state;
 
   const ability = ABILITIES[payload.abilityId];
-  if (!ability) return state;
-
-  // Check resource requirements
-  if (ability.requirements) {
-    if (ability.requirements.faith && player.stats.faith < ability.requirements.faith) return state;
-    if (ability.requirements.pride && player.stats.pride < ability.requirements.pride) return state;
-    if (ability.requirements.dissent && player.stats.internalDissent < ability.requirements.dissent) return state;
+  if (!ability) {
+    emitTelemetry({
+      channel: 'ability',
+      status: 'error',
+      abilityId: payload.abilityId,
+      playerId: player.id,
+      reason: 'missing',
+    });
+    return state;
   }
 
-  console.log(`Player ${player.name} using ability: ${ability.name}`);
+  const activeCooldown = player.abilityCooldowns?.[ability.id] ?? 0;
+  if (activeCooldown > 0) {
+    emitTelemetry({
+      channel: 'ability',
+      status: 'blocked',
+      abilityId: ability.id,
+      playerId: player.id,
+      reason: 'cooldown',
+      metadata: { remaining: activeCooldown },
+    });
+    return state;
+  }
+
+  // Check resource requirements
+  const unmet: string[] = [];
+  if (ability.requirements) {
+    if (ability.requirements.faith && player.stats.faith < ability.requirements.faith) {
+      unmet.push(`faith:${player.stats.faith}/${ability.requirements.faith}`);
+    }
+    if (ability.requirements.pride && player.stats.pride < ability.requirements.pride) {
+      unmet.push(`pride:${player.stats.pride}/${ability.requirements.pride}`);
+    }
+    if (ability.requirements.dissent && player.stats.internalDissent < ability.requirements.dissent) {
+      unmet.push(`dissent:${player.stats.internalDissent}/${ability.requirements.dissent}`);
+    }
+  }
+
+  if (unmet.length > 0) {
+    emitTelemetry({
+      channel: 'ability',
+      status: 'blocked',
+      abilityId: ability.id,
+      playerId: player.id,
+      reason: 'requirements',
+      metadata: { unmet },
+    });
+    return state;
+  }
+
+  let abilityResultState = state;
 
   // Implement specific ability effects
   switch (payload.abilityId) {
     case 'TITLE_OF_LIBERTY':
-      return applyTitleOfLiberty(state, player);
+      abilityResultState = applyTitleOfLiberty(state, player, ability);
+      break;
     case 'RAMEUMPTOM':
-      return applyRameumptom(state, player);
+      abilityResultState = applyRameumptom(state, player);
+      break;
     case 'COVENANT_OF_PEACE':
-      return applyCovenantOfPeace(state, player);
+      abilityResultState = applyCovenantOfPeace(state, player, payload);
+      break;
+    case 'RIGHTEOUS_DEFENSE':
+      abilityResultState = applyRighteousDefense(state, player, ability);
+      break;
+    case 'MISSIONARY_ZEAL':
+      abilityResultState = applyMissionaryZeal(state, player, ability);
+      break;
+    case 'WARRIOR_RAGE':
+      abilityResultState = applyWarriorRage(state, player, ability);
+      break;
+    case 'ANCIENT_KNOWLEDGE':
+      abilityResultState = applyFactionAncientKnowledge(state, player, ability);
+      break;
+    case 'CULTURAL_RECLAMATION':
+      abilityResultState = applyCulturalReclamation(state, player, ability);
+      break;
+    case 'WEALTH_ACCUMULATION':
+      abilityResultState = toggleWealthAccumulation(state, player);
+      break;
+    case 'ANCIENT_MIGHT':
+      abilityResultState = applyAncientMight(state, player, ability);
+      break;
+    case 'PROPHETIC_COLLAPSE':
+      abilityResultState = applyPropheticCollapse(state, player, ability);
+      break;
     case 'DIVINE_WARD':
-      return applyDivineWard(state, player, payload);
+      abilityResultState = applyDivineWard(state, player, payload);
+      break;
     case 'SPIRITUAL_WARFARE':
-      return applySpiritualWarfare(state, player);
+      abilityResultState = applySpiritualWarfare(state, player);
+      break;
     case 'RIGHTEOUS_FURY':
-      return applyRighteousFury(state, player, payload);
+      abilityResultState = applyRighteousFury(state, player, payload);
+      break;
     
     // Nephite faction abilities
     case 'nephite_righteous_charge':
-      return applyRighteousCharge(state, payload);
+      abilityResultState = applyRighteousCharge(state, payload);
+      break;
     case 'nephite_faith_healing':
-      return applyFaithHealing(state, payload);
+      abilityResultState = applyFaithHealing(state, payload);
+      break;
     
     // Lamanite faction abilities  
     case 'lamanite_guerrilla_tactics':
-      return applyGuerrillaTactics(state, payload);
+      abilityResultState = applyGuerrillaTactics(state, payload, ability);
+      break;
     case 'lamanite_ancestral_rage':
-      return applyAncestralRage(state, payload);
+      abilityResultState = applyAncestralRage(state, payload);
+      break;
     
     // Zoramite faction abilities
     case 'zoramite_convert_enemy':
-      return applyConvertEnemy(state, payload);
+      abilityResultState = applyConvertEnemy(state, payload, ability);
+      break;
     case 'zoramite_pride_boost':
-      return applyPrideBoost(state, payload);
+      abilityResultState = applyPrideBoost(state, payload, ability);
+      break;
     
     // Jaredite faction abilities
     case 'jaredite_tower_vision':
-      return applyTowerVision(state, payload);
+      abilityResultState = applyTowerVision(state, payload, ability);
+      break;
     case 'jaredite_ancient_knowledge':
-      return applyAncientKnowledge(state, payload);
+      abilityResultState = applyAncientKnowledge(state, payload);
+      break;
     
     // Anti-Nephi-Lehi faction abilities
     case 'anti_nephi_lehi_pacify':
-      return applyPacify(state, payload);
+      abilityResultState = applyPacify(state, payload);
+      break;
     case 'anti_nephi_lehi_conversion':
-      return applyConversion(state, payload);
+      abilityResultState = applyConversion(state, payload);
+      break;
     
     // Mulekite faction abilities
     case 'mulekite_trade_network':
-      return applyTradeNetwork(state, payload);
+      abilityResultState = applyTradeNetwork(state, payload);
+      break;
     case 'mulekite_maritime_expansion':
-      return applyMaritimeExpansion(state, payload);
-    
+      abilityResultState = applyMaritimeExpansion(state, payload);
+      break;
     default:
-      console.warn(`Ability ${payload.abilityId} not implemented yet`);
+      emitTelemetry({
+        channel: 'ability',
+        status: 'error',
+        abilityId: ability.id,
+        playerId: player.id,
+        reason: 'unimplemented',
+      });
       return state;
   }
+
+  if (abilityResultState === state) {
+    emitTelemetry({
+      channel: 'ability',
+      status: 'info',
+      abilityId: ability.id,
+      playerId: player.id,
+      reason: 'no_effect',
+    });
+    return state;
+  }
+
+  emitTelemetry({
+    channel: 'ability',
+    status: 'success',
+    abilityId: ability.id,
+    playerId: player.id,
+    metadata: { cooldown: ability.cooldown ?? 0 },
+  });
+
+  const cooldownValue = ability.cooldown && ability.cooldown > 0 ? ability.cooldown : 0;
+  if (cooldownValue === 0) {
+    return abilityResultState;
+  }
+
+  return {
+    ...abilityResultState,
+    players: abilityResultState.players.map(p => {
+      if (p.id !== player.id) return p;
+      const nextCooldowns = { ...(p.abilityCooldowns || {}) };
+      nextCooldowns[ability.id] = cooldownValue;
+      return {
+        ...p,
+        abilityCooldowns: nextCooldowns,
+      };
+    }),
+  };
 }
 
 function handleEndTurn(
@@ -1089,6 +1690,64 @@ function handleEndTurn(
       };
     }
     return player;
+  });
+
+  updatedPlayers = updatedPlayers.map(player => {
+    const hasWealth = (player.modifiers || []).some((modifier: any) => modifier?.id === 'WEALTH_ACCUMULATION_ACTIVE');
+    if (!hasWealth) return player;
+
+    const playerCities = (state.cities || []).filter(city => city.ownerId === player.id);
+    const bonusStars = playerCities.length;
+    const penalty = Math.max(1, Math.ceil(playerCities.length / 2));
+
+    return {
+      ...player,
+      stars: player.stars + bonusStars,
+      stats: {
+        ...player.stats,
+        faith: Math.max(0, player.stats.faith - penalty),
+        internalDissent: Math.min(100, player.stats.internalDissent + penalty),
+      },
+    };
+  });
+
+  updatedPlayers = updatedPlayers.map(player => {
+    const cooldowns = player.abilityCooldowns || {};
+    let changed = false;
+    const nextCooldowns: Record<string, number> = {};
+
+    Object.entries(cooldowns).forEach(([abilityId, value]) => {
+      if (value <= 0) {
+        changed = true;
+        return;
+      }
+      const nextValue = value - 1;
+      if (nextValue > 0) {
+        nextCooldowns[abilityId] = nextValue;
+      }
+      if (nextValue !== value) {
+        changed = true;
+      }
+    });
+
+    if (!changed) return player;
+
+    return {
+      ...player,
+      abilityCooldowns: nextCooldowns,
+    };
+  });
+
+  updatedPlayers = updatedPlayers.map(player => {
+    const currentInspiration = player.researchInspiration ?? 0;
+    const decayed = GameRuleHelpers.applyInspirationDecay(currentInspiration);
+    if (decayed === currentInspiration) {
+      return player;
+    }
+    return {
+      ...player,
+      researchInspiration: decayed,
+    };
   });
 
   // Process completed constructions and add to game state
@@ -1204,6 +1863,58 @@ function handleEndTurn(
     }
     return u;
   });
+
+  const playerLookup = new Map(updatedPlayers.map(p => [p.id, p]));
+  updatedUnits = updatedUnits.map(unit => applyIntrinsicUnitAbilities(unit, playerLookup.get(unit.playerId), state));
+
+  const protectiveBonuses = recalculateProtectiveBonuses(updatedUnits);
+  const navalBonuses = new Map<string, number>();
+  const intelligenceBonuses = new Map<string, { progress: number; visibility: Set<string> }>();
+
+  updatedUnits.forEach(unit => {
+    const abilities = getAbilitySet(unit);
+    if (abilities.has('NAVAL_COMMAND')) {
+      updatedUnits.forEach(other => {
+        if (other.playerId === unit.playerId && other.type === 'boat' && hexDistance(other.coordinate, unit.coordinate) <= 2) {
+          navalBonuses.set(other.id, Math.max(navalBonuses.get(other.id) || 0, 1));
+        }
+      });
+    }
+
+    if (abilities.has('INTELLIGENCE')) {
+      const city = (state.cities || []).find(c => c.ownerId && c.ownerId !== unit.playerId && hexDistance(c.coordinate, unit.coordinate) <= 1);
+      if (city) {
+        const entry = intelligenceBonuses.get(unit.playerId) || { progress: 0, visibility: new Set<string>() };
+        entry.progress += 2;
+        entry.visibility.add(`${city.coordinate.q},${city.coordinate.r}`);
+        intelligenceBonuses.set(unit.playerId, entry);
+      }
+    }
+    // Intimidate handled within combat calculations
+  });
+
+  updatedUnits = updatedUnits.map(unit => {
+    const unitDef = getUnitDefinition(unit.type as any);
+    const navalBonus = navalBonuses.get(unit.id) || 0;
+    return updatePermanentEffect(unit, unitDef, 'ability::naval_command', 'movement_buff', navalBonus);
+  });
+
+  updatedUnits = applyProtectiveBonuses(updatedUnits, protectiveBonuses);
+  updatedUnits = enforceTerrainBoundEffects(updatedUnits, state.map);
+
+  if (intelligenceBonuses.size > 0) {
+    updatedPlayers = updatedPlayers.map(player => {
+      const entry = intelligenceBonuses.get(player.id);
+      if (!entry) return player;
+      const visibility = Array.from(entry.visibility);
+      return {
+        ...player,
+        researchInspiration: GameRuleHelpers.clampInspiration((player.researchInspiration || 0) + entry.progress),
+        visibilityMask: Array.from(new Set([...player.visibilityMask, ...visibility])),
+        exploredTiles: Array.from(new Set([...player.exploredTiles, ...visibility])),
+      };
+    });
+  }
 
   // Decrement temporary ability effects and clean up expired buffs
   updatedUnits = tickUnitTemporaryEffects(updatedUnits);
@@ -1652,51 +2363,91 @@ function handleResearchTechnology(
   const { playerId, technologyId } = payload;
   
   const player = state.players.find(p => p.id === playerId);
-  if (!player) return state;
-  
-  const tech = TECHNOLOGIES[technologyId];
-  if (!tech) return state;
-  
-  // Check if tech is already researched
+  if (!player) {
+    emitTelemetry({
+      channel: 'technology',
+      status: 'error',
+      playerId,
+      technologyId,
+      reason: 'player_not_found',
+    });
+    return state;
+  }
+  const tech = getTechnology(technologyId);
+  if (!tech) {
+    emitTelemetry({
+      channel: 'technology',
+      status: 'error',
+      playerId,
+      technologyId,
+      reason: 'technology_not_defined',
+    });
+    return state;
+  }
+
   if (player.researchedTechs.includes(technologyId)) {
+    emitTelemetry({
+      channel: 'technology',
+      status: 'info',
+      playerId,
+      technologyId,
+      reason: 'already_researched',
+    });
     return state;
   }
-  
-  // Verify prerequisites
-  const hasPrerequisites = tech.prerequisites.every(prereqId =>
-    player.researchedTechs.includes(prereqId)
-  );
-  
-  if (!hasPrerequisites) {
-    console.log(`Cannot research ${tech.name}: missing prerequisites`);
+
+  if (!playerHasTechPrerequisites(player, tech)) {
+    const missing = tech.prerequisites.filter(prereq => !player.researchedTechs.includes(prereq));
+    emitTelemetry({
+      channel: 'technology',
+      status: 'blocked',
+      playerId,
+      technologyId,
+      reason: 'missing_prerequisites',
+      metadata: { missing },
+    });
     return state;
   }
-  
-  const dynamicCost = calculateResearchCost(tech, player.researchedTechs.length);
-  
-  // Check cost
-  if (player.stars < dynamicCost) {
-    console.log(`Cannot research ${tech.name}: insufficient stars (need ${dynamicCost}, have ${player.stars})`);
+
+  const { baseCost, discount, finalCost } = getTechCostDetails(tech, player);
+  if (player.stars < finalCost) {
+    emitTelemetry({
+      channel: 'technology',
+      status: 'blocked',
+      playerId,
+      technologyId,
+      reason: 'insufficient_stars',
+      metadata: { required: finalCost, available: player.stars },
+    });
     return state;
   }
-  
-  console.log(`Player ${player.name} researched ${tech.name} for ${dynamicCost} stars`);
-  
-  // Update player with new technology
+
   const updatedPlayers = state.players.map(p => {
-    if (p.id === playerId) {
-      return {
-        ...p,
-        stars: p.stars - dynamicCost,
-        researchedTechs: [...p.researchedTechs, technologyId],
-      };
-    }
-    return p;
+    if (p.id !== playerId) return p;
+    return {
+      ...p,
+      stars: p.stars - finalCost,
+      researchedTechs: [...p.researchedTechs, technologyId],
+      researchInspiration: GameRuleHelpers.clampInspiration((p.researchInspiration ?? 0) - discount),
+    };
   });
-  
+
+  emitTelemetry({
+    channel: 'technology',
+    status: 'success',
+    playerId,
+    technologyId,
+    metadata: {
+      cost: finalCost,
+      discount,
+      baseCost,
+      researchedCount: player.researchedTechs.length + 1,
+    },
+  });
+
   return {
     ...state,
-    players: updatedPlayers
+    players: updatedPlayers,
   };
 }
 
@@ -1748,18 +2499,78 @@ function handleBuildUnit(
 }
 
 // Helper functions for specific abilities
-function applyTitleOfLiberty(state: GameState, player: PlayerState): GameState {
-  if (player.stats.faith < 70) return state;
+function applyTitleOfLiberty(state: GameState, player: PlayerState, ability: AbilityDefinition): GameState {
+  const playerCities = (state.cities || []).filter(city => city.ownerId === player.id);
+  if (playerCities.length === 0) return state;
 
-  // Find all units within 3 tiles of any player unit and apply buff
-  // Implementation would be more complex in practice
+  const duration = ability.duration ?? 3;
+  const influenceRadius = 3;
+  const affectedUnitIds = new Set<string>();
+
+  playerCities.forEach(city => {
+    state.units.forEach(unit => {
+      if (unit.playerId === player.id && hexDistance(unit.coordinate, city.coordinate) <= influenceRadius) {
+        affectedUnitIds.add(unit.id);
+      }
+    });
+  });
+
+  if (affectedUnitIds.size === 0) return state;
+
+  const updatedUnits = state.units.map(unit => {
+    if (!affectedUnitIds.has(unit.id)) return unit;
+
+    const unitDef = getUnitDefinition(unit.type as UnitType);
+    const attackBonus = Math.max(1, Math.round(unitDef.baseStats.attack * 0.3));
+    const defenseBonus = Math.max(1, Math.round(unitDef.baseStats.defense * 0.3));
+
+    let nextUnit = refreshTimedBuff(
+      unit,
+      unitDef,
+      `title_of_liberty_attack_${unit.id}`,
+      'attack_buff',
+      attackBonus,
+      duration,
+      ability.id
+    );
+
+    nextUnit = refreshTimedBuff(
+      nextUnit,
+      unitDef,
+      `title_of_liberty_defense_${unit.id}`,
+      'defense_buff',
+      defenseBonus,
+      duration,
+      ability.id
+    );
+
+    nextUnit = refreshStatusEffect(
+      nextUnit,
+      `title_of_liberty_status_${unit.id}`,
+      duration,
+      ability.id
+    );
+
+    return nextUnit;
+  });
+
+  const faithCost = Math.min(player.stats.faith, 35);
+
+  const updatedPlayers = state.players.map(p => {
+    if (p.id !== player.id) return p;
+    return {
+      ...p,
+      stats: {
+        ...p.stats,
+        faith: Math.max(0, p.stats.faith - faithCost),
+      },
+    };
+  });
+
   return {
     ...state,
-    players: state.players.map(p => 
-      p.id === player.id 
-        ? { ...p, stats: { ...p.stats, faith: p.stats.faith - 50 } }
-        : p
-    )
+    units: updatedUnits,
+    players: updatedPlayers,
   };
 }
 
@@ -1783,24 +2594,104 @@ function applyRameumptom(state: GameState, player: PlayerState): GameState {
   };
 }
 
-function applyCovenantOfPeace(state: GameState, player: PlayerState): GameState {
-  // Anti-Nephi-Lehies: Instead of combat, convert nearby enemy units
-  console.log('Covenant of Peace activated - nearby enemies may convert');
-  
+function applyCovenantOfPeace(
+  state: GameState,
+  player: PlayerState,
+  payload: { targetUnitId?: string }
+): GameState {
+  const faithCost = Math.min(player.stats.faith, 15);
+
+  let targetUnit = payload.targetUnitId
+    ? state.units.find(unit => unit.id === payload.targetUnitId && unit.playerId !== player.id)
+    : undefined;
+
+  if (!targetUnit) {
+    const missionaries = state.units.filter(
+      unit => unit.playerId === player.id && (unit.type === 'missionary' || unit.type === 'peacekeeping_guard')
+    );
+
+    let chosen: Unit | undefined;
+    missionaries.forEach(missionary => {
+      state.units.forEach(enemy => {
+        if (enemy.playerId === player.id) return;
+        const distance = hexDistance(missionary.coordinate, enemy.coordinate);
+        if (distance <= 2) {
+          if (!chosen || enemy.hp < chosen.hp) {
+            chosen = enemy;
+          }
+        }
+      });
+    });
+
+    targetUnit = chosen;
+  }
+
+  if (!targetUnit) {
+    return state;
+  }
+
+  const enemyPlayer = state.players.find(p => p.id === targetUnit!.playerId);
+  const faithGap = player.stats.faith - (enemyPlayer?.stats.faith ?? 0);
+  const wounded = targetUnit.hp <= targetUnit.maxHp / 2;
+  const hasResistance = enemyPlayer ? playerHasFactionAbility(enemyPlayer, 'FAITHFUL_RESISTANCE') : false;
+  const adjustedGap = hasResistance ? faithGap - 10 : faithGap;
+  const success = adjustedGap >= -20 || wounded;
+
+  let updatedUnits = state.units;
+  if (success) {
+    updatedUnits = state.units.map(unit => {
+      if (unit.id !== targetUnit!.id) return unit;
+      return {
+        ...unit,
+        playerId: player.id,
+        hp: Math.min(unit.maxHp, unit.hp + 3),
+        status: 'active',
+        temporaryEffects: unit.temporaryEffects,
+      };
+    });
+  }
+
+  const updatedPlayers = state.players.map(p => {
+    if (p.id === player.id) {
+      return {
+        ...p,
+        stats: {
+          ...p.stats,
+          faith: Math.max(0, p.stats.faith - faithCost + (success ? 2 : 0)),
+          internalDissent: Math.max(0, p.stats.internalDissent - (success ? 4 : 1)),
+        },
+      };
+    }
+
+    if (success && p.id === enemyPlayer?.id) {
+      return {
+        ...p,
+        stats: {
+          ...p.stats,
+          pride: Math.max(0, p.stats.pride - 5),
+          internalDissent: Math.min(100, p.stats.internalDissent + 5),
+        },
+      };
+    }
+
+    if (!success && p.id === enemyPlayer?.id) {
+      return {
+        ...p,
+        stats: {
+          ...p.stats,
+          pride: Math.max(0, p.stats.pride - 2),
+          internalDissent: Math.min(100, p.stats.internalDissent + 2),
+        },
+      };
+    }
+
+    return p;
+  });
+
   return {
     ...state,
-    players: state.players.map(p => 
-      p.id === player.id 
-        ? { 
-            ...p, 
-            stats: { 
-              ...p.stats, 
-              faith: Math.min(100, p.stats.faith + 10),
-              internalDissent: Math.max(0, p.stats.internalDissent - 15)
-            }
-          }
-        : p
-    )
+    units: updatedUnits,
+    players: updatedPlayers,
   };
 }
 
@@ -1861,27 +2752,111 @@ function applyFaithHealing(state: GameState, payload: any): GameState {
 }
 
 // Lamanite Faction Abilities
-function applyGuerrillaTactics(state: GameState, payload: any): GameState {
-  const unit = state.units.find(u => u.id === payload.unitId);
-  if (!unit) return state;
+function applyGuerrillaTactics(
+  state: GameState,
+  payload: { playerId: string },
+  ability: AbilityDefinition
+): GameState {
+  const player = state.players.find(p => p.id === payload.playerId);
+  if (!player) return state;
 
-  // Guerrilla Tactics: Hide in forest/jungle terrain for defense bonus
-  const unitTile = state.map.tiles.find(tile => 
-    tile.coordinate.q === unit.coordinate.q && 
-    tile.coordinate.r === unit.coordinate.r
-  );
-  
-  if (unitTile && (unitTile.terrain === 'plains' || unitTile.terrain === 'swamp')) {
-    return {
-      ...state,
-      units: state.units.map(u => 
-        u.id === unit.id 
-          ? { ...u, defense: u.defense + GAME_RULES.abilities.attackBonuses.guerrillaBonus, status: 'active' as const }
-          : u
-      )
-    };
+  const duration = ability.duration ?? 2;
+  const defenseBonus = 2;
+  const movementBonus = 1;
+
+  let applied = false;
+
+  const updatedUnits = state.units.map(unit => {
+    if (unit.playerId !== player.id) return unit;
+
+    const tile = state.map.tiles.find(
+      t => t.coordinate.q === unit.coordinate.q && t.coordinate.r === unit.coordinate.r
+    );
+
+    if (!tile || (tile.terrain !== 'forest' && tile.terrain !== 'swamp')) {
+      return unit;
+    }
+
+    const unitDef = getUnitDefinition(unit.type as UnitType);
+
+    let nextUnit = refreshTimedBuff(
+      unit,
+      unitDef,
+      `guerrilla_tactics_defense_${unit.id}`,
+      'defense_buff',
+      defenseBonus,
+      duration,
+      ability.id
+    );
+
+    nextUnit = refreshTimedBuff(
+      nextUnit,
+      unitDef,
+      `guerrilla_tactics_movement_${unit.id}`,
+      'movement_buff',
+      movementBonus,
+      duration,
+      ability.id
+    );
+
+    applied = true;
+    return nextUnit;
+  });
+
+  if (!applied) return state;
+
+  return {
+    ...state,
+    units: updatedUnits,
+  };
+}
+
+function applyUnitDeathEffects(
+  state: GameState,
+  units: Unit[],
+  players: PlayerState[],
+  deadUnit: Unit
+): { units: Unit[]; players: PlayerState[] } {
+  let updatedUnits = units.filter(unit => unit.id !== deadUnit.id);
+  let updatedPlayers = players;
+
+  const ownerIndex = updatedPlayers.findIndex(player => player.id === deadUnit.playerId);
+  const owner = ownerIndex >= 0 ? updatedPlayers[ownerIndex] : undefined;
+
+  if (owner) {
+    const deathModifiers = getActiveModifiers(owner, 'on_death');
+    deathModifiers.forEach(modifier => {
+      modifier.effect.forEach(effect => {
+        if (effect.target === 'nearby' && effect.radius) {
+          const affectedUnits = updatedUnits.filter(unit =>
+            unit.playerId === deadUnit.playerId &&
+            hexDistance(unit.coordinate, deadUnit.coordinate) <= effect.radius!
+          );
+
+          updatedUnits = updatedUnits.map(unit => {
+            if (!affectedUnits.some(affected => affected.id === unit.id)) return unit;
+            return {
+              ...unit,
+              [effect.stat]: (unit[effect.stat as keyof Unit] as number) + effect.value,
+            };
+          });
+        }
+      });
+    });
   }
-  return state;
+
+  if (owner && playerHasFactionAbility(owner, 'BLOOD_FEUD')) {
+    const vengeanceRange = 2;
+    const buffAmount = 1;
+    updatedUnits = updatedUnits.map(unit => {
+      if (unit.playerId !== deadUnit.playerId) return unit;
+      if (hexDistance(unit.coordinate, deadUnit.coordinate) > vengeanceRange) return unit;
+      const def = getUnitDefinition(unit.type as any);
+      return updatePermanentEffect(unit, def, `blood_feud_${deadUnit.id}`, 'attack_buff', buffAmount);
+    });
+  }
+
+  return { units: updatedUnits, players: updatedPlayers };
 }
 
 function applyAncestralRage(state: GameState, payload: any): GameState {
@@ -1905,37 +2880,92 @@ function applyAncestralRage(state: GameState, payload: any): GameState {
 }
 
 // Zoramite Faction Abilities
-function applyConvertEnemy(state: GameState, payload: any): GameState {
-  const unit = state.units.find(u => u.id === payload.unitId);
-  if (!unit || !payload.targetUnitId) return state;
+function applyConvertEnemy(
+  state: GameState,
+  payload: { playerId: string },
+  ability: AbilityDefinition
+): GameState {
+  const player = state.players.find(p => p.id === payload.playerId);
+  if (!player) return state;
 
-  const target = state.units.find(u => u.id === payload.targetUnitId);
-  if (!target || target.playerId === unit.playerId) return state;
+  const envoys = state.units.filter(unit => unit.playerId === player.id && unit.type === 'royal_envoy');
+  if (envoys.length === 0) return state;
 
-  const player = state.players.find(p => p.id === unit.playerId);
-  if (!player || player.stats.pride < 20) return state;
+  const conversionRadius = GAME_RULES.abilities.conversionRadius;
+  let chosenEnvoy: Unit | undefined;
+  let chosenTarget: Unit | undefined;
 
-  // Convert Enemy: Turn enemy unit to your faction
-  const distance = hexDistance(unit.coordinate, target.coordinate);
-  if (distance <= GAME_RULES.abilities.conversionRadius) {
-    return {
-      ...state,
-      units: state.units.map(u => 
-        u.id === payload.targetUnitId 
-          ? { ...u, playerId: unit.playerId }
-          : u
-      ),
-      players: state.players.map(p =>
-        p.id === player.id
-          ? { ...p, stats: { ...p.stats, pride: Math.max(0, p.stats.pride - 20) } }
-          : p
-      )
-    };
+  envoys.forEach(envoy => {
+    state.units.forEach(enemy => {
+      if (enemy.playerId === player.id) return;
+      const distance = hexDistance(envoy.coordinate, enemy.coordinate);
+      if (distance <= conversionRadius) {
+        if (!chosenTarget || enemy.attack > chosenTarget.attack || enemy.hp < chosenTarget.hp) {
+          chosenEnvoy = envoy;
+          chosenTarget = enemy;
+        }
+      }
+    });
+  });
+
+  if (!chosenEnvoy || !chosenTarget) return state;
+
+  const prideCost = Math.min(player.stats.pride, 20);
+  const enemyPlayer = state.players.find(p => p.id === chosenTarget!.playerId);
+  const hasResistance = enemyPlayer ? playerHasFactionAbility(enemyPlayer, 'FAITHFUL_RESISTANCE') : false;
+
+  if (hasResistance) {
+    const pressure = player.stats.pride;
+    const resolve = (enemyPlayer?.stats.faith ?? 0) + 10;
+    if (pressure < resolve) {
+      return state;
+    }
   }
-  return state;
+
+  const updatedUnits = state.units.map(unit => {
+    if (unit.id !== chosenTarget!.id) return unit;
+    return {
+      ...unit,
+      playerId: player.id,
+      status: 'active',
+      hp: Math.min(unit.maxHp, unit.hp + 2),
+    };
+  });
+
+  const updatedPlayers = state.players.map(p => {
+    if (p.id === player.id) {
+      return {
+        ...p,
+        stats: {
+          ...p.stats,
+          pride: Math.max(0, p.stats.pride - prideCost),
+          faith: Math.min(100, p.stats.faith + 3),
+        },
+      };
+    }
+
+    if (p.id === enemyPlayer?.id) {
+      return {
+        ...p,
+        stats: {
+          ...p.stats,
+          pride: Math.max(0, p.stats.pride - 4),
+          internalDissent: Math.min(100, p.stats.internalDissent + 3),
+        },
+      };
+    }
+
+    return p;
+  });
+
+  return {
+    ...state,
+    units: updatedUnits,
+    players: updatedPlayers,
+  };
 }
 
-function applyPrideBoost(state: GameState, payload: any): GameState {
+function applyPrideBoost(state: GameState, payload: any, ability: AbilityDefinition): GameState {
   const player = state.players.find(p => p.id === payload.playerId);
   if (!player) return state;
 
@@ -1944,63 +2974,107 @@ function applyPrideBoost(state: GameState, payload: any): GameState {
     player.citiesOwned.includes(city.id)
   ) || [];
 
-  const prideGain = playerCities.length * 3;
+  const ownedStructures = (state.structures || []).filter(
+    structure => structure.ownerId === player.id && structure.constructionTurns === 0
+  );
+
+  const ownedImprovements = (state.improvements || []).filter(
+    improvement => improvement.ownerId === player.id && improvement.constructionTurns === 0
+  );
+
+  const prideGain = playerCities.length * 3 + ownedStructures.length * 2 + Math.floor(ownedImprovements.length / 2);
+  if (prideGain === 0) return state;
+
+  const faithPenalty = Math.min(5, Math.floor(prideGain / 2));
+
   return {
     ...state,
     players: state.players.map(p =>
       p.id === player.id
-        ? { ...p, stats: { ...p.stats, pride: Math.min(100, p.stats.pride + prideGain) } }
+        ? { 
+            ...p, 
+            stats: { 
+              ...p.stats, 
+              pride: Math.min(100, p.stats.pride + prideGain),
+              faith: Math.max(0, p.stats.faith - faithPenalty),
+            } 
+          }
         : p
     )
   };
 }
 
 // Jaredite Faction Abilities
-function applyTowerVision(state: GameState, payload: any): GameState {
-  if (!payload.targetCoordinate) return state;
-
+function applyTowerVision(
+  state: GameState,
+  payload: { playerId: string },
+  ability: AbilityDefinition
+): GameState {
   const player = state.players.find(p => p.id === payload.playerId);
-  if (!player || player.stats.faith < 15) return state;
+  if (!player) return state;
 
-  // Tower Vision: Reveal large area of the map
+  const seeds: HexCoordinate[] = [];
+
+  (state.cities || []).forEach(city => {
+    if (city.ownerId === player.id) {
+      seeds.push(city.coordinate);
+    }
+  });
+
+  state.units.forEach(unit => {
+    if (unit.playerId === player.id && unit.visionRadius >= 2) {
+      seeds.push(unit.coordinate);
+    }
+  });
+
+  if (seeds.length === 0) return state;
+
   const revealRadius = GAME_RULES.abilities.visionRevealRadius;
-  const tilesToReveal: string[] = [];
-  
-  for (let q = payload.targetCoordinate.q - revealRadius; q <= payload.targetCoordinate.q + revealRadius; q++) {
-    for (let r = payload.targetCoordinate.r - revealRadius; r <= payload.targetCoordinate.r + revealRadius; r++) {
-      const s = -q - r;
-      const distance = Math.max(
-        Math.abs(q - payload.targetCoordinate.q),
-        Math.abs(r - payload.targetCoordinate.r),
-        Math.abs(s - payload.targetCoordinate.s)
-      );
-      
-      if (distance <= revealRadius) {
-        tilesToReveal.push(`${q},${r}`);
+  const tilesToReveal = new Set<string>();
+
+  seeds.forEach(seed => {
+    for (let q = seed.q - revealRadius; q <= seed.q + revealRadius; q++) {
+      for (let r = seed.r - revealRadius; r <= seed.r + revealRadius; r++) {
+        const s = -q - r;
+        const distance = Math.max(Math.abs(q - seed.q), Math.abs(r - seed.r), Math.abs(s - seed.s));
+        if (distance <= revealRadius) {
+          tilesToReveal.add(`${q},${r}`);
+        }
       }
     }
-  }
+  });
+
+  const faithCost = Math.min(player.stats.faith, ability.requirements?.faith ?? 10);
+
+  const updatedTiles = state.map.tiles.map(tile => {
+    const key = `${tile.coordinate.q},${tile.coordinate.r}`;
+    if (tilesToReveal.has(key) && !tile.exploredBy.includes(player.id)) {
+      return {
+        ...tile,
+        exploredBy: [...tile.exploredBy, player.id],
+      };
+    }
+    return tile;
+  });
+
+  const updatedPlayers = state.players.map(p => {
+    if (p.id !== player.id) return p;
+    return {
+      ...p,
+      stats: {
+        ...p.stats,
+        faith: Math.max(0, p.stats.faith - faithCost),
+      },
+    };
+  });
 
   return {
     ...state,
     map: {
       ...state.map,
-      tiles: state.map.tiles.map(tile => {
-        const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-        if (tilesToReveal.includes(tileKey) && !tile.exploredBy.includes(player.id)) {
-          return {
-            ...tile,
-            exploredBy: [...tile.exploredBy, player.id]
-          };
-        }
-        return tile;
-      })
+      tiles: updatedTiles,
     },
-    players: state.players.map(p =>
-      p.id === player.id
-        ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - 15) } }
-        : p
-    )
+    players: updatedPlayers,
   };
 }
 
@@ -2074,6 +3148,513 @@ function applyConversion(state: GameState, payload: any): GameState {
           }
         : p
     )
+  };
+}
+
+function applyRighteousDefense(
+  state: GameState,
+  player: PlayerState,
+  ability: AbilityDefinition
+): GameState {
+  const playerCities = (state.cities || []).filter(city => city.ownerId === player.id);
+  if (playerCities.length === 0) return state;
+
+  const duration = ability.duration ?? 2;
+  const buffAmount = 2;
+
+  const unitsToBuff = new Set<string>();
+  playerCities.forEach(city => {
+    state.units.forEach(unit => {
+      if (unit.playerId === player.id && hexDistance(unit.coordinate, city.coordinate) <= 2) {
+        unitsToBuff.add(unit.id);
+      }
+    });
+  });
+
+  const updatedUnits = state.units.map(unit => {
+    if (!unitsToBuff.has(unit.id)) return unit;
+
+    const baseEffects = unit.temporaryEffects || [];
+    const existingIndex = baseEffects.findIndex(effect => effect.source === ability.id);
+    if (existingIndex !== -1) {
+      const refreshed = [...baseEffects];
+      refreshed[existingIndex] = {
+        ...refreshed[existingIndex],
+        turnsRemaining: duration,
+      };
+      return {
+        ...unit,
+        temporaryEffects: refreshed,
+      };
+    }
+
+    const buffEffect: UnitTemporaryEffect = {
+      id: `righteous_defense_${unit.id}_${Date.now()}`,
+      type: 'defense_buff',
+      amount: buffAmount,
+      turnsRemaining: duration,
+      source: ability.id,
+    };
+
+    const resultUnit: Unit = {
+      ...unit,
+      defense: unit.defense + buffAmount,
+      temporaryEffects: [...baseEffects, buffEffect],
+    };
+
+    if (unit.type === 'missionary') {
+      resultUnit.hp = Math.min(unit.maxHp, unit.hp + 3);
+    }
+
+    return resultUnit;
+  });
+
+  const faithCost = ability.requirements?.faith ?? 0;
+  const updatedPlayers = state.players.map(p => {
+    if (p.id !== player.id) return p;
+    if (faithCost === 0) return p;
+    return {
+      ...p,
+      stats: {
+        ...p.stats,
+        faith: Math.max(0, p.stats.faith - faithCost),
+      },
+    };
+  });
+
+  return {
+    ...state,
+    units: updatedUnits,
+    players: updatedPlayers,
+  };
+}
+
+function applyMissionaryZeal(
+  state: GameState,
+  player: PlayerState,
+  ability: AbilityDefinition
+): GameState {
+  const missionaries = state.units.filter(unit => unit.playerId === player.id && unit.type === 'missionary');
+  if (missionaries.length === 0) return state;
+
+  const convertedUnitIds = new Set<string>();
+  let updatedUnits = [...state.units];
+  const enemyAdjustments = new Map<string, { pride: number; dissent: number }>();
+
+  missionaries.forEach(missionary => {
+    state.units.forEach(unit => {
+      if (unit.playerId === player.id) return;
+      if (hexDistance(unit.coordinate, missionary.coordinate) > 1) return;
+      if (convertedUnitIds.has(unit.id)) return;
+
+      const enemyPlayer = state.players.find(p => p.id === unit.playerId);
+      if (!enemyPlayer) return;
+
+      const faithGap = player.stats.faith - enemyPlayer.stats.faith;
+      const requiredGap = playerHasFactionAbility(enemyPlayer, 'FAITHFUL_RESISTANCE') ? 15 : 10;
+      if (faithGap >= requiredGap) {
+        convertedUnitIds.add(unit.id);
+        updatedUnits = updatedUnits.map(existing =>
+          existing.id === unit.id
+            ? {
+                ...existing,
+                playerId: player.id,
+                hp: Math.min(existing.maxHp, existing.hp + 2),
+                status: 'active',
+              }
+            : existing
+        );
+      } else {
+        const entry = enemyAdjustments.get(enemyPlayer.id) || { pride: 0, dissent: 0 };
+        entry.pride -= 3;
+        entry.dissent += 2;
+        enemyAdjustments.set(enemyPlayer.id, entry);
+      }
+    });
+  });
+
+  const faithCost = ability.requirements?.faith ?? 0;
+  const updatedPlayers = state.players.map(p => {
+    if (p.id === player.id) {
+      return {
+        ...p,
+        stats: {
+          ...p.stats,
+          faith: Math.max(0, p.stats.faith - faithCost + convertedUnitIds.size),
+          internalDissent: Math.max(0, p.stats.internalDissent - Math.max(1, missionaries.length)),
+        },
+      };
+    }
+
+    const adjustments = enemyAdjustments.get(p.id);
+    if (adjustments) {
+      return {
+        ...p,
+        stats: {
+          ...p.stats,
+          pride: Math.max(0, p.stats.pride + adjustments.pride),
+          internalDissent: Math.min(100, Math.max(0, p.stats.internalDissent + adjustments.dissent)),
+        },
+      };
+    }
+
+    return p;
+  });
+
+  return {
+    ...state,
+    units: updatedUnits,
+    players: updatedPlayers,
+  };
+}
+
+function applyWarriorRage(
+  state: GameState,
+  player: PlayerState,
+  ability: AbilityDefinition
+): GameState {
+  const duration = ability.duration ?? 2;
+  const attackBonus = 2;
+  const movementBonus = 1;
+
+  const updatedUnits = state.units.map(unit => {
+    if (unit.playerId !== player.id) return unit;
+
+    const effects = unit.temporaryEffects || [];
+    const attackEffectId = `warrior_rage_attack_${unit.id}`;
+    const movementEffectId = `warrior_rage_move_${unit.id}`;
+
+    let updated = { ...unit, temporaryEffects: effects };
+
+    if (!effects.some(effect => effect.id === attackEffectId)) {
+      const attackEffect: UnitTemporaryEffect = {
+        id: attackEffectId,
+        type: 'attack_buff',
+        amount: attackBonus,
+        turnsRemaining: duration,
+        source: ability.id,
+      };
+      updated = {
+        ...updated,
+        attack: updated.attack + attackBonus,
+        temporaryEffects: [...updated.temporaryEffects, attackEffect],
+      };
+    } else {
+      updated = {
+        ...updated,
+        temporaryEffects: updated.temporaryEffects!.map(effect =>
+          effect.id === attackEffectId ? { ...effect, turnsRemaining: duration } : effect
+        ),
+      };
+    }
+
+    if (!updated.temporaryEffects!.some(effect => effect.id === movementEffectId)) {
+      const movementEffect: UnitTemporaryEffect = {
+        id: movementEffectId,
+        type: 'movement_buff',
+        amount: movementBonus,
+        turnsRemaining: duration,
+        source: ability.id,
+      };
+      updated = {
+        ...updated,
+        movement: updated.movement + movementBonus,
+        remainingMovement: updated.remainingMovement + movementBonus,
+        temporaryEffects: [...updated.temporaryEffects!, movementEffect],
+      };
+    } else {
+      updated = {
+        ...updated,
+        temporaryEffects: updated.temporaryEffects!.map(effect =>
+          effect.id === movementEffectId ? { ...effect, turnsRemaining: duration } : effect
+        ),
+      };
+    }
+
+    return updated;
+  });
+
+  const prideCost = ability.requirements?.pride ?? 0;
+  const updatedPlayers = state.players.map(p => {
+    if (p.id !== player.id) return p;
+    return {
+      ...p,
+      stats: {
+        ...p.stats,
+        pride: Math.max(0, p.stats.pride - prideCost),
+        internalDissent: Math.min(100, p.stats.internalDissent + 5),
+      },
+    };
+  });
+
+  return {
+    ...state,
+    units: updatedUnits,
+    players: updatedPlayers,
+  };
+}
+
+function applyFactionAncientKnowledge(
+  state: GameState,
+  player: PlayerState,
+  ability: AbilityDefinition
+): GameState {
+  const faithCost = ability.requirements?.faith ?? 0;
+  const updatedTiles = state.map.tiles.map(tile => {
+    if ((tile.feature === 'ruin' || tile.feature === 'shrine') && !tile.exploredBy.includes(player.id)) {
+      return { ...tile, exploredBy: [...tile.exploredBy, player.id] };
+    }
+    return tile;
+  });
+
+  const revealedKeys = updatedTiles
+    .filter(tile => tile.exploredBy.includes(player.id))
+    .map(tile => `${tile.coordinate.q},${tile.coordinate.r}`);
+
+  const updatedPlayers = state.players.map(p => {
+    if (p.id !== player.id) return p;
+    const visibilityMask = p.visibilityMask || [];
+    const exploredTiles = p.exploredTiles || [];
+    return {
+      ...p,
+      stats: {
+        ...p.stats,
+        faith: Math.max(0, p.stats.faith - faithCost + 2),
+      },
+      researchInspiration: GameRuleHelpers.clampInspiration((p.researchInspiration || 0) + 20),
+      stars: p.stars + 10,
+      visibilityMask: Array.from(new Set([...visibilityMask, ...revealedKeys])),
+      exploredTiles: Array.from(new Set([...exploredTiles, ...revealedKeys])),
+    };
+  });
+
+  return {
+    ...state,
+    map: {
+      ...state.map,
+      tiles: updatedTiles,
+    },
+    players: updatedPlayers,
+  };
+}
+
+function applyCulturalReclamation(
+  state: GameState,
+  player: PlayerState,
+  ability: AbilityDefinition
+): GameState {
+  const faithCost = ability.requirements?.faith ?? 0;
+
+  const updatedCities = (state.cities || []).map(city => {
+    const hasPresence = state.units.some(
+      unit => unit.playerId === player.id && hexDistance(unit.coordinate, city.coordinate) <= 2
+    );
+
+    if (!hasPresence) return city;
+
+    if (!city.ownerId) {
+      return { ...city, ownerId: player.id };
+    }
+
+    if (city.ownerId !== player.id) {
+      return {
+        ...city,
+        starProduction: Math.max(1, city.starProduction - 1),
+      };
+    }
+
+    return city;
+  });
+
+  const updatedPlayers = state.players.map(p => {
+    if (p.id === player.id) {
+      return {
+        ...p,
+        stats: {
+          ...p.stats,
+          faith: Math.max(0, p.stats.faith - faithCost + 3),
+        },
+      };
+    }
+
+    const cityAffected = updatedCities.some(
+      city => city.ownerId === p.id &&
+        (state.cities || []).some(original => original.id === city.id && original.starProduction > city.starProduction)
+    );
+
+    if (cityAffected) {
+      return {
+        ...p,
+        stats: {
+          ...p.stats,
+          internalDissent: Math.min(100, p.stats.internalDissent + 3),
+        },
+      };
+    }
+
+    return p;
+  });
+
+  return {
+    ...state,
+    cities: updatedCities,
+    players: updatedPlayers,
+  };
+}
+
+function toggleWealthAccumulation(
+  state: GameState,
+  player: PlayerState
+): GameState {
+  const active = (player.modifiers || []).some((modifier: any) => modifier?.id === 'WEALTH_ACCUMULATION_ACTIVE');
+
+  const updatedPlayers = state.players.map(p => {
+    if (p.id !== player.id) return p;
+    const modifiers = [...(p.modifiers || [])];
+    if (active) {
+      return {
+        ...p,
+        modifiers: modifiers.filter(modifier => modifier?.id !== 'WEALTH_ACCUMULATION_ACTIVE'),
+      };
+    }
+
+    modifiers.push({ id: 'WEALTH_ACCUMULATION_ACTIVE' });
+    return {
+      ...p,
+      modifiers,
+    };
+  });
+
+  return {
+    ...state,
+    players: updatedPlayers,
+  };
+}
+
+function applyAncientMight(
+  state: GameState,
+  player: PlayerState,
+  ability: AbilityDefinition
+): GameState {
+  const duration = ability.duration ?? 3;
+  const buffAmount = 2;
+
+  const updatedUnits = state.units.map(unit => {
+    if (unit.playerId !== player.id) return unit;
+    const effects = unit.temporaryEffects || [];
+    const attackEffectId = `ancient_might_attack_${unit.id}`;
+    const defenseEffectId = `ancient_might_defense_${unit.id}`;
+
+    let updated = { ...unit, temporaryEffects: effects };
+
+    if (!effects.some(effect => effect.id === attackEffectId)) {
+      const attackEffect: UnitTemporaryEffect = {
+        id: attackEffectId,
+        type: 'attack_buff',
+        amount: buffAmount,
+        turnsRemaining: duration,
+        source: ability.id,
+      };
+      updated = {
+        ...updated,
+        attack: updated.attack + buffAmount,
+        temporaryEffects: [...updated.temporaryEffects, attackEffect],
+      };
+    } else {
+      updated = {
+        ...updated,
+        temporaryEffects: updated.temporaryEffects!.map(effect =>
+          effect.id === attackEffectId ? { ...effect, turnsRemaining: duration } : effect
+        ),
+      };
+    }
+
+    if (!updated.temporaryEffects!.some(effect => effect.id === defenseEffectId)) {
+      const defenseEffect: UnitTemporaryEffect = {
+        id: defenseEffectId,
+        type: 'defense_buff',
+        amount: buffAmount,
+        turnsRemaining: duration,
+        source: ability.id,
+      };
+      updated = {
+        ...updated,
+        defense: updated.defense + buffAmount,
+        temporaryEffects: [...updated.temporaryEffects!, defenseEffect],
+      };
+    } else {
+      updated = {
+        ...updated,
+        temporaryEffects: updated.temporaryEffects!.map(effect =>
+          effect.id === defenseEffectId ? { ...effect, turnsRemaining: duration } : effect
+        ),
+      };
+    }
+
+    return updated;
+  });
+
+  const prideCost = ability.requirements?.pride ?? 0;
+  const faithCost = ability.requirements?.faith ?? 0;
+
+  const updatedPlayers = state.players.map(p => {
+    if (p.id !== player.id) return p;
+    return {
+      ...p,
+      stats: {
+        ...p.stats,
+        pride: Math.max(0, Math.min(100, p.stats.pride - prideCost + 5)),
+        faith: Math.max(0, p.stats.faith - faithCost),
+      },
+    };
+  });
+
+  return {
+    ...state,
+    units: updatedUnits,
+    players: updatedPlayers,
+  };
+}
+
+function applyPropheticCollapse(
+  state: GameState,
+  player: PlayerState,
+  ability: AbilityDefinition
+): GameState {
+  const playerUnits = state.units.filter(unit => unit.playerId === player.id);
+  if (playerUnits.length <= 1) return state;
+
+  const sorted = [...playerUnits].sort((a, b) => a.attack - b.attack || a.hp - b.hp);
+  const removeCount = Math.floor(sorted.length / 2);
+  const removalIds = new Set(sorted.slice(0, removeCount).map(unit => unit.id));
+
+  const remainingUnits = state.units.filter(unit => !removalIds.has(unit.id));
+  const boostedUnits = remainingUnits.map(unit => {
+    if (unit.playerId !== player.id) return unit;
+    return {
+      ...unit,
+      attack: unit.attack + 3,
+      defense: unit.defense + 3,
+      hp: Math.min(unit.maxHp, unit.hp + 5),
+    };
+  });
+
+  const updatedPlayers = state.players.map(p => {
+    if (p.id !== player.id) return p;
+    return {
+      ...p,
+      stats: {
+        ...p.stats,
+        pride: Math.max(0, p.stats.pride - 10),
+        faith: Math.max(60, p.stats.faith),
+      },
+    };
+  });
+
+  return {
+    ...state,
+    units: boostedUnits,
+    players: updatedPlayers,
   };
 }
 
@@ -2296,20 +3877,40 @@ function tickUnitTemporaryEffects(units: Unit[]): Unit[] {
       return unit;
     }
 
+    const unitDef = getUnitDefinition(unit.type);
     let attackAdjustment = 0;
+    let defenseAdjustment = 0;
+    let movementAdjustment = 0;
     let hasActiveStatusImmunity = false;
     const remainingEffects: UnitTemporaryEffect[] = [];
 
     unit.temporaryEffects.forEach(effect => {
       const updatedTurns = effect.turnsRemaining - 1;
-      if (updatedTurns > 0) {
+      if (effect.turnsRemaining === -1) {
+        remainingEffects.push(effect);
+        if (effect.type === 'status_immunity') {
+          hasActiveStatusImmunity = true;
+        }
+      } else if (updatedTurns > 0) {
         const updatedEffect = { ...effect, turnsRemaining: updatedTurns };
         remainingEffects.push(updatedEffect);
         if (effect.type === 'status_immunity') {
           hasActiveStatusImmunity = true;
         }
-      } else if (effect.type === 'attack_buff' && effect.amount) {
-        attackAdjustment -= effect.amount;
+      } else if (effect.amount) {
+        switch (effect.type) {
+          case 'attack_buff':
+            attackAdjustment -= effect.amount;
+            break;
+          case 'defense_buff':
+            defenseAdjustment -= effect.amount;
+            break;
+          case 'movement_buff':
+            movementAdjustment -= effect.amount;
+            break;
+          default:
+            break;
+        }
       }
     });
 
@@ -2318,7 +3919,22 @@ function tickUnitTemporaryEffects(units: Unit[]): Unit[] {
     if (attackAdjustment !== 0) {
       updatedUnit = {
         ...updatedUnit,
-        attack: Math.max(1, updatedUnit.attack + attackAdjustment)
+        attack: Math.max(unitDef.baseStats.attack, updatedUnit.attack + attackAdjustment)
+      };
+    }
+    if (defenseAdjustment !== 0) {
+      updatedUnit = {
+        ...updatedUnit,
+        defense: Math.max(unitDef.baseStats.defense, updatedUnit.defense + defenseAdjustment)
+      };
+    }
+    if (movementAdjustment !== 0) {
+      const baseMovement = unitDef.baseStats.movement;
+      const newMovement = Math.max(baseMovement, updatedUnit.movement + movementAdjustment);
+      updatedUnit = {
+        ...updatedUnit,
+        movement: newMovement,
+        remainingMovement: Math.min(newMovement, Math.max(0, updatedUnit.remainingMovement + movementAdjustment))
       };
     }
 
@@ -2375,8 +3991,6 @@ function handleDeclareWar(
   if (!player || !targetPlayer) return state;
   if (playerId === targetPlayerId) return state;
 
-  console.log(`${player.name} declares war on ${targetPlayer.name}!`);
-
   // Declaring war increases pride but also internal dissent
   return {
     ...state,
@@ -2407,8 +4021,6 @@ function handleFormAlliance(
   
   if (!player || !ally) return state;
   if (playerId === allyPlayerId) return state;
-
-  console.log(`${player.name} forms alliance with ${ally.name}!`);
 
   // Forming alliances boosts faith and reduces internal dissent
   return {
@@ -2583,7 +4195,6 @@ function handleUnitAction(
       break;
       
     default:
-      console.log(`Unit action ${actionType} not implemented yet`);
       break;
   }
   

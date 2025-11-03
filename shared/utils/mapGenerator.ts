@@ -2,6 +2,8 @@ import { createNoise2D } from 'simplex-noise';
 import type { GameMap, Tile, TerrainType, HexCoordinate, FactionId } from '@shared/types/game';
 import { hexDistance } from './hex';
 
+const MAP_DEBUG = process.env.NODE_ENV !== 'production';
+
 /**
  * Type definitions for map generation
  */
@@ -344,7 +346,9 @@ export class MapGenerator {
       }
     }
     
-    console.log(`Polytopia village spawning: Generated ${villagesPlaced} villages on map (${((villagesPlaced / tiles.length) * 100).toFixed(1)}% density)`);
+    if (MAP_DEBUG) {
+      console.info(`Polytopia village spawning: Generated ${villagesPlaced} villages on map (${((villagesPlaced / tiles.length) * 100).toFixed(1)}% density)`);
+    }
   }
 
   /**
@@ -549,7 +553,9 @@ export class MapGenerator {
       
       if (modifiers && modifiers.lore) {
         // Log tribal lore for debugging
-        console.log(`${factionId} homeland: ${modifiers.lore}`);
+        if (MAP_DEBUG) {
+          console.info(`${factionId} homeland: ${modifiers.lore}`);
+        }
       }
     }
   }
