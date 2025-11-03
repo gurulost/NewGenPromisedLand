@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import CityPanel from '../client/src/components/ui/CityPanel';
+import { CityPanel } from '../client/src/components/city/CityPanel';
 import { GameState, PlayerState, City } from '../shared/types/game';
 
 // Mock the BuildingMenu component
