@@ -388,8 +388,6 @@ const TechNode = React.memo(
     cost: number;
     discount: number;
     baseCost: number;
-    discount: number;
-    baseCost: number;
     prerequisites: Array<{ id: string; name: string; satisfied: boolean }>;
     tierLabel: string;
     style: React.CSSProperties;
