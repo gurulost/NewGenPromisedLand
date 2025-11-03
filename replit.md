@@ -27,6 +27,7 @@ The application follows a modern full-stack monorepo architecture with clear sep
 - **Data-Driven Architecture**: All game rules, abilities, costs, and configurations are centralized in `GAME_RULES` for easy balance tweaking and configurability.
 - **Performance Optimizations**: Instanced rendering for hex grid, React memoization for UI components, optimized combat data processing, and efficient asset management (e.g., removal of large unused terrain models).
 - **3D Model System**: Comprehensive system for units, cities, villages, and resources with automatic grounding, ownership-based material effects, status indicators, and health bars.
+- **Error Handling**: GLTFErrorBoundary prevents crashes from missing/invalid 3D models by rendering fallback geometries. Uses resetKey prop for recovery when model paths change. Note: Does not auto-retry transient failures on the same model path (future enhancement).
 - **Core Game Systems**:
     - **Combat**: Advanced calculations with unit-specific bonuses, formation tactics, terrain modifiers, faith/pride bonuses, siege warfare, and ranged bombardment.
     - **Resource Management**: Scripture-themed unified world elements (Grain Patch, Wild Goats, Timber Grove, Ore Vein) with moral choices (Faith/Pride/Dissent).
