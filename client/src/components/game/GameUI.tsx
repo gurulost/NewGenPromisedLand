@@ -7,7 +7,7 @@ import { getFaction } from "@shared/data/factions";
 import { PlayerHUD } from "../hud/PlayerHUD";
 import SelectedUnitPanel from "../ui/SelectedUnitPanel";
 import UnitActionsPanel from "../ui/AbilitiesPanel";
-import { TechPanel } from "../tech/TechPanel";
+import { TechPanel } from "../ui/TechPanel";
 import { CityPanel } from "../city/CityPanel";
 import { BuildingMenu } from "../ui/BuildingMenu";
 import VictoryScreen from "../ui/VictoryScreen";

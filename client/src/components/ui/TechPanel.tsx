@@ -37,7 +37,7 @@ const TECH_POSITIONS: Record<string, { x: number; y: number; tier: number }> = {
 
 type TechStatus = 'researched' | 'available' | 'locked' | 'researching';
 
-export default function TechPanel({ isOpen, open, onClose, onResearchComplete }: TechPanelProps) {
+export function TechPanel({ isOpen, open, onClose, onResearchComplete }: TechPanelProps) {
   const { gameState, dispatch } = useLocalGame();
   const [selectedTech, setSelectedTech] = useState<string | null>(null);
   const [hoveredTech, setHoveredTech] = useState<string | null>(null);

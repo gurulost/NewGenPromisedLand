@@ -20,6 +20,23 @@ vi.mock('../client/src/components/ui/TooltipSystem', () => ({
   ActionTooltip: ({ title }: any) => <div>{title}</div>
 }));
 
+// Mock ToastProvider
+vi.mock('../client/src/components/ui/ToastProvider', () => ({
+  ToastProvider: ({ children }: any) => children,
+  useToastContext: () => ({
+    showToast: vi.fn()
+  })
+}));
+
+// Mock useGameAudio
+vi.mock('../client/src/hooks/useAudioIntegration', () => ({
+  useGameAudio: () => ({
+    playSound: vi.fn(),
+    playMusic: vi.fn(),
+    stopMusic: vi.fn()
+  })
+}));
+
 // Mock game store
 const mockDispatch = vi.fn();
 vi.mock('../client/src/lib/stores/useLocalGame', () => ({
