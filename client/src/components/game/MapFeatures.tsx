@@ -268,10 +268,14 @@ export default function MapFeatures() {
         unitVisibleTiles.forEach((tileKey: string) => visible.add(tileKey));
       });
     
-    // Filter cities that are currently visible only (not just explored)
+    // Filter cities that have been discovered by the current player
+    // Note: Owned cities are always visible, discovered cities only if tile is explored
     const cities = gameState.cities?.filter(city => {
+      const isOwned = city.ownerId === currentPlayer.id;
       const cityKey = `${city.coordinate.q},${city.coordinate.r}`;
-      return visible.has(cityKey); // Only currently visible, not explored
+      const isDiscovered = (city.discoveredBy || []).includes(currentPlayer.id);
+      const isTileExplored = explored.has(cityKey);
+      return isOwned || (isDiscovered && isTileExplored);
     }) || [];
     
     // Filter improvements that are currently visible only (not just explored)

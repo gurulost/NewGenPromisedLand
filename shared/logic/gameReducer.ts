@@ -756,10 +756,23 @@ function handleMoveUnit(
     return tile;
   });
 
+  // Update discovered cities - mark cities in visible tiles as discovered
+  const updatedCities = (state.cities || []).map(city => {
+    const cityKey = `${city.coordinate.q},${city.coordinate.r}`;
+    if (visibleTiles.includes(cityKey)) {
+      return {
+        ...city,
+        discoveredBy: Array.from(new Set([...(city.discoveredBy || []), currentPlayer.id]))
+      };
+    }
+    return city;
+  });
+
   let newState = {
     ...state,
     units: updatedUnits,
     players: updatedPlayers,
+    cities: updatedCities,
     map: {
       ...state.map,
       tiles: updatedTiles

@@ -75,6 +75,7 @@ export const CitySchema = z.object({
     totalCost: z.number()
   }).optional(), // What the city is currently producing
   harvestedResources: z.array(z.string()).default([]), // Resource tile IDs already harvested
+  discoveredBy: z.array(z.string()).default([]) // Track which players have seen this city
 });
 
 export type City = z.infer<typeof CitySchema>;
