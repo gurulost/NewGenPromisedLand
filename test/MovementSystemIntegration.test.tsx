@@ -14,6 +14,24 @@ vi.mock('../client/src/lib/stores/useGameState');
 vi.mock('../client/src/lib/stores/useLocalGame');
 vi.mock('../client/src/hooks/usePathfindingWorker');
 
+// Mock ToastProvider
+vi.mock('../client/src/components/ui/ToastProvider', () => ({
+  ToastProvider: ({ children }: any) => children,
+  useToastContext: () => ({
+    showToast: vi.fn()
+  })
+}));
+
+// Mock useGameAudio with correct API
+vi.mock('../client/src/hooks/useAudioIntegration', () => ({
+  useGameAudio: () => ({
+    onUnitSelect: vi.fn(),
+    onUnitMove: vi.fn(),
+    onUnitAttack: vi.fn(),
+    onButtonClick: vi.fn()
+  })
+}));
+
 describe('Movement System Integration Tests', () => {
   let mockGameState: GameState;
   let mockUnit: UnitType;

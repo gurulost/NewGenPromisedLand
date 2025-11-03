@@ -44,6 +44,24 @@ vi.mock('../client/src/components/ui/EnhancedButton', () => ({
   )
 }));
 
+vi.mock('../client/src/components/ui/ToastProvider', () => ({
+  ToastProvider: ({ children }: any) => children,
+  useToastContext: () => ({
+    showToast: vi.fn()
+  })
+}));
+
+vi.mock('../client/src/hooks/useAudioIntegration', () => ({
+  useGameAudio: () => ({
+    onButtonClick: vi.fn(),
+    onButtonHover: vi.fn(),
+    onBuildingBuilt: vi.fn(),
+    onError: vi.fn(),
+    onPanelOpen: vi.fn(),
+    onPanelClose: vi.fn()
+  })
+}));
+
 describe('Construction Hall End-to-End Tests', () => {
   describe('Complete User Workflows', () => {
     it('completes full building selection and construction workflow', async () => {
@@ -99,7 +117,7 @@ describe('Construction Hall End-to-End Tests', () => {
 
       // Verify Construction Hall opens with proper structure
       expect(screen.getByText('Construction Hall')).toBeInTheDocument();
-      expect(screen.getByText('Test City - Build your empire')).toBeInTheDocument();
+      expect(screen.getByText('Test City — Build in the Promised Land')).toBeInTheDocument();
       expect(screen.getByTestId('animated-background')).toBeInTheDocument();
 
       // Check resource display
@@ -394,7 +412,7 @@ describe('Construction Hall End-to-End Tests', () => {
       );
 
       // Verify realistic data is displayed correctly
-      expect(screen.getByText('Zarahemla - Build your empire')).toBeInTheDocument();
+      expect(screen.getByText('Zarahemla — Build in the Promised Land')).toBeInTheDocument();
       expect(screen.getByText('75')).toBeInTheDocument(); // Stars
       expect(screen.getByText('40')).toBeInTheDocument(); // Faith
       expect(screen.getByText('25')).toBeInTheDocument(); // Pride

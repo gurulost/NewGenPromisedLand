@@ -28,6 +28,27 @@ Object.defineProperty(window, 'localStorage', {
   value: localStorageMock
 });
 
+// Mock ToastProvider
+vi.mock('../client/src/components/ui/ToastProvider', () => ({
+  ToastProvider: ({ children }: any) => children,
+  useToastContext: () => ({
+    showToast: vi.fn()
+  })
+}));
+
+// Mock useGameAudio with correct API and useAudioIntegration
+vi.mock('../client/src/hooks/useAudioIntegration', () => ({
+  useGameAudio: () => ({
+    onButtonClick: vi.fn(),
+    onButtonHover: vi.fn(),
+    onPanelOpen: vi.fn(),
+    onPanelClose: vi.fn()
+  }),
+  useAudioIntegration: () => ({
+    playSfx: vi.fn()
+  })
+}));
+
 describe('SaveLoadMenu', () => {
   const mockGameState: GameState = {
     id: 'test-game',
