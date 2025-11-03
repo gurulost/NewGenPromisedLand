@@ -32,7 +32,11 @@ Object.defineProperty(window, 'localStorage', {
 vi.mock('../client/src/components/ui/ToastProvider', () => ({
   ToastProvider: ({ children }: any) => children,
   useToastContext: () => ({
-    showToast: vi.fn()
+    info: vi.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    removeToast: vi.fn()
   })
 }));
 

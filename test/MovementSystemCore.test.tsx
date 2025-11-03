@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/react';
 import { useGameState } from '../client/src/lib/stores/useGameState';
+import { useLocalGame } from '../client/src/lib/stores/useLocalGame';
 import SelectedUnitPanel from '../client/src/components/ui/SelectedUnitPanel';
 import type { Unit } from '../shared/types/unit';
 import type { GameState } from '../shared/types/game';
@@ -111,12 +112,12 @@ describe('Movement System Core Logic Tests', () => {
     });
 
     // Mock useLocalGame
-    const mockUseLocalGame = require('../client/src/lib/stores/useLocalGame');
-    vi.mocked(mockUseLocalGame.useLocalGame).mockReturnValue({
+    vi.mocked(useLocalGame).mockReturnValue({
       gameState: mockGameState,
       moveUnit: vi.fn(),
-      dispatch: vi.fn()
-    });
+      dispatch: vi.fn(),
+      setGameState: vi.fn()
+    } as any);
   });
 
   describe('Movement Mode State Management', () => {
