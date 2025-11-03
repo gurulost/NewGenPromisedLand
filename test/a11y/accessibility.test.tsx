@@ -1,55 +1,68 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
-import { axe, toHaveNoViolations } from 'jest-axe';
-import { PlayerHUD } from '../../client/src/components/ui/PlayerHUD';
+import { axe } from 'vitest-axe';
+import { toHaveNoViolations } from 'vitest-axe/matchers';
+import { PlayerHUD } from '../../client/src/components/hud/PlayerHUD';
 import { CityPanel } from '../../client/src/components/city/CityPanel';
-import { TechPanel } from '../../client/src/components/ui/TechPanel';
-import { CombatPanel } from '../../client/src/components/ui/CombatPanel';
+import { TechPanel } from '../../client/src/components/tech/TechPanel';
+import { CombatPanel } from '../../client/src/components/combat/CombatPanel';
 
-// Extend Jest matchers
-expect.extend(toHaveNoViolations);
+// Extend Vitest matchers
+expect.extend({ toHaveNoViolations });
 
 // Mock data for components
+const mockPlayer = {
+  id: 'player1',
+  name: 'Test Player',
+  factionId: 'nephites',
+  isAI: false,
+  stars: 25,
+  stats: { faith: 8, pride: 3, internalDissent: 2 },
+  modifiers: [],
+  researchedTechs: ['organization'],
+  researchInspiration: 0,
+  citiesOwned: ['city1'],
+  constructionQueue: [],
+  visibilityMask: [],
+  exploredTiles: [],
+  isEliminated: false,
+  turnOrder: 0,
+  abilityCooldowns: {}
+};
+
 const mockGameState = {
-  players: [{
-    id: 'player1',
-    name: 'Test Player',
-    faction: 'nephites',
-    stars: 25,
-    faith: 8,
-    pride: 3,
-    dissent: 2,
-    population: 12,
-    cities: [],
-    technologies: ['organization']
+  id: 'test-game',
+  players: [mockPlayer],
+  currentPlayerIndex: 0,
+  turn: 1,
+  phase: 'playing' as const,
+  map: { tiles: [], width: 10, height: 10 },
+  units: [],
+  cities: [{
+    id: 'city1',
+    name: 'Test City',
+    ownerId: 'player1',
+    coordinate: { q: 0, r: 0, s: 0 },
+    population: 5,
+    maxPopulation: 10,
+    level: 1,
+    productionQueue: [],
+    discoveredBy: ['player1']
   }],
-  currentPlayerId: 'player1'
+  improvements: [],
+  structures: []
 };
 
-const mockCity = {
-  id: 'city1',
-  name: 'Test City',
-  ownerId: 'player1',
-  coordinate: { q: 0, r: 0, s: 0 },
-  population: 5,
-  structures: [],
-  improvements: []
-};
-
-const mockUnit = {
-  id: 'unit1',
-  type: 'warrior',
-  ownerId: 'player1',
-  coordinate: { q: 0, r: 0, s: 0 },
-  health: 10,
-  maxHealth: 10,
-  attackRange: 1
-};
-
-describe('Accessibility Tests (jest-axe)', () => {
+describe('Accessibility Tests (vitest-axe)', () => {
   it('PlayerHUD has no WCAG violations', async () => {
     const { container } = render(
-      <PlayerHUD gameState={mockGameState} playerId="player1" />
+      <PlayerHUD 
+        player={mockPlayer}
+        gameState={mockGameState}
+        onShowTechPanel={() => {}}
+        onShowConstructionHall={() => {}}
+        onEndTurn={() => {}}
+      />
     );
     
     const results = await axe(container);
@@ -59,10 +72,11 @@ describe('Accessibility Tests (jest-axe)', () => {
   it('CityPanel has no WCAG violations', async () => {
     const { container } = render(
       <CityPanel 
-        city={mockCity}
+        isOpen
+        city={mockGameState.cities[0]}
         gameState={mockGameState}
+        currentPlayer={mockPlayer}
         onClose={() => {}}
-        onAction={() => {}}
       />
     );
     
