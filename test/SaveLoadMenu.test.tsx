@@ -28,6 +28,23 @@ Object.defineProperty(window, 'localStorage', {
   value: localStorageMock
 });
 
+// Mock ToastProvider
+vi.mock('../client/src/components/ui/ToastProvider', () => ({
+  ToastProvider: ({ children }: any) => children,
+  useToastContext: () => ({
+    showToast: vi.fn()
+  })
+}));
+
+// Mock useGameAudio
+vi.mock('../client/src/hooks/useAudioIntegration', () => ({
+  useGameAudio: () => ({
+    playSound: vi.fn(),
+    playMusic: vi.fn(),
+    stopMusic: vi.fn()
+  })
+}));
+
 describe('SaveLoadMenu', () => {
   const mockGameState: GameState = {
     id: 'test-game',

@@ -41,6 +41,23 @@ vi.mock('../../client/src/selectors/combat', () => ({
   })
 }));
 
+// Mock ToastProvider
+vi.mock('../../client/src/components/ui/ToastProvider', () => ({
+  ToastProvider: ({ children }: any) => children,
+  useToastContext: () => ({
+    showToast: vi.fn()
+  })
+}));
+
+// Mock useGameAudio
+vi.mock('../../client/src/hooks/useAudioIntegration', () => ({
+  useGameAudio: () => ({
+    playSound: vi.fn(),
+    playMusic: vi.fn(),
+    stopMusic: vi.fn()
+  })
+}));
+
 describe('CombatPanel Unit Tests', () => {
   it('displays combat odds with correct color classes', () => {
     render(

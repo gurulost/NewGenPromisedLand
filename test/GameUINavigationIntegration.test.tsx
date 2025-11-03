@@ -64,6 +64,23 @@ vi.mock('../client/src/components/ui/AbilitiesPanel', () => ({
   AbilitiesPanel: () => <div data-testid="abilities-panel">Abilities Panel</div>
 }));
 
+// Mock ToastProvider
+vi.mock('../client/src/components/ui/ToastProvider', () => ({
+  ToastProvider: ({ children }: any) => children,
+  useToastContext: () => ({
+    showToast: vi.fn()
+  })
+}));
+
+// Mock useGameAudio
+vi.mock('../client/src/hooks/useAudioIntegration', () => ({
+  useGameAudio: () => ({
+    playSound: vi.fn(),
+    playMusic: vi.fn(),
+    stopMusic: vi.fn()
+  })
+}));
+
 describe('GameUI Navigation Integration Tests', () => {
   let mockGameState: GameState;
   let mockPlayer: PlayerState;
