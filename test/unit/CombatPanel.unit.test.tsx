@@ -49,12 +49,12 @@ vi.mock('../../client/src/components/ui/ToastProvider', () => ({
   })
 }));
 
-// Mock useGameAudio
+// Mock useGameAudio with correct API
 vi.mock('../../client/src/hooks/useAudioIntegration', () => ({
   useGameAudio: () => ({
-    playSound: vi.fn(),
-    playMusic: vi.fn(),
-    stopMusic: vi.fn()
+    onUnitAttack: vi.fn(),
+    onButtonClick: vi.fn(),
+    onButtonHover: vi.fn()
   })
 }));
 
