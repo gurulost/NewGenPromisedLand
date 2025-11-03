@@ -29,6 +29,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   
   // Clone and modify the scene for materials and status effects
   const clonedScene = useMemo(() => {
+    if (!scene) return null;
     const clone = scene.clone();
     
     // Get material enhancements from centralized system
@@ -99,11 +100,14 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   
   // Apply auto-grounding to the cloned scene
   const groundedScene = useMemo(() => {
+    if (!clonedScene) return null;
     const box = new THREE.Box3().setFromObject(clonedScene);
     const bottomShift = -box.min.y;
     clonedScene.position.set(0, bottomShift, 0);
     return clonedScene;
   }, [clonedScene]);
+  
+  if (!groundedScene) return null;
   
   return (
     <group position={[position.x, 0, position.y]}>
