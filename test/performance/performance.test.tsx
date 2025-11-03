@@ -256,29 +256,32 @@ describe('Performance Guardrails', () => {
       expect(mockDynamicImport).toHaveBeenCalledTimes(1);
     });
 
-    it('validates asset loading optimization', () => {
+    it('validates asset loading optimization', async () => {
       const loadTimes: number[] = [];
       
       const mockAssetLoader = (assetUrl: string) => {
-        const start = performance.now();
-        // Simulate asset loading
-        setTimeout(() => {
-          loadTimes.push(performance.now() - start);
-        }, Math.random() * 10);
+        return new Promise<void>((resolve) => {
+          const start = performance.now();
+          // Simulate asset loading
+          setTimeout(() => {
+            loadTimes.push(performance.now() - start);
+            resolve();
+          }, Math.random() * 10);
+        });
       };
       
       // Load multiple assets
-      ['texture1.jpg', 'model1.glb', 'sound1.mp3'].forEach(mockAssetLoader);
+      await Promise.all(
+        ['texture1.jpg', 'model1.glb', 'sound1.mp3'].map(mockAssetLoader)
+      );
       
       // All assets should load reasonably quickly
-      setTimeout(() => {
-        expect(loadTimes.every(time => time < 100)).toBe(true);
-      }, 50);
+      expect(loadTimes.every(time => time < 100)).toBe(true);
     });
   });
 
   describe('Animation Performance', () => {
-    it('validates 60fps animation capability', () => {
+    it('validates 60fps animation capability', async () => {
       let frameCount = 0;
       const targetFPS = 60;
       const duration = 1000; // 1 second
@@ -288,29 +291,40 @@ describe('Performance Guardrails', () => {
         
         React.useEffect(() => {
           const startTime = performance.now();
+          let animationFrameId: number;
           
           const animate = () => {
             frameCount++;
             setFrame(prev => prev + 1);
             
             if (performance.now() - startTime < duration) {
-              requestAnimationFrame(animate);
+              animationFrameId = requestAnimationFrame(animate);
             }
           };
           
-          requestAnimationFrame(animate);
+          animationFrameId = requestAnimationFrame(animate);
+          
+          return () => {
+            if (animationFrameId) {
+              cancelAnimationFrame(animationFrameId);
+            }
+          };
         }, []);
         
         return <div style={{ transform: `translateX(${frame}px)` }}>Animated</div>;
       };
       
-      render(<AnimatedComponent />);
+      const { unmount } = render(<AnimatedComponent />);
       
       // After animation, check frame rate
-      setTimeout(() => {
-        const actualFPS = frameCount / (duration / 1000);
-        expect(actualFPS).toBeGreaterThan(targetFPS * 0.9); // Allow 10% tolerance
-      }, duration + 100);
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          const actualFPS = frameCount / (duration / 1000);
+          expect(actualFPS).toBeGreaterThan(targetFPS * 0.9); // Allow 10% tolerance
+          unmount();
+          resolve();
+        }, duration + 100);
+      });
     });
 
     it('validates reduced motion compliance', () => {
