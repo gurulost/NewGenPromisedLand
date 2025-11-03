@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { CombatPanel } from '../../client/src/components/ui/CombatPanel';
+import CombatPanel from '../../client/src/components/ui/CombatPanel';
 
 const mockSelectedUnit = {
   id: 'unit1',
