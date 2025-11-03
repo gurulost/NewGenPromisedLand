@@ -135,6 +135,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         improvements: [],
         structures: [],
         harvestedResources: [], // Track harvested resource tiles
+        discoveredBy: [player.id], // Owner automatically discovers their own city
       };
     });
     
