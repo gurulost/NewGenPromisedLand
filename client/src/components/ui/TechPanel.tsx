@@ -9,6 +9,7 @@ import { TECHNOLOGIES, getAvailableTechnologies, calculateResearchCost, type Tec
 import { Star, Book, Swords, Church, Map, Lock, CheckCircle, Clock, Sparkles } from "lucide-react";
 import { InfoTooltip, TechnologyTooltip, ActionTooltip } from './TooltipSystem';
 import { useToastContext } from "./ToastProvider";
+import { PanelShell } from "../primitives/PanelShell";
 
 interface TechPanelProps {
   isOpen?: boolean;
