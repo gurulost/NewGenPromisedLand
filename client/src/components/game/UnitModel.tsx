@@ -5,6 +5,7 @@ import type { Unit } from '@shared/types/unit';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
 import { getUnitModelPath, getUnitModelScale, getUnitMaterialEnhancements } from '../../utils/modelManager';
 import { GroundedModel } from './GroundedModel';
+import { GLTFErrorBoundary } from './GLTFErrorBoundary';
 
 interface UnitModelProps {
   unit: Unit;
@@ -12,7 +13,24 @@ interface UnitModelProps {
   isPlayerUnit: boolean;
 }
 
-export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
+// Fallback component when model fails to load
+function UnitFallback({ position, isPlayerUnit }: { position: { x: number; y: number }, isPlayerUnit: boolean }) {
+  return (
+    <group position={[position.x, 0, position.y]}>
+      <mesh position={[0, 0.25, 0]}>
+        <boxGeometry args={[0.5, 0.5, 0.5]} />
+        <meshStandardMaterial 
+          color={isPlayerUnit ? "#00AA00" : "#AA0000"}
+          metalness={0.3}
+          roughness={0.7}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+// Main component wrapped with error handling
+function UnitModelInner({ unit, position, isPlayerUnit }: UnitModelProps) {
   const { gameState } = useLocalGame();
   
   // Get the player's faction to determine which model variant to use
@@ -20,7 +38,14 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   const playerFaction = player?.factionId;
 
   const modelPath = getUnitModelPath(unit.type, playerFaction);
-  const { scene } = useGLTF(modelPath);
+  const gltf = useGLTF(modelPath);
+  const scene = gltf?.scene;
+  
+  // Return fallback if scene failed to load
+  if (!scene) {
+    console.warn(`Unit model scene is null for path: ${modelPath}`);
+    return <UnitFallback position={position} isPlayerUnit={isPlayerUnit} />;
+  }
   
   // Use centralized scaling system from modelManager
   const unitScale = useMemo(() => {
@@ -107,7 +132,9 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     return clonedScene;
   }, [clonedScene]);
   
-  if (!groundedScene) return null;
+  if (!groundedScene) {
+    return <UnitFallback position={position} isPlayerUnit={isPlayerUnit} />;
+  }
   
   return (
     <group position={[position.x, 0, position.y]}>
@@ -159,6 +186,25 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
         </mesh>
       )}
     </group>
+  );
+}
+
+// Export wrapped component with error boundary
+export function UnitModel(props: UnitModelProps) {
+  // Calculate the actual model path for key - ensures ErrorBoundary remounts on any path change
+  const { gameState } = useLocalGame();
+  const player = gameState?.players.find(p => p.id === props.unit.playerId);
+  const playerFaction = player?.factionId;
+  const modelPath = getUnitModelPath(props.unit.type, playerFaction);
+  
+  return (
+    <GLTFErrorBoundary 
+      key={modelPath}
+      resetKey={modelPath}
+      fallback={<UnitFallback position={props.position} isPlayerUnit={props.isPlayerUnit} />}
+    >
+      <UnitModelInner {...props} />
+    </GLTFErrorBoundary>
   );
 }
 
