@@ -19,10 +19,18 @@ interface CityPanelProps {
 }
 
 export function CityPanel({ isOpen, onClose, city, gameState, currentPlayer }: CityPanelProps) {
+  // Calculate whether to hide panel (maintain stable hook order)
+  const shouldHide = !isOpen || !city;
+  
   const cityValidation = useMemo(() => 
-    getCityValidation(city, currentPlayer, gameState),
-    [city, currentPlayer, gameState]
+    shouldHide ? null : getCityValidation(city, currentPlayer, gameState),
+    [city, currentPlayer, gameState, shouldHide]
   );
+
+  // Return null after hooks to maintain Rules of Hooks
+  if (shouldHide) {
+    return null;
+  }
 
   return (
     <PanelShell 

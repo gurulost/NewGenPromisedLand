@@ -19,6 +19,25 @@ const mockGameState = {
   }]
 };
 
+// Mock ToastProvider
+vi.mock('../../client/src/components/ui/ToastProvider', () => ({
+  ToastProvider: ({ children }: any) => children,
+  useToastContext: () => ({
+    showToast: vi.fn()
+  })
+}));
+
+// Mock useGameAudio
+vi.mock('../../client/src/hooks/useAudioIntegration', () => ({
+  useGameAudio: () => ({
+    onTechResearch: vi.fn(),
+    onButtonClick: vi.fn(),
+    onButtonHover: vi.fn(),
+    onPanelOpen: vi.fn(),
+    onPanelClose: vi.fn()
+  })
+}));
+
 describe('TechPanel Unit Tests', () => {
   it('snapshots tech tree with different status pillars', () => {
     const component = render(

@@ -55,12 +55,15 @@ vi.mock('../client/src/components/ui/ToastProvider', () => ({
   })
 }));
 
-// Mock useGameAudio
+// Mock useGameAudio with correct API
 vi.mock('../client/src/hooks/useAudioIntegration', () => ({
   useGameAudio: () => ({
-    playSound: vi.fn(),
-    playMusic: vi.fn(),
-    stopMusic: vi.fn()
+    onButtonClick: vi.fn(),
+    onButtonHover: vi.fn(),
+    onBuildingBuilt: vi.fn(),
+    onError: vi.fn(),
+    onPanelOpen: vi.fn(),
+    onPanelClose: vi.fn()
   })
 }));
 
@@ -134,7 +137,7 @@ describe('BuildingMenu Component', () => {
     );
 
     expect(screen.getByText('Construction Hall')).toBeInTheDocument();
-    expect(screen.getByText('Test City - Build your empire')).toBeInTheDocument();
+    expect(screen.getByText('Test City — Build in the Promised Land')).toBeInTheDocument();
     expect(screen.getByTestId('animated-background')).toBeInTheDocument();
   });
 

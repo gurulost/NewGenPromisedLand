@@ -80,7 +80,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
   const breakdown: Array<{source: string, amount: number}> = [];
   
   // Cities
-  const cityStarProduction = playerCityObjects.reduce((sum, city) => sum + city.starProduction, 0);
+  const cityStarProduction = playerCityObjects.reduce((sum, city) => sum + (city.starProduction || 0), 0);
   totalStarProduction += cityStarProduction;
   if (playerCityObjects.length > 0) {
     breakdown.push({ source: `Cities (${playerCityObjects.length})`, amount: cityStarProduction });
