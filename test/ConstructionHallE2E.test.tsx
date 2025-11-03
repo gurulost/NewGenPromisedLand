@@ -44,6 +44,21 @@ vi.mock('../client/src/components/ui/EnhancedButton', () => ({
   )
 }));
 
+vi.mock('../client/src/components/ui/ToastProvider', () => ({
+  ToastProvider: ({ children }: any) => children,
+  useToastContext: () => ({
+    showToast: vi.fn()
+  })
+}));
+
+vi.mock('../client/src/hooks/useAudioIntegration', () => ({
+  useGameAudio: () => ({
+    playSound: vi.fn(),
+    playMusic: vi.fn(),
+    stopMusic: vi.fn()
+  })
+}));
+
 describe('Construction Hall End-to-End Tests', () => {
   describe('Complete User Workflows', () => {
     it('completes full building selection and construction workflow', async () => {
