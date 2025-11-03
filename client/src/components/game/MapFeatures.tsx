@@ -278,10 +278,12 @@ export default function MapFeatures() {
       return isOwned || (isDiscovered && isTileExplored);
     }) || [];
     
-    // Filter improvements that are currently visible only (not just explored)
+    // Filter improvements - owned improvements always visible, others only on explored tiles
     const improvements = gameState.improvements?.filter(improvement => {
+      const isOwned = improvement.ownerId === currentPlayer.id;
       const impKey = `${improvement.coordinate.q},${improvement.coordinate.r}`;
-      return visible.has(impKey); // Only currently visible, not explored
+      const isTileExplored = explored.has(impKey);
+      return isOwned || isTileExplored;
     }) || [];
     
     // Filter structures in visible cities
