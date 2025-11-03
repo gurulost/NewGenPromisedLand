@@ -27,7 +27,7 @@ const abilityMap: Record<string, AbilityDefinition> = {
   TITLE_OF_LIBERTY: {
     id: 'TITLE_OF_LIBERTY',
     name: 'Title of Liberty',
-    description: 'Raise Captain Moroni's banner to embolden allied units near your cities, granting them fortified strength for three turns.',
+    description: 'Raise Captain Moroni\'s banner to embolden allied units near your cities, granting them fortified strength for three turns.',
     type: 'faction',
     effect: 'TITLE_OF_LIBERTY',
     duration: 3,
@@ -303,7 +303,7 @@ const abilityMap: Record<string, AbilityDefinition> = {
   FAITHFUL_DEFENSE: {
     id: 'FAITHFUL_DEFENSE',
     name: 'Faithful Defense',
-    description: 'Defense scales with the controlling player's faith, reinforcing covenant troops.',
+    description: 'Defense scales with the controlling player\'s faith, reinforcing covenant troops.',
     type: 'unit',
     effect: 'FAITHFUL_DEFENSE',
     target: 'self',
