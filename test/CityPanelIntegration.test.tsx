@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CityPanel } from '../client/src/components/city/CityPanel';
+import { useLocalGame } from '../client/src/lib/stores/useLocalGame';
 import { GameState, PlayerState, City } from '../shared/types/game';
 
 // Mock the BuildingMenu component
@@ -296,10 +297,11 @@ describe('CityPanel Integration Tests', () => {
     };
 
     // Mock the game state to include enemy city
-    vi.mocked(require('../client/src/lib/stores/useLocalGame').useLocalGame).mockReturnValue({
+    vi.mocked(useLocalGame).mockReturnValue({
       gameState: gameStateWithEnemyCity,
-      dispatch: mockDispatch
-    });
+      dispatch: mockDispatch,
+      setGameState: vi.fn()
+    } as any);
 
     render(
       <CityPanel
@@ -318,10 +320,11 @@ describe('CityPanel Integration Tests', () => {
       structures: []
     };
 
-    vi.mocked(require('../client/src/lib/stores/useLocalGame').useLocalGame).mockReturnValue({
+    vi.mocked(useLocalGame).mockReturnValue({
       gameState: gameStateNoStructures,
-      dispatch: mockDispatch
-    });
+      dispatch: mockDispatch,
+      setGameState: vi.fn()
+    } as any);
 
     render(
       <CityPanel
@@ -340,10 +343,11 @@ describe('CityPanel Integration Tests', () => {
       units: []
     };
 
-    vi.mocked(require('../client/src/lib/stores/useLocalGame').useLocalGame).mockReturnValue({
+    vi.mocked(useLocalGame).mockReturnValue({
       gameState: gameStateNoUnits,
-      dispatch: mockDispatch
-    });
+      dispatch: mockDispatch,
+      setGameState: vi.fn()
+    } as any);
 
     render(
       <CityPanel
