@@ -33,6 +33,8 @@ export interface GameRules {
   research: {
     baseTechCost: number;
     costScalingFactor: number; // Multiplier for each additional tech researched
+    maxInspiration: number;
+    inspirationDecayPerTurn: number;
   };
 
   // City Management
@@ -134,6 +136,8 @@ export const GAME_RULES: GameRules = {
   research: {
     baseTechCost: 5,
     costScalingFactor: 1.2,
+    maxInspiration: 20,
+    inspirationDecayPerTurn: 1,
   },
 
   cities: {
@@ -256,6 +260,14 @@ export const GameRuleHelpers = {
    */
   calculateResearchCost: (baseCost: number, researchedCount: number): number => {
     return Math.floor(baseCost * Math.pow(GAME_RULES.research.costScalingFactor, researchedCount));
+  },
+
+  clampInspiration: (value: number): number => {
+    return Math.max(0, Math.min(GAME_RULES.research.maxInspiration, value));
+  },
+
+  applyInspirationDecay: (value: number): number => {
+    return Math.max(0, value - GAME_RULES.research.inspirationDecayPerTurn);
   },
 
   /**

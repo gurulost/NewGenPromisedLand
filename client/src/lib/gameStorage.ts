@@ -94,7 +94,6 @@ export async function saveGame(gameState: GameState): Promise<void> {
     };
     
     await updateGameIndex(metadata);
-    console.log('Game saved and compressed successfully:', gameState.id);
   } catch (error) {
     console.error('Failed to save game:', error);
     throw error;
@@ -181,8 +180,6 @@ export async function exportGameToFile(gameState: GameState, compressed = true):
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    
-    console.log(`Game exported successfully: ${fileName}`);
   } catch (error) {
     console.error('Failed to export game:', error);
     throw error;
@@ -225,8 +222,6 @@ export async function importGameFromFile(file: File): Promise<GameState | null> 
       
       throw new Error(`Invalid save file format: ${errorDetails}`);
     }
-
-    console.log('Game imported and validated successfully');
     return validation.data!;
     
   } catch (error) {
@@ -267,8 +262,6 @@ export async function deleteSavedGame(gameId: string): Promise<boolean> {
     
     // Remove from game index
     await removeFromGameIndex(gameId);
-    
-    console.log('Game deleted successfully:', gameId);
     return true;
   } catch (error) {
     console.error('Failed to delete saved game:', error);

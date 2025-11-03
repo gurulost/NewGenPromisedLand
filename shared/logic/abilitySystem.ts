@@ -4,6 +4,7 @@ import { HexCoordinate } from "../types/coordinates";
 import { hexDistance, hexNeighbors } from "../utils/hex";
 import { ABILITIES } from "../data/abilities";
 import { GAME_RULES } from "../data/gameRules";
+import { getFaction } from "../data/factions";
 
 /**
  * Ability System - Handles technology-unlocked abilities
@@ -156,45 +157,42 @@ export function executeConversion(
   // Conversion success based on relative faith and target's health
   const targetPlayer = state.players.find(p => p.id === target.playerId);
   const targetFaith = targetPlayer?.stats.faith || 0;
+  const hasResistance = targetPlayer
+    ? Boolean(getFaction(targetPlayer.factionId as any)?.abilities.some(ability => ability.id === 'FAITHFUL_RESISTANCE'))
+    : false;
   
-  const conversionChance = Math.min(0.9, 
+  const baseChance = Math.min(0.9, 
     (player.stats.faith - targetFaith + 50) / 100 * 
     (1 - target.hp / target.maxHp) // Wounded units easier to convert
   );
+  const conversionChance = Math.max(0.05, baseChance - (hasResistance ? 0.15 : 0));
 
   const success = Math.random() < conversionChance;
 
+  const adjustedState = state.players.map(p => 
+    p.id === player.id 
+      ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - faithCost) } }
+      : p
+  );
+
   if (!success) {
-    const newState = {
-      ...state,
-      players: state.players.map(p => 
-        p.id === player.id 
-          ? { ...p, stats: { ...p.stats, faith: p.stats.faith - faithCost } }
-          : p
-      )
-    };
-    
     return {
       success: false,
       message: "Conversion attempt failed",
-      newState,
+      newState: { ...state, players: adjustedState },
       resourceCost: { faith: faithCost }
     };
   }
 
   const newState = {
     ...state,
-    players: state.players.map(p => 
-      p.id === player.id 
-        ? { ...p, stats: { ...p.stats, faith: p.stats.faith - faithCost } }
-        : p
-    ),
+    players: adjustedState,
     units: state.units.map(unit => 
       unit.id === target.id 
         ? { 
             ...unit, 
             playerId: caster.playerId,
-            hp: Math.min(unit.maxHp, unit.hp + GAME_RULES.units.healingAmount) // Heal converted unit
+            hp: Math.min(unit.maxHp, unit.hp + GAME_RULES.units.healingAmount)
           }
         : unit
     )

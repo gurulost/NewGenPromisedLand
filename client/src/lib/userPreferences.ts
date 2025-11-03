@@ -75,7 +75,6 @@ export async function loadUserPreferences(): Promise<UserPreferences> {
     // First time or version mismatch - return defaults
     return DEFAULT_PREFERENCES;
   } catch (error) {
-    console.warn('Failed to load user preferences, using defaults:', error);
     return DEFAULT_PREFERENCES;
   }
 }

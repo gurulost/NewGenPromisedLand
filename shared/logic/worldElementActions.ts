@@ -9,6 +9,7 @@ import { getWorldElement, RUIN_REWARDS, RuinReward } from '../data/worldElements
 import { getUnitDefinition } from '../data/units';
 import { getAvailableTechnologies } from '../data/technologies';
 import type { UnitType } from '../types/unit';
+import { emitTelemetry } from './telemetry';
 
 export interface WorldElementActionResult {
   success: boolean;
@@ -62,7 +63,8 @@ export function executeElementHarvest(
   gameState: GameState,
   playerId: string,
   elementId: string,
-  coordinate: HexCoordinate
+  coordinate: HexCoordinate,
+  randomFn: () => number = Math.random
 ): WorldElementActionResult {
   const element = getWorldElement(elementId);
   if (!element || !element.immediateAction) {
@@ -113,7 +115,7 @@ export function executeElementHarvest(
 
   // Special handling for Jaredite Ruins
   if (elementId === 'jaredite_ruins') {
-    return executeRuinExploration(gameState, playerId, coordinate);
+    return executeRuinExploration(gameState, playerId, coordinate, randomFn);
   }
 
   // Find nearest city to receive population bonus
@@ -142,41 +144,51 @@ export function executeElementHarvest(
   }
 
   // Apply resource changes with bounds checking
-  const newState = {
-    ...gameState,
-    players: gameState.players.map(p => 
-      p.id === playerId 
-        ? { 
-            ...p, 
-            stars: Math.max(0, p.stars + action.starsDelta),
-            stats: {
-              ...p.stats,
-              faith: Math.min(100, Math.max(0, p.stats.faith + action.faithDelta)),
-              pride: Math.min(100, Math.max(0, p.stats.pride + action.prideDelta)),
-              internalDissent: Math.min(100, Math.max(0, p.stats.internalDissent + action.dissentDelta))
-            }
+  const updatedPlayers = gameState.players.map(p => 
+    p.id === playerId 
+      ? { 
+          ...p, 
+          stars: Math.max(0, p.stars + action.starsDelta),
+          stats: {
+            ...p.stats,
+            faith: Math.min(100, Math.max(0, p.stats.faith + action.faithDelta)),
+            pride: Math.min(100, Math.max(0, p.stats.pride + action.prideDelta)),
+            internalDissent: Math.min(100, Math.max(0, p.stats.internalDissent + action.dissentDelta))
           }
-        : p
-    ),
-    cities: gameState.cities?.map(city => 
-      city.id === closestCity?.id && action.popDelta > 0
-        ? { ...city, population: Math.min(20, city.population + action.popDelta) }
-        : city
-    ) || []
-  };
+        }
+      : p
+  );
+
+  const updatedCities = (gameState.cities || []).map(city => 
+    city.id === closestCity?.id && action.popDelta > 0
+      ? { ...city, population: Math.min(20, city.population + action.popDelta) }
+      : city
+  );
+
+  let updatedMap = gameState.map;
 
   // Transform tile if specified
   if (action.tileTransform) {
-    newState.map.tiles = newState.map.tiles.map(tile =>
-      tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
-        ? { 
-            ...tile, 
-            terrain: action.tileTransform as any, 
-            resources: [] // Remove the resource after harvesting
-          }
-        : tile
-    );
+    updatedMap = {
+      ...updatedMap,
+      tiles: updatedMap.tiles.map(tile =>
+        tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
+          ? { 
+              ...tile, 
+              terrain: action.tileTransform as any, 
+              resources: [] // Remove the resource after harvesting
+            }
+          : tile
+      ),
+    };
   }
+
+  const newState: GameState = {
+    ...gameState,
+    players: updatedPlayers,
+    cities: updatedCities,
+    map: updatedMap,
+  };
 
   return {
     success: true,
@@ -246,45 +258,53 @@ export function executeElementBuild(
   }
 
   // Apply costs and benefits
-  const newState = {
-    ...gameState,
-    players: gameState.players.map(p => 
-      p.id === playerId 
-        ? { 
-            ...p, 
-            stars: p.stars - build.costStars,
-            stats: {
-              ...p.stats,
-              faith: Math.min(100, Math.max(0, p.stats.faith + build.faithDelta)),
-              pride: Math.min(100, Math.max(0, p.stats.pride + build.prideDelta)),
-              internalDissent: Math.min(100, Math.max(0, p.stats.internalDissent + build.dissentDelta))
-            }
+  const updatedPlayers = gameState.players.map(p => 
+    p.id === playerId 
+      ? { 
+          ...p, 
+          stars: p.stars - build.costStars,
+          stats: {
+            ...p.stats,
+            faith: Math.min(100, Math.max(0, p.stats.faith + build.faithDelta)),
+            pride: Math.min(100, Math.max(0, p.stats.pride + build.prideDelta)),
+            internalDissent: Math.min(100, Math.max(0, p.stats.internalDissent + build.dissentDelta))
           }
-        : p
-    )
-  };
+        }
+      : p
+  );
 
-  // Add improvement to map (this will need to integrate with existing improvement system)
-  // For now, we'll transform the tile to indicate the improvement was built
-  newState.map.tiles = newState.map.tiles.map(tile =>
+  const updatedTiles = gameState.map.tiles.map(tile =>
     tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
       ? { 
           ...tile, 
-          resources: [`${elementId}_improved`] // Mark as improved
+          resources: [`${elementId}_improved`]
         }
       : tile
   );
 
+  const updatedState: GameState = {
+    ...gameState,
+    players: updatedPlayers,
+    map: {
+      ...gameState.map,
+      tiles: updatedTiles,
+    },
+  };
+
   return {
     success: true,
     message: `${build.name} constructed - ${getImpactMessage(build.prideDelta, build.faithDelta)}`,
-    newState,
+    newState: updatedState,
     resourceDeltas: {
       stars: -build.costStars,
       faith: build.faithDelta,
       pride: build.prideDelta,
       dissent: build.dissentDelta,
       population: build.effectPermanent.popDelta
+    },
+    effects: {
+      tileTransformed: true,
+      newTerrain: `${elementId}_improved`,
     }
   };
 }
@@ -295,13 +315,14 @@ export function executeElementBuild(
 function executeRuinExploration(
   gameState: GameState,
   playerId: string,
-  coordinate: HexCoordinate
+  coordinate: HexCoordinate,
+  randomFn: () => number
 ): WorldElementActionResult {
   // Always grant +1 Faith for exploring sacred history
   const faithGain = 1;
   
   // Random reward selection
-  const rewardIndex = Math.floor(Math.random() * RUIN_REWARDS.length);
+  const rewardIndex = Math.floor(randomFn() * RUIN_REWARDS.length);
   const reward = RUIN_REWARDS[rewardIndex];
   
   let starGain = 0;
@@ -314,6 +335,8 @@ function executeRuinExploration(
   let revealedCapitalId: string | undefined;
 
   // Apply specific reward
+  let nextState = gameState;
+
   switch (reward.type) {
     case 'stars':
       starGain = reward.value || 15;
@@ -329,65 +352,71 @@ function executeRuinExploration(
       const availableTechs = getAvailableTechnologies(player.researchedTechs);
       
       if (availableTechs.length > 0) {
-        const randomTech = availableTechs[Math.floor(Math.random() * availableTechs.length)];
+        const randomTech = availableTechs[Math.floor(randomFn() * availableTechs.length)];
         message += ` and discovered a ${randomTech.name} technology scroll!`;
         
-        // Update gameState to grant the technology
-        gameState = {
-          ...gameState,
-          players: gameState.players.map(p => 
+        nextState = {
+          ...nextState,
+          players: nextState.players.map(p => 
             p.id === playerId 
               ? { ...p, researchedTechs: [...p.researchedTechs, randomTech.id] }
               : p
           )
         };
         
-        // Store the granted technology for effects
         grantedTechId = randomTech.id;
+        emitTelemetry({
+          channel: 'technology',
+          status: 'success',
+          playerId,
+          technologyId: randomTech.id,
+          reason: 'ruin_reward',
+          metadata: { source: 'jaredite_ruins' },
+        });
       } else {
         message += ` and discovered ancient knowledge, but no new technologies could be learned.`;
+        emitTelemetry({
+          channel: 'technology',
+          status: 'info',
+          playerId,
+          reason: 'ruin_reward_unavailable',
+          metadata: { source: 'jaredite_ruins' },
+        });
       }
       break;
     }
     case 'unit': {
       message += ` and awakened a Title of Liberty Giant!`;
       
-      // Generate unique ID for the giant unit
-      const unitId = `unit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Get unit definition for spearman as base
+      const unitId = `unit_${Date.now()}_${Math.floor(randomFn() * 1_000_000).toString(36)}`;
       const unitDef = getUnitDefinition('spearman');
-      
-      // Create a giant unit at the ruin location with all required properties
       const giantUnit = {
         id: unitId,
         type: 'spearman' as UnitType,
-        playerId: playerId,
-        coordinate: coordinate,
+        playerId,
+        coordinate,
         hp: unitDef.baseStats.hp,
         maxHp: unitDef.baseStats.hp,
-        attack: unitDef.baseStats.attack + 5, // Giant bonus
-        defense: unitDef.baseStats.defense + 3, // Giant bonus
+        attack: unitDef.baseStats.attack + 5,
+        defense: unitDef.baseStats.defense + 3,
         movement: unitDef.baseStats.movement,
         remainingMovement: unitDef.baseStats.movement,
         status: 'active' as const,
         rallyBuff: false,
         tacticalCommand: false,
         abilities: [...unitDef.abilities],
-        level: 2, // Giants start at higher level
+        level: 2,
         experience: 0,
         visionRadius: unitDef.baseStats.visionRadius,
         attackRange: unitDef.baseStats.attackRange,
-        hasAttacked: false
+        hasAttacked: false,
       };
       
-      // Add the giant to the game state
-      gameState = {
-        ...gameState,
-        units: [...gameState.units, giantUnit]
+      nextState = {
+        ...nextState,
+        units: [...nextState.units, giantUnit],
       };
       
-      // Store the created unit ID for effects
       createdUnitId = unitId;
       break;
     }
@@ -430,11 +459,11 @@ function executeRuinExploration(
         }
         
         // Mark the capital tile as explored for this player (avoid duplicates)
-        gameState = {
-          ...gameState,
+        nextState = {
+          ...nextState,
           map: {
-            ...gameState.map,
-            tiles: gameState.map.tiles.map(tile =>
+            ...nextState.map,
+            tiles: nextState.map.tiles.map(tile =>
               tile.coordinate.q === nearestCapital.coordinate.q && 
               tile.coordinate.r === nearestCapital.coordinate.r && 
               !tile.exploredBy.includes(playerId)
@@ -458,8 +487,8 @@ function executeRuinExploration(
 
   // Apply population gain to nearest city if any
   if (popGain > 0) {
-    const player = gameState.players.find(p => p.id === playerId)!;
-    const playerCities = gameState.cities?.filter(city => 
+    const player = nextState.players.find(p => p.id === playerId)!;
+    const playerCities = nextState.cities?.filter(city => 
       player.citiesOwned.includes(city.id)
     ) || [];
     
@@ -483,9 +512,9 @@ function executeRuinExploration(
       }
       
       // Apply population gain to nearest city
-      gameState = {
-        ...gameState,
-        cities: gameState.cities?.map(city => 
+      nextState = {
+        ...nextState,
+        cities: nextState.cities?.map(city => 
           city.id === closestCity.id
             ? { ...city, population: Math.min(city.maxPopulation || 20, city.population + popGain) }
             : city
@@ -496,8 +525,8 @@ function executeRuinExploration(
 
   // Apply base star and faith gains from the exploration
   const newState = {
-    ...gameState,
-    players: gameState.players.map(p => 
+    ...nextState,
+    players: nextState.players.map(p => 
       p.id === playerId 
         ? { 
             ...p, 
@@ -512,11 +541,14 @@ function executeRuinExploration(
   };
 
   // Remove the ruin after exploration and transform terrain to plains
-  newState.map.tiles = newState.map.tiles.map(tile =>
-    tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
-      ? { ...tile, resources: [], terrain: 'plains' }
-      : tile
-  );
+  newState.map = {
+    ...newState.map,
+    tiles: newState.map.tiles.map(tile =>
+      tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
+        ? { ...tile, resources: [], terrain: 'plains' }
+        : tile
+    ),
+  };
 
   return {
     success: true,

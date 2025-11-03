@@ -38,7 +38,7 @@ export type UnitStatus = z.infer<typeof UnitStatusSchema>;
 
 const UnitTemporaryEffectSchema = z.object({
   id: z.string(),
-  type: z.enum(['status_immunity', 'attack_buff']),
+  type: z.enum(['status_immunity', 'attack_buff', 'defense_buff', 'movement_buff']),
   amount: z.number().optional(),
   turnsRemaining: z.number(),
   source: z.string().optional(),

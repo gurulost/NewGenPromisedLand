@@ -61,7 +61,6 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
               loadedSaves.push(save);
             }
           } catch (error) {
-            console.warn(`Failed to load save ${saveId}:`, error);
           }
         }
       }
@@ -255,7 +254,8 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
           <h2 id="save-system-title" className="text-xl font-bold text-white font-cinzel">Save & Load Game</h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors"
+            aria-label="Close save system"
+            className="text-slate-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded-full"
           >
             ✕
           </button>
@@ -326,7 +326,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
                 No saved games found
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3 max-h-96 md:max-h-[28rem] overflow-y-auto">
                 <AnimatePresence>
                   {saves.map((save) => (
                     <SaveSlotCard
