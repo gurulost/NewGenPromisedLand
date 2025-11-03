@@ -85,7 +85,7 @@ export function CityPanel({ isOpen, onClose, city, gameState, currentPlayer }: C
           <Tabs.Content value="structures" className="space-y-4">
             <CityStructuresTab 
               city={city} 
-              cityValidation={cityValidation}
+              cityValidation={cityValidation!}
               currentPlayer={currentPlayer}
             />
           </Tabs.Content>
@@ -93,7 +93,7 @@ export function CityPanel({ isOpen, onClose, city, gameState, currentPlayer }: C
           <Tabs.Content value="military" className="space-y-4">
             <CityMilitaryTab 
               city={city}
-              cityValidation={cityValidation}
+              cityValidation={cityValidation!}
               currentPlayer={currentPlayer}
             />
           </Tabs.Content>
