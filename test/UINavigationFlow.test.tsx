@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import GameUI from '../client/src/components/game/GameUI';
 import PlayerHUD from '../client/src/components/ui/PlayerHUD';
 import { BuildingMenu } from '../client/src/components/ui/BuildingMenu';
-import CityPanel from '../client/src/components/ui/CityPanel';
+import { CityPanel } from '../client/src/components/city/CityPanel';
 import { useLocalGame } from '../client/src/lib/stores/useLocalGame';
 import { useGameState } from '../client/src/lib/stores/useGameState';
 import type { GameState, PlayerState, City } from '../shared/types/game';
