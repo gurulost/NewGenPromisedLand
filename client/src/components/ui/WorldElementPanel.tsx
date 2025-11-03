@@ -29,6 +29,7 @@ type DeltaType = 'stars' | 'faith' | 'pride' | 'dissent' | 'population' | 'costS
 const ResourceDeltaBadge = React.memo(({ value, type, label }: DeltaProps) => {
   if (value === 0 && type !== 'costStars') return null;
   const t = TOKENS[type];
+  if (!t) return null; // Handle missing token types gracefully
   const isCost = type === 'costStars';
   const sign = !isCost && value > 0 ? '+' : '';
   const displayLabel = label || t.name;
