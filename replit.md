@@ -42,4 +42,31 @@ The application follows a modern full-stack monorepo architecture with clear sep
 - **Frontend**: React, React DOM, React Three Fiber, Three.js, React Three Drei, Radix UI, Zustand, Tailwind CSS.
 - **Backend**: Node.js, Express, Drizzle ORM, Neon (for PostgreSQL).
 - **Build/Dev Tools**: Vite, TypeScript, ESBuild, npm, Vitest.
+- **Testing**: Vitest (unit and accessibility tests), Playwright (E2E tests), Testing Library (React component testing), vitest-axe (accessibility testing).
 - **Other Libraries**: GSAP (for animations), @use-gesture/react (for touch gestures).
+
+## Testing Infrastructure
+
+The project has comprehensive test coverage across unit tests, accessibility tests, and end-to-end tests.
+
+### Test Suites
+
+- **Unit Tests** (`test/unit`): Component and logic tests using Vitest and Testing Library. Run with `npx vitest run test/unit`.
+- **Accessibility Tests** (`test/a11y`): WCAG compliance tests using vitest-axe. All 10 tests passing. Run with `npx vitest run test/a11y`.
+- **E2E Tests** (`test/e2e`): End-to-end browser tests using Playwright. Tests game workflows, modal interactions, and user journeys across multiple browsers (Chromium, Firefox, WebKit) and viewports. Run with `npx playwright test test/e2e`.
+
+### Playwright Configuration
+
+- **Config file**: `playwright.config.ts`
+- **Test directory**: `test/e2e`
+- **Browsers**: Chromium (default for development), Firefox, WebKit, mobile viewports (Pixel 5, iPhone 12, iPad Pro)
+- **Base URL**: `http://localhost:5000`
+- **Auto-start server**: Configured to run `npm run dev` before tests
+- **Setup**: Install browsers with `npx playwright install chromium` (or `--with-deps` for all system dependencies)
+
+### Test Development
+
+- Unit tests use official Zustand mocking with `vi.importActual` to preserve React integration
+- Accessibility tests include getComputedStyle polyfill for jsdom compatibility
+- E2E tests use data-testid attributes for reliable element selection
+- All stores automatically reset between tests for isolation

@@ -62,7 +62,8 @@ test.describe('Happy Path Turn E2E Tests', () => {
     
     // Should show new structure
     const structures = structureList.locator('[data-testid="structure-item"]');
-    await expect(structures).toHaveCountGreaterThan(0);
+    const structureCount = await structures.count();
+    expect(structureCount).toBeGreaterThan(0);
   });
 
   test('recruit unit and verify placement', async ({ page }) => {

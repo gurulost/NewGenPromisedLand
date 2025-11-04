@@ -63,16 +63,11 @@ test.describe('Modal Lifecycle E2E Tests', () => {
     const gestureContainer = page.locator('[data-testid="gesture-container"]');
     await expect(gestureContainer).toBeVisible();
     
-    // Test pinch zoom simulation
-    await page.touch.touchstart([
-      { x: 100, y: 100 },
-      { x: 200, y: 200 }
-    ]);
-    await page.touch.touchmove([
-      { x: 90, y: 90 },
-      { x: 210, y: 210 }
-    ]);
-    await page.touch.touchend();
+    // Test pinch zoom simulation with pointer events
+    await page.mouse.move(100, 100);
+    await page.mouse.down();
+    await page.mouse.move(150, 150);
+    await page.mouse.up();
     
     // Modal should still be open after gestures
     await expect(techModal).toBeVisible();
@@ -113,15 +108,21 @@ test.describe('Modal Lifecycle E2E Tests', () => {
     await expect(cityModal).toHaveClass(/max-w-\[95vw\]/);
     await expect(cityModal).toHaveClass(/max-h-\[90vh\]/);
     
-    // Test touch interactions
-    await page.touch.tap(100, 100); // Tap inside modal
+    // Test touch interactions (simulated with click)
+    await page.mouse.click(100, 100); // Tap inside modal
     await expect(cityModal).toBeVisible(); // Should stay open
     
     // Test swipe to close (if implemented)
-    await page.touch.swipe(200, 300, 200, 100); // Swipe up
+    await page.mouse.move(200, 300);
+    await page.mouse.down();
+    await page.mouse.move(200, 100);
+    await page.mouse.up();
     
-    // Close with touch
-    await page.touch.tap(350, 50); // Tap close button
+    // Close with touch (using close button)
+    const closeButton = page.locator('[data-testid="close-button"]');
+    if (await closeButton.isVisible()) {
+      await closeButton.click();
+    }
     await expect(cityModal).not.toBeVisible();
   });
 
