@@ -28,6 +28,7 @@ The application follows a modern full-stack monorepo architecture with clear sep
 - **Performance Optimizations**: Instanced rendering for hex grid, React memoization for UI components, optimized combat data processing, and efficient asset management (e.g., removal of large unused terrain models).
 - **3D Model System**: Comprehensive system for units, cities, villages, and resources with automatic grounding, ownership-based material effects, status indicators, and health bars.
 - **Error Handling**: GLTFErrorBoundary prevents crashes from missing/invalid 3D models by rendering fallback geometries. Uses resetKey prop for recovery when model paths change. Note: Does not auto-retry transient failures on the same model path (future enhancement).
+- **Error Logging & Monitoring**: Production-grade error tracking with Sentry (client-side), Pino structured logging (server-side), Core Web Vitals performance monitoring, automatic breadcrumb tracking, correlation IDs for request tracing, and comprehensive error categorization (game_logic, rendering, ui, network, critical). See `docs/ERROR_LOGGING.md` for setup and usage.
 - **Core Game Systems**:
     - **Combat**: Advanced calculations with unit-specific bonuses, formation tactics, terrain modifiers, faith/pride bonuses, siege warfare, and ranged bombardment.
     - **Resource Management**: Scripture-themed unified world elements (Grain Patch, Wild Goats, Timber Grove, Ore Vein) with moral choices (Faith/Pride/Dissent).
@@ -43,6 +44,7 @@ The application follows a modern full-stack monorepo architecture with clear sep
 - **Backend**: Node.js, Express, Drizzle ORM, Neon (for PostgreSQL).
 - **Build/Dev Tools**: Vite, TypeScript, ESBuild, npm, Vitest.
 - **Testing**: Vitest (unit and accessibility tests), Playwright (E2E tests), Testing Library (React component testing), vitest-axe (accessibility testing).
+- **Monitoring & Logging**: Sentry (error tracking), Pino (structured logging), web-vitals (performance monitoring).
 - **Other Libraries**: GSAP (for animations), @use-gesture/react (for touch gestures).
 
 ## Testing Infrastructure
