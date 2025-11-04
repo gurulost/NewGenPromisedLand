@@ -14,7 +14,7 @@ expect.extend({ toHaveNoViolations });
 const mockPlayer = {
   id: 'player1',
   name: 'Test Player',
-  factionId: 'nephites',
+  factionId: 'NEPHITES',
   isAI: false,
   stars: 25,
   stats: { faith: 8, pride: 3, internalDissent: 2 },
@@ -51,6 +51,27 @@ const mockGameState = {
   }],
   improvements: [],
   structures: []
+};
+
+// Properly typed mock unit for CombatPanel tests
+const mockUnit: import('@shared/types/unit').Unit = {
+  id: 'unit1',
+  playerId: 'player1',
+  type: 'warrior',
+  coordinate: { q: 0, r: 0, s: 0 },
+  hp: 25,
+  maxHp: 25,
+  attack: 6,
+  defense: 4,
+  movement: 3,
+  remainingMovement: 3,
+  status: 'active',
+  visionRadius: 2,
+  attackRange: 1,
+  hasAttacked: false,
+  abilities: [],
+  level: 1,
+  experience: 0,
 };
 
 describe('Accessibility Tests (vitest-axe)', () => {
@@ -134,10 +155,10 @@ describe('Accessibility Tests (vitest-axe)', () => {
   it('CombatPanel has no WCAG violations', async () => {
     const { container } = render(
       <CombatPanel 
-        selectedUnit={mockUnit}
-        enemies={[]}
+        attacker={mockUnit}
+        defenders={[]}
         onAttack={() => {}}
-        onClose={() => {}}
+        onCancel={() => {}}
       />
     );
     
@@ -311,16 +332,24 @@ describe('Accessibility Tests (vitest-axe)', () => {
           aria-hidden="false"
         >
           <h3>Available Structures</h3>
-          <ul role="grid" aria-label="Structure options">
-            <li role="gridcell">
-              <button aria-describedby="temple-desc">Temple</button>
-              <div id="temple-desc">Cost: 10 stars. Provides faith bonus.</div>
-            </li>
-          </ul>
+          <div role="grid" aria-label="Structure options">
+            <div role="row">
+              <div role="gridcell">
+                <button aria-describedby="temple-desc">Temple</button>
+                <div id="temple-desc">Cost: 10 stars. Provides faith bonus.</div>
+              </div>
+            </div>
+          </div>
         </div>
         
         {/* Progress indicator */}
-        <div role="progressbar" aria-valuenow={33} aria-valuemin={0} aria-valuemax={100}>
+        <div 
+          role="progressbar" 
+          aria-label="Research progress"
+          aria-valuenow={33} 
+          aria-valuemin={0} 
+          aria-valuemax={100}
+        >
           <span aria-label="Research progress: 33 percent complete">33%</span>
         </div>
       </div>

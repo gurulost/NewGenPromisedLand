@@ -180,7 +180,7 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
         </span>
         <span className="text-amber-100 font-body font-medium">{playerStats.faithPercentage}/100</span>
       </div>
-      <Progress value={playerStats.faithPercentage} className="h-2" />
+      <Progress value={playerStats.faithPercentage} className="h-2" aria-label={`Faith progress: ${playerStats.faithPercentage} out of 100`} />
     </div>
     
     {/* Pride Progress */}
@@ -192,7 +192,7 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
         </span>
         <span className="text-amber-100 font-body font-medium">{playerStats.pridePercentage}/100</span>
       </div>
-      <Progress value={playerStats.pridePercentage} className="h-2" />
+      <Progress value={playerStats.pridePercentage} className="h-2" aria-label={`Pride progress: ${playerStats.pridePercentage} out of 100`} />
     </div>
     
     {/* Dissent Progress */}
@@ -201,7 +201,7 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
         <span className="text-red-300 font-cinzel font-medium">Dissent</span>
         <span className="text-amber-100 font-body font-medium">{playerStats.dissentPercentage}/100</span>
       </div>
-      <Progress value={playerStats.dissentPercentage} className="h-2" />
+      <Progress value={playerStats.dissentPercentage} className="h-2" aria-label={`Dissent progress: ${playerStats.dissentPercentage} out of 100`} />
     </div>
   </>
 ));
