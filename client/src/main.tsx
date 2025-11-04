@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
-import { PostHogProvider } from 'posthog-js/react';
+import posthog from 'posthog-js';
+import { PostHogProvider } from '@posthog/react';
 import App from "./App";
 import "./index.css";
 import { initTelemetryStore } from "./services/telemetryStore";
@@ -11,6 +12,28 @@ import { gameDebugger } from "./utils/gameDebug";
 initSentry({
   enabled: import.meta.env.PROD,
 });
+
+const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
+
+if (posthogKey) {
+  posthog.init(posthogKey, {
+    api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
+    person_profiles: 'identified_only',
+    capture_pageview: false,
+    capture_pageleave: true,
+    autocapture: false,
+    session_recording: {
+      recordCrossOriginIframes: false,
+    },
+    loaded: (posthog) => {
+      if (import.meta.env.DEV) {
+        console.log('[PostHog] Initialized successfully');
+      }
+    },
+  });
+} else if (import.meta.env.DEV) {
+  console.log('[PostHog] Not initialized - VITE_PUBLIC_POSTHOG_KEY not set');
+}
 
 initWebVitals({
   sessionId: gameDebugger.getSessionId(),
@@ -33,32 +56,12 @@ if (import.meta.env.DEV) {
   import('./services/telemetryConsole').then(module => module.initTelemetryConsole());
 }
 
-const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
-const posthogOptions = {
-  api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
-  person_profiles: 'identified_only',
-  capture_pageview: false,
-  capture_pageleave: true,
-  autocapture: false,
-  session_recording: {
-    recordCrossOriginIframes: false,
-  },
-  loaded: (posthog: any) => {
-    if (import.meta.env.DEV) {
-      console.log('[PostHog] Initialized successfully');
-    }
-  },
-} as const;
-
 createRoot(document.getElementById("root")!).render(
   posthogKey ? (
-    <PostHogProvider apiKey={posthogKey} options={posthogOptions}>
+    <PostHogProvider client={posthog}>
       <App />
     </PostHogProvider>
   ) : (
-    <>
-      {import.meta.env.DEV && console.log('[PostHog] Not initialized - VITE_PUBLIC_POSTHOG_KEY not set')}
-      <App />
-    </>
+    <App />
   )
 );
