@@ -1,5 +1,5 @@
 import posthog from 'posthog-js';
-export { usePostHog } from 'posthog-js/react';
+export { usePostHog } from '@posthog/react';
 
 function isPostHogAvailable(): boolean {
   return posthog.__loaded;

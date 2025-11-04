@@ -35,32 +35,40 @@ VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 
 ### 3. Integration Method
 
-The game uses PostHog's recommended React integration with `PostHogProvider`:
+The game uses PostHog's recommended React integration pattern:
 
 ```typescript
 // In client/src/main.tsx
-import { PostHogProvider } from 'posthog-js/react';
+import posthog from 'posthog-js';
+import { PostHogProvider } from '@posthog/react';
 
 const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
-const posthogOptions = {
-  api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
-  person_profiles: 'identified_only',
-  capture_pageview: false,
-  capture_pageleave: true,
-  autocapture: false,
-  session_recording: {
-    recordCrossOriginIframes: false,
-  },
-  loaded: (posthog: any) => {
-    if (import.meta.env.DEV) {
-      console.log('[PostHog] Initialized successfully');
-    }
-  },
-} as const;
 
+// Initialize PostHog before rendering
+if (posthogKey) {
+  posthog.init(posthogKey, {
+    api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
+    person_profiles: 'identified_only',
+    capture_pageview: false,
+    capture_pageleave: true,
+    autocapture: false,
+    session_recording: {
+      recordCrossOriginIframes: false,
+    },
+    loaded: (posthog) => {
+      if (import.meta.env.DEV) {
+        console.log('[PostHog] Initialized successfully');
+      }
+    },
+  });
+} else if (import.meta.env.DEV) {
+  console.log('[PostHog] Not initialized - VITE_PUBLIC_POSTHOG_KEY not set');
+}
+
+// Only wrap with PostHogProvider if PostHog was initialized
 createRoot(document.getElementById("root")!).render(
   posthogKey ? (
-    <PostHogProvider apiKey={posthogKey} options={posthogOptions}>
+    <PostHogProvider client={posthog}>
       <App />
     </PostHogProvider>
   ) : (
@@ -70,8 +78,11 @@ createRoot(document.getElementById("root")!).render(
 ```
 
 This approach:
+- Uses the official `@posthog/react` package for React integration
+- Initializes PostHog before rendering with `posthog.init()`
+- Only renders `PostHogProvider` when PostHog is initialized (prevents errors with uninitialized client)
+- Passes the initialized client to `PostHogProvider` via the `client` prop
 - Provides PostHog instance via React context throughout the app
-- Automatically handles initialization and cleanup
 - Allows components to use the `usePostHog()` hook
 - Gracefully handles missing API key (app runs normally without analytics)
 
