@@ -98,10 +98,47 @@ vi.mock('three', () => ({
   MeshBasicMaterial: vi.fn(),
 }));
 
-// Mock Zustand store
+// Mock Zustand using official testing approach - use actual implementation with state reset
+const { create: actualCreate, createStore: actualCreateStore } = 
+  await vi.importActual<typeof import('zustand')>('zustand');
+
+const storeResetFns = new Set<() => void>();
+
+const createUncurried = <T>(stateCreator: any) => {
+  const store = actualCreate(stateCreator);
+  const initialState = store.getState();
+  storeResetFns.add(() => {
+    store.setState(initialState, true);
+  });
+  return store;
+};
+
+const createStoreUncurried = <T>(stateCreator: any) => {
+  const store = actualCreateStore(stateCreator);
+  const initialState = store.getState();
+  storeResetFns.add(() => {
+    store.setState(initialState, true);
+  });
+  return store;
+};
+
 vi.mock('zustand', () => ({
-  create: vi.fn((fn) => {
-    const store = fn((fn: any) => fn);
-    return () => store;
+  create: vi.fn((stateCreator: any) => {
+    return typeof stateCreator === 'function'
+      ? createUncurried(stateCreator)
+      : createUncurried;
+  }),
+  createStore: vi.fn((stateCreator: any) => {
+    return typeof stateCreator === 'function'
+      ? createStoreUncurried(stateCreator)
+      : createStoreUncurried;
   }),
 }));
+
+// Reset all stores after each test and clear the set to prevent unbounded growth
+afterEach(() => {
+  storeResetFns.forEach((resetFn) => {
+    resetFn();
+  });
+  storeResetFns.clear();
+});
