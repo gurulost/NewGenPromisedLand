@@ -94,6 +94,14 @@ export async function saveGame(gameState: GameState): Promise<void> {
     };
     
     await updateGameIndex(metadata);
+
+    const { trackGameLifecycle } = await import('../utils/posthog');
+    trackGameLifecycle('game_saved', {
+      game_id: gameState.id,
+      turn: gameState.turn,
+      player_count: gameState.players.length,
+      compressed_size: compressedData.length,
+    });
   } catch (error) {
     console.error('Failed to save game:', error);
     throw error;
@@ -136,7 +144,23 @@ export async function loadGame(gameId: string): Promise<GameState | null> {
       throw new Error('Corrupted save file - cannot load game');
     }
 
-    return validation.data!;
+    const { trackGameLifecycle, setGameContext } = await import('../utils/posthog');
+    const gameState = validation.data!;
+    
+    setGameContext({
+      gameId: gameState.id,
+      turn: gameState.turn,
+      phase: gameState.phase,
+      playerCount: gameState.players.length,
+    });
+
+    trackGameLifecycle('game_loaded', {
+      game_id: gameState.id,
+      turn: gameState.turn,
+      player_count: gameState.players.length,
+    });
+
+    return gameState;
   } catch (error) {
     console.error('Failed to load game:', error);
     return null;

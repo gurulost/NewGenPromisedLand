@@ -7,6 +7,7 @@ import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenera
 import { useGameState } from "./useGameState";
 import { gameDebugger } from "../../utils/gameDebug";
 import { audioService } from "../../services/AudioService";
+import { trackGameLifecycle, setGameContext, identifyPlayer } from "../../utils/posthog";
 
 type GamePhase = 'menu' | 'playerSetup' | 'handoff' | 'playing' | 'gameOver';
 
@@ -267,6 +268,31 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       winner: undefined,
     };
 
+    const humanPlayer = updatedPlayers.find(p => !p.isAI);
+    if (humanPlayer) {
+      identifyPlayer(humanPlayer.id, {
+        name: humanPlayer.name,
+        faction: humanPlayer.factionId,
+      });
+    }
+
+    setGameContext({
+      gameId: gameState.id,
+      turn: gameState.turn,
+      phase: gameState.phase,
+      mapSize,
+      playerCount: updatedPlayers.length,
+      faction: humanPlayer?.factionId,
+    });
+
+    trackGameLifecycle('game_started', {
+      map_size: mapSize,
+      player_count: updatedPlayers.length,
+      ai_count: updatedPlayers.filter(p => p.isAI).length,
+      factions: updatedPlayers.map(p => p.factionId),
+      human_faction: humanPlayer?.factionId,
+    });
+
     set({ 
       gameState,
       gamePhase: 'handoff'
@@ -390,6 +416,88 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         audioService.onNotification();
         break;
     }
+
+    // Track gameplay actions in analytics
+    import('../../utils/posthog').then(({ trackGameplayAction, trackCombatEvent, setGameContext }) => {
+      switch (action.type) {
+        case 'BUILD_UNIT':
+          trackGameplayAction('unit_created', {
+            unit_type: action.payload?.unitType,
+            city_id: action.payload?.cityId,
+            turn: newGameState.turn,
+          });
+          break;
+        case 'MOVE_UNIT':
+          trackGameplayAction('unit_moved', {
+            unit_id: action.payload?.unitId,
+            turn: newGameState.turn,
+          });
+          break;
+        case 'ATTACK_UNIT':
+          const attacker = gameState.units.find(u => u.id === action.payload?.attackerId);
+          const defender = newGameState.units.find(u => u.id === action.payload?.targetId);
+          const oldDefender = gameState.units.find(u => u.id === action.payload?.targetId);
+          
+          trackGameplayAction('unit_attacked', {
+            attacker_type: attacker?.type,
+            defender_type: defender?.type,
+            turn: newGameState.turn,
+          });
+          
+          if (attacker && oldDefender) {
+            trackCombatEvent({
+              attacker_type: attacker.type,
+              defender_type: oldDefender.type,
+              attacker_damage: attacker.hp - (newGameState.units.find(u => u.id === attacker.id)?.hp || 0),
+              defender_damage: oldDefender.hp - (defender?.hp || 0),
+              attacker_survived: newGameState.units.some(u => u.id === attacker.id),
+              defender_survived: !!defender,
+            });
+          }
+          break;
+        case 'FOUND_CITY':
+          trackGameplayAction('city_founded', {
+            city_id: action.payload?.cityId,
+            coordinate: action.payload?.coordinate,
+            turn: newGameState.turn,
+          });
+          break;
+        case 'CAPTURE_CITY':
+          trackGameplayAction('city_captured', {
+            city_id: action.payload?.cityId,
+            turn: newGameState.turn,
+          });
+          break;
+        case 'RESEARCH_TECH':
+        case 'RESEARCH_TECHNOLOGY':
+          trackGameplayAction('tech_researched', {
+            tech_id: action.payload?.technologyId || action.payload?.techId,
+            turn: newGameState.turn,
+          });
+          break;
+        case 'BUILD_STRUCTURE':
+        case 'START_CONSTRUCTION':
+          trackGameplayAction('building_constructed', {
+            structure_type: action.payload?.structureType || action.payload?.buildingId,
+            city_id: action.payload?.cityId,
+            turn: newGameState.turn,
+          });
+          break;
+        case 'END_TURN':
+          trackGameplayAction('turn_ended', {
+            turn: gameState.turn,
+            player_id: action.payload?.playerId,
+          });
+          
+          setGameContext({
+            turn: newGameState.turn,
+            phase: newGameState.phase,
+          });
+          break;
+      }
+    }).catch(err => {
+      console.warn('Failed to track gameplay action:', err);
+    });
     
     set({ gameState: newGameState });
   },
