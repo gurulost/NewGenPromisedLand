@@ -1,8 +1,9 @@
 import React from 'react';
+import { captureSentryException, addSentryBreadcrumb } from './sentry';
 
 /**
  * Comprehensive Error Reporting and Debugging System
- * Inspired by client-side monitoring services but tailored for our game
+ * Integrated with Sentry for production error tracking
  */
 
 interface GameError {
@@ -16,10 +17,11 @@ interface GameError {
     gameState?: any;
     playerAction?: string;
     component?: string;
-    userAgent: string;
-    url: string;
+    userAgent?: string;
+    url?: string;
     gamePhase?: string;
     currentPlayer?: string;
+    errorInfo?: string;
   };
   userActions: UserAction[];
 }
@@ -95,6 +97,18 @@ class GameErrorReporter {
       this.userActions = this.userActions.slice(-this.maxActionsHistory);
     }
 
+    // Add to Sentry breadcrumbs for error context
+    addSentryBreadcrumb({
+      category: 'user_action',
+      message: `User ${type}`,
+      level: 'info',
+      data: {
+        type,
+        details,
+        coordinate,
+      },
+    });
+
     console.log('🎯 User action:', action);
   }
 
@@ -127,6 +141,27 @@ class GameErrorReporter {
                      error.severity === 'warning' ? 'warn' : 'info';
     
     console[logMethod]('🚨 Game Error:', error);
+
+    // Send to Sentry if error or critical
+    if (error.severity === 'error' || error.severity === 'critical') {
+      try {
+        const sentryError = new Error(error.message);
+        sentryError.stack = error.stack;
+        sentryError.name = `${error.type}_${error.severity}`;
+        
+        captureSentryException(sentryError, {
+          errorId: error.id,
+          type: error.type,
+          severity: error.severity,
+          gameContext: error.context.gameState,
+          playerAction: error.context.playerAction,
+          component: error.context.component,
+          recentUserActions: error.userActions.slice(-5),
+        });
+      } catch (sentryError) {
+        console.warn('Failed to report error to Sentry:', sentryError);
+      }
+    }
 
     // For critical errors, show user-friendly notification
     if (error.severity === 'critical') {
@@ -308,7 +343,7 @@ export class GameErrorBoundary extends React.Component<
       stack: error.stack,
       context: {
         component: this.props.component || 'ReactComponent',
-        errorInfo: errorInfo.componentStack
+        errorInfo: errorInfo.componentStack || undefined
       }
     });
     
