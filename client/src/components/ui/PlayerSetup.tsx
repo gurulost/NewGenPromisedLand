@@ -76,10 +76,18 @@ export default function PlayerSetup() {
     }
   };
 
-  const updatePlayer = (id: string, field: keyof PlayerSetupData, value: string) => {
+  const updatePlayer = async (id: string, field: keyof PlayerSetupData, value: string) => {
     setPlayers(players.map(p => 
       p.id === id ? { ...p, [field]: value } : p
     ));
+
+    if (field === 'factionId') {
+      const { trackPlayerChoice } = await import('../../utils/posthog');
+      trackPlayerChoice('faction', value, {
+        player_slot: id,
+        is_ai: players.find(p => p.id === id)?.isAI,
+      });
+    }
   };
 
   const canStart = players.length >= 2 && 
@@ -96,6 +104,12 @@ export default function PlayerSetup() {
     toast?.info('Starting Game', 'Generating world and initializing players...');
 
     try {
+      const { trackPlayerChoice } = await import('../../utils/posthog');
+      trackPlayerChoice('map_size', selectedMapSize, {
+        player_count: players.length,
+        ai_count: players.filter(p => p.isAI).length,
+      });
+
       // Add a small delay to show the loading state
       await new Promise(resolve => setTimeout(resolve, 1500));
       
