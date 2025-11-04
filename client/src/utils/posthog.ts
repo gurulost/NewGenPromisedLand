@@ -3,11 +3,11 @@ import posthog from 'posthog-js';
 let isInitialized = false;
 
 export function initPostHog() {
-  const apiKey = import.meta.env.VITE_POSTHOG_API_KEY;
-  const host = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';
+  const apiKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
+  const host = import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
   
   if (!apiKey) {
-    console.log('[PostHog] Not initialized - VITE_POSTHOG_API_KEY not set');
+    console.log('[PostHog] Not initialized - VITE_PUBLIC_POSTHOG_KEY not set');
     return;
   }
 
