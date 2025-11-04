@@ -33,7 +33,49 @@ VITE_PUBLIC_POSTHOG_KEY=phc_your-api-key-here
 VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
-### 3. Restart Development Server
+### 3. Integration Method
+
+The game uses PostHog's recommended React integration with `PostHogProvider`:
+
+```typescript
+// In client/src/main.tsx
+import { PostHogProvider } from 'posthog-js/react';
+
+const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
+const posthogOptions = {
+  api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
+  person_profiles: 'identified_only',
+  capture_pageview: false,
+  capture_pageleave: true,
+  autocapture: false,
+  session_recording: {
+    recordCrossOriginIframes: false,
+  },
+  loaded: (posthog: any) => {
+    if (import.meta.env.DEV) {
+      console.log('[PostHog] Initialized successfully');
+    }
+  },
+} as const;
+
+createRoot(document.getElementById("root")!).render(
+  posthogKey ? (
+    <PostHogProvider apiKey={posthogKey} options={posthogOptions}>
+      <App />
+    </PostHogProvider>
+  ) : (
+    <App />
+  )
+);
+```
+
+This approach:
+- Provides PostHog instance via React context throughout the app
+- Automatically handles initialization and cleanup
+- Allows components to use the `usePostHog()` hook
+- Gracefully handles missing API key (app runs normally without analytics)
+
+### 4. Restart Development Server
 
 ```bash
 npm run dev
@@ -145,6 +187,8 @@ setGameContext({
 
 ## Manual Event Tracking
 
+### Using Tracking Functions
+
 If you need to track custom events:
 
 ```typescript
@@ -155,6 +199,30 @@ trackEvent('custom_event_name', {
   another_property: 123,
 });
 ```
+
+### Using PostHog Hook in Components
+
+For more advanced use cases, components can directly access the PostHog instance:
+
+```typescript
+import { usePostHog } from '@/utils/posthog';
+
+function MyComponent() {
+  const posthog = usePostHog();
+  
+  const handleAction = () => {
+    // Direct PostHog API access
+    posthog?.capture('button_clicked', {
+      button_name: 'special_action',
+      context: 'game_menu',
+    });
+  };
+  
+  return <button onClick={handleAction}>Click Me</button>;
+}
+```
+
+**Note**: The `usePostHog()` hook returns `undefined` if PostHog is not initialized (e.g., no API key), so always use optional chaining (`posthog?.`).
 
 ## Privacy & Data
 

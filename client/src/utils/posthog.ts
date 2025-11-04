@@ -1,52 +1,18 @@
 import posthog from 'posthog-js';
+export { usePostHog } from 'posthog-js/react';
 
-let isInitialized = false;
-
-export function initPostHog() {
-  const apiKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
-  const host = import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
-  
-  if (!apiKey) {
-    console.log('[PostHog] Not initialized - VITE_PUBLIC_POSTHOG_KEY not set');
-    return;
-  }
-
-  if (isInitialized) {
-    console.warn('[PostHog] Already initialized');
-    return;
-  }
-
-  try {
-    posthog.init(apiKey, {
-      api_host: host,
-      person_profiles: 'identified_only',
-      capture_pageview: false,
-      capture_pageleave: true,
-      autocapture: false,
-      session_recording: {
-        recordCrossOriginIframes: false,
-      },
-      loaded: (posthog) => {
-        if (import.meta.env.DEV) {
-          console.log('[PostHog] Initialized successfully');
-        }
-      },
-    });
-
-    isInitialized = true;
-  } catch (error) {
-    console.error('[PostHog] Failed to initialize:', error);
-  }
+function isPostHogAvailable(): boolean {
+  return posthog.__loaded;
 }
 
 export function identifyPlayer(playerId: string, properties?: Record<string, any>) {
-  if (!isInitialized) return;
+  if (!isPostHogAvailable()) return;
   
   posthog.identify(playerId, properties);
 }
 
 export function trackEvent(eventName: string, properties?: Record<string, any>) {
-  if (!isInitialized) return;
+  if (!isPostHogAvailable()) return;
   
   posthog.capture(eventName, properties);
 }
@@ -111,13 +77,13 @@ export function setGameContext(context: {
   difficulty?: string;
   faction?: string;
 }) {
-  if (!isInitialized) return;
+  if (!isPostHogAvailable()) return;
   
   posthog.register(context);
 }
 
 export function clearGameContext() {
-  if (!isInitialized) return;
+  if (!isPostHogAvailable()) return;
   
   posthog.unregister('gameId');
   posthog.unregister('turn');
@@ -129,7 +95,7 @@ export function clearGameContext() {
 }
 
 export function resetPlayer() {
-  if (!isInitialized) return;
+  if (!isPostHogAvailable()) return;
   
   posthog.reset();
 }
