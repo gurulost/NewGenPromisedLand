@@ -27,10 +27,10 @@ The analytics system tracks:
 cp .env.example .env
 
 # Add your PostHog API key to .env
-VITE_POSTHOG_API_KEY=phc_your-api-key-here
+VITE_PUBLIC_POSTHOG_KEY=phc_your-api-key-here
 
 # (Optional) Set PostHog host if using EU or self-hosted
-VITE_POSTHOG_HOST=https://us.i.posthog.com
+VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
 ### 3. Restart Development Server
@@ -227,7 +227,7 @@ Group by: game_phase, metric_name
 ### Development Mode
 
 - PostHog initializes but may have reduced sampling
-- Console logs show `[PostHog] Not initialized - VITE_POSTHOG_API_KEY not set` if not configured
+- Console logs show `[PostHog] Not initialized - VITE_PUBLIC_POSTHOG_KEY not set` if not configured
 - All events are tracked if API key is provided
 
 ### Production Mode
@@ -242,7 +242,7 @@ Group by: game_phase, metric_name
 
 1. **Check API Key**
    ```bash
-   echo $VITE_POSTHOG_API_KEY
+   echo $VITE_PUBLIC_POSTHOG_KEY
    ```
 
 2. **Verify Initialization**
