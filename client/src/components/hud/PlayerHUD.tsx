@@ -58,6 +58,11 @@ export function PlayerHUD({
 }: PlayerHUDProps) {
   const faction = getFaction(player.factionId as any);
   
+  if (!faction) {
+    console.error(`Invalid faction ID: ${player.factionId}`);
+    return null;
+  }
+  
   // Moved expensive calculations to selector
   const playerStats = useMemo(() => 
     getPlayerStats(player, gameState), 
