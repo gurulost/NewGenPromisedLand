@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { axe } from 'vitest-axe';
-import { toHaveNoViolations } from 'vitest-axe/matchers';
+import * as matchers from 'vitest-axe/matchers';
 import { PlayerHUD } from '../../client/src/components/hud/PlayerHUD';
 import { CityPanel } from '../../client/src/components/city/CityPanel';
 import { TechPanel } from '../../client/src/components/tech/TechPanel';
@@ -10,7 +10,7 @@ import { CombatPanel } from '../../client/src/components/combat/CombatPanel';
 import type { Unit } from '../../shared/types/unit';
 
 // Extend Vitest matchers
-expect.extend(toHaveNoViolations);
+expect.extend(matchers);
 
 // Mock data for components
 const mockPlayer = {
