@@ -98,7 +98,7 @@ export function hasLineOfSight(
 function blocksLineOfSight(terrain: string): boolean {
   // Mountains and forests block line of sight
   // Water, plains, desert, and swamp are transparent
-  return terrain === 'mountain';
+  return terrain === 'mountain' || terrain === 'forest';
 }
 
 /**
