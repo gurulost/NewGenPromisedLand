@@ -1962,39 +1962,30 @@ function handleHarvestResource(
   // Find the resource tile
   const resourceTile = state.map.tiles.find(tile => 
     tile.coordinate.q === resourceCoordinate.q &&
-    tile.coordinate.r === resourceCoordinate.r &&
-    (tile.terrain === 'forest' || tile.terrain === 'mountain' || tile.resources?.length)
+    tile.coordinate.r === resourceCoordinate.r
   );
   
   if (!resourceTile) return state;
-  
+
+  const harvestableResources = new Set(['grain_patch', 'wild_goats', 'timber_grove', 'ore_vein', 'fishing_shoal', 'sea_beast']);
+  const resourceType = resourceTile.resources?.find(resource => harvestableResources.has(resource));
+  if (!resourceType) return state;
+
   // Check if resource is within city borders (adjacent to city)
   const distance = hexDistance(city.coordinate, resourceCoordinate);
   if (distance > 2) return state; // Cities control tiles within 2 hex distance
-  
+
   // Check if resource has already been harvested
   const resourceId = `${resourceCoordinate.q},${resourceCoordinate.r}`;
   if (city.harvestedResources.includes(resourceId)) return state;
-  
-  // Check if player has required technology
-  const player = state.players.find(p => p.id === unit.playerId);
-  if (!player) return state;
-  
-  let canHarvest = false;
-  if (resourceTile.terrain === 'forest' && player.researchedTechs.includes('forestry')) {
-    canHarvest = true;
-  } else if (resourceTile.terrain === 'mountain' && player.researchedTechs.includes('mining')) {
-    canHarvest = true;
-  } else if (resourceTile.resources?.includes('animals') && player.researchedTechs.includes('hunting')) {
-    canHarvest = true;
-  }
-  
-  if (!canHarvest) return state;
-  
+
+  const populationBoost = resourceType === 'grain_patch' ? 2 :
+    resourceType === 'sea_beast' ? 2 : 1;
+
   // Harvest the resource - add population to city
   const updatedCities = state.cities.map(c => {
     if (c.id === cityId) {
-      const newPopulation = c.population + 1;
+      const newPopulation = c.population + populationBoost;
       const shouldLevelUp = newPopulation >= c.maxPopulation;
       
       return {
@@ -2008,7 +1999,19 @@ function handleHarvestResource(
     }
     return c;
   });
-  
+
+  const updatedTiles = state.map.tiles.map(tile => {
+    if (tile.coordinate.q !== resourceCoordinate.q || tile.coordinate.r !== resourceCoordinate.r) {
+      return tile;
+    }
+
+    const remainingResources = (tile.resources || []).filter(resource => resource !== resourceType);
+    return {
+      ...tile,
+      resources: remainingResources
+    };
+  });
+
   // Exhaust the unit after harvesting
   const updatedUnits = state.units.map(u => 
     u.id === unitId 
@@ -2019,6 +2022,10 @@ function handleHarvestResource(
   return {
     ...state,
     cities: updatedCities,
+    map: {
+      ...state.map,
+      tiles: updatedTiles
+    },
     units: updatedUnits
   };
 }
