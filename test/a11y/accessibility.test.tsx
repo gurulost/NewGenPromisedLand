@@ -1,3 +1,4 @@
+import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { axe } from 'vitest-axe';
@@ -6,15 +7,16 @@ import { PlayerHUD } from '../../client/src/components/hud/PlayerHUD';
 import { CityPanel } from '../../client/src/components/city/CityPanel';
 import { TechPanel } from '../../client/src/components/tech/TechPanel';
 import { CombatPanel } from '../../client/src/components/combat/CombatPanel';
+import type { Unit } from '../../shared/types/unit';
 
 // Extend Vitest matchers
-expect.extend({ toHaveNoViolations });
+expect.extend(toHaveNoViolations);
 
 // Mock data for components
 const mockPlayer = {
   id: 'player1',
   name: 'Test Player',
-  factionId: 'NEPHITES',
+  factionId: 'NEPHITES' as const,
   isAI: false,
   stars: 25,
   stats: { faith: 8, pride: 3, internalDissent: 2 },
@@ -54,7 +56,7 @@ const mockGameState = {
 };
 
 // Properly typed mock unit for CombatPanel tests
-const mockUnit: import('@shared/types/unit').Unit = {
+const mockUnit: Unit = {
   id: 'unit1',
   playerId: 'player1',
   type: 'warrior',
@@ -109,7 +111,7 @@ describe('Accessibility Tests (vitest-axe)', () => {
     const accessibilityPlayer = {
       id: 'player1',
       name: 'Accessibility Tester',
-      factionId: 'NEPHITES',
+      factionId: 'NEPHITES' as const,
       isAI: false,
       stars: 40,
       stats: { faith: 30, pride: 15, internalDissent: 5 },
