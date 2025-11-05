@@ -35,11 +35,6 @@ export class AITurnManager {
       // Get AI decisions for this turn
       const decisions = executeAITurn(this.gameState, currentPlayer);
 
-      if (decisions.length > 0) {
-
-      } else {
-      }
-      
       // Execute decisions in order of priority
       await this.executeDecisions(decisions, currentPlayer);
       
@@ -101,8 +96,10 @@ export class AITurnManager {
           if (decision.unitId && decision.targetCoordinate) {
             this.onDispatchAction({
               type: 'MOVE_UNIT',
-              unitId: decision.unitId,
-              targetCoordinate: decision.targetCoordinate
+              payload: {
+                unitId: decision.unitId,
+                targetCoordinate: decision.targetCoordinate
+              }
             });
             return true;
           } else {
@@ -113,8 +110,10 @@ export class AITurnManager {
           if (decision.unitId && decision.targetId) {
             this.onDispatchAction({
               type: 'ATTACK_UNIT',
-              attackerId: decision.unitId,
-              targetId: decision.targetId
+              payload: {
+                attackerId: decision.unitId,
+                targetId: decision.targetId
+              }
             });
             return true;
           } else {
@@ -125,8 +124,10 @@ export class AITurnManager {
           if (decision.techId) {
             this.onDispatchAction({
               type: 'RESEARCH_TECH',
-              playerId: aiPlayer.id,
-              techId: decision.techId
+              payload: {
+                playerId: aiPlayer.id,
+                techId: decision.techId
+              }
             });
             return true;
           } else {
@@ -137,14 +138,16 @@ export class AITurnManager {
           if (decision.cityId && decision.buildingType) {
             const payload: any = {
               type: 'START_CONSTRUCTION',
-              playerId: aiPlayer.id,
-              buildingType: decision.buildingType,
-              cityId: decision.cityId,
-              category: decision.constructionCategory ?? 'structures'
+              payload: {
+                playerId: aiPlayer.id,
+                buildingType: decision.buildingType,
+                cityId: decision.cityId,
+                category: decision.constructionCategory ?? 'structures'
+              }
             };
 
             if (decision.constructionCategory === 'improvements' && decision.targetCoordinate) {
-              payload.coordinate = decision.targetCoordinate;
+              payload.payload.coordinate = decision.targetCoordinate;
             }
 
             this.onDispatchAction({
@@ -159,8 +162,10 @@ export class AITurnManager {
           if (decision.abilityId) {
             this.onDispatchAction({
               type: 'USE_ABILITY',
-              playerId: aiPlayer.id,
-              abilityId: decision.abilityId
+              payload: {
+                playerId: aiPlayer.id,
+                abilityId: decision.abilityId
+              }
             });
             return true;
           } else {
@@ -171,8 +176,10 @@ export class AITurnManager {
           if (decision.unitId) {
             this.onDispatchAction({
               type: 'HEAL_UNIT',
-              playerId: aiPlayer.id,
-              unitId: decision.unitId,
+              payload: {
+                unitId: decision.unitId,
+                playerId: aiPlayer.id,
+              },
             });
             return true;
           } else {
@@ -183,8 +190,10 @@ export class AITurnManager {
           if (decision.unitId) {
             this.onDispatchAction({
               type: 'APPLY_STEALTH',
-              playerId: aiPlayer.id,
-              unitId: decision.unitId,
+              payload: {
+                unitId: decision.unitId,
+                playerId: aiPlayer.id,
+              },
             });
             return true;
           } else {
@@ -195,8 +204,10 @@ export class AITurnManager {
           if (decision.unitId) {
             this.onDispatchAction({
               type: 'FORMATION_FIGHTING',
-              playerId: aiPlayer.id,
-              unitId: decision.unitId,
+              payload: {
+                unitId: decision.unitId,
+                playerId: aiPlayer.id,
+              },
             });
             return true;
           } else {
@@ -207,8 +218,10 @@ export class AITurnManager {
           if (decision.unitId) {
             this.onDispatchAction({
               type: 'SIEGE_MODE',
-              playerId: aiPlayer.id,
-              unitId: decision.unitId,
+              payload: {
+                unitId: decision.unitId,
+                playerId: aiPlayer.id,
+              },
             });
             return true;
           } else {
@@ -219,8 +232,10 @@ export class AITurnManager {
           if (decision.unitId) {
             this.onDispatchAction({
               type: 'RALLY_TROOPS',
-              playerId: aiPlayer.id,
-              unitId: decision.unitId,
+              payload: {
+                unitId: decision.unitId,
+                playerId: aiPlayer.id,
+              },
             });
             return true;
           } else {
@@ -247,7 +262,9 @@ export class AITurnManager {
     
     this.onDispatchAction({
       type: 'END_TURN',
-      playerId: aiPlayer.id
+      payload: {
+        playerId: aiPlayer.id
+      }
     });
 
   }
