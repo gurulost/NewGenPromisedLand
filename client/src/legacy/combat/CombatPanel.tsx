@@ -5,10 +5,8 @@ import { HUDShell } from '../primitives/HUDShell';
 import { GlowingButton } from '../primitives/GlowingButton';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 
-import { Unit } from '@shared/types/unit';
-import { getUnitDefinition } from '@shared/data/units';
+import { Unit } from '../../../../shared/types/unit';
 import { getCombatOdds, CombatOdds } from '../../selectors/combat';
-import { InfoTooltip, UnitTooltip, CombatTooltip } from '../ui/TooltipSystem';
 
 interface CombatPanelProps {
   attacker: Unit;
@@ -60,52 +58,43 @@ export function CombatPanel({ attacker, defenders, onAttack, onCancel }: CombatP
   );
 }
 
-const AttackerSection = React.memo(({ unit }: { unit: Unit }) => {
-  const unitDef = getUnitDefinition(unit.type);
-  
-  return (
-    <div className="rounded-lg bg-slate-800/30 p-3 border border-amber-500/20">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center">
-          <span className="text-xs font-bold text-slate-900">{unitDef.name[0]}</span>
-        </div>
-        <div className="flex-1">
-          <h4 className="font-cinzel font-semibold text-amber-200">{unitDef.name}</h4>
-          <p className="text-xs text-amber-300/70">Your {unit.type}</p>
-        </div>
-        <InfoTooltip 
-          content={<UnitTooltip unit={unit} unitDef={unitDef} />}
-          placement="left"
-          className="flex-shrink-0"
-        />
+const AttackerSection = React.memo(({ unit }: { unit: Unit }) => (
+  <div className="rounded-lg bg-slate-800/30 p-3 border border-amber-500/20">
+    <div className="flex items-center gap-3 mb-2">
+      <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center">
+        <span className="text-xs font-bold text-slate-900">{unit.name[0]}</span>
       </div>
-    
-      <div className="grid grid-cols-3 gap-2 text-xs">
-        <div className="text-center">
-          <div className="text-red-300 font-semibold flex items-center justify-center gap-1">
-            <Sword className="w-3 h-3" />
-            {unitDef.baseStats.attack}
-          </div>
-          <div className="text-amber-300/60">Attack</div>
-        </div>
-        <div className="text-center">
-          <div className="text-blue-300 font-semibold flex items-center justify-center gap-1">
-            <Shield className="w-3 h-3" />
-            {unitDef.baseStats.defense}
-          </div>
-          <div className="text-amber-300/60">Defense</div>
-        </div>
-        <div className="text-center">
-          <div className="text-green-300 font-semibold flex items-center justify-center gap-1">
-            <Heart className="w-3 h-3" />
-            {unit.hp}/{unit.maxHp}
-          </div>
-          <div className="text-amber-300/60">Health</div>
-        </div>
+      <div>
+        <h4 className="font-cinzel font-semibold text-amber-200">{unit.name}</h4>
+        <p className="text-xs text-amber-300/70">Your {unit.type}</p>
       </div>
     </div>
-  );
-});
+    
+    <div className="grid grid-cols-3 gap-2 text-xs">
+      <div className="text-center">
+        <div className="text-red-300 font-semibold flex items-center justify-center gap-1">
+          <Sword className="w-3 h-3" />
+          {unit.combat.attack}
+        </div>
+        <div className="text-amber-300/60">Attack</div>
+      </div>
+      <div className="text-center">
+        <div className="text-blue-300 font-semibold flex items-center justify-center gap-1">
+          <Shield className="w-3 h-3" />
+          {unit.combat.defense}
+        </div>
+        <div className="text-amber-300/60">Defense</div>
+      </div>
+      <div className="text-center">
+        <div className="text-green-300 font-semibold flex items-center justify-center gap-1">
+          <Heart className="w-3 h-3" />
+          {unit.health}/{unit.maxHealth}
+        </div>
+        <div className="text-amber-300/60">Health</div>
+      </div>
+    </div>
+  </div>
+));
 
 const EnemyList = React.memo(({ enemies, attacker, onAttack }: {
   enemies: Unit[];
@@ -141,26 +130,6 @@ const EnemyCard = React.memo(({ enemy, attacker, onAttack }: {
     [attacker, enemy]
   );
   
-  const enemyDef = getUnitDefinition(enemy.type);
-  const attackerDef = getUnitDefinition(attacker.type);
-  
-  // Prepare data for CombatTooltip
-  const combatTooltipData = {
-    attacker: {
-      name: attackerDef.name,
-      attack: attackerDef.baseStats.attack,
-      defense: attackerDef.baseStats.defense,
-      hp: attacker.hp
-    },
-    defender: {
-      name: enemyDef.name,
-      attack: enemyDef.baseStats.attack,
-      defense: enemyDef.baseStats.defense,
-      hp: enemy.hp
-    },
-    odds: combatOdds
-  };
-  
   return (
     <div 
       className="rounded-lg bg-slate-800/40 p-3 border border-red-500/30 hover:border-red-400/50 
@@ -170,40 +139,28 @@ const EnemyCard = React.memo(({ enemy, attacker, onAttack }: {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
-            <span className="text-xs font-bold text-white">{enemyDef.name[0]}</span>
+            <span className="text-xs font-bold text-white">{enemy.name[0]}</span>
           </div>
-          <div className="flex-1">
-            <h5 className="font-medium text-red-200">{enemyDef.name}</h5>
+          <div>
+            <h5 className="font-medium text-red-200">{enemy.name}</h5>
             <p className="text-xs text-red-300/70">{enemy.type}</p>
           </div>
-          <InfoTooltip 
-            content={<UnitTooltip unit={enemy} unitDef={enemyDef} />}
-            placement="left"
-            className="flex-shrink-0"
-          />
         </div>
         
-        <div className="flex items-center gap-2">
-          <CombatOddsDisplay odds={combatOdds} />
-          <InfoTooltip 
-            content={<CombatTooltip {...combatTooltipData} />}
-            placement="left"
-            className="flex-shrink-0"
-          />
-        </div>
+        <CombatOddsDisplay odds={combatOdds} />
       </div>
       
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div className="text-center">
-          <div className="text-red-300 font-semibold">{getUnitDefinition(enemy.type).baseStats.attack}</div>
+          <div className="text-red-300 font-semibold">{enemy.combat.attack}</div>
           <div className="text-amber-300/60">ATK</div>
         </div>
         <div className="text-center">
-          <div className="text-blue-300 font-semibold">{getUnitDefinition(enemy.type).baseStats.defense}</div>
+          <div className="text-blue-300 font-semibold">{enemy.combat.defense}</div>
           <div className="text-amber-300/60">DEF</div>
         </div>
         <div className="text-center">
-          <div className="text-green-300 font-semibold">{enemy.hp}/{enemy.maxHp}</div>
+          <div className="text-green-300 font-semibold">{enemy.health}/{enemy.maxHealth}</div>
           <div className="text-amber-300/60">HP</div>
         </div>
       </div>

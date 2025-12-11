@@ -1,6 +1,6 @@
-import { City } from '@shared/types/city';
-import { GameState, PlayerState } from '@shared/types/game';
-import { UNIT_DEFINITIONS } from '@shared/data/units';
+import { City } from '../../../shared/types/city';
+import { GameState, Player } from '../../../shared/types/game';
+import { UNIT_DEFINITIONS } from '../../../shared/data/units';
 
 export interface CityValidation {
   canAffordStructure: (structureId: string) => boolean;
@@ -11,7 +11,7 @@ export interface CityValidation {
   getAvailableUnits: () => string[];
 }
 
-export function getCityValidation(city: City, player: PlayerState, gameState: GameState): CityValidation {
+export function getCityValidation(city: City, player: Player, gameState: GameState): CityValidation {
   
   const canAffordStructure = (structureId: string): boolean => {
     // Simplified - actual structure definitions would be imported from proper location

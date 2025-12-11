@@ -47,26 +47,6 @@ vi.mock('../client/src/components/ui/EnhancedButton', () => ({
   )
 }));
 
-// Mock ToastProvider
-vi.mock('../client/src/components/ui/ToastProvider', () => ({
-  ToastProvider: ({ children }: any) => children,
-  useToastContext: () => ({
-    showToast: vi.fn()
-  })
-}));
-
-// Mock useGameAudio with correct API
-vi.mock('../client/src/hooks/useAudioIntegration', () => ({
-  useGameAudio: () => ({
-    onButtonClick: vi.fn(),
-    onButtonHover: vi.fn(),
-    onBuildingBuilt: vi.fn(),
-    onError: vi.fn(),
-    onPanelOpen: vi.fn(),
-    onPanelClose: vi.fn()
-  })
-}));
-
 describe('BuildingMenu Component', () => {
   let mockPlayer: PlayerState;
   let mockCity: City;
@@ -87,7 +67,7 @@ describe('BuildingMenu Component', () => {
       },
       modifiers: [],
       researchedTechs: ['writing', 'organization'],
-      researchInspiration: 0,
+      researchProgress: 0,
       citiesOwned: ['city1'],
       constructionQueue: [],
       visibilityMask: [],
@@ -137,7 +117,7 @@ describe('BuildingMenu Component', () => {
     );
 
     expect(screen.getByText('Construction Hall')).toBeInTheDocument();
-    expect(screen.getByText('Test City — Build in the Promised Land')).toBeInTheDocument();
+    expect(screen.getByText('Test City - Build your empire')).toBeInTheDocument();
     expect(screen.getByTestId('animated-background')).toBeInTheDocument();
   });
 
