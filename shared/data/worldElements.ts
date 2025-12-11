@@ -5,7 +5,6 @@
 
 import { HexCoordinate } from '../types/coordinates';
 import { GameState } from '../types/game';
-import { getUnitDefinition } from '../data/units';
 
 export interface ElementAction {
   name: string;
@@ -395,35 +394,7 @@ export function executeElementAction(
 
     // Check unit requirement
     if (action.requiresUnitTag) {
-      // Find units at this location with the required tag
-      const unitsAtLocation = gameState.units.filter(unit => 
-        unit.playerId === playerId &&
-        unit.coordinate.q === coordinate.q &&
-        unit.coordinate.r === coordinate.r
-      );
-      
-      // Check if any unit has the required tag
-      const hasRequiredUnit = unitsAtLocation.some(unit => {
-        const unitDef = getUnitDefinition(unit.type);
-        const requiredTag = action.requiresUnitTag!;
-        
-        // Check unit abilities first
-        if (unitDef.abilities.includes(requiredTag)) return true;
-        
-        // Basic tag matching based on unit type and required capability
-        if (requiredTag === 'naval_commander' && unit.type === 'commander') return true;
-        if (requiredTag === 'explorer' && (unit.type === 'scout' || unit.type === 'wilderness_hunter')) return true;
-        if (requiredTag === 'religious_leader' && unit.type === 'missionary') return true;
-        
-        return false;
-      });
-      
-      if (!hasRequiredUnit) {
-        return {
-          success: false,
-          message: `Requires unit with ${action.requiresUnitTag} capability at this location`
-        };
-      }
+      // TODO: Check if player has required unit type at location
     }
 
     // Apply resource changes

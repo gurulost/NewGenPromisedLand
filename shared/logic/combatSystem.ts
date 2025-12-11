@@ -1,362 +1,364 @@
-import { GameState, PlayerState } from "../types/game";
+import { GameState } from "../types/game";
 import { Unit } from "../types/unit";
 import { HexCoordinate } from "../types/coordinates";
-import { hexDistance, hexNeighbors } from "../utils/hex";
+import { hexDistance } from "../utils/hex";
+import { getUnitDefinition } from "../data/units";
 import { GAME_RULES } from "../data/gameRules";
 
-const getAbilitySet = (unit: Unit): Set<string> =>
-  new Set((unit.abilities || []).map(ability => ability.toUpperCase()));
+/**
+ * Advanced Combat System - Handles all unit combat mechanics
+ * Includes special unit abilities, terrain bonuses, and formation tactics
+ */
 
-const getPlayerById = (state: GameState, playerId: string): PlayerState | undefined =>
-  state.players.find(player => player.id === playerId);
-
-export interface NegotiationResult {
-  attackerPrideDelta: number;
-  defenderDissentDelta: number;
+export interface CombatResult {
+  success: boolean;
+  attackerDamage: number;
+  defenderDamage: number;
+  attackerHp: number;
+  defenderHp: number;
+  attackerKilled: boolean;
+  defenderKilled: boolean;
+  specialEffects: string[];
   message: string;
 }
 
-export interface CombatResolution {
-  success: boolean;
-  damageToDefender: number;
-  damageToAttacker: number;
-  defenderSurvived: boolean;
-  counterOccurred: boolean;
-  events: string[];
-  counterEvents: string[];
-  negotiation?: NegotiationResult;
-  reason?: string;
-}
-
-interface StrikeOptions {
-  attackBonus?: number;
-  defenseBonus?: number;
-  isCounter?: boolean;
-}
-
-function calculateStrikeDamage(
-  state: GameState,
-  actingUnit: Unit,
-  defendingUnit: Unit,
-  actingAbilities: Set<string>,
-  defendingAbilities: Set<string>,
-  actingPlayer?: PlayerState,
-  defendingPlayer?: PlayerState,
-  options: StrikeOptions = {}
-): { damage: number; events: string[] } {
-  let attackPower = actingUnit.attack;
-  let defensePower = defendingUnit.defense;
-  const events: string[] = [];
-
-  if (options.attackBonus) {
-    attackPower += options.attackBonus;
-    events.push(`Tactical boost (+${options.attackBonus} attack)`);
-  }
-
-  if (options.defenseBonus) {
-    defensePower += options.defenseBonus;
-    events.push(`Defensive preparation (+${options.defenseBonus} defense)`);
-  }
-
-  const strikeDistance = hexDistance(actingUnit.coordinate, defendingUnit.coordinate);
-  const defendingTile = state.map.tiles.find(
-    tile => tile.coordinate.q === defendingUnit.coordinate.q && tile.coordinate.r === defendingUnit.coordinate.r
-  );
-  const actingTile = state.map.tiles.find(
-    tile => tile.coordinate.q === actingUnit.coordinate.q && tile.coordinate.r === actingUnit.coordinate.r
-  );
-
-  if (!options.isCounter) {
-    if (actingUnit.status === 'rallied') {
-      attackPower += 2;
-      events.push('Rally bonus (+2 attack)');
-    }
-
-    if (actingUnit.status === 'siege_mode') {
-      attackPower += 3;
-      events.push('Siege stance (+3 attack)');
-    }
-
-    if (actingAbilities.has('AMBUSH') && (actingUnit.status === 'stealthed' || actingTile?.terrain === 'forest') && !actingUnit.hasAttacked) {
-      attackPower += 3;
-      events.push('Ambush bonus (+3 attack)');
-    }
-  }
-
-  if (actingAbilities.has('RANGED_ATTACK') && strikeDistance > 1 && !actingUnit.hasAttacked) {
-    attackPower += 2;
-    events.push('Ranged focus (+2 attack)');
-  }
-
-  if (actingAbilities.has('GIANT_STRENGTH') && defendingTile?.hasCity) {
-    attackPower += 4;
-    events.push('Giant strength devastates fortifications (+4 attack)');
-  }
-
-  const intimidatingEnemies = state.units.filter(unit => {
-    if (unit.playerId !== defendingUnit.playerId || unit.id === defendingUnit.id) return false;
-    const abilities = getAbilitySet(unit);
-    return abilities.has('INTIMIDATE') && hexDistance(unit.coordinate, actingUnit.coordinate) <= 1;
-  }).length;
-
-  if (intimidatingEnemies > 0) {
-    attackPower = Math.max(1, attackPower - intimidatingEnemies);
-    events.push(`Enemy intimidation aura (-${intimidatingEnemies} attack)`);
-  }
-
-  if (actingPlayer) {
-    if (actingPlayer.stats.faith >= 70) {
-      attackPower += 2;
-      events.push('High faith inspiration (+2 attack)');
-    }
-    if (actingPlayer.stats.pride >= 70) {
-      attackPower += 1;
-      events.push('Prideful aggression (+1 attack)');
-    }
-  }
-
-  if (defendingUnit.status === 'formation') {
-    defensePower += 2;
-    events.push('Formation defense (+2 defense)');
-  }
-
-  if (defendingUnit.status === 'defending') {
-    defensePower += 1;
-    events.push('Defensive posture (+1 defense)');
-  }
-
-  if (defendingAbilities.has('PACIFIST_DEFENSE')) {
-    defensePower += 2;
-    events.push('Pacifist stance hardens resolve (+2 defense)');
-  }
-
-  if (defendingTile) {
-    const terrainBonus = GAME_RULES.terrain.defenseBonus[defendingTile.terrain] || 0;
-    if (terrainBonus > 0) {
-      defensePower += terrainBonus;
-      events.push(`Terrain advantage (${defendingTile.terrain})`);
-    }
-  }
-
-  if (actingAbilities.has('SIEGE_BREAKER') && defendingTile?.hasCity) {
-    defensePower = Math.max(0, defensePower - 3);
-    events.push('Siege breaker negates fortifications (-3 defense)');
-  }
-
-  const hasGuerrillaEffect = actingUnit.temporaryEffects?.some(
-    effect => effect.source === 'lamanite_guerrilla_tactics'
-  );
-  if (hasGuerrillaEffect && actingTile && (actingTile.terrain === 'forest' || actingTile.terrain === 'swamp')) {
-    attackPower += 1;
-    events.push('Guerrilla positioning (+1 attack)');
-  }
-
-  const protectiveAura = state.units.some(unit => {
-    if (unit.playerId !== defendingUnit.playerId || unit.id === defendingUnit.id) return false;
-    const abilities = getAbilitySet(unit);
-    return abilities.has('PROTECTIVE_AURA') && hexDistance(unit.coordinate, defendingUnit.coordinate) <= 1;
-  });
-
-  let damage = Math.max(1, attackPower - defensePower);
-
-  if (protectiveAura) {
-    damage = Math.max(1, Math.floor(damage * 0.75));
-    events.push('Protective aura mitigates damage (-25%)');
-  }
-
-  if (defendingAbilities.has('PACIFIST_DEFENSE')) {
-    damage = Math.max(1, damage - 2);
-    events.push('Pacifist shields absorb shock (-2 damage)');
-  }
-
-  return { damage, events };
-}
-
-export function resolveMeleeCombat(
-  state: GameState,
+/**
+ * Calculate damage with unit-specific bonuses and abilities
+ */
+export function calculateCombatDamage(
   attacker: Unit,
   defender: Unit,
-  bonuses: { attackBonus?: number; defenseBonus?: number; counterAttackBonus?: number; counterDefenseBonus?: number } = {}
-): CombatResolution {
-  const attackerAbilities = getAbilitySet(attacker);
-  const defenderAbilities = getAbilitySet(defender);
+  state: GameState,
+  terrain?: string
+): CombatResult {
+  const attackerDef = getUnitDefinition(attacker.type);
+  const defenderDef = getUnitDefinition(defender.type);
+  
+  let attackerAttack = attacker.attack;
+  let defenderDefense = defender.defense;
+  const specialEffects: string[] = [];
 
-  const attackerPlayer = getPlayerById(state, attacker.playerId);
-  const defenderPlayer = getPlayerById(state, defender.playerId);
-  const distance = hexDistance(attacker.coordinate, defender.coordinate);
+  // === UNIT-SPECIFIC COMBAT BONUSES ===
 
-  // Diplomacy negotiation – attempt to defuse combat before it begins
-  if (defenderAbilities.has('DIPLOMACY') && attackerPlayer && defenderPlayer) {
-    const resistanceThreshold = defenderPlayer.stats.faith + Math.max(0, 10 - defenderPlayer.stats.internalDissent);
-    const aggressorPressure = attackerPlayer.stats.pride + Math.floor(attacker.attack / 2);
-
-    if (resistanceThreshold >= aggressorPressure) {
-      return {
-        success: false,
-        damageToDefender: 0,
-        events: ['Diplomatic negotiation succeeded'],
-        negotiation: {
-          attackerPrideDelta: -2,
-          defenderDissentDelta: -2,
-          message: 'Diplomacy avoided bloodshed',
-        },
-        reason: 'diplomacy',
-      };
+  // Spearman vs Fast Units (Anti-Cavalry)
+  if (attacker.type === 'spearman' && attackerDef.abilities.includes('ANTI_CAVALRY')) {
+    if (defender.movement >= 4 || defender.type === 'scout') {
+      attackerAttack += 4;
+      specialEffects.push("Spearman anti-cavalry bonus (+4 attack)");
     }
   }
 
-  const primary = calculateStrikeDamage(
-    state,
-    attacker,
-    defender,
-    attackerAbilities,
-    defenderAbilities,
-    attackerPlayer,
-    defenderPlayer,
-    { attackBonus: bonuses.attackBonus ?? 0, defenseBonus: bonuses.defenseBonus ?? 0 }
-  );
+  // Formation Fighting (Spearmen near each other)
+  if (attacker.type === 'spearman' && attackerDef.abilities.includes('FORMATION_FIGHTING')) {
+    const nearbySpearmen = state.units.filter(u => 
+      u.playerId === attacker.playerId && 
+      u.type === 'spearman' && 
+      u.id !== attacker.id &&
+      hexDistance(u.coordinate, attacker.coordinate) === 1
+    ).length;
+    
+    if (nearbySpearmen > 0) {
+      const formationBonus = nearbySpearmen * 2;
+      attackerAttack += formationBonus;
+      specialEffects.push(`Formation fighting bonus (+${formationBonus} attack)`);
+    }
+  }
 
-  const defenderRemainingHp = defender.hp - primary.damage;
-  const defenderSurvived = defenderRemainingHp > 0;
+  // Catapult Siege Warfare
+  if (attacker.type === 'catapult' && attackerDef.abilities.includes('SIEGE_WEAPON')) {
+    // Must be setup (defending status) to attack
+    if (attacker.status !== 'defending') {
+      return {
+        success: false,
+        attackerDamage: 0,
+        defenderDamage: 0,
+        attackerHp: attacker.hp,
+        defenderHp: defender.hp,
+        attackerKilled: false,
+        defenderKilled: false,
+        specialEffects: [],
+        message: "Catapult must be setup before attacking"
+      };
+    }
+    
+    // Extra damage to structures and cities
+    if (defender.type === 'guard') { // Representing city defenders
+      attackerAttack *= 2;
+      specialEffects.push("Siege weapon vs fortification (double damage)");
+    }
+  }
 
-  let counterDamage = 0;
-  let counterEvents: string[] = [];
+  // Scout Stealth Advantage
+  if (attacker.type === 'scout' && attackerDef.abilities.includes('STEALTH')) {
+    if (attacker.status === 'defending') { // Stealth mode
+      attackerAttack += 3;
+      specialEffects.push("Stealth attack bonus (+3 attack)");
+    }
+  }
 
-  const defenderCanCounter =
-    defenderSurvived &&
-    defender.attack > 0 &&
-    defender.attackRange >= distance &&
-    !defenderAbilities.has('PACIFIST_DEFENSE') &&
-    !defenderAbilities.has('NON_VIOLENCE');
+  // Commander Leadership Bonus
+  if (attacker.type === 'commander' && attackerDef.abilities.includes('LEADERSHIP')) {
+    attackerAttack += 2;
+    specialEffects.push("Commander leadership (+2 attack)");
+  }
 
-  if (defenderCanCounter) {
-    const counter = calculateStrikeDamage(
-      state,
-      defender,
-      attacker,
-      defenderAbilities,
-      attackerAbilities,
-      defenderPlayer,
-      attackerPlayer,
-      {
-        attackBonus: bonuses.counterAttackBonus ?? 0,
-        defenseBonus: bonuses.counterDefenseBonus ?? 0,
-        isCounter: true,
-      }
-    );
-    counterDamage = counter.damage;
-    counterEvents = counter.events;
+  // Missionary Peaceful Nature (reduced combat effectiveness)
+  if (attacker.type === 'missionary') {
+    attackerAttack = Math.max(1, attackerAttack - 2);
+    specialEffects.push("Missionary peaceful nature (-2 attack)");
+  }
+
+  // === DEFENSIVE BONUSES ===
+
+  // Guard Defensive Stance
+  if (defender.type === 'guard' && defenderDef.abilities.includes('FORTIFY')) {
+    if (defender.status === 'defending') {
+      defenderDefense += 4;
+      specialEffects.push("Guard fortified defense (+4 defense)");
+    }
+  }
+
+  // Terrain Defense Bonuses
+  if (terrain) {
+    const terrainBonus = GAME_RULES.terrain.defenseBonus[terrain] || 0;
+    if (terrainBonus > 0) {
+      defenderDefense += terrainBonus;
+      specialEffects.push(`Terrain defense bonus (+${terrainBonus} from ${terrain})`);
+    }
+  }
+
+  // === FACTION-SPECIFIC BONUSES ===
+  const attackerPlayer = state.players.find(p => p.id === attacker.playerId);
+  const defenderPlayer = state.players.find(p => p.id === defender.playerId);
+
+  // Faith-based combat bonuses
+  if (attackerPlayer && attackerPlayer.stats.faith >= 70) {
+    attackerAttack += 2;
+    specialEffects.push("High faith combat bonus (+2 attack)");
+  }
+
+  // Pride-based combat bonuses
+  if (attackerPlayer && attackerPlayer.stats.pride >= 70) {
+    attackerAttack += 1;
+    specialEffects.push("High pride combat bonus (+1 attack)");
+  }
+
+  // Calculate final damage
+  const attackerDamage = Math.max(1, attackerAttack - defenderDefense);
+  const defenderDamage = Math.max(1, defender.attack - attacker.defense);
+
+  // Apply damage
+  const newDefenderHp = Math.max(0, defender.hp - attackerDamage);
+  const newAttackerHp = Math.max(0, attacker.hp - defenderDamage);
+
+  const defenderKilled = newDefenderHp <= 0;
+  const attackerKilled = newAttackerHp <= 0;
+
+  // Generate combat message
+  let message = `${attacker.type} attacks ${defender.type}`;
+  if (defenderKilled) {
+    message += ` and destroys it!`;
+  } else if (attackerKilled) {
+    message += ` but is destroyed in the counterattack!`;
+  } else {
+    message += ` (${attackerDamage} damage dealt, ${defenderDamage} received)`;
   }
 
   return {
     success: true,
-    damageToDefender: primary.damage,
-    damageToAttacker: counterDamage,
-    defenderSurvived,
-    counterOccurred: counterDamage > 0,
-    events: primary.events,
-    counterEvents,
+    attackerDamage,
+    defenderDamage,
+    attackerHp: newAttackerHp,
+    defenderHp: newDefenderHp,
+    attackerKilled,
+    defenderKilled,
+    specialEffects,
+    message
   };
 }
 
-export interface RangedAttackImpact {
-  unit: Unit;
-  damage: number;
-  isCenter: boolean;
-  events: string[];
-}
-
-export interface RangedAttackResolution {
-  success: boolean;
-  message: string;
-  impacts: RangedAttackImpact[];
-  tiles: HexCoordinate[];
-  centerTile: HexCoordinate;
-  events: string[];
-}
-
+/**
+ * Handle special ranged attacks (Catapult bombardment, etc.)
+ */
 export function calculateRangedAttack(
-  state: GameState,
   attacker: Unit,
-  targetCoordinate: HexCoordinate
-): RangedAttackResolution {
-  if (attacker.attackRange <= 1) {
-    return { success: false, message: 'Unit has no ranged attack', impacts: [], tiles: [], centerTile: targetCoordinate, events: [] };
-  }
-
-  const distance = hexDistance(attacker.coordinate, targetCoordinate);
-  if (distance > attacker.attackRange) {
-    return { success: false, message: 'Target out of range', impacts: [], tiles: [], centerTile: targetCoordinate, events: [] };
-  }
-
-  const tiles = [targetCoordinate, ...hexNeighbors(targetCoordinate)];
-  const actingAbilities = getAbilitySet(attacker);
-  const actingPlayer = getPlayerById(state, attacker.playerId);
-
-  const impacts: RangedAttackImpact[] = [];
-
-  state.units.forEach(candidate => {
-    if (candidate.id === attacker.id) return;
-    if (candidate.hp <= 0) return;
-
-    const isOnTile = tiles.some(tile =>
-      tile.q === candidate.coordinate.q &&
-      tile.r === candidate.coordinate.r &&
-      tile.s === candidate.coordinate.s
+  targetCoordinate: HexCoordinate,
+  state: GameState
+): { 
+  success: boolean; 
+  affectedUnits: Unit[]; 
+  damage: number; 
+  message: string;
+  specialEffects: string[];
+} {
+  const attackerDef = getUnitDefinition(attacker.type);
+  
+  if (attacker.type === 'catapult' && attackerDef.abilities.includes('LONG_RANGE_BOMBARDMENT')) {
+    // Area of effect attack
+    const bombardmentRadius = 1;
+    const baseDamage = attacker.attack;
+    
+    // Find all units in bombardment area
+    const affectedUnits = state.units.filter(unit => 
+      unit.playerId !== attacker.playerId &&
+      hexDistance(unit.coordinate, targetCoordinate) <= bombardmentRadius
     );
+    
+    return {
+      success: true,
+      affectedUnits,
+      damage: baseDamage,
+      message: `Catapult bombardment affects ${affectedUnits.length} units`,
+      specialEffects: ["Area bombardment attack"]
+    };
+  }
+  
+  return {
+    success: false,
+    affectedUnits: [],
+    damage: 0,
+    message: "Unit cannot perform ranged attacks",
+    specialEffects: []
+  };
+}
 
-    if (!isOnTile) return;
-
-    const isCenter =
-      candidate.coordinate.q === targetCoordinate.q &&
-      candidate.coordinate.r === targetCoordinate.r &&
-      candidate.coordinate.s === targetCoordinate.s;
-
-    const defendingAbilities = getAbilitySet(candidate);
-    const defendingPlayer = getPlayerById(state, candidate.playerId);
-
-    const strike = calculateStrikeDamage(
-      state,
-      attacker,
-      candidate,
-      actingAbilities,
-      defendingAbilities,
-      actingPlayer,
-      defendingPlayer,
-      {}
-    );
-
-    if (strike.damage <= 0) return;
-
-    const scaledDamage = isCenter
-      ? strike.damage
-      : Math.max(1, Math.floor(strike.damage * 0.6));
-
-    impacts.push({
-      unit: candidate,
-      damage: scaledDamage,
-      isCenter,
-      events: strike.events,
-    });
-  });
-
-  if (impacts.length === 0) {
+/**
+ * Handle unit healing abilities
+ */
+export function calculateHealing(
+  healer: Unit,
+  targetArea: HexCoordinate,
+  state: GameState
+): {
+  success: boolean;
+  healedUnits: Unit[];
+  healingAmount: number;
+  message: string;
+  faithCost: number;
+} {
+  const healerDef = getUnitDefinition(healer.type);
+  const player = state.players.find(p => p.id === healer.playerId);
+  
+  if (!player) {
     return {
       success: false,
-      message: 'No targets in blast radius',
-      impacts: [],
-      tiles,
-      centerTile: targetCoordinate,
-      events: [],
+      healedUnits: [],
+      healingAmount: 0,
+      message: "Player not found",
+      faithCost: 0
     };
   }
 
+  // Missionary healing
+  if (healer.type === 'missionary' && healerDef.abilities.includes('HEAL')) {
+    const healingRange = 2;
+    const healingAmount = GAME_RULES.units.healingAmount;
+    const faithCost = 20;
+    
+    if (player.stats.faith < faithCost) {
+      return {
+        success: false,
+        healedUnits: [],
+        healingAmount: 0,
+        message: `Insufficient faith for healing (need ${faithCost})`,
+        faithCost: 0
+      };
+    }
+    
+    const healedUnits = state.units.filter(unit => 
+      unit.playerId === healer.playerId &&
+      unit.id !== healer.id &&
+      hexDistance(unit.coordinate, targetArea) <= healingRange &&
+      unit.hp < unit.maxHp
+    );
+    
+    return {
+      success: true,
+      healedUnits,
+      healingAmount,
+      message: `Missionary heals ${healedUnits.length} nearby allies`,
+      faithCost
+    };
+  }
+  
   return {
-    success: true,
-    message: `Bombardment hit ${impacts.length} unit${impacts.length === 1 ? '' : 's'}`,
-    impacts,
-    tiles,
-    centerTile: targetCoordinate,
-    events: impacts.flatMap(impact => impact.events),
+    success: false,
+    healedUnits: [],
+    healingAmount: 0,
+    message: "Unit cannot heal",
+    faithCost: 0
+  };
+}
+
+/**
+ * Handle unit conversion abilities
+ */
+export function calculateConversion(
+  converter: Unit,
+  target: Unit,
+  state: GameState
+): {
+  success: boolean;
+  conversionChance: number;
+  message: string;
+  faithCost: number;
+} {
+  const converterDef = getUnitDefinition(converter.type);
+  const converterPlayer = state.players.find(p => p.id === converter.playerId);
+  const targetPlayer = state.players.find(p => p.id === target.playerId);
+  
+  if (!converterPlayer || !targetPlayer) {
+    return {
+      success: false,
+      conversionChance: 0,
+      message: "Player not found",
+      faithCost: 0
+    };
+  }
+
+  if (converter.type === 'missionary' && converterDef.abilities.includes('CONVERT')) {
+    const faithCost = 50;
+    const distance = hexDistance(converter.coordinate, target.coordinate);
+    
+    if (distance > 1) {
+      return {
+        success: false,
+        conversionChance: 0,
+        message: "Target too far for conversion",
+        faithCost: 0
+      };
+    }
+    
+    if (converterPlayer.stats.faith < faithCost) {
+      return {
+        success: false,
+        conversionChance: 0,
+        message: `Insufficient faith for conversion (need ${faithCost})`,
+        faithCost: 0
+      };
+    }
+    
+    // Conversion chance based on faith difference and target health
+    const faithDifference = converterPlayer.stats.faith - targetPlayer.stats.faith;
+    const healthFactor = 1 - (target.hp / target.maxHp); // Wounded units easier to convert
+    const baseChance = 0.3;
+    
+    const conversionChance = Math.min(0.9, 
+      baseChance + (faithDifference / 100) + (healthFactor * 0.3)
+    );
+    
+    return {
+      success: true,
+      conversionChance,
+      message: `${Math.round(conversionChance * 100)}% chance to convert ${target.type}`,
+      faithCost
+    };
+  }
+  
+  return {
+    success: false,
+    conversionChance: 0,
+    message: "Unit cannot convert enemies",
+    faithCost: 0
   };
 }

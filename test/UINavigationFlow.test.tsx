@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import GameUI from '../client/src/components/game/GameUI';
 import PlayerHUD from '../client/src/components/ui/PlayerHUD';
 import { BuildingMenu } from '../client/src/components/ui/BuildingMenu';
-import { CityPanel } from '../client/src/components/city/CityPanel';
+import CityPanel from '../client/src/components/ui/CityPanel';
 import { useLocalGame } from '../client/src/lib/stores/useLocalGame';
 import { useGameState } from '../client/src/lib/stores/useGameState';
 import type { GameState, PlayerState, City } from '../shared/types/game';
@@ -15,20 +15,9 @@ vi.mock('../client/src/lib/stores/useLocalGame');
 vi.mock('../client/src/lib/stores/useGameState');
 
 // Mock components to focus on navigation logic
-vi.mock('../client/src/components/ui/TechPanel', () => {
-  const MockTechPanel = ({ isOpen, onClose }: any) =>
-    isOpen ? (
-      <div data-testid="tech-panel">
-        Tech Panel <button onClick={onClose}>Close</button>
-      </div>
-    ) : null;
-
-  return {
-    __esModule: true,
-    TechPanel: MockTechPanel,
-    default: MockTechPanel,
-  };
-});
+vi.mock('../client/src/components/ui/TechPanel', () => ({
+  default: ({ open, onClose }: any) => open ? <div data-testid="tech-panel">Tech Panel <button onClick={onClose}>Close</button></div> : null
+}));
 
 vi.mock('../client/src/components/ui/AnimatedBackground', () => ({
   BuildingMenuBackground: () => <div data-testid="animated-background" />
@@ -66,7 +55,7 @@ describe('UI Navigation Flow Tests', () => {
       },
       modifiers: [],
       researchedTechs: ['writing', 'organization'],
-      researchInspiration: 0,
+      researchProgress: 0,
       citiesOwned: ['city1'],
       constructionQueue: [],
       visibilityMask: [],

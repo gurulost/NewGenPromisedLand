@@ -40,82 +40,36 @@ export function executeWorkerAction(
 ): UnitActionResult {
   const unitDef = getUnitDefinition(unit.type);
   
-  const hex = target
-    ? state.map?.tiles.find(tile => 
-        tile.coordinate.q === target.q && tile.coordinate.r === target.r
-      )
-    : null;
-
-  if (action === 'HARVEST') {
-    if (!unitDef.abilities.includes('HARVEST')) {
-      return { success: false, message: "Unit cannot harvest resources" };
-    }
-
-    if (!hex) {
-      return { success: false, message: "Invalid location" };
-    }
-
-    const distanceToTarget = hexDistance(unit.coordinate, hex.coordinate);
-    if (distanceToTarget > 1) {
-      return { success: false, message: "Resource is out of reach" };
-    }
-
-    if (hex.resources?.length) {
-      return executeHarvestAction(state, unit, hex);
-    }
-
-    return { success: false, message: "No harvestable resources on this tile" };
-  }
-
-  if (action === 'CLEAR_FOREST') {
-    if (!unitDef.abilities.includes('CLEAR_FOREST')) {
-      return { success: false, message: "Unit cannot clear forests" };
-    }
-
-    if (!hex) {
-      return { success: false, message: "Invalid location" };
-    }
-
-    const distanceToTarget = hexDistance(unit.coordinate, hex.coordinate);
-    if (distanceToTarget > 1) {
-      return { success: false, message: "Tile is out of reach" };
-    }
-
-    return executeClearForestAction(state, unit, hex);
-  }
-
-  if (action === 'BUILD_ROAD') {
-    if (!unitDef.abilities.includes('BUILD_ROAD')) {
-      return { success: false, message: "Unit cannot build roads" };
-    }
-
-    if (!hex) {
-      return { success: false, message: "Invalid location" };
-    }
-
-    const distanceToTarget = hexDistance(unit.coordinate, hex.coordinate);
-    if (distanceToTarget > 1) {
-      return { success: false, message: "Tile is out of reach" };
-    }
-
-    return executeBuildRoadAction(state, unit, hex);
+  if (!unitDef.abilities.includes('BUILD')) {
+    return { success: false, message: "Unit cannot build" };
   }
 
   if (action === 'BUILD_IMPROVEMENT' && target && buildingType) {
-    if (!unitDef.abilities.includes('BUILD')) {
-      return { success: false, message: "Unit cannot construct improvements" };
-    }
-
     // Check if improvement can be built on this terrain
+    const hex = state.map?.tiles.find(tile => 
+      tile.coordinate.q === target.q && tile.coordinate.r === target.r
+    );
+    
     if (!hex) {
       return { success: false, message: "Invalid location" };
     }
 
-    const distanceToTarget = hexDistance(unit.coordinate, hex.coordinate);
-    if (distanceToTarget > 1) {
-      return { success: false, message: "Construction site is out of reach" };
+    // Check action type properly
+    if (action === 'HARVEST' && unitDef.abilities.includes('HARVEST')) {
+      return executeHarvestAction(state, unit, hex);
     }
 
+    // Handle Clear Forest action
+    if (action === 'CLEAR_FOREST') {
+      return executeClearForestAction(state, unit, hex);
+    }
+
+    // Handle Build Road action
+    if (action === 'BUILD_ROAD') {
+      return executeBuildRoadAction(state, unit, hex);
+    }
+
+    // Building logic would integrate with existing improvement system
     return {
       success: true,
       message: `Building ${buildingType} on ${hex.terrain}`,
@@ -123,7 +77,7 @@ export function executeWorkerAction(
     };
   }
 
-  return { success: false, message: "Invalid worker action" };
+  return { success: false, message: "Invalid build action" };
 }
 
 /**
@@ -142,7 +96,7 @@ function executeHarvestAction(
   }
 
   // Find nearest friendly city
-  const player = state.players.find(p => p.id === unit.playerId);
+  const player = state.players.find(p => p.units.some(u => u.id === unit.id));
   if (!player) return { success: false, message: "Player not found" };
 
   const playerCities = state.cities?.filter(city => 
@@ -165,64 +119,33 @@ function executeHarvestAction(
     }
   }
 
+  // Apply harvest bonus based on unified world element system
   const resource = hex.resources.find(r => harvestableResources.includes(r));
-  if (!resource) {
-    return { success: false, message: "No harvestable resources on this tile" };
-  }
-
-  const cityDistance = hexDistance(closestCity.coordinate, hex.coordinate);
-  if (cityDistance > 2) {
-    return { success: false, message: "Resource is outside of city territory" };
-  }
-
-  const populationBoost = resource === 'grain_patch' || resource === 'sea_beast' ? 2 : 1;
-
-  const resourceKey = `${hex.coordinate.q},${hex.coordinate.r}`;
-
-  const updatedCities = state.cities?.map(city => {
-    if (city.id !== closestCity.id) {
-      return city;
-    }
-
-    const newPopulation = city.population + populationBoost;
-    const shouldLevelUp = newPopulation >= city.maxPopulation;
-
-    return {
-      ...city,
-      population: shouldLevelUp ? 1 : Math.min(newPopulation, 20),
-      level: shouldLevelUp ? city.level + 1 : city.level,
-      maxPopulation: shouldLevelUp ? city.maxPopulation + 2 : city.maxPopulation,
-      starProduction: shouldLevelUp ? city.starProduction + 1 : city.starProduction,
-      harvestedResources: city.harvestedResources?.includes(resourceKey)
-        ? city.harvestedResources
-        : [...(city.harvestedResources || []), resourceKey]
-    };
-  });
-
-  const updatedTiles = state.map.tiles.map(tile =>
-    tile.coordinate.q === hex.coordinate.q && tile.coordinate.r === hex.coordinate.r
-      ? { 
-          ...tile, 
-          resources: (tile.resources || []).filter(r => r !== resource)
-        }
-      : tile
-  );
+  const harvestBonus = resource === 'grain_patch' ? 2 : 
+                      resource === 'timber_grove' ? 1 : 
+                      resource === 'wild_goats' ? 1 : 
+                      resource === 'ore_vein' ? 1 : 1;
 
   const newState = {
     ...state,
-    cities: updatedCities,
+    cities: state.cities?.map(city => 
+      city.id === closestCity.id 
+        ? { ...city, population: Math.min(city.population + harvestBonus, 20) }
+        : city
+    ),
     map: {
       ...state.map,
-      tiles: updatedTiles
-    },
-    units: state.units.map(u =>
-      u.id === unit.id ? { ...u, remainingMovement: 0 } : u
-    )
+      tiles: state.map.tiles.map(tile =>
+        tile.coordinate.q === hex.coordinate.q && tile.coordinate.r === hex.coordinate.r
+          ? { ...tile, terrain: 'plains', resource: undefined }
+          : tile
+      )
+    }
   };
 
   return {
     success: true,
-    message: `Harvested ${resource} - ${closestCity.name} gained ${populationBoost} population`,
+    message: `Harvested ${hex.terrain} - ${closestCity.name} gained ${harvestBonus} population`,
     newState,
     effects: { }
   };
@@ -241,7 +164,7 @@ function executeClearForestAction(
     return { success: false, message: "Can only clear forest tiles" };
   }
 
-  const player = state.players.find(p => p.id === unit.playerId);
+  const player = state.players.find(p => p.units.some(u => u.id === unit.id));
   if (!player) {
     return { success: false, message: "Player not found" };
   }
@@ -266,10 +189,7 @@ function executeClearForestAction(
           ? { ...tile, terrain: 'plains', resources: [] } // Remove any wood resources
           : tile
       )
-    },
-    units: state.units.map(u =>
-      u.id === unit.id ? { ...u, remainingMovement: 0 } : u
-    )
+    }
   };
 
   return {
@@ -326,10 +246,7 @@ function executeBuildRoadAction(
         ? { ...p, stars: p.stars - 3 }
         : p
     ),
-    improvements: [...(state.improvements || []), roadImprovement],
-    units: state.units.map(u =>
-      u.id === unit.id ? { ...u, remainingMovement: 0 } : u
-    )
+    improvements: [...(state.improvements || []), roadImprovement]
   };
 
   return {

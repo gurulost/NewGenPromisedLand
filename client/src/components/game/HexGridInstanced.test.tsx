@@ -32,7 +32,7 @@ describe('HexGridInstanced UI Interactions', () => {
           turnOrder: 0,
           stars: 10,
           researchedTechs: [],
-          researchInspiration: 0,
+          researchProgress: 0,
           citiesOwned: []
         }
       ],

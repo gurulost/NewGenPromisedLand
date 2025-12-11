@@ -94,14 +94,7 @@ export async function saveGame(gameState: GameState): Promise<void> {
     };
     
     await updateGameIndex(metadata);
-
-    const { trackGameLifecycle } = await import('../utils/posthog');
-    trackGameLifecycle('game_saved', {
-      game_id: gameState.id,
-      turn: gameState.turn,
-      player_count: gameState.players.length,
-      compressed_size: compressedData.length,
-    });
+    console.log('Game saved and compressed successfully:', gameState.id);
   } catch (error) {
     console.error('Failed to save game:', error);
     throw error;
@@ -144,23 +137,7 @@ export async function loadGame(gameId: string): Promise<GameState | null> {
       throw new Error('Corrupted save file - cannot load game');
     }
 
-    const { trackGameLifecycle, setGameContext } = await import('../utils/posthog');
-    const gameState = validation.data!;
-    
-    setGameContext({
-      gameId: gameState.id,
-      turn: gameState.turn,
-      phase: gameState.phase,
-      playerCount: gameState.players.length,
-    });
-
-    trackGameLifecycle('game_loaded', {
-      game_id: gameState.id,
-      turn: gameState.turn,
-      player_count: gameState.players.length,
-    });
-
-    return gameState;
+    return validation.data!;
   } catch (error) {
     console.error('Failed to load game:', error);
     return null;
@@ -204,6 +181,8 @@ export async function exportGameToFile(gameState: GameState, compressed = true):
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    
+    console.log(`Game exported successfully: ${fileName}`);
   } catch (error) {
     console.error('Failed to export game:', error);
     throw error;
@@ -246,6 +225,8 @@ export async function importGameFromFile(file: File): Promise<GameState | null> 
       
       throw new Error(`Invalid save file format: ${errorDetails}`);
     }
+
+    console.log('Game imported and validated successfully');
     return validation.data!;
     
   } catch (error) {
@@ -286,6 +267,8 @@ export async function deleteSavedGame(gameId: string): Promise<boolean> {
     
     // Remove from game index
     await removeFromGameIndex(gameId);
+    
+    console.log('Game deleted successfully:', gameId);
     return true;
   } catch (error) {
     console.error('Failed to delete saved game:', error);

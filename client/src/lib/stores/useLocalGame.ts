@@ -6,8 +6,6 @@ import { gameReducer } from "@shared/logic/gameReducer";
 import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenerator";
 import { useGameState } from "./useGameState";
 import { gameDebugger } from "../../utils/gameDebug";
-import { audioService } from "../../services/AudioService";
-import { trackGameLifecycle, setGameContext, identifyPlayer } from "../../utils/posthog";
 
 type GamePhase = 'menu' | 'playerSetup' | 'handoff' | 'playing' | 'gameOver';
 
@@ -22,8 +20,6 @@ interface LocalGameStore {
     name: string;
     factionId: string;
     turnOrder: number;
-    isAI?: boolean;
-    aiDifficulty?: 'easy' | 'normal' | 'hard';
   }>, mapSize?: MapSize) => void;
   endTurn: (playerId: string) => void;
   moveUnit: (unitId: string, targetCoordinate: any) => void;
@@ -35,8 +31,7 @@ interface LocalGameStore {
   harvestResource: (unitId: string, resourceCoordinate: any, cityId: string) => void;
 }
 
-export const useLocalGame = create<LocalGameStore>((set, get) => {
-  return {
+export const useLocalGame = create<LocalGameStore>((set, get) => ({
   gamePhase: 'menu',
   gameState: null,
   
@@ -57,24 +52,20 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       id: setup.id,
       name: setup.name,
       factionId: setup.factionId,
-      isAI: Boolean(setup.isAI),
-      aiDifficulty: setup.isAI ? (setup.aiDifficulty || 'normal') : undefined,
       stats: {
         faith: 50,
         pride: 30,
         internalDissent: 10,
       },
-      modifiers: [],
-      abilityCooldowns: {},
-      constructionQueue: [],
       visibilityMask: [],
       exploredTiles: [],
       isEliminated: false,
       turnOrder: setup.turnOrder,
       stars: 10, // Starting currency
       researchedTechs: [], // No starting technologies
-      researchInspiration: 0,
+      researchProgress: 0,
       citiesOwned: [],
+      currentResearch: undefined,
     }));
 
     // Extract faction IDs for terrain generation
@@ -95,35 +86,14 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     }, playerFactions);
     
     const map = mapGenerator.generateMap();
-    const capitalPositions = mapGenerator.getCapitalPositions();
     
-    if (capitalPositions.length < players.length) {
-      throw new Error(`Map generation failed: expected ${players.length} capital positions, but only ${capitalPositions.length} were generated`);
-    }
+    // Find city tiles from the generated map for player starting positions
+    const cityTiles = map.tiles.filter(tile => tile.hasCity);
     
-    const playerCapitalTiles = players.map((player, index) => {
-      const capitalCoordinate = capitalPositions[index];
-      if (!capitalCoordinate) {
-        throw new Error(`No capital coordinate generated for player index ${index}`);
-      }
-      
-      const tile = map.tiles.find(t =>
-        t.coordinate.q === capitalCoordinate.q &&
-        t.coordinate.r === capitalCoordinate.r &&
-        t.coordinate.s === capitalCoordinate.s
-      );
-      
-      if (!tile || !tile.hasCity) {
-        console.error(`❌ CRITICAL: Capital tile missing for player ${player.name}`, { capitalCoordinate });
-        throw new Error(`Map generation failed: no capital city tile found for ${player.name}`);
-      }
-      
-      return tile;
-    });
-    
-    // Assign cities to players using their dedicated capital tiles
+    // Assign cities to players (first cities generated are best positioned for players)
     const cities = players.map((player, index) => {
-      const cityTile = playerCapitalTiles[index];
+      const cityTile = cityTiles[index] || cityTiles[0]; // Fallback to first city if not enough
+      
       return {
         id: `city-${player.id}`,
         name: `${player.name}'s Capital`,
@@ -136,7 +106,6 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         improvements: [],
         structures: [],
         harvestedResources: [], // Track harvested resource tiles
-        discoveredBy: [player.id], // Owner automatically discovers their own city
       };
     });
     
@@ -268,31 +237,6 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       winner: undefined,
     };
 
-    const humanPlayer = updatedPlayers.find(p => !p.isAI);
-    if (humanPlayer) {
-      identifyPlayer(humanPlayer.id, {
-        name: humanPlayer.name,
-        faction: humanPlayer.factionId,
-      });
-    }
-
-    setGameContext({
-      gameId: gameState.id,
-      turn: gameState.turn,
-      phase: gameState.phase,
-      mapSize,
-      playerCount: updatedPlayers.length,
-      faction: humanPlayer?.factionId,
-    });
-
-    trackGameLifecycle('game_started', {
-      map_size: mapSize,
-      player_count: updatedPlayers.length,
-      ai_count: updatedPlayers.filter(p => p.isAI).length,
-      factions: updatedPlayers.map(p => p.factionId),
-      human_faction: humanPlayer?.factionId,
-    });
-
     set({ 
       gameState,
       gamePhase: 'handoff'
@@ -313,9 +257,6 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     // Clear selected unit when turn changes
     useGameState.getState().setSelectedUnit(null);
     
-    // Play audio feedback for ending turn
-    audioService.onTurnEnd();
-    
     set({ 
       gameState: newGameState,
       gamePhase: 'handoff'
@@ -326,16 +267,15 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     const { gameState } = get();
     if (!gameState) return;
 
+    console.log('Moving unit:', unitId, 'to:', targetCoordinate);
+
     const action = {
       type: 'MOVE_UNIT' as const,
       payload: { unitId, targetCoordinate }
     };
 
     const newGameState = gameReducer(gameState, action);
-    
-    // Play audio feedback for unit movement
-    audioService.onUnitMove();
-    
+    console.log('Game state updated:', newGameState);
     set({ gameState: newGameState });
   },
 
@@ -343,16 +283,15 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     const { gameState } = get();
     if (!gameState) return;
 
+    console.log('Unit attacking:', attackerId, 'target:', targetId);
+
     const action = {
       type: 'ATTACK_UNIT' as const,
       payload: { attackerId, targetId }
     };
 
     const newGameState = gameReducer(gameState, action);
-    
-    // Play audio feedback for unit attack
-    audioService.onUnitAttack();
-    
+    console.log('Combat result:', newGameState);
     set({ gameState: newGameState });
   },
   
@@ -366,10 +305,6 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     };
 
     const newGameState = gameReducer(gameState, action);
-    
-    // Play audio feedback for ability use
-    audioService.onNotification();
-    
     set({ gameState: newGameState });
   },
   
@@ -378,127 +313,6 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     if (!gameState) return;
     
     const newGameState = gameReducer(gameState, action);
-    
-    // Add audio feedback for various action types via generic dispatch
-    switch (action.type) {
-      case 'RESEARCH_TECH':
-      case 'RESEARCH_TECHNOLOGY':
-        audioService.onTechResearch();
-        break;
-      case 'BUILD_STRUCTURE':
-      case 'START_CONSTRUCTION':
-        audioService.onBuildingBuilt();
-        break;
-      case 'BUILD_UNIT':
-        audioService.onUnitBuilt();
-        break;
-      case 'CAPTURE_VILLAGE':
-        audioService.onVillageCapture();
-        break;
-      case 'CAPTURE_CITY':
-        audioService.onCityCapture();
-        break;
-      case 'MOVE_UNIT':
-        audioService.onUnitMove();
-        break;
-      case 'ATTACK_UNIT':
-        audioService.onUnitAttack();
-        break;
-      case 'END_TURN':
-        audioService.onTurnEnd();
-        break;
-      case 'HARVEST_RESOURCE':
-      case 'WORLD_ELEMENT_HARVEST':
-        audioService.onResourceCollect();
-        break;
-      default:
-        // Generic notification for other actions
-        audioService.onNotification();
-        break;
-    }
-
-    // Track gameplay actions in analytics
-    import('../../utils/posthog').then(({ trackGameplayAction, trackCombatEvent, setGameContext }) => {
-      switch (action.type) {
-        case 'BUILD_UNIT':
-          trackGameplayAction('unit_created', {
-            unit_type: action.payload?.unitType,
-            city_id: action.payload?.cityId,
-            turn: newGameState.turn,
-          });
-          break;
-        case 'MOVE_UNIT':
-          trackGameplayAction('unit_moved', {
-            unit_id: action.payload?.unitId,
-            turn: newGameState.turn,
-          });
-          break;
-        case 'ATTACK_UNIT':
-          const attacker = gameState.units.find(u => u.id === action.payload?.attackerId);
-          const defender = newGameState.units.find(u => u.id === action.payload?.targetId);
-          const oldDefender = gameState.units.find(u => u.id === action.payload?.targetId);
-          
-          trackGameplayAction('unit_attacked', {
-            attacker_type: attacker?.type,
-            defender_type: defender?.type,
-            turn: newGameState.turn,
-          });
-          
-          if (attacker && oldDefender) {
-            trackCombatEvent({
-              attacker_type: attacker.type,
-              defender_type: oldDefender.type,
-              attacker_damage: attacker.hp - (newGameState.units.find(u => u.id === attacker.id)?.hp || 0),
-              defender_damage: oldDefender.hp - (defender?.hp || 0),
-              attacker_survived: newGameState.units.some(u => u.id === attacker.id),
-              defender_survived: !!defender,
-            });
-          }
-          break;
-        case 'FOUND_CITY':
-          trackGameplayAction('city_founded', {
-            city_id: action.payload?.cityId,
-            coordinate: action.payload?.coordinate,
-            turn: newGameState.turn,
-          });
-          break;
-        case 'CAPTURE_CITY':
-          trackGameplayAction('city_captured', {
-            city_id: action.payload?.cityId,
-            turn: newGameState.turn,
-          });
-          break;
-        case 'RESEARCH_TECH':
-        case 'RESEARCH_TECHNOLOGY':
-          trackGameplayAction('tech_researched', {
-            tech_id: action.payload?.technologyId || action.payload?.techId,
-            turn: newGameState.turn,
-          });
-          break;
-        case 'BUILD_STRUCTURE':
-        case 'START_CONSTRUCTION':
-          trackGameplayAction('building_constructed', {
-            structure_type: action.payload?.structureType || action.payload?.buildingId,
-            city_id: action.payload?.cityId,
-            turn: newGameState.turn,
-          });
-          break;
-        case 'END_TURN':
-          trackGameplayAction('turn_ended', {
-            turn: gameState.turn,
-            player_id: action.payload?.playerId,
-          });
-          
-          setGameContext({
-            turn: newGameState.turn,
-            phase: newGameState.phase,
-          });
-          break;
-      }
-    }).catch(err => {
-      console.warn('Failed to track gameplay action:', err);
-    });
-    
     set({ gameState: newGameState });
   },
   
@@ -526,10 +340,6 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     };
 
     const newGameState = gameReducer(gameState, action);
-    
-    // Play audio feedback for resource harvest
-    audioService.onResourceCollect();
-    
     set({ gameState: newGameState });
   },
-}});
+}));

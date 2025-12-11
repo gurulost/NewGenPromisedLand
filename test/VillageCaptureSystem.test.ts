@@ -25,7 +25,7 @@ describe('Village Capture System', () => {
       },
       modifiers: [],
       researchedTechs: [],
-      researchInspiration: 2,
+      researchProgress: 2,
       citiesOwned: [],
       visibilityMask: [],
       exploredTiles: [],
@@ -113,7 +113,7 @@ describe('Village Capture System', () => {
       // Check that player received rewards
       const updatedPlayer = newState.players.find(p => p.id === 'player1');
       expect(updatedPlayer?.stars).toBe(15); // 10 + 5 reward
-      expect(updatedPlayer?.researchInspiration).toBe(3); // 2 + 1 boost
+      expect(updatedPlayer?.researchProgress).toBe(3); // 2 + 1 boost
       
       // Check that unit is exhausted after capture
       const updatedUnit = newState.units.find(u => u.id === 'unit1');
@@ -147,7 +147,7 @@ describe('Village Capture System', () => {
       // Player should not receive rewards
       const updatedPlayer = newState.players.find(p => p.id === 'player1');
       expect(updatedPlayer?.stars).toBe(10); // No change
-      expect(updatedPlayer?.researchInspiration).toBe(2); // No change
+      expect(updatedPlayer?.researchProgress).toBe(2); // No change
     });
 
     it('should not capture village if already owned by same player', () => {
@@ -167,7 +167,7 @@ describe('Village Capture System', () => {
       // Player should not receive additional rewards
       const updatedPlayer = newState.players.find(p => p.id === 'player1');
       expect(updatedPlayer?.stars).toBe(10); // No change
-      expect(updatedPlayer?.researchInspiration).toBe(2); // No change
+      expect(updatedPlayer?.researchProgress).toBe(2); // No change
       
       // Unit should not be exhausted
       const updatedUnit = newState.units.find(u => u.id === 'unit1');
@@ -201,7 +201,7 @@ describe('Village Capture System', () => {
       // Player should receive rewards
       const updatedPlayer = newState.players.find(p => p.id === 'player1');
       expect(updatedPlayer?.stars).toBe(15);
-      expect(updatedPlayer?.researchInspiration).toBe(3);
+      expect(updatedPlayer?.researchProgress).toBe(3);
     });
 
     it('should not capture with invalid unit ID', () => {
@@ -303,7 +303,7 @@ describe('Village Capture System', () => {
     });
 
     it('should give correct research progress boost', () => {
-      const initialProgress = mockPlayer.researchInspiration;
+      const initialProgress = mockPlayer.researchProgress;
       
       const action = {
         type: 'CAPTURE_VILLAGE' as const,
@@ -316,7 +316,7 @@ describe('Village Capture System', () => {
       const newState = gameReducer(mockGameState, action);
       const updatedPlayer = newState.players.find(p => p.id === 'player1');
       
-      expect(updatedPlayer?.researchInspiration).toBe(initialProgress + 1);
+      expect(updatedPlayer?.researchProgress).toBe(initialProgress + 1);
     });
 
     it('should work with high star counts', () => {

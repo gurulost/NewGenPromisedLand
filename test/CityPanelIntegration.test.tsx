@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CityPanel } from '../client/src/components/city/CityPanel';
-import { useLocalGame } from '../client/src/lib/stores/useLocalGame';
+import CityPanel from '../client/src/components/ui/CityPanel';
 import { GameState, PlayerState, City } from '../shared/types/game';
 
 // Mock the BuildingMenu component
@@ -19,25 +18,6 @@ vi.mock('../client/src/components/ui/BuildingMenu', () => ({
 vi.mock('../client/src/components/ui/TooltipSystem', () => ({
   Tooltip: ({ children }: any) => children,
   ActionTooltip: ({ title }: any) => <div>{title}</div>
-}));
-
-// Mock ToastProvider
-vi.mock('../client/src/components/ui/ToastProvider', () => ({
-  ToastProvider: ({ children }: any) => children,
-  useToastContext: () => ({
-    showToast: vi.fn()
-  })
-}));
-
-// Mock useGameAudio with correct API
-vi.mock('../client/src/hooks/useAudioIntegration', () => ({
-  useGameAudio: () => ({
-    onButtonClick: vi.fn(),
-    onButtonHover: vi.fn(),
-    onBuildingBuilt: vi.fn(),
-    onPanelOpen: vi.fn(),
-    onPanelClose: vi.fn()
-  })
 }));
 
 // Mock game store
@@ -133,112 +113,113 @@ describe('CityPanel Integration Tests', () => {
   it('renders city overview with correct information', () => {
     render(
       <CityPanel
-        isOpen={true}
+        open={true}
         onClose={() => {}}
-        city={mockCity}
-        gameState={mockGameState}
-        currentPlayer={mockPlayer}
+        cityId="city1"
       />
     );
 
-    expect(screen.getByText('Test Capital')).toBeInTheDocument();
-    expect(screen.getByText(/Population: 8/)).toBeInTheDocument();
+    expect(screen.getByText('Test Capital - City Management')).toBeInTheDocument();
+    expect(screen.getByText('Population: 8')).toBeInTheDocument();
+    expect(screen.getByText('Owner: Test Player')).toBeInTheDocument();
+    expect(screen.getByText('100 Stars')).toBeInTheDocument();
   });
 
   it('shows current structures in city', () => {
     render(
       <CityPanel
-        isOpen={true}
+        open={true}
         onClose={() => {}}
-        city={mockCity}
-        gameState={mockGameState}
-        currentPlayer={mockPlayer}
+        cityId="city1"
       />
     );
 
-    expect(screen.getByText(/Buildings/)).toBeInTheDocument();
+    expect(screen.getByText('Current Structures')).toBeInTheDocument();
+    expect(screen.getByText('temple')).toBeInTheDocument();
   });
 
   it('displays units in city correctly', () => {
     render(
       <CityPanel
-        isOpen={true}
+        open={true}
         onClose={() => {}}
-        city={mockCity}
-        gameState={mockGameState}
-        currentPlayer={mockPlayer}
+        cityId="city1"
       />
     );
 
-    expect(screen.getByText(/Military/)).toBeInTheDocument();
+    expect(screen.getByText('Units in City')).toBeInTheDocument();
+    expect(screen.getByText('warrior')).toBeInTheDocument();
+    expect(screen.getByText('HP: 25/25')).toBeInTheDocument();
   });
 
-  it('opens Buildings tab when clicked', async () => {
+  it('opens Construction Hall when button is clicked', async () => {
     const user = userEvent.setup();
     
     render(
       <CityPanel
-        isOpen={true}
+        open={true}
         onClose={() => {}}
-        city={mockCity}
-        gameState={mockGameState}
-        currentPlayer={mockPlayer}
+        cityId="city1"
       />
     );
 
-    const buildingsTab = screen.getByText('Buildings');
-    await user.click(buildingsTab);
+    const constructionButton = screen.getByText('Construction Hall');
+    await user.click(constructionButton);
 
-    expect(screen.getByText(/Buildings/)).toBeInTheDocument();
+    expect(screen.getByTestId('building-menu')).toBeInTheDocument();
   });
 
-  it('shows Buildings tab content', async () => {
+  it('handles building construction through Construction Hall', async () => {
     const user = userEvent.setup();
     
     render(
       <CityPanel
-        isOpen={true}
+        open={true}
         onClose={() => {}}
-        city={mockCity}
-        gameState={mockGameState}
-        currentPlayer={mockPlayer}
+        cityId="city1"
       />
     );
 
-    // Open Buildings tab
-    const buildingsTab = screen.getByText('Buildings');
-    await user.click(buildingsTab);
+    // Open Construction Hall
+    const constructionButton = screen.getByText('Construction Hall');
+    await user.click(constructionButton);
 
-    // Verify Buildings tab is active
-    expect(buildingsTab).toHaveAttribute('data-state', 'active');
+    // Build a warrior
+    const buildButton = screen.getByText('Build Warrior');
+    await user.click(buildButton);
+
+    expect(mockDispatch).toHaveBeenCalledWith({
+      type: 'RECRUIT_UNIT',
+      payload: {
+        playerId: 'player1',
+        cityId: 'city1',
+        unitType: 'warrior'
+      }
+    });
   });
 
-  it('switches between tabs correctly', async () => {
+  it('closes Construction Hall when close button is clicked', async () => {
     const user = userEvent.setup();
     
     render(
       <CityPanel
-        isOpen={true}
+        open={true}
         onClose={() => {}}
-        city={mockCity}
-        gameState={mockGameState}
-        currentPlayer={mockPlayer}
+        cityId="city1"
       />
     );
 
-    // Start on Overview tab (default)
-    const overviewTab = screen.getByText('Overview');
-    expect(overviewTab).toHaveAttribute('data-state', 'active');
+    // Open Construction Hall
+    const constructionButton = screen.getByText('Construction Hall');
+    await user.click(constructionButton);
 
-    // Switch to Buildings tab
-    const buildingsTab = screen.getByText('Buildings');
-    await user.click(buildingsTab);
-    expect(buildingsTab).toHaveAttribute('data-state', 'active');
+    expect(screen.getByTestId('building-menu')).toBeInTheDocument();
 
-    // Switch to Military tab
-    const militaryTab = screen.getByText('Military');
-    await user.click(militaryTab);
-    expect(militaryTab).toHaveAttribute('data-state', 'active');
+    // Close it
+    const closeButton = screen.getByText('Close Menu');
+    await user.click(closeButton);
+
+    expect(screen.queryByTestId('building-menu')).not.toBeInTheDocument();
   });
 
   it('closes city panel when close button is clicked', async () => {
@@ -247,60 +228,46 @@ describe('CityPanel Integration Tests', () => {
     
     render(
       <CityPanel
-        isOpen={true}
+        open={true}
         onClose={mockOnClose}
-        city={mockCity}
-        gameState={mockGameState}
-        currentPlayer={mockPlayer}
+        cityId="city1"
       />
     );
 
-    // Find close button by role
-    const closeButtons = screen.getAllByRole('button');
-    const closeButton = closeButtons.find(btn => 
-      btn.getAttribute('aria-label')?.includes('Close') || 
-      btn.textContent?.includes('×')
-    );
-    
-    if (closeButton) {
-      await user.click(closeButton);
-      expect(mockOnClose).toHaveBeenCalled();
-    }
+    const closeButton = screen.getByText('Close');
+    await user.click(closeButton);
+
+    expect(mockOnClose).toHaveBeenCalled();
   });
 
   it('does not render when not open', () => {
-    const { container } = render(
+    render(
       <CityPanel
-        isOpen={false}
+        open={false}
         onClose={() => {}}
-        city={mockCity}
-        gameState={mockGameState}
-        currentPlayer={mockPlayer}
+        cityId="city1"
       />
     );
 
-    expect(container.firstChild).toBeNull();
+    expect(screen.queryByText('Test Capital - City Management')).not.toBeInTheDocument();
   });
 
-  it('does not render for null city', () => {
-    const { container } = render(
+  it('does not render for non-existent city', () => {
+    render(
       <CityPanel
-        isOpen={true}
+        open={true}
         onClose={() => {}}
-        city={null as any}
-        gameState={mockGameState}
-        currentPlayer={mockPlayer}
+        cityId="non-existent"
       />
     );
 
-    expect(container.firstChild).toBeNull();
+    expect(screen.queryByText('City Management')).not.toBeInTheDocument();
   });
 
-  it('renders for any city regardless of owner', () => {
+  it('does not render for city not owned by current player', () => {
     const otherPlayerCity = {
       ...mockCity,
       id: 'enemy-city',
-      name: 'Enemy City',
       ownerId: 'player2'
     };
 
@@ -309,18 +276,21 @@ describe('CityPanel Integration Tests', () => {
       cities: [mockCity, otherPlayerCity]
     };
 
+    // Mock the game state to include enemy city
+    vi.mocked(require('../client/src/lib/stores/useLocalGame').useLocalGame).mockReturnValue({
+      gameState: gameStateWithEnemyCity,
+      dispatch: mockDispatch
+    });
+
     render(
       <CityPanel
-        isOpen={true}
+        open={true}
         onClose={() => {}}
-        city={otherPlayerCity}
-        gameState={gameStateWithEnemyCity}
-        currentPlayer={mockPlayer}
+        cityId="enemy-city"
       />
     );
 
-    // CityPanel renders for any city
-    expect(screen.getByText('Enemy City')).toBeInTheDocument();
+    expect(screen.queryByText('City Management')).not.toBeInTheDocument();
   });
 
   it('shows empty state when no structures built', () => {
@@ -329,18 +299,20 @@ describe('CityPanel Integration Tests', () => {
       structures: []
     };
 
+    vi.mocked(require('../client/src/lib/stores/useLocalGame').useLocalGame).mockReturnValue({
+      gameState: gameStateNoStructures,
+      dispatch: mockDispatch
+    });
+
     render(
       <CityPanel
-        isOpen={true}
+        open={true}
         onClose={() => {}}
-        city={mockCity}
-        gameState={gameStateNoStructures}
-        currentPlayer={mockPlayer}
+        cityId="city1"
       />
     );
 
-    // Should still render the Buildings tab, just no structures listed
-    expect(screen.getByText('Buildings')).toBeInTheDocument();
+    expect(screen.getByText('No structures built yet')).toBeInTheDocument();
   });
 
   it('shows empty state when no units in city', () => {
@@ -349,17 +321,19 @@ describe('CityPanel Integration Tests', () => {
       units: []
     };
 
+    vi.mocked(require('../client/src/lib/stores/useLocalGame').useLocalGame).mockReturnValue({
+      gameState: gameStateNoUnits,
+      dispatch: mockDispatch
+    });
+
     render(
       <CityPanel
-        isOpen={true}
+        open={true}
         onClose={() => {}}
-        city={mockCity}
-        gameState={gameStateNoUnits}
-        currentPlayer={mockPlayer}
+        cityId="city1"
       />
     );
 
-    // Should still render the Military tab
-    expect(screen.getByText('Military')).toBeInTheDocument();
+    expect(screen.getByText('No units in city')).toBeInTheDocument();
   });
 });

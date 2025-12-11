@@ -1,60 +1,35 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import CombatPanel from '../../client/src/components/ui/CombatPanel';
+import { CombatPanel } from '../../client/src/components/ui/CombatPanel';
 
 const mockSelectedUnit = {
   id: 'unit1',
   type: 'warrior',
-  playerId: 'player1',
+  ownerId: 'player1',
   coordinate: { q: 0, r: 0, s: 0 },
-  currentHp: 10,
-  maxHp: 10,
-  attackRange: 1,
-  visionRadius: 2,
-  remainingMovement: 2,
-  hasAttacked: false
+  health: 10,
+  maxHealth: 10,
+  attackRange: 1
 };
 
 const mockEnemies = [
   {
     id: 'enemy1',
     type: 'warrior',
-    playerId: 'player2',
+    ownerId: 'player2',
     coordinate: { q: 1, r: 0, s: -1 },
-    currentHp: 8,
-    maxHp: 10,
-    visionRadius: 2,
-    remainingMovement: 2,
-    hasAttacked: false
+    health: 8,
+    maxHealth: 10
   },
   {
     id: 'enemy2',
     type: 'scout',
-    playerId: 'player2',
+    ownerId: 'player2',
     coordinate: { q: 0, r: 1, s: -1 },
-    currentHp: 5,
-    maxHp: 6,
-    visionRadius: 3,
-    remainingMovement: 3,
-    hasAttacked: false
+    health: 5,
+    maxHealth: 6
   }
 ];
-
-const mockGameState = {
-  id: 'game1',
-  currentPlayerIndex: 0,
-  turn: 1,
-  phase: 'playing',
-  map: { width: 10, height: 10, tiles: [] },
-  players: [
-    { id: 'player1', name: 'Player 1', factionId: 'NEPHITES', stars: 100, faith: 50, pride: 25, internalDissent: 10 },
-    { id: 'player2', name: 'Player 2', factionId: 'LAMANITES', stars: 100, faith: 50, pride: 25, internalDissent: 10 }
-  ],
-  units: [mockSelectedUnit, ...mockEnemies],
-  cities: [],
-  improvements: [],
-  structures: []
-};
 
 // Mock combat calculations
 vi.mock('../../client/src/selectors/combat', () => ({
@@ -66,31 +41,14 @@ vi.mock('../../client/src/selectors/combat', () => ({
   })
 }));
 
-// Mock ToastProvider
-vi.mock('../../client/src/components/ui/ToastProvider', () => ({
-  ToastProvider: ({ children }: any) => children,
-  useToastContext: () => ({
-    showToast: vi.fn()
-  })
-}));
-
-// Mock useGameAudio with correct API
-vi.mock('../../client/src/hooks/useAudioIntegration', () => ({
-  useGameAudio: () => ({
-    onUnitAttack: vi.fn(),
-    onButtonClick: vi.fn(),
-    onButtonHover: vi.fn()
-  })
-}));
-
 describe('CombatPanel Unit Tests', () => {
   it('displays combat odds with correct color classes', () => {
     render(
       <CombatPanel 
         selectedUnit={mockSelectedUnit}
-        gameState={mockGameState}
-        onAttackUnit={vi.fn()}
-        hoveredEnemy={null}
+        enemies={mockEnemies}
+        onAttack={vi.fn()}
+        onClose={vi.fn()}
       />
     );
     
@@ -107,88 +65,77 @@ describe('CombatPanel Unit Tests', () => {
     const { rerender } = render(
       <CombatPanel 
         selectedUnit={mockSelectedUnit}
-        gameState={mockGameState}
-        onAttackUnit={vi.fn()}
-        hoveredEnemy={null}
+        enemies={mockEnemies}
+        onAttack={vi.fn()}
+        onClose={vi.fn()}
       />
     );
     
-    // Component renders combat options for enemies in range
-    // Test passes if component renders without errors
-    expect(screen.getByText(/Warrior/i)).toBeInTheDocument();
+    // Check for favorable outcome styling (should be green/positive)
+    const favorableOdds = screen.getByText('75%');
+    expect(favorableOdds.closest('[class*="text-green"]')).toBeTruthy();
+    
+    // Check for unfavorable outcome styling (should be red/negative)
+    const unfavorableOdds = screen.getByText('45%');
+    expect(unfavorableOdds.closest('[class*="text-red"]')).toBeTruthy();
   });
 
   it('handles empty enemies list gracefully', () => {
-    const emptyGameState = {
-      ...mockGameState,
-      units: [mockSelectedUnit] // Only player unit, no enemies
-    };
-    
-    const { container } = render(
+    render(
       <CombatPanel 
         selectedUnit={mockSelectedUnit}
-        gameState={emptyGameState}
-        onAttackUnit={vi.fn()}
-        hoveredEnemy={null}
+        enemies={[]}
+        onAttack={vi.fn()}
+        onClose={vi.fn()}
       />
     );
     
-    // Panel should not render when no enemies in range
-    expect(container.firstChild).toBeNull();
+    expect(screen.getByText(/No enemies in range/i)).toBeInTheDocument();
   });
 
   it('displays unit health status correctly', () => {
     const damagedUnit = {
       ...mockSelectedUnit,
-      currentHp: 6
-    };
-    
-    const gameStateWithDamagedUnit = {
-      ...mockGameState,
-      units: [damagedUnit, ...mockEnemies]
+      health: 6
     };
     
     render(
       <CombatPanel 
         selectedUnit={damagedUnit}
-        gameState={gameStateWithDamagedUnit}
-        onAttackUnit={vi.fn()}
-        hoveredEnemy={null}
+        enemies={mockEnemies}
+        onAttack={vi.fn()}
+        onClose={vi.fn()}
       />
     );
     
-    // Should show enemies are available for attack
-    expect(screen.getByText(/Warrior/i)).toBeInTheDocument();
+    // Should show unit health
+    expect(screen.getByText('6/10')).toBeInTheDocument();
   });
 
   it('virtualizes enemy list for performance', () => {
     const manyEnemies = Array.from({ length: 50 }, (_, i) => ({
       id: `enemy${i}`,
       type: 'warrior',
-      playerId: 'player2',
+      ownerId: 'player2',
       coordinate: { q: i % 5, r: Math.floor(i / 5), s: -(i % 5 + Math.floor(i / 5)) },
-      currentHp: 10,
-      maxHp: 10,
-      visionRadius: 2,
-      remainingMovement: 2,
-      hasAttacked: false
+      health: 10,
+      maxHealth: 10
     }));
-    
-    const gameStateWithManyEnemies = {
-      ...mockGameState,
-      units: [mockSelectedUnit, ...manyEnemies]
-    };
     
     render(
       <CombatPanel 
         selectedUnit={mockSelectedUnit}
-        gameState={gameStateWithManyEnemies}
-        onAttackUnit={vi.fn()}
-        hoveredEnemy={null}
+        enemies={manyEnemies}
+        onAttack={vi.fn()}
+        onClose={vi.fn()}
       />
     );
     
     // Should render component without performance issues
-    expect(screen.getByText(/Warrior/i)).toBeInTheDocument();
+    expect(screen.getByText(/Combat Options/i)).toBeInTheDocument();
+    
+    // Should not render all 50 enemies at once (virtualization)
+    const renderedEnemies = screen.getAllByText(/enemy\d+/i);
+    expect(renderedEnemies.length).toBeLessThan(50);
   });
 });

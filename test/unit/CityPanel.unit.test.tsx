@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { CityPanel } from '../../client/src/components/city/CityPanel';
+import { CityPanel } from '../../client/src/components/ui/CityPanel';
 
 const mockCity = {
   id: 'city1',
@@ -23,24 +23,6 @@ const mockGameState = {
 
 // Mock city selectors
 vi.mock('../../client/src/selectors/city', () => ({
-  getCityValidation: vi.fn(() => ({
-    canBuildStructures: true,
-    canRecruitUnits: true,
-    buildableStructures: [
-      { id: 'temple', name: 'Temple', cost: 10, canAfford: true, requirements: [] },
-      { id: 'barracks', name: 'Barracks', cost: 8, canAfford: true, requirements: [] }
-    ],
-    unavailableStructures: [
-      { id: 'forge', name: 'Forge', cost: 20, canAfford: false, requirements: ['metallurgy'] }
-    ],
-    recruitableUnits: [
-      { id: 'warrior', name: 'Warrior', cost: 5, canAfford: true, requirements: [] },
-      { id: 'scout', name: 'Scout', cost: 3, canAfford: true, requirements: [] }
-    ],
-    unavailableUnits: [
-      { id: 'catapult', name: 'Catapult', cost: 25, canAfford: false, requirements: ['engineering'] }
-    ]
-  })),
   getCityBuildOptions: vi.fn(() => ({
     structures: [
       { id: 'temple', name: 'Temple', cost: 10, canAfford: true, requirements: [] },
@@ -53,25 +35,6 @@ vi.mock('../../client/src/selectors/city', () => ({
       { id: 'catapult', name: 'Catapult', cost: 25, canAfford: false, requirements: ['engineering'] }
     ]
   }))
-}));
-
-// Mock ToastProvider
-vi.mock('../../client/src/components/ui/ToastProvider', () => ({
-  ToastProvider: ({ children }: any) => children,
-  useToastContext: () => ({
-    showToast: vi.fn()
-  })
-}));
-
-// Mock useGameAudio with correct API
-vi.mock('../../client/src/hooks/useAudioIntegration', () => ({
-  useGameAudio: () => ({
-    onButtonClick: vi.fn(),
-    onButtonHover: vi.fn(),
-    onBuildingBuilt: vi.fn(),
-    onPanelOpen: vi.fn(),
-    onPanelClose: vi.fn()
-  })
 }));
 
 describe('CityPanel Unit Tests', () => {

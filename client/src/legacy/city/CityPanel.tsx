@@ -6,8 +6,8 @@ import { PanelShell } from '../primitives/PanelShell';
 import { PanelHeader } from '../primitives/PanelHeader';
 import { ResourceDeltaBadge } from '../ui/WorldElementPanel';
 
-import { City } from '@shared/types/city';
-import { GameState, PlayerState } from '@shared/types/game';
+import { City } from '../../../../shared/types/city';
+import { GameState, Player } from '../../../../shared/types/game';
 import { getCityValidation, CityValidation } from '../../selectors/city';
 
 interface CityPanelProps {
@@ -15,22 +15,14 @@ interface CityPanelProps {
   onClose: () => void;
   city: City;
   gameState: GameState;
-  currentPlayer: PlayerState;
+  currentPlayer: Player;
 }
 
 export function CityPanel({ isOpen, onClose, city, gameState, currentPlayer }: CityPanelProps) {
-  // Calculate whether to hide panel (maintain stable hook order)
-  const shouldHide = !isOpen || !city;
-  
   const cityValidation = useMemo(() => 
-    shouldHide ? null : getCityValidation(city, currentPlayer, gameState),
-    [city, currentPlayer, gameState, shouldHide]
+    getCityValidation(city, currentPlayer, gameState),
+    [city, currentPlayer, gameState]
   );
-
-  // Return null after hooks to maintain Rules of Hooks
-  if (shouldHide) {
-    return null;
-  }
 
   return (
     <PanelShell 
@@ -42,7 +34,7 @@ export function CityPanel({ isOpen, onClose, city, gameState, currentPlayer }: C
       <PanelHeader
         icon={<Building className="w-5 h-5" />}
         title={city.name}
-        description={`Population: ${city.population} • Level ${city.level}`}
+        description={`Population: ${city.population} • Founded by ${city.foundedBy}`}
         onClose={onClose}
       />
 
@@ -85,7 +77,7 @@ export function CityPanel({ isOpen, onClose, city, gameState, currentPlayer }: C
           <Tabs.Content value="structures" className="space-y-4">
             <CityStructuresTab 
               city={city} 
-              cityValidation={cityValidation!}
+              cityValidation={cityValidation}
               currentPlayer={currentPlayer}
             />
           </Tabs.Content>
@@ -93,7 +85,7 @@ export function CityPanel({ isOpen, onClose, city, gameState, currentPlayer }: C
           <Tabs.Content value="military" className="space-y-4">
             <CityMilitaryTab 
               city={city}
-              cityValidation={cityValidation!}
+              cityValidation={cityValidation}
               currentPlayer={currentPlayer}
             />
           </Tabs.Content>
@@ -132,7 +124,7 @@ const CityOverviewTab = React.memo(({ city, gameState }: {
       <div className="space-y-2 text-sm">
         <div className="flex justify-between">
           <span className="text-amber-300/80">Controlled Tiles:</span>
-          <span className="text-amber-100">-</span>
+          <span className="text-amber-100">{city.controlledTiles.length}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-amber-300/80">Resources:</span>
@@ -146,7 +138,7 @@ const CityOverviewTab = React.memo(({ city, gameState }: {
 const CityStructuresTab = React.memo(({ city, cityValidation, currentPlayer }: {
   city: City;
   cityValidation: CityValidation;
-  currentPlayer: PlayerState;
+  currentPlayer: Player;
 }) => {
   const availableStructures = cityValidation.getAvailableStructures();
   
@@ -171,7 +163,7 @@ const CityStructuresTab = React.memo(({ city, cityValidation, currentPlayer }: {
 const CityMilitaryTab = React.memo(({ city, cityValidation, currentPlayer }: {
   city: City;
   cityValidation: CityValidation;
-  currentPlayer: PlayerState;
+  currentPlayer: Player;
 }) => (
   <div className="space-y-4">
     <h3 className="font-cinzel font-semibold text-amber-200">Military Units</h3>
@@ -201,7 +193,7 @@ const StructureCard = React.memo(({ structureId, canAfford, hasPrerequisites, cu
   structureId: string;
   canAfford: boolean;
   hasPrerequisites: boolean;
-  currentPlayer: PlayerState;
+  currentPlayer: Player;
 }) => {
   // Structure definitions lookup (simplified for demo)
   const structureData = {

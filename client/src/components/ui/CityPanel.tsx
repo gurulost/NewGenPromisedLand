@@ -141,18 +141,10 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
   return (
     <div 
       className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-      style={{ pointerEvents: 'auto', touchAction: 'pan-y pinch-zoom' }}
+      style={{ pointerEvents: 'auto' }}
       onClick={(e) => {
+        console.log('🏛️ CityPanel backdrop clicked:', e.target === e.currentTarget);
         if (e.target === e.currentTarget) {
-          e.preventDefault();
-          e.stopPropagation();
-          onClose();
-        }
-      }}
-      onTouchEnd={(e) => {
-        if (e.target === e.currentTarget) {
-          e.preventDefault();
-          e.stopPropagation();
           onClose();
         }
       }}
@@ -160,6 +152,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
       <Card 
         className="w-full h-full max-w-4xl max-h-[90vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/10 overflow-y-auto" 
         onClick={(e) => {
+          console.log('🏛️ CityPanel card clicked');
           e.stopPropagation();
         }}
       >
@@ -181,6 +174,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               <Button 
                 variant="outline" 
                 onClick={(e) => {
+                  console.log('🏛️ CityPanel Close button clicked');
                   e.stopPropagation();
                   onClose();
                 }}
@@ -209,6 +203,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               variant="outline"
               size="sm"
               onClick={() => {
+                console.log('Construction Hall button clicked');
                 setShowAdvancedBuildingMenu(true);
               }}
               className="flex items-center gap-2 bg-gradient-to-r from-purple-600/10 to-blue-600/10 border-purple-500/30 hover:from-purple-600/20 hover:to-blue-600/20"
@@ -456,6 +451,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           player={currentPlayer}
           gameState={gameState}
           onBuild={(optionId) => {
+            console.log('Starting construction:', optionId);
             // Determine building category
             let category: 'improvements' | 'structures' | 'units';
             
@@ -468,6 +464,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
             }
             
             // All construction now uses tile selection mode
+            console.log(`Starting tile selection for ${optionId}`);
             startConstruction(optionId, category, city.id, currentPlayer.id);
             setShowAdvancedBuildingMenu(false);
             // Close the main city panel to show the map clearly
