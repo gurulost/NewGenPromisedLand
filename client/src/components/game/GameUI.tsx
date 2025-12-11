@@ -7,8 +7,13 @@ import { getFaction } from "@shared/data/factions";
 import { PlayerHUD } from "../hud/PlayerHUD";
 import SelectedUnitPanel from "../ui/SelectedUnitPanel";
 import UnitActionsPanel from "../ui/AbilitiesPanel";
+<<<<<<< Updated upstream
 import { TechPanel } from "../ui/TechPanel";
 import { CityPanel } from "../city/CityPanel";
+=======
+import TechPanel from "../ui/TechPanel";
+import CityPanel from "../ui/CityPanel";
+>>>>>>> Stashed changes
 import { BuildingMenu } from "../ui/BuildingMenu";
 import VictoryScreen from "../ui/VictoryScreen";
 import SaveLoadMenu from "../ui/SaveLoadMenu";
@@ -653,9 +658,12 @@ export default function GameUI() {
         gameState={gameState}
         onShowTechPanel={() => setShowTechPanel(true)}
         onShowConstructionHall={handleShowConstructionHall}
+<<<<<<< Updated upstream
         onEndTurn={handleEndTurn}
         abilities={factionAbilityOptions}
         onActivateAbility={handleActivateAbility}
+=======
+>>>>>>> Stashed changes
       />
 
       {/* Selected Unit Panel - Unified interface with all unit actions */}

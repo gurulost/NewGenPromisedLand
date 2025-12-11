@@ -19,13 +19,14 @@ export default function Construction({ construction }: ConstructionProps) {
   const opacity = Math.max(0.2, progress); // Minimum 20% opacity for visibility
   
   // Position the construction at the correct hex coordinate
-  const pixelPos = hexToPixel(construction.coordinate, HEX_SIZE);
+  const coord = construction.coordinate ?? { q: 0, r: 0, s: 0 };
+  const pixelPos = hexToPixel(coord, HEX_SIZE);
   
   // Try to load the model based on construction type
   let model = null;
   try {
     if (construction.type === 'boat') {
-      const gltf = useLoader(GLTFLoader, "/models/boat.glb");
+      const gltf = useLoader(GLTFLoader as any, "/models/boat.glb");
       model = gltf.scene.clone();
     }
   } catch (error) {

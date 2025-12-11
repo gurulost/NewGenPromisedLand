@@ -11,7 +11,10 @@ import { InfoTooltip } from '../primitives/InfoTooltip';
 
 import { PlayerState, GameState } from '@shared/types/game';
 import { getFaction } from '@shared/data/factions';
+<<<<<<< Updated upstream
 import { GAME_RULES } from '@shared/data/gameRules';
+=======
+>>>>>>> Stashed changes
 import { getPlayerStats, PlayerStats } from '../../selectors/player';
 
 interface HUDAbilityMeta {
