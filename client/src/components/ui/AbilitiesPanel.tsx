@@ -351,25 +351,25 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
       case 'heal':
         dispatch({ 
           type: 'USE_ABILITY', 
-          payload: { unitId: unit.id, abilityType: 'heal' }
+          payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'HEAL' }
         });
         break;
       case 'stealth':
         dispatch({ 
           type: 'USE_ABILITY', 
-          payload: { unitId: unit.id, abilityType: 'stealth' }
+          payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'STEALTH' }
         });
         break;
       case 'reconnaissance':
         dispatch({ 
           type: 'USE_ABILITY', 
-          payload: { unitId: unit.id, abilityType: 'reconnaissance' }
+          payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'RECONNAISSANCE' }
         });
         break;
       case 'rally_troops':
         dispatch({ 
           type: 'USE_ABILITY', 
-          payload: { unitId: unit.id, abilityType: 'rally_troops' }
+          payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'RALLY_TROOPS' }
         });
         break;
       case 'bombardment':
@@ -436,7 +436,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
       case 'convert':
         dispatch({ 
           type: 'USE_ABILITY', 
-          payload: { unitId: unit.id, abilityType: 'convert' }
+          payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'CONVERT' }
         });
         break;
       default:

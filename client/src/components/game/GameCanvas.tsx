@@ -6,7 +6,7 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { getVisibleUnits } from "@shared/logic/unitLogic";
 import { useUserPreferences } from "../../hooks/useUserPreferences";
 import HexGridInstanced from "./HexGridInstanced";
-
+import { getAttackableTargets } from "../../selectors/combat";
 
 import Unit from "./Unit";
 import MapFeatures from "./MapFeatures";
@@ -21,7 +21,7 @@ import { getReachableTiles } from "@shared/logic/pathfinding";
 
 export default function GameCanvas() {
   const { gameState, dispatch } = useLocalGame();
-  const { selectedUnit, hoveredTile, setSelectedUnit, isMovementMode, setMovementMode, reachableCoordinates, setReachableCoordinates, abilityTargetMode } = useGameState();
+  const { selectedUnit, hoveredTile, setSelectedUnit, isMovementMode, setMovementMode, reachableCoordinates, setReachableCoordinates, abilityTargetMode, isAttackMode, attackableTargets, setAttackableTargets, setAttackMode } = useGameState();
   const { camera } = useThree();
   const controlsRef = useRef<any>();
   const debug = useGameDebugger();
@@ -67,6 +67,21 @@ export default function GameCanvas() {
       setReachableCoordinates([]);
     }
   }, [isMovementMode, selectedUnit, gameState, setReachableCoordinates]);
+
+  // Calculate attackable targets when attack mode is activated
+  useEffect(() => {
+    if (isAttackMode && selectedUnit && gameState) {
+      const targets = getAttackableTargets(selectedUnit, gameState);
+      const targetCoordinates = targets.map(unit => ({
+        q: unit.coordinate.q,
+        r: unit.coordinate.r,
+        s: unit.coordinate.s || 0
+      }));
+      setAttackableTargets(targetCoordinates);
+    } else {
+      setAttackableTargets([]);
+    }
+  }, [isAttackMode, selectedUnit, gameState, setAttackableTargets]);
   
   // Combat effects moved to GameUI to avoid HTML in R3F
 
@@ -324,7 +339,7 @@ export default function GameCanvas() {
         selectedCoordinate={selectedCoordinate}
         hoveredCoordinate={hoveredCoordinate}
         validMoveCoordinates={validMoveCoordinates}
-        validAttackCoordinates={validAttackCoordinates}
+        validAttackCoordinates={isAttackMode ? attackableTargets : validAttackCoordinates}
       />
 
       {/* Professional Movement Overlay */}

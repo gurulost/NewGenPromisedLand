@@ -2,11 +2,16 @@
 import * as THREE from 'three';
 
 export function createCloudShader(textures: Record<string, THREE.Texture>): THREE.ShaderMaterial {
+  const textureUniforms: Record<string, { value: THREE.Texture }> = {};
+  for (const [key, texture] of Object.entries(textures)) {
+    textureUniforms[key] = { value: texture };
+  }
+  
   return new THREE.ShaderMaterial({
     transparent: true,
     side: THREE.DoubleSide,
     uniforms: {
-      ...textures,               // plainsTexture, forestTexture, … keep existing
+      ...textureUniforms,
       time: { value: 0.0 },
 
       // Tunables -------------------------------------------------------------
