@@ -59,19 +59,7 @@ export default function GameCanvas() {
           const tile = gameState.map.tiles.find(t => 
             t.coordinate.q === coord.q && t.coordinate.r === coord.r
           );
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
           return Boolean(tile && tile.terrain !== 'water');
-=======
-          return !!tile && tile.terrain !== 'water';
->>>>>>> Stashed changes
-=======
-          return !!tile && tile.terrain !== 'water';
->>>>>>> Stashed changes
-=======
-          return !!tile && tile.terrain !== 'water';
->>>>>>> Stashed changes
         }
       );
       setReachableCoordinates(reachable);
