@@ -1,4 +1,4 @@
-import { HexCoordinate } from "../types/game";
+import { HexCoordinate } from "../types/coordinates";
 import { hexDistance, hexNeighbors } from "../utils/hex";
 
 interface PathNode {

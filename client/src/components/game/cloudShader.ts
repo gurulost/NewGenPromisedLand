@@ -1,7 +1,7 @@
 // cloudShader.ts
 import * as THREE from 'three';
 
-export function createCloudShader(textures: Record<string, THREE.Texture>): THREE.ShaderMaterial {
+export function createCloudShader(textures: Record<string, { value: THREE.Texture }>): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     transparent: true,
     side: THREE.DoubleSide,

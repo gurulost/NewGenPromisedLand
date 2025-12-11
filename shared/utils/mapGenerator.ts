@@ -1,5 +1,7 @@
 import { createNoise2D } from 'simplex-noise';
-import type { GameMap, Tile, TerrainType, HexCoordinate, FactionId } from '@shared/types/game';
+import type { GameMap, Tile, TerrainType } from '@shared/types/game';
+import type { HexCoordinate } from '@shared/types/coordinates';
+import type { FactionId } from '@shared/types/faction';
 import { hexDistance } from './hex';
 
 const MAP_DEBUG = process.env.NODE_ENV !== 'production';
