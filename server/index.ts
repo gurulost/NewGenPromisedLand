@@ -1,8 +1,14 @@
 import express, { type Request, Response, NextFunction, type Express } from "express";
 import { registerRoutes } from "./routes";
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import { setupVite, serveStatic, log } from "./vite";
 import { logger, createRequestLogger } from "./utils/logger";
+=======
+import fs from "fs";
+import path, { dirname } from "path";
+import { fileURLToPath } from "url";
+>>>>>>> Stashed changes
 =======
 import fs from "fs";
 import path, { dirname } from "path";
