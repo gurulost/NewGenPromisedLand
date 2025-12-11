@@ -9,8 +9,13 @@ import SelectedUnitPanel from "../ui/SelectedUnitPanel";
 import UnitActionsPanel from "../ui/AbilitiesPanel";
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import { TechPanel } from "../ui/TechPanel";
 import { CityPanel } from "../city/CityPanel";
+=======
+import TechPanel from "../ui/TechPanel";
+import CityPanel from "../ui/CityPanel";
+>>>>>>> Stashed changes
 =======
 import TechPanel from "../ui/TechPanel";
 import CityPanel from "../ui/CityPanel";
@@ -665,9 +670,12 @@ export default function GameUI() {
         onShowConstructionHall={handleShowConstructionHall}
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         onEndTurn={handleEndTurn}
         abilities={factionAbilityOptions}
         onActivateAbility={handleActivateAbility}
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 =======

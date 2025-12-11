@@ -61,7 +61,11 @@ export default function GameCanvas() {
           );
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
           return Boolean(tile && tile.terrain !== 'water');
+=======
+          return !!tile && tile.terrain !== 'water';
+>>>>>>> Stashed changes
 =======
           return !!tile && tile.terrain !== 'water';
 >>>>>>> Stashed changes
