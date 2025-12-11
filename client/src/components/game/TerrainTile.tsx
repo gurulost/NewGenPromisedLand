@@ -276,6 +276,7 @@ function TerrainFallback({ terrain, position, color, opacity }: {
       }
 
       case 'water': {
+        // Create beautiful hexagonal water surface - rotated to match hex grid
         const waterGeometry = new THREE.CylinderGeometry(0.95, 0.95, 0.02, 6);
         waterGeometry.rotateY(Math.PI / 6); // Rotate 30 degrees to align with hex grid
         waterGeometry.translate(0, 0.01, 0); // Slightly above hex grid
