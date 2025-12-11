@@ -7,7 +7,10 @@ export const ImprovementTypeSchema = z.enum([
   'forest_camp',
   'lumber_hut',
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   'sawmill',
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
   'plantation',

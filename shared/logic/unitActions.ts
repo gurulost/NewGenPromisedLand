@@ -315,8 +315,14 @@ function executeBuildRoadAction(
     coordinate: hex.coordinate,
     ownerId: player.id,
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     cityId: '',
     starProduction: 0
+=======
+    starProduction: 0,
+    cityId: '',
+    constructionTurns: 0,
+>>>>>>> Stashed changes
 =======
     starProduction: 0,
     cityId: '',
