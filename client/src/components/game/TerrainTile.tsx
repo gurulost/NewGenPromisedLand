@@ -44,6 +44,7 @@ function TerrainModel({ terrain, position, color, opacity }: {
 }) {
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   const groupRef = useRef<THREE.Group>(null);
   
   // Use procedural fallbacks for desert and swamp for better visual distinction
@@ -64,6 +65,9 @@ function TerrainModel({ terrain, position, color, opacity }: {
 =======
   const meshRef = useRef<THREE.Group>(null);
 >>>>>>> Stashed changes
+=======
+  const meshRef = useRef<THREE.Group>(null);
+>>>>>>> Stashed changes
   const modelPath = TERRAIN_MODELS[terrain] || TERRAIN_MODELS.plains;
   
   let gltf;
@@ -72,10 +76,14 @@ function TerrainModel({ terrain, position, color, opacity }: {
   try {
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     gltf = useLoader(GLTFLoader, modelPath, (loader) => {
       // Configure loader for better error handling
       loader.setPath('/models/');
     });
+=======
+    gltf = useLoader(GLTFLoader as any, modelPath);
+>>>>>>> Stashed changes
 =======
     gltf = useLoader(GLTFLoader as any, modelPath);
 >>>>>>> Stashed changes
@@ -107,7 +115,11 @@ function TerrainModel({ terrain, position, color, opacity }: {
     
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     clone.traverse((child: THREE.Object3D) => {
+=======
+    clone.traverse((child: any) => {
+>>>>>>> Stashed changes
 =======
     clone.traverse((child: any) => {
 >>>>>>> Stashed changes
@@ -197,6 +209,7 @@ function TerrainFallback({ terrain, position, color, opacity }: {
         forestGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
         return forestGeometry;
         
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
       case 'desert':
@@ -301,6 +314,8 @@ function TerrainFallback({ terrain, position, color, opacity }: {
         swampGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(swampNormals, 3));
         return swampGeometry;
         
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 =======
