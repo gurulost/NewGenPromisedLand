@@ -42,9 +42,6 @@ function TerrainModel({ terrain, position, color, opacity }: {
   color: [number, number, number];
   opacity: number;
 }) {
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
   const groupRef = useRef<THREE.Group>(null);
   
   // Use procedural fallbacks for desert and swamp for better visual distinction
@@ -59,37 +56,16 @@ function TerrainModel({ terrain, position, color, opacity }: {
     );
   }
   
-=======
-  const meshRef = useRef<THREE.Group>(null);
->>>>>>> Stashed changes
-=======
-  const meshRef = useRef<THREE.Group>(null);
->>>>>>> Stashed changes
-=======
-  const meshRef = useRef<THREE.Group>(null);
->>>>>>> Stashed changes
   const modelPath = TERRAIN_MODELS[terrain] || TERRAIN_MODELS.plains;
   
   let gltf;
   let loadingError = false;
   
   try {
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
     gltf = useLoader(GLTFLoader, modelPath, (loader) => {
       // Configure loader for better error handling
       loader.setPath('/models/');
     });
-=======
-    gltf = useLoader(GLTFLoader as any, modelPath);
->>>>>>> Stashed changes
-=======
-    gltf = useLoader(GLTFLoader as any, modelPath);
->>>>>>> Stashed changes
-=======
-    gltf = useLoader(GLTFLoader as any, modelPath);
->>>>>>> Stashed changes
   } catch (error) {
     loadingError = true;
   }
@@ -113,19 +89,7 @@ function TerrainModel({ terrain, position, color, opacity }: {
     const clone = gltf.scene.clone();
     clone.scale.setScalar(0.6); // Scale down the large models to fit better
     
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
     clone.traverse((child: THREE.Object3D) => {
-=======
-    clone.traverse((child: any) => {
->>>>>>> Stashed changes
-=======
-    clone.traverse((child: any) => {
->>>>>>> Stashed changes
-=======
-    clone.traverse((child: any) => {
->>>>>>> Stashed changes
       if (child instanceof THREE.Mesh && child.material) {
         const material = child.material as THREE.MeshStandardMaterial;
         const newMaterial = material.clone();
@@ -168,17 +132,14 @@ function TerrainFallback({ terrain, position, color, opacity }: {
   
   // Create optimized geometry based on terrain type
   const geometry = useMemo(() => {
-    const baseGeometry = new THREE.CylinderGeometry(1, 1, 0.05, 6);
-    
     switch (terrain) {
-      case 'mountain':
-        // Create subtle mountain peaks - much smaller for overlay effect
+      case 'mountain': {
         const mountainGeometry = new THREE.ConeGeometry(0.3, 0.4, 6);
         mountainGeometry.translate(0, 0.2, 0);
         return mountainGeometry;
+      }
         
-      case 'forest':
-        // Forest canopy - cluster of very small trees
+      case 'forest': {
         const forestGeometry = new THREE.BufferGeometry();
         const positions: number[] = [];
         const normals: number[] = [];
@@ -208,11 +169,9 @@ function TerrainFallback({ terrain, position, color, opacity }: {
         forestGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         forestGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
         return forestGeometry;
-        
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-      case 'desert':
+      }
+
+      case 'desert': {
         // Create sand dunes with rocky outcroppings
         const desertGeometry = new THREE.BufferGeometry();
         const dunePositions: number[] = [];
@@ -258,8 +217,9 @@ function TerrainFallback({ terrain, position, color, opacity }: {
         desertGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dunePositions, 3));
         desertGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(duneNormals, 3));
         return desertGeometry;
-        
-      case 'swamp':
+      }
+
+      case 'swamp': {
         // Create swamp with muddy mounds and cattails
         const swampGeometry = new THREE.BufferGeometry();
         const swampPositions: number[] = [];
@@ -313,22 +273,16 @@ function TerrainFallback({ terrain, position, color, opacity }: {
         swampGeometry.setAttribute('position', new THREE.Float32BufferAttribute(swampPositions, 3));
         swampGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(swampNormals, 3));
         return swampGeometry;
-        
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-      case 'water':
-        // Create beautiful hexagonal water surface - rotated to match hex grid
+      }
+
+      case 'water': {
         const waterGeometry = new THREE.CylinderGeometry(0.95, 0.95, 0.02, 6);
         waterGeometry.rotateY(Math.PI / 6); // Rotate 30 degrees to align with hex grid
         waterGeometry.translate(0, 0.01, 0); // Slightly above hex grid
         return waterGeometry;
+      }
         
-      default:
-        // Plains - subtle grass tufts or small details
+      default: {
         const plainsGeometry = new THREE.BufferGeometry();
         const grassPositions: number[] = [];
         const grassNormals: number[] = [];
@@ -358,6 +312,7 @@ function TerrainFallback({ terrain, position, color, opacity }: {
         plainsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(grassPositions, 3));
         plainsGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(grassNormals, 3));
         return plainsGeometry;
+      }
     }
   }, [terrain]);
   
