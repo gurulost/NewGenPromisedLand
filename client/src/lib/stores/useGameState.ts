@@ -29,6 +29,7 @@ interface GameStateStore {
   // Movement and attack modes
   isMovementMode: boolean;
   isAttackMode: boolean;
+  attackableTargets: Array<{ q: number; r: number; s: number }>;
   
   setSelectedUnit: (unit: Unit | null) => void;
   setHoveredTile: (tile: { x: number; z: number; tile: Tile } | null) => void;
@@ -51,6 +52,7 @@ interface GameStateStore {
   // Movement and attack mode actions
   setMovementMode: (enabled: boolean) => void;
   setAttackMode: (enabled: boolean) => void;
+  setAttackableTargets: (targets: Array<{ q: number; r: number; s: number }>) => void;
 }
 
 export const useGameState = create<GameStateStore>((set) => ({
@@ -77,8 +79,9 @@ export const useGameState = create<GameStateStore>((set) => ({
   
   isMovementMode: false,
   isAttackMode: false,
+  attackableTargets: [],
   
-  setSelectedUnit: (unit) => set({ selectedUnit: unit, isMovementMode: false, isAttackMode: false }),
+  setSelectedUnit: (unit) => set({ selectedUnit: unit, isMovementMode: false, isAttackMode: false, attackableTargets: [] }),
   setHoveredTile: (tile) => set({ hoveredTile: tile }),
   setReachableTiles: (tiles) => set({ reachableTiles: tiles }),
   setReachableCoordinates: (coordinates) => set({ reachableCoordinates: coordinates }),
@@ -134,6 +137,7 @@ export const useGameState = create<GameStateStore>((set) => ({
     },
   }),
   
-  setMovementMode: (enabled) => set({ isMovementMode: enabled, isAttackMode: enabled ? false : false }),
+  setMovementMode: (enabled) => set({ isMovementMode: enabled, isAttackMode: enabled ? false : false, attackableTargets: [] }),
   setAttackMode: (enabled) => set({ isAttackMode: enabled, isMovementMode: enabled ? false : false }),
+  setAttackableTargets: (targets) => set({ attackableTargets: targets }),
 }));

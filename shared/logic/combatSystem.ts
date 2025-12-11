@@ -194,7 +194,11 @@ export function resolveMeleeCombat(
       return {
         success: false,
         damageToDefender: 0,
+        damageToAttacker: 0,
+        defenderSurvived: true,
+        counterOccurred: false,
         events: ['Diplomatic negotiation succeeded'],
+        counterEvents: [],
         negotiation: {
           attackerPrideDelta: -2,
           defenderDissentDelta: -2,
