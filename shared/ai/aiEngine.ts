@@ -2020,23 +2020,37 @@ export class AIEngine {
   }
 
   private buildStraightPath(from: HexCoordinate, to: HexCoordinate): HexCoordinate[] {
-    const path: HexCoordinate[] = [];
-    let current = { ...from };
-    const steps = hexDistance(from, to);
+    return this.findShortestLandPath(from, to);
+  }
 
-    for (let i = 0; i < steps; i++) {
-      const dq = Math.sign(to.q - current.q);
-      const dr = Math.sign(to.r - current.r);
-      const next: HexCoordinate = { q: current.q + dq, r: current.r + dr, s: -(current.q + dq) - (current.r + dr) };
-      const tile = this.gameState.map.tiles.find(t => t.coordinate.q === next.q && t.coordinate.r === next.r);
-      if (!tile || tile.terrain === 'water') {
-        break;
+  private findShortestLandPath(from: HexCoordinate, to: HexCoordinate): HexCoordinate[] {
+    // BFS pathfinding constrained to non-water tiles
+    const visited = new Set<string>();
+    const queue: Array<{ coord: HexCoordinate; path: HexCoordinate[] }> = [{ coord: from, path: [] }];
+    const isPassable = (coord: HexCoordinate) => {
+      const tile = this.gameState.map.tiles.find(t => t.coordinate.q === coord.q && t.coordinate.r === coord.r);
+      return tile && tile.terrain !== 'water';
+    };
+
+    while (queue.length) {
+      const { coord, path } = queue.shift()!;
+      const key = `${coord.q},${coord.r}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      if (coord.q === to.q && coord.r === to.r) {
+        return path;
       }
-      path.push(next);
-      current = next;
+
+      for (const neighbor of hexNeighbors(coord)) {
+        const neighborKey = `${neighbor.q},${neighbor.r}`;
+        if (visited.has(neighborKey)) continue;
+        if (!isPassable(neighbor)) continue;
+        queue.push({ coord: neighbor, path: [...path, neighbor] });
+      }
     }
 
-    return path;
+    return [];
   }
 
   private findNearestCity(source: City, others: City[]): City | null {
