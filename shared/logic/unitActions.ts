@@ -224,7 +224,7 @@ function executeBuildRoadAction(
     return { success: false, message: "Road already exists on this tile" };
   }
 
-  const player = state.players.find(p => p.units.some(u => u.id === unit.id));
+  const player = state.players.find(p => p.id === unit.playerId);
   if (!player || player.stars < 3) {
     return { success: false, message: "Need 3 stars to build road" };
   }
@@ -233,9 +233,10 @@ function executeBuildRoadAction(
     id: `road_${hex.coordinate.q}_${hex.coordinate.r}_${Date.now()}`,
     type: 'road' as const,
     coordinate: hex.coordinate,
-    playerId: player.id,
+    ownerId: player.id,
+    starProduction: 0,
     cityId: '',
-    starsPerTurn: 0
+    constructionTurns: 0,
   };
 
   const newState = {

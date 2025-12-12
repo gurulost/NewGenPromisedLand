@@ -16,20 +16,10 @@ vi.mock('@react-three/drei', () => ({
 }));
 
 // Mock complex components to focus on navigation logic
-vi.mock('../client/src/components/ui/TechPanel', () => {
-  const MockTechPanel = ({ isOpen, onClose }: any) =>
-    isOpen ? (
-      <div data-testid="tech-panel">
-        Tech Panel <button onClick={onClose}>Close Tech</button>
-      </div>
-    ) : null;
-
-  return {
-    __esModule: true,
-    TechPanel: MockTechPanel,
-    default: MockTechPanel,
-  };
-});
+vi.mock('../client/src/components/ui/TechPanel', () => ({
+  default: ({ open, onClose }: any) => 
+    open ? <div data-testid="tech-panel">Tech Panel <button onClick={onClose}>Close Tech</button></div> : null
+}));
 
 vi.mock('../client/src/components/ui/CityPanel', () => ({
   default: ({ open, onClose }: any) => 
@@ -74,27 +64,6 @@ vi.mock('../client/src/components/ui/AbilitiesPanel', () => ({
   AbilitiesPanel: () => <div data-testid="abilities-panel">Abilities Panel</div>
 }));
 
-// Mock ToastProvider
-vi.mock('../client/src/components/ui/ToastProvider', () => ({
-  ToastProvider: ({ children }: any) => children,
-  useToastContext: () => ({
-    showToast: vi.fn()
-  })
-}));
-
-// Mock useGameAudio with correct API
-vi.mock('../client/src/hooks/useAudioIntegration', () => ({
-  useGameAudio: () => ({
-    onButtonClick: vi.fn(),
-    onButtonHover: vi.fn(),
-    onBuildingBuilt: vi.fn(),
-    onPanelOpen: vi.fn(),
-    onPanelClose: vi.fn(),
-    onUnitSelect: vi.fn(),
-    onUnitMove: vi.fn()
-  })
-}));
-
 describe('GameUI Navigation Integration Tests', () => {
   let mockGameState: GameState;
   let mockPlayer: PlayerState;
@@ -111,7 +80,7 @@ describe('GameUI Navigation Integration Tests', () => {
       stats: { faith: 50, pride: 30, internalDissent: 10 },
       modifiers: [],
       researchedTechs: ['writing', 'organization'],
-      researchInspiration: 0,
+      researchProgress: 0,
       citiesOwned: ['city1'],
       constructionQueue: [],
       visibilityMask: [],

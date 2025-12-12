@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chronicles of the Promised Land is a browser-first, 2.5D turn-based strategy game inspired by the Book of Mormon. The game features six distinct factions (Nephites, Lamanites, Mulekites, Anti-Nephi-Lehies, Zoramites, and Jaredites) competing for dominance in the ancient Americas through faith, warfare, and diplomacy. The project aims to provide a rich, immersive strategy experience with strong thematic elements and high-quality visual and mechanical implementation, matching AAA industry standards.
+Chronicles of the Promised Land is a browser-first, 2.5D turn-based strategy game inspired by the Book of Mormon. It features six factions (Nephites, Lamanites, Mulekites, Anti-Nephi-Lehies, Zoramites, and Jaredites) competing for dominance in ancient Americas through faith, warfare, and diplomacy. The project aims for AAA-quality UI/UX and deep strategic gameplay akin to Polytopia and Civilization.
 
 ## User Preferences
 
@@ -10,66 +10,49 @@ Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-The application follows a modern full-stack monorepo architecture with clear separation between client and server components, emphasizing performance, modularity, and maintainability.
+The application uses a modern full-stack monorepo architecture with a clear separation of concerns.
 
-### UI/UX Decisions
-- **Visual Theme**: Unified "Book of Mormon golden/amber" theming with authentic Mesoamerican textures and scripture-themed world elements.
-- **Design Principles**: AAA-quality visual design with consistent component primitives (PanelShell, PanelHeader, GlowingButton, HUDShell, AvatarBadge), responsive design patterns, perfect viewport safety, touch optimization (44px+ targets), reduced motion support, and comprehensive accessibility (keyboard navigation, tooltips).
-- **Camera Control**: Polytopia-style fixed isometric view (45 degrees angle) with disabled rotation, responsive panning, zooming with map-size based limits, and smooth centering animations.
-- **Fog of War**: Three-tiered system (Unexplored, Explored, Visible) with stunning animated cloud graphics and dynamic line-of-sight calculations.
+### Monorepo Structure
+- `/client`: React frontend
+- `/server`: Node.js backend
+- `/shared`: Shared game logic, types, and utilities
+- `/migrations`: Database migration files
 
-### Technical Implementations
-- **Frontend**: React 18 with TypeScript, Three.js and React Three Fiber for 2.5D hex-grid rendering. Zustand for state management. Tailwind CSS with Radix UI for styling. Vite for build.
-- **Backend**: Node.js with Express. In-memory storage with an interface for future database integration. Drizzle ORM configured for PostgreSQL (via Neon).
-- **Monorepo Structure**: `/client` (React frontend), `/server` (Node.js backend), `/shared` (shared game logic, types, utilities), `/migrations` (database migration files).
-- **Game Logic**: Pure functions for core mechanics (movement, combat, pathfinding) residing in `/shared`. Web workers are used for computationally intensive tasks like pathfinding.
-- **State Management**: Centralized Zustand store for game state, action dispatching through a shared reducer, and local storage for future game saves.
-- **Data-Driven Architecture**: All game rules, abilities, costs, and configurations are centralized in `GAME_RULES` for easy balance tweaking and configurability.
-- **Performance Optimizations**: Instanced rendering for hex grid, React memoization for UI components, optimized combat data processing, and efficient asset management (e.g., removal of large unused terrain models).
-- **3D Model System**: Comprehensive system for units, cities, villages, and resources with automatic grounding, ownership-based material effects, status indicators, and health bars.
-- **Error Handling**: GLTFErrorBoundary prevents crashes from missing/invalid 3D models by rendering fallback geometries. Uses resetKey prop for recovery when model paths change. Note: Does not auto-retry transient failures on the same model path (future enhancement).
-- **Error Logging & Monitoring**: Production-grade error tracking with Sentry (client-side), Pino structured logging (server-side), Core Web Vitals performance monitoring, automatic breadcrumb tracking, correlation IDs for request tracing, and comprehensive error categorization (game_logic, rendering, ui, network, critical). See `docs/ERROR_LOGGING.md` for setup and usage.
-- **Game Analytics**: Comprehensive player behavior and game metrics tracking with PostHog. Tracks player choices (faction, map size), game lifecycle events (start, save, load), gameplay actions (unit creation, movement, combat, city management, tech research), combat statistics, and performance metrics. See `docs/GAME_ANALYTICS.md` for setup and usage.
-- **Core Game Systems**:
-    - **Combat**: Advanced calculations with unit-specific bonuses, formation tactics, terrain modifiers, faith/pride bonuses, siege warfare, and ranged bombardment.
-    - **Resource Management**: Scripture-themed unified world elements (Grain Patch, Wild Goats, Timber Grove, Ore Vein) with moral choices (Faith/Pride/Dissent).
-    - **Technology Tree**: Comprehensive system with dynamic UI, research logic, prerequisite validation, and technology gating.
-    - **Unit Abilities**: Comprehensive unit abilities for each type (Worker, Scout, Spearman, etc.) with game state integration, visual indicators, and resource costs.
-    - **Map Generation**: Procedural map generation with authentic Polytopia specifications (terrain distribution, resource spawning, village density, tribal homeland biases).
-    - **City Management**: Full-featured city panel with structure building, unit recruitment, and economic effects.
-    - **Save System**: LZ-String compression for save files, game index management, and validation.
+### Frontend
+- **Framework**: React 18 with TypeScript
+- **3D Rendering**: Three.js with React Three Fiber for 2.5D hex-grid gameplay
+- **State Management**: Zustand
+- **Styling**: Tailwind CSS with Radix UI components
+- **Build Tool**: Vite
+- **UI/UX**: AAA-quality design with consistent golden/amber theming, professional primitives (PanelShell, GlowingButton), comprehensive accessibility, mobile responsiveness, and touch optimization. Features include cinematic menus, dynamic construction halls, detailed player HUDs, and an advanced InfoTooltip system.
+- **Visuals**: Authentic Mesoamerican textures, optimized 3D models for terrain, units, and resources with automatic positioning. Animated cloud-like fog of war and Polytopia-style camera controls.
+
+### Backend
+- **Runtime**: Node.js with Express
+- **Storage**: In-memory storage with an interface for future database integration.
+- **Database**: Drizzle ORM for PostgreSQL (via Neon).
+
+### Core Game Mechanics
+- **Data-Driven**: All game rules, including abilities, costs, and terrain effects, are centrally configured.
+- **Game Logic**: Pure functions for movement, combat, pathfinding, and resource management within `/shared`.
+- **Turn-Based System**: Local multiplayer (pass-and-play) with client-side game logic processing through a shared reducer.
+- **Map Generation**: Procedural map generation with Polytopia-style terrain distribution, village spawning, and faction-specific homeland modifiers. Includes a unified scripture-themed resource system with moral choices.
+- **Combat System**: Advanced combat calculations with unit-specific bonuses, formation tactics, terrain modifiers, and faith/pride bonuses.
+- **Technology Tree**: Comprehensive technology tree with prerequisites, cost validation, and themed descriptions.
+- **Unit System**: Comprehensive unit abilities (e.g., Worker construction, Scout stealth, Missionary healing) with visual indicators and status effects.
+- **City Management**: Full-featured city panel for construction, unit recruitment, and resource generation.
+- **Performance**: Instanced rendering for hex grid, React memoization, and optimized data processing.
+- **Testing**: Extensive Vitest-based testing suite covering core game mechanics, UI components, and edge cases.
 
 ## External Dependencies
 
-- **Frontend**: React, React DOM, React Three Fiber, Three.js, React Three Drei, Radix UI, Zustand, Tailwind CSS.
-- **Backend**: Node.js, Express, Drizzle ORM, Neon (for PostgreSQL).
-- **Build/Dev Tools**: Vite, TypeScript, ESBuild, npm, Vitest.
-- **Testing**: Vitest (unit and accessibility tests), Playwright (E2E tests), Testing Library (React component testing), vitest-axe (accessibility testing).
-- **Monitoring & Logging**: Sentry (error tracking), Pino (structured logging), web-vitals (performance monitoring), PostHog (game analytics).
-- **Other Libraries**: GSAP (for animations), @use-gesture/react (for touch gestures).
-
-## Testing Infrastructure
-
-The project has comprehensive test coverage across unit tests, accessibility tests, and end-to-end tests.
-
-### Test Suites
-
-- **Unit Tests** (`test/unit`): Component and logic tests using Vitest and Testing Library. Run with `npx vitest run test/unit`.
-- **Accessibility Tests** (`test/a11y`): WCAG compliance tests using vitest-axe. All 10 tests passing. Run with `npx vitest run test/a11y`.
-- **E2E Tests** (`test/e2e`): End-to-end browser tests using Playwright. Tests game workflows, modal interactions, and user journeys across multiple browsers (Chromium, Firefox, WebKit) and viewports. Run with `npx playwright test test/e2e`.
-
-### Playwright Configuration
-
-- **Config file**: `playwright.config.ts`
-- **Test directory**: `test/e2e`
-- **Browsers**: Chromium (default for development), Firefox, WebKit, mobile viewports (Pixel 5, iPhone 12, iPad Pro)
-- **Base URL**: `http://localhost:5000`
-- **Auto-start server**: Configured to run `npm run dev` before tests
-- **Setup**: Install browsers with `npx playwright install chromium` (or `--with-deps` for all system dependencies)
-
-### Test Development
-
-- Unit tests use official Zustand mocking with `vi.importActual` to preserve React integration
-- Accessibility tests include getComputedStyle polyfill for jsdom compatibility
-- E2E tests use data-testid attributes for reliable element selection
-- All stores automatically reset between tests for isolation
+- **React Ecosystem**: React, React DOM, React Three Fiber, React Three Drei
+- **3D Graphics**: Three.js
+- **UI Components**: Radix UI
+- **State Management**: Zustand
+- **Database**: Drizzle ORM (for PostgreSQL with Neon)
+- **Build Tools**: Vite, TypeScript, ESBuild
+- **Styling**: Tailwind CSS, PostCSS
+- **Animation**: GSAP (for camera animations)
+- **Gestures**: @use-gesture/react (for touch interactions)
+- **Compression**: LZ-String (for save files)

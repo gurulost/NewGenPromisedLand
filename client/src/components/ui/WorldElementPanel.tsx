@@ -7,14 +7,14 @@ import clsx from 'clsx';
 import { Button } from './button';
 import { Badge } from './badge';
 import { Separator } from './separator';
-import { HexCoordinate } from '@shared/types/coordinates';
-import { getWorldElement } from '@shared/data/worldElements';
-import { canExecuteElementAction } from '@shared/logic/worldElementActions';
-import { GameState } from '@shared/types/game';
+import { HexCoordinate } from '../../../../shared/types/coordinates';
+import { getWorldElement } from '../../../../shared/data/worldElements';
+import { canExecuteElementAction } from '../../../../shared/logic/worldElementActions';
+import { GameState } from '../../../../shared/types/game';
 
 import { TOKENS } from '../../theme/tokens';          // central colour tokens
 import { useHotkeys } from '../../hooks/useHotkeys'; // tiny custom hook
-import { useSfxEngine, type SfxType } from '../../hooks/useSfx';         // optional SFX hook
+import { useSfxEngine } from '../../hooks/useSfx';         // optional SFX hook
 import { StaggeredContent, StaggeredContainer } from '../primitives/StaggeredContent';
 import { RequirementBanner } from '../primitives/RequirementBanner';
 
@@ -29,7 +29,6 @@ type DeltaType = 'stars' | 'faith' | 'pride' | 'dissent' | 'population' | 'costS
 const ResourceDeltaBadge = React.memo(({ value, type, label }: DeltaProps) => {
   if (value === 0 && type !== 'costStars') return null;
   const t = TOKENS[type];
-  if (!t) return null; // Handle missing token types gracefully
   const isCost = type === 'costStars';
   const sign = !isCost && value > 0 ? '+' : '';
   const displayLabel = label || t.name;
@@ -143,7 +142,6 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
                   canExecute={harvest}
                   onClick={() => onAction('harvest')}
                   theme="red"
-                  playSfx={playSfx}
                 />
               </StaggeredContent>
             )}
@@ -164,7 +162,6 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
                   canExecute={build}
                   onClick={() => onAction('build')}
                   theme="blue"
-                  playSfx={playSfx}
                 />
               </StaggeredContent>
             )}
@@ -243,10 +240,9 @@ interface ActionSectionProps {
   canExecute: { canExecute: boolean; reason?: string };
   onClick: () => void; 
   theme: 'red' | 'blue';
-  playSfx: (type: SfxType) => void;
 }
 
-function ActionSection({ label, badgeColor, action, canExecute, onClick, theme, playSfx }: ActionSectionProps) {
+function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }: ActionSectionProps) {
   const isImmediate = theme === 'red';
   
   // Transform legacy action data to structured format

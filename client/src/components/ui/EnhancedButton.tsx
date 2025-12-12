@@ -1,13 +1,16 @@
-import React, { useId } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { LucideIcon } from 'lucide-react';
 
-interface EnhancedButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface EnhancedButtonProps {
   children: React.ReactNode;
+  onClick?: () => void;
   variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
+  disabled?: boolean;
   loading?: boolean;
   icon?: LucideIcon;
+  className?: string;
   glow?: boolean;
   pulse?: boolean;
 }
@@ -22,16 +25,8 @@ export function EnhancedButton({
   icon: Icon,
   className = '',
   glow = false,
-  pulse = false,
-  ...rest
+  pulse = false
 }: EnhancedButtonProps) {
-  const {
-    ['aria-label']: ariaLabel,
-    ['aria-labelledby']: ariaLabelledBy,
-    ...buttonProps
-  } = rest;
-  const contentLabelId = useId();
-  const resolvedAriaLabelledBy = ariaLabelledBy ?? (ariaLabel ? contentLabelId : undefined);
   const getVariantClasses = () => {
     switch (variant) {
       case 'primary':
@@ -80,9 +75,6 @@ export function EnhancedButton({
       className={baseClasses}
       onClick={onClick}
       disabled={disabled || loading}
-      aria-label={ariaLabel}
-      aria-labelledby={resolvedAriaLabelledBy}
-      {...buttonProps}
       whileHover={!disabled ? { scale: 1.02 } : {}}
       whileTap={!disabled ? { scale: 0.98 } : {}}
       animate={pulse ? { 
@@ -121,7 +113,7 @@ export function EnhancedButton({
       )}
       
       {/* Content */}
-      <span id={resolvedAriaLabelledBy === contentLabelId ? contentLabelId : undefined}>{children}</span>
+      <span>{children}</span>
       
       {/* Ripple Effect */}
       <div className="absolute inset-0 rounded-lg overflow-hidden">

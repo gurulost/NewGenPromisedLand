@@ -1,8 +1,8 @@
 import { createNoise2D } from 'simplex-noise';
-import type { GameMap, Tile, TerrainType, HexCoordinate, FactionId } from '@shared/types/game';
+import type { GameMap, Tile, TerrainType } from '@shared/types/game';
+import type { HexCoordinate } from '@shared/types/coordinates';
+import type { FactionId } from '@shared/types/faction';
 import { hexDistance } from './hex';
-
-const MAP_DEBUG = process.env.NODE_ENV !== 'production';
 
 /**
  * Type definitions for map generation
@@ -188,7 +188,6 @@ export class MapGenerator {
   private noise2D: ReturnType<typeof createNoise2D>;
   private config: MapGenerationConfig;
   private playerFactions: string[] = [];
-  private capitalPositions: HexCoordinate[] = [];
 
   constructor(config: MapGenerationConfig, playerFactions?: string[]) {
     this.config = config;
@@ -225,7 +224,6 @@ export class MapGenerator {
 
     // Step 2: Determine capital spawns (player starting positions)
     const capitalPositions = this.generateCapitalSpawns(mapRadius);
-    this.capitalPositions = capitalPositions;
     
     // Step 3: Place neutral villages/cities
     this.placeCities(tiles, mapRadius, capitalPositions);
@@ -250,10 +248,6 @@ export class MapGenerator {
       width: this.config.width,
       height: this.config.height,
     };
-  }
-
-  public getCapitalPositions(): HexCoordinate[] {
-    return [...this.capitalPositions];
   }
 
   /**
@@ -346,9 +340,7 @@ export class MapGenerator {
       }
     }
     
-    if (MAP_DEBUG) {
-      console.info(`Polytopia village spawning: Generated ${villagesPlaced} villages on map (${((villagesPlaced / tiles.length) * 100).toFixed(1)}% density)`);
-    }
+    console.log(`Polytopia village spawning: Generated ${villagesPlaced} villages on map (${((villagesPlaced / tiles.length) * 100).toFixed(1)}% density)`);
   }
 
   /**
@@ -553,9 +545,7 @@ export class MapGenerator {
       
       if (modifiers && modifiers.lore) {
         // Log tribal lore for debugging
-        if (MAP_DEBUG) {
-          console.info(`${factionId} homeland: ${modifiers.lore}`);
-        }
+        console.log(`${factionId} homeland: ${modifiers.lore}`);
       }
     }
   }

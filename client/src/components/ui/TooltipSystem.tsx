@@ -25,14 +25,11 @@ interface LegacyTooltipProps extends BaseTooltipProps {
 interface InfoTooltipProps extends BaseTooltipProps {}
 
 interface ActionTooltipProps {
-  title?: string;
-  description?: string;
-  cost?: number | string;
-  faith?: number | string;
-  pride?: number | string;
+  cost?: number;
   requirements?: string[];
   effects?: string[];
-  hotkey?: string;
+  placement?: TooltipPlacement;
+  disabled?: boolean;
 }
 
 // Enhanced InfoTooltip component with premium visual design and modal awareness
@@ -357,211 +354,80 @@ function getArrowClasses(placement: string): string {
   }
 }
 
-// Enhanced ActionTooltip component - renders rich contextual content for tooltips or inline descriptions
-export function ActionTooltip({ 
-  title, 
-  description, 
-  cost, 
-  faith, 
-  pride, 
-  requirements = [], 
-  effects = [], 
-  hotkey
-}: ActionTooltipProps) {
-  const formatResource = (value: number | string | undefined, suffix: string) => {
-    if (value === undefined) return null;
-    if (typeof value === 'string') return value;
-    return `${value} ${suffix}`;
-  };
-
-  const costLabel = formatResource(cost, 'stars');
-  const faithLabel = formatResource(faith, 'faith');
-  const prideLabel = formatResource(pride, 'pride');
-
-  return (
-    <div className="space-y-3 text-left">
-      {(title || description) && (
-        <div>
-          {title && <div className="font-semibold text-sm text-white">{title}</div>}
-          {description && <p className="text-xs text-slate-300 mt-1 leading-relaxed">{description}</p>}
+// ActionTooltip component - Shows contextual information about actions
+export function ActionTooltip({ cost, requirements = [], effects = [], placement = 'top', disabled = false }: ActionTooltipProps) {
+  const tooltipContent = (
+    <div className="space-y-2">
+      {cost !== undefined && (
+        <div className="flex items-center gap-2">
+          <span className="text-yellow-400">⭐</span>
+          <span className="text-yellow-400 font-semibold">{cost} Stars</span>
         </div>
       )}
-
-      {(costLabel || faithLabel || prideLabel) && (
-        <div className="space-y-1 text-xs">
-          {costLabel && (
-            <div className="flex items-center gap-2">
-              <span className="text-yellow-300 font-semibold">Cost:</span>
-              <span className="text-slate-100">{costLabel}</span>
-            </div>
-          )}
-          {faithLabel && (
-            <div className="flex items-center gap-2">
-              <span className="text-blue-300 font-semibold">Faith:</span>
-              <span className="text-slate-100">{faithLabel}</span>
-            </div>
-          )}
-          {prideLabel && (
-            <div className="flex items-center gap-2">
-              <span className="text-red-300 font-semibold">Pride:</span>
-              <span className="text-slate-100">{prideLabel}</span>
-            </div>
-          )}
-        </div>
-      )}
-
+      
       {requirements.length > 0 && (
         <div>
-          <div className="text-xs font-semibold text-red-300 uppercase tracking-wide">Requirements</div>
-          <ul className="mt-1 text-xs text-slate-200 space-y-1">
+          <div className="text-red-400 font-semibold mb-1">Requirements:</div>
+          <ul className="text-xs space-y-1">
             {requirements.map((req, index) => (
-              <li key={`${req}-${index}`}>{req}</li>
+              <li key={index} className="flex items-start gap-1">
+                <span className="text-red-400 mt-0.5">•</span>
+                <span className="text-red-300">{req}</span>
+              </li>
             ))}
           </ul>
         </div>
       )}
-
+      
       {effects.length > 0 && (
         <div>
-          <div className="text-xs font-semibold text-green-300 uppercase tracking-wide">Effects</div>
-          <ul className="mt-1 text-xs text-slate-200 space-y-1">
+          <div className="text-green-400 font-semibold mb-1">Effects:</div>
+          <ul className="text-xs space-y-1">
             {effects.map((effect, index) => (
-              <li key={`${effect}-${index}`}>{effect}</li>
+              <li key={index} className="flex items-start gap-1">
+                <span className="text-green-400 mt-0.5">•</span>
+                <span className="text-green-300">{effect}</span>
+              </li>
             ))}
           </ul>
-        </div>
-      )}
-
-      {hotkey && (
-        <div className="border-t border-slate-700 pt-2">
-          <span className="text-xs text-slate-300">Hotkey: </span>
-          <kbd className="bg-slate-700 px-2 py-0.5 rounded text-xs font-mono text-slate-100">{hotkey}</kbd>
         </div>
       )}
     </div>
   );
+
+  return <InfoTooltip content={tooltipContent} placement={placement} disabled={disabled} />;
 }
 
-// Enhanced specialized tooltip content components with proper types
-interface UnitTooltipProps {
-  unit: {
-    id: string;
-    hp: number;
-    maxHp: number;
-    level?: number;
-    experience?: number;
-    remainingMovement: number;
-    movement?: number;
-    attack?: number;
-    defense?: number;
-    visionRadius?: number;
-    attackRange?: number;
-    status?: string;
-    hasAttacked?: boolean;
-  };
-  unitDef: {
-    name: string;
-    description?: string;
-    baseStats: {
-      attack: number;
-      defense: number;
-      movement: number;
-      visionRadius: number;
-      attackRange: number;
-    };
-    abilities?: string[];
-  };
-}
-
-export function UnitTooltip({ unit, unitDef }: UnitTooltipProps) {
-  const isWounded = unit.hp < unit.maxHp;
-  const canMove = unit.remainingMovement > 0;
-  const hasAttacked = unit.hasAttacked;
-  
+// Legacy specialized tooltip content components
+export function UnitTooltip({ unit, unitDef }: { unit: any; unitDef: any }) {
   return (
-    <div className="space-y-3">
-      {/* Unit Header */}
-      <div className="border-b border-slate-600 pb-2">
-        <div className="flex items-center justify-between">
-          <div className="font-semibold text-purple-300 text-sm">{unitDef.name}</div>
-          <div className="flex items-center gap-2">
-            <div className="text-xs text-slate-400">Lv.{unit.level || 1}</div>
-            {unit.experience && (
-              <div className="text-xs text-yellow-400">★{unit.experience}</div>
-            )}
-          </div>
-        </div>
-        {unitDef.description && (
-          <div className="text-xs text-slate-400 mt-1">{unitDef.description}</div>
-        )}
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="font-semibold text-purple-300">{unitDef.name}</div>
+        <div className="text-xs text-slate-400">Level {unit.level || 1}</div>
       </div>
       
-      {/* Core Stats */}
-      <div className="grid grid-cols-2 gap-4 text-xs">
-        <div className="space-y-2">
-          <div className={`flex items-center gap-2 ${isWounded ? 'text-red-300' : 'text-green-300'}`}>
-            <span>❤️</span>
-            <span className="font-semibold">{unit.hp}/{unit.maxHp}</span>
-            {isWounded && <span className="text-red-400 text-xs">(Wounded)</span>}
-          </div>
-          <div className="flex items-center gap-2 text-orange-300">
-            <span>⚔️</span>
-            <span className="font-semibold">{unit.attack || unitDef.baseStats.attack}</span>
-          </div>
-          <div className="flex items-center gap-2 text-blue-300">
-            <span>🛡️</span>
-            <span className="font-semibold">{unit.defense || unitDef.baseStats.defense}</span>
-          </div>
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <div>
+          <div className="text-red-300">❤️ {unit.hp}/{unit.maxHp}</div>
+          <div className="text-orange-300">⚔️ {unit.attack}</div>
+          <div className="text-blue-300">🛡️ {unit.defense}</div>
         </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-green-300">
-            <span>👁️</span>
-            <span className="font-semibold">{unit.visionRadius || unitDef.baseStats.visionRadius}</span>
-          </div>
-          <div className={`flex items-center gap-2 ${canMove ? 'text-yellow-300' : 'text-slate-400'}`}>
-            <span>🏃</span>
-            <span className="font-semibold">{unit.remainingMovement}/{unit.movement || unitDef.baseStats.movement}</span>
-          </div>
-          <div className="flex items-center gap-2 text-purple-300">
-            <span>🎯</span>
-            <span className="font-semibold">{unit.attackRange || unitDef.baseStats.attackRange}</span>
-          </div>
+        <div>
+          <div className="text-green-300">👁️ {unit.visionRadius}</div>
+          <div className="text-yellow-300">🏃 {unit.remainingMovement}/{unit.movement}</div>
+          <div className="text-purple-300">🎯 {unit.attackRange}</div>
         </div>
       </div>
 
-      {/* Status Effects */}
-      {unit.status && unit.status !== 'active' && (
-        <div className="bg-slate-700/50 rounded px-2 py-1">
-          <div className="text-xs text-amber-300 font-semibold">Status: {unit.status}</div>
-        </div>
-      )}
-
-      {/* Abilities */}
-      {unitDef.abilities && unitDef.abilities.length > 0 && (
+      {unitDef.abilities?.length > 0 && (
         <div className="border-t border-slate-600 pt-2">
-          <div className="text-xs text-slate-300 mb-2 font-semibold">Abilities:</div>
-          <div className="space-y-1">
-            {unitDef.abilities.map((ability: string, index: number) => (
-              <div key={index} className="text-xs text-blue-300 flex items-center gap-1">
-                <span className="text-blue-400">•</span>
-                <span>{ability}</span>
-              </div>
-            ))}
+          <div className="text-xs text-slate-300 mb-1">Abilities:</div>
+          <div className="text-xs text-blue-300">
+            {unitDef.abilities.join(', ')}
           </div>
         </div>
       )}
-      
-      {/* Action Status */}
-      <div className="border-t border-slate-600 pt-2">
-        <div className="flex justify-between text-xs">
-          <span className={hasAttacked ? 'text-red-400' : 'text-green-400'}>
-            {hasAttacked ? '⚔️ Attacked' : '⚔️ Can Attack'}
-          </span>
-          <span className={canMove ? 'text-green-400' : 'text-slate-400'}>
-            {canMove ? '🏃 Can Move' : '🏃 No Movement'}
-          </span>
-        </div>
-      </div>
     </div>
   );
 }
@@ -639,256 +505,6 @@ export function DissentSystemTooltip() {
 }
 
 // Resource-specific tooltips
-// Technology Tooltip with proper types
-interface TechnologyTooltipProps {
-  tech: {
-    id: string;
-    name: string;
-    description: string;
-    category: string;
-    cost: number;
-    prerequisites?: string[];
-    unlocks?: {
-      units?: string[];
-      structures?: string[];
-      improvements?: string[];
-      abilities?: string[];
-    };
-  };
-  player: {
-    researchedTechs: string[];
-    stars: number;
-  };
-}
-
-export function TechnologyTooltip({ tech, player }: TechnologyTooltipProps) {
-  const isResearched = player?.researchedTechs?.includes(tech.id);
-  const canResearch = tech.prerequisites?.every((prereq: string) => player?.researchedTechs?.includes(prereq));
-  const hasResources = player?.stars >= tech.cost;
-  
-  return (
-    <div className="space-y-3">
-      {/* Tech Header */}
-      <div className="border-b border-slate-600 pb-2">
-        <div className="flex items-center justify-between">
-          <div className="font-semibold text-blue-300 text-sm">{tech.name}</div>
-          <div className="flex items-center gap-2">
-            <span className="text-yellow-400">⭐{tech.cost}</span>
-            {isResearched && <span className="text-green-400 text-xs">✓ Researched</span>}
-          </div>
-        </div>
-        <div className="text-xs text-blue-200 mt-1">{tech.category}</div>
-      </div>
-      
-      {/* Description */}
-      <div className="text-xs text-slate-300">{tech.description}</div>
-      
-      {/* Prerequisites */}
-      {tech.prerequisites && tech.prerequisites.length > 0 && (
-        <div>
-          <div className="text-red-400 font-semibold mb-1 text-sm">Prerequisites:</div>
-          <div className="space-y-1">
-            {tech.prerequisites.map((prereq: string, index: number) => {
-              const hasPrereq = player?.researchedTechs?.includes(prereq);
-              return (
-                <div key={index} className={`text-xs flex items-center gap-1 ${
-                  hasPrereq ? 'text-green-300' : 'text-red-300'
-                }`}>
-                  <span>{hasPrereq ? '✓' : '✗'}</span>
-                  <span>{prereq}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      
-      {/* Unlocks */}
-      {tech.unlocks && (
-        <div>
-          <div className="text-green-400 font-semibold mb-2 text-sm">Unlocks:</div>
-          <div className="space-y-2">
-            {tech.unlocks.units && tech.unlocks.units.length > 0 && (
-              <div>
-                <div className="text-purple-300 text-xs mb-1">Units:</div>
-                <div className="text-xs text-purple-200">
-                  {tech.unlocks.units.join(', ')}
-                </div>
-              </div>
-            )}
-            {tech.unlocks.structures && tech.unlocks.structures.length > 0 && (
-              <div>
-                <div className="text-amber-300 text-xs mb-1">Structures:</div>
-                <div className="text-xs text-amber-200">
-                  {tech.unlocks.structures.join(', ')}
-                </div>
-              </div>
-            )}
-            {tech.unlocks.improvements && tech.unlocks.improvements.length > 0 && (
-              <div>
-                <div className="text-green-300 text-xs mb-1">Improvements:</div>
-                <div className="text-xs text-green-200">
-                  {tech.unlocks.improvements.join(', ')}
-                </div>
-              </div>
-            )}
-            {tech.unlocks.abilities && tech.unlocks.abilities.length > 0 && (
-              <div>
-                <div className="text-blue-300 text-xs mb-1">Abilities:</div>
-                <div className="text-xs text-blue-200">
-                  {tech.unlocks.abilities.join(', ')}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      
-      {/* Research Status */}
-      {!isResearched && (
-        <div className="border-t border-slate-600 pt-2">
-          <div className="text-xs">
-            {!canResearch && (
-              <div className="text-red-400">Missing prerequisites</div>
-            )}
-            {canResearch && !hasResources && (
-              <div className="text-yellow-400">Need {tech.cost - player.stars} more stars</div>
-            )}
-            {canResearch && hasResources && (
-              <div className="text-green-400">Ready to research!</div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Building/Structure Tooltip
-export function BuildingTooltip({ building, city }: { building: any; city?: any }) {
-  return (
-    <div className="space-y-3">
-      {/* Building Header */}
-      <div className="border-b border-slate-600 pb-2">
-        <div className="flex items-center justify-between">
-          <div className="font-semibold text-amber-300 text-sm">{building.name}</div>
-          <div className="text-yellow-400 text-sm">⭐{building.cost}</div>
-        </div>
-        <div className="text-xs text-amber-200 mt-1">{building.type}</div>
-      </div>
-      
-      {/* Description */}
-      <div className="text-xs text-slate-300">{building.description}</div>
-      
-      {/* Effects */}
-      {building.effects && (
-        <div>
-          <div className="text-green-400 font-semibold mb-2 text-sm">Effects:</div>
-          <div className="space-y-1 text-xs">
-            {building.effects.starProduction && (
-              <div className="text-yellow-300">⭐ +{building.effects.starProduction} per turn</div>
-            )}
-            {building.effects.populationGrowth && (
-              <div className="text-green-300">👥 +{building.effects.populationGrowth} population growth</div>
-            )}
-            {building.effects.defenseBonus && (
-              <div className="text-blue-300">🛡️ +{building.effects.defenseBonus} city defense</div>
-            )}
-          </div>
-        </div>
-      )}
-      
-      {/* Requirements */}
-      {building.requiredTech && (
-        <div className="border-t border-slate-600 pt-2">
-          <div className="text-xs text-red-300">Requires: {building.requiredTech}</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Combat Tooltip with proper types
-interface CombatTooltipProps {
-  attacker: {
-    name: string;
-    attack: number;
-    defense: number;
-    hp: number;
-  };
-  defender: {
-    name: string;
-    attack: number;
-    defense: number;
-    hp: number;
-  };
-  odds: {
-    attackerWinChance: number;
-    defenderWinChance: number;
-    expectedAttackerDamage: number;
-    expectedDefenderDamage: number;
-    attackerSurvival: number;
-    defenderSurvival: number;
-    attackerModifiers?: string[];
-    defenderModifiers?: string[];
-  };
-}
-
-export function CombatTooltip({ attacker, defender, odds }: CombatTooltipProps) {
-  return (
-    <div className="space-y-3">
-      {/* Combat Header */}
-      <div className="border-b border-slate-600 pb-2">
-        <div className="font-semibold text-red-300 text-sm">Combat Preview</div>
-        <div className="text-xs text-slate-400 mt-1">
-          {attacker.name} vs {defender.name}
-        </div>
-      </div>
-      
-      {/* Win Chance */}
-      <div className="text-center">
-        <div className={`text-lg font-bold ${
-          odds.attackerWinChance >= 75 ? 'text-green-400' :
-          odds.attackerWinChance >= 50 ? 'text-yellow-400' :
-          odds.attackerWinChance >= 25 ? 'text-orange-400' : 'text-red-400'
-        }`}>
-          {Math.round(odds.attackerWinChance)}%
-        </div>
-        <div className="text-xs text-slate-400">Win Chance</div>
-      </div>
-      
-      {/* Damage Preview */}
-      <div className="grid grid-cols-2 gap-4 text-xs">
-        <div className="text-center">
-          <div className="text-blue-300 font-semibold">Your Damage</div>
-          <div className="text-white font-bold">{odds.expectedAttackerDamage}</div>
-          <div className="text-blue-200">Survival: {Math.round(odds.attackerSurvival)}%</div>
-        </div>
-        <div className="text-center">
-          <div className="text-red-300 font-semibold">Enemy Damage</div>
-          <div className="text-white font-bold">{odds.expectedDefenderDamage}</div>
-          <div className="text-red-200">Survival: {Math.round(odds.defenderSurvival)}%</div>
-        </div>
-      </div>
-      
-      {/* Combat Modifiers */}
-      {((odds.attackerModifiers && odds.attackerModifiers.length > 0) || (odds.defenderModifiers && odds.defenderModifiers.length > 0)) && (
-        <div className="border-t border-slate-600 pt-2">
-          <div className="text-xs text-slate-300 font-semibold mb-1">Modifiers:</div>
-          <div className="space-y-1 text-xs">
-            {odds.attackerModifiers?.map((mod: string, index: number) => (
-              <div key={index} className="text-blue-300">⚔️ {mod}</div>
-            ))}
-            {odds.defenderModifiers?.map((mod: string, index: number) => (
-              <div key={index} className="text-red-300">🛡️ {mod}</div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function TimberGroveTooltip() {
   return (
     <div className="space-y-2">
@@ -1041,6 +657,22 @@ export function FruitResourceTooltip() {
   );
 }
 
+export function TechnologyTooltip() {
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-green-300">Technology Research</div>
+      <div className="text-xs text-slate-300">
+        Research technologies to unlock new units, buildings, and abilities.
+      </div>
+      <div className="text-xs space-y-1">
+        <div>• Costs increase with each tech</div>
+        <div>• Some techs have prerequisites</div>
+        <div>• Research one tech at a time</div>
+        <div>• Essential for advanced strategy</div>
+      </div>
+    </div>
+  );
+}
 
 export function DissentTooltip() {
   return (

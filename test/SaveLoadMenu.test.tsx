@@ -28,31 +28,6 @@ Object.defineProperty(window, 'localStorage', {
   value: localStorageMock
 });
 
-// Mock ToastProvider
-vi.mock('../client/src/components/ui/ToastProvider', () => ({
-  ToastProvider: ({ children }: any) => children,
-  useToastContext: () => ({
-    info: vi.fn(),
-    success: vi.fn(),
-    error: vi.fn(),
-    warning: vi.fn(),
-    removeToast: vi.fn()
-  })
-}));
-
-// Mock useGameAudio with correct API and useAudioIntegration
-vi.mock('../client/src/hooks/useAudioIntegration', () => ({
-  useGameAudio: () => ({
-    onButtonClick: vi.fn(),
-    onButtonHover: vi.fn(),
-    onPanelOpen: vi.fn(),
-    onPanelClose: vi.fn()
-  }),
-  useAudioIntegration: () => ({
-    playSfx: vi.fn()
-  })
-}));
-
 describe('SaveLoadMenu', () => {
   const mockGameState: GameState = {
     id: 'test-game',
@@ -68,7 +43,7 @@ describe('SaveLoadMenu', () => {
         turnOrder: 0,
         stars: 20,
         researchedTechs: [],
-        researchInspiration: 0,
+        researchProgress: 0,
         citiesOwned: ['city1']
       }
     ],

@@ -6,7 +6,6 @@ export const ImprovementTypeSchema = z.enum([
   'mine', 
   'forest_camp',
   'lumber_hut',
-  'sawmill',
   'plantation',
   'irrigation',
   'workshop',
@@ -75,7 +74,6 @@ export const CitySchema = z.object({
     totalCost: z.number()
   }).optional(), // What the city is currently producing
   harvestedResources: z.array(z.string()).default([]), // Resource tile IDs already harvested
-  discoveredBy: z.array(z.string()).default([]) // Track which players have seen this city
 });
 
 export type City = z.infer<typeof CitySchema>;
@@ -90,9 +88,6 @@ export interface ImprovementDefinition {
   validTerrain: string[];
   requiredTech: string;
   constructionTime: number; // Turns to build
-  effects?: {
-    populationGrowth?: number;
-  };
 }
 
 export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinition> = {
@@ -114,17 +109,6 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     cost: 8,
     starProduction: 3,
     validTerrain: ['mountain'],
-    requiredTech: 'organization',
-    constructionTime: 1
-  },
-  
-  forest_camp: {
-    id: 'forest_camp',
-    name: 'Forest Camp',
-    description: 'Basic forest resource extraction',
-    cost: 4,
-    starProduction: 1,
-    validTerrain: ['forest'],
     requiredTech: 'organization',
     constructionTime: 1
   },

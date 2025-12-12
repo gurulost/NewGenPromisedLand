@@ -1,5 +1,5 @@
 import { findPath, getReachableTiles } from "@shared/logic/pathfinding";
-import { HexCoordinate } from "@shared/types/game";
+import { HexCoordinate } from "@shared/types/coordinates";
 
 interface PathfindingRequest {
   id: string;

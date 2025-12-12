@@ -3,8 +3,6 @@ import { motion } from 'framer-motion';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { HexCoordinate } from '@shared/types/coordinates';
-import { useLocalGame } from '../../lib/stores/useLocalGame';
-import { getUnitAbilityStates } from '../../utils/unitAbilityState';
 
 interface UnitSelectionProps {
   selectedCoordinate: HexCoordinate | null;
@@ -33,6 +31,7 @@ export function UnitSelectionEffects({
 
       {/* Movement Range Indicators */}
       {validMoveCoordinates.map((coord, index) => {
+        console.log('🎯 Rendering movement indicator for:', coord, 'at index:', index);
         return (
           <MovementIndicator 
             key={`move-${coord.q}-${coord.r}-${coord.s}`}
@@ -48,34 +47,6 @@ export function UnitSelectionEffects({
           key={`attack-${coord.q}-${coord.r}-${coord.s}`}
           coordinate={coord}
           delay={index * 0.03}
-        />
-      ))}
-    </group>
-  );
-}
-
-export function AbilityTargetHighlights({
-  coordinates,
-  selectedCoordinate,
-}: {
-  coordinates: HexCoordinate[];
-  selectedCoordinate?: HexCoordinate | null;
-}) {
-  return (
-    <group>
-      {coordinates.map((coordinate, index) => (
-        <AbilityTargetIndicator
-          key={`ability-${coordinate.q}-${coordinate.r}-${coordinate.s}`}
-          coordinate={coordinate}
-          delay={index * 0.04}
-          isSelected={
-            Boolean(
-              selectedCoordinate &&
-              coordinate.q === selectedCoordinate.q &&
-              coordinate.r === selectedCoordinate.r &&
-              coordinate.s === selectedCoordinate.s
-            )
-          }
         />
       ))}
     </group>
@@ -219,66 +190,6 @@ function MovementIndicator({
   );
 }
 
-function AbilityTargetIndicator({
-  coordinate,
-  delay = 0,
-  isSelected = false,
-}: {
-  coordinate: HexCoordinate;
-  delay?: number;
-  isSelected?: boolean;
-}) {
-  const ringRef = useRef<THREE.Mesh>(null);
-  const ringMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
-  const auraRef = useRef<THREE.Mesh>(null);
-  const auraMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
-
-  const hexPosition = coordinateToWorldPosition(coordinate);
-
-  useFrame((state) => {
-    if (!ringRef.current || !ringMaterialRef.current || !auraRef.current || !auraMaterialRef.current) return;
-
-    const time = state.clock.getElapsedTime() + delay;
-    const baseRingOpacity = isSelected ? 0.6 : 0.45;
-    const baseAuraOpacity = isSelected ? 0.35 : 0.25;
-    const ringPulse = baseRingOpacity + Math.sin(time * 3) * 0.25;
-    const auraPulse = baseAuraOpacity + Math.sin(time * 2.2) * 0.2;
-
-    ringMaterialRef.current.opacity = ringPulse;
-    auraMaterialRef.current.opacity = auraPulse;
-
-    const scaleBase = isSelected ? 1.1 : 1;
-    const scale = scaleBase + Math.sin(time * 1.6) * 0.12;
-    ringRef.current.scale.setScalar(scale);
-    auraRef.current.rotation.z = time * 0.6;
-  });
-
-  return (
-    <group position={[hexPosition.x, 0.04, hexPosition.z]}>
-      <mesh ref={ringRef} rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.75, 1.05, 32]} />
-        <meshBasicMaterial
-          ref={ringMaterialRef}
-          color={isSelected ? '#f59e0b' : '#fbbf24'}
-          transparent
-          opacity={0.45}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-      <mesh ref={auraRef} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
-        <circleGeometry args={[0.65, 32]} />
-        <meshBasicMaterial
-          ref={auraMaterialRef}
-          color={isSelected ? '#facc15' : '#fcd34d'}
-          transparent
-          opacity={0.25}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-    </group>
-  );
-}
-
 function AttackIndicator({ 
   coordinate, 
   delay = 0 
@@ -329,38 +240,6 @@ export function UnitSelectionUI({
   selectedUnit: any; 
   onUnitAction: (action: string) => void; 
 }) {
-  const { gameState } = useLocalGame();
-  const currentPlayer = gameState?.players.find(player => player.id === selectedUnit?.playerId) ?? null;
-  const abilityStates = selectedUnit && currentPlayer && gameState
-    ? getUnitAbilityStates(selectedUnit, currentPlayer, gameState)
-    : [];
-  const activeAbilities = abilityStates.filter(state => !state.isPassive);
-  const highlightedAbility =
-    activeAbilities.find(state => state.status === 'ready') ??
-    activeAbilities[0] ??
-    null;
-
-  const abilityStatusText = highlightedAbility
-    ? highlightedAbility.status === 'ready'
-      ? 'Ready'
-      : highlightedAbility.reason || (highlightedAbility.status === 'exhausted' ? 'Spent this turn' : 'Unavailable')
-    : abilityStates.length === 0
-      ? 'No abilities'
-      : 'Passive only';
-
-  const abilityButtonTone: 'ready' | 'warning' | 'muted' | 'default' =
-    highlightedAbility
-      ? highlightedAbility.status === 'ready'
-        ? 'ready'
-        : highlightedAbility.status === 'exhausted'
-          ? 'muted'
-          : 'warning'
-      : abilityStates.length === 0
-        ? 'muted'
-        : 'default';
-
-  const abilityButtonDisabled = activeAbilities.length === 0;
-
   if (!selectedUnit) return null;
 
   return (
@@ -406,14 +285,10 @@ export function UnitSelectionUI({
               disabled={(selectedUnit.currentMovement || selectedUnit.remainingMovement || 0) === 0}
             />
             <ActionButton
-              icon={highlightedAbility?.status === 'ready' ? '✨' : '⚡'}
-              label={highlightedAbility?.name || 'Ability'}
+              icon="⚡"
+              label="Ability"
               hotkey="Q"
               onClick={() => onUnitAction('ability')}
-              disabled={abilityButtonDisabled}
-              subtitle={abilityStatusText}
-              tone={abilityButtonTone}
-              tooltip={highlightedAbility?.description || abilityStatusText}
             />
           </div>
         </div>
@@ -427,49 +302,30 @@ function ActionButton({
   label, 
   hotkey, 
   onClick, 
-  disabled = false,
-  subtitle,
-  tooltip,
-  tone = 'default',
+  disabled = false 
 }: {
   icon: string;
   label: string;
   hotkey: string;
   onClick: () => void;
   disabled?: boolean;
-  subtitle?: string;
-  tooltip?: string;
-  tone?: 'default' | 'ready' | 'warning' | 'muted';
 }) {
-  const toneClass = disabled
-    ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
-    : tone === 'ready'
-      ? 'bg-emerald-600/90 border-emerald-400 text-white hover:bg-emerald-500/90 hover:border-emerald-300'
-      : tone === 'warning'
-        ? 'bg-amber-700/90 border-amber-500 text-amber-100 hover:bg-amber-600/90 hover:border-amber-400'
-        : tone === 'muted'
-          ? 'bg-slate-800 border-slate-600 text-slate-300'
-          : 'bg-slate-700 border-slate-500 text-white hover:bg-slate-600 hover:border-slate-400';
-
   return (
     <motion.button
       className={`
-        relative flex flex-col items-center gap-1 p-2 rounded-lg border transition-all min-w-[72px]
-        ${toneClass}
+        relative flex flex-col items-center gap-1 p-2 rounded-lg border transition-all
+        ${disabled 
+          ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed' 
+          : 'bg-slate-700 border-slate-500 text-white hover:bg-slate-600 hover:border-slate-400'
+        }
       `}
       onClick={onClick}
       disabled={disabled}
-      title={tooltip}
       whileHover={disabled ? {} : { scale: 1.05 }}
       whileTap={disabled ? {} : { scale: 0.95 }}
     >
       <span className="text-lg">{icon}</span>
-      <span className="text-xs font-semibold text-center leading-tight">{label}</span>
-      {subtitle && (
-        <span className="text-[10px] text-slate-300 leading-tight text-center">
-          {subtitle}
-        </span>
-      )}
+      <span className="text-xs font-medium">{label}</span>
       
       {/* Hotkey Indicator */}
       <div className="absolute -top-1 -right-1 bg-slate-600 text-xs px-1 rounded border border-slate-500">

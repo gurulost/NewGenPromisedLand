@@ -268,22 +268,16 @@ export default function MapFeatures() {
         unitVisibleTiles.forEach((tileKey: string) => visible.add(tileKey));
       });
     
-    // Filter cities that have been discovered by the current player
-    // Note: Owned cities are always visible, discovered cities only if tile is explored
+    // Filter cities that are currently visible only (not just explored)
     const cities = gameState.cities?.filter(city => {
-      const isOwned = city.ownerId === currentPlayer.id;
       const cityKey = `${city.coordinate.q},${city.coordinate.r}`;
-      const isDiscovered = (city.discoveredBy || []).includes(currentPlayer.id);
-      const isTileExplored = explored.has(cityKey);
-      return isOwned || (isDiscovered && isTileExplored);
+      return visible.has(cityKey); // Only currently visible, not explored
     }) || [];
     
-    // Filter improvements - owned improvements always visible, others only on explored tiles
+    // Filter improvements that are currently visible only (not just explored)
     const improvements = gameState.improvements?.filter(improvement => {
-      const isOwned = improvement.ownerId === currentPlayer.id;
       const impKey = `${improvement.coordinate.q},${improvement.coordinate.r}`;
-      const isTileExplored = explored.has(impKey);
-      return isOwned || isTileExplored;
+      return visible.has(impKey); // Only currently visible, not explored
     }) || [];
     
     // Filter structures in visible cities
@@ -292,15 +286,15 @@ export default function MapFeatures() {
       return city !== undefined;
     }) || [];
     
-    // Filter villages that are explored (visible OR previously explored)
+    // Filter villages that are currently visible only (not just explored)
     const villages = gameState.map.tiles.filter(tile => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      const isExplored = explored.has(tileKey); // Show on explored tiles, not just currently visible
+      const isCurrentlyVisible = visible.has(tileKey); // Only currently visible, not explored
       const isVillage = tile.feature === 'village';
       
 
       
-      return isExplored && isVillage;
+      return isCurrentlyVisible && isVillage;
     });
     
     return { 
@@ -313,55 +307,48 @@ export default function MapFeatures() {
     };
   }, [gameState, currentPlayer]);
   
-  // Get explored tiles with resources (visible OR previously explored)
+  // Get currently visible tiles with resources (not just explored)
   const visibleTilesWithFeatures = useMemo(() => {
     if (!gameState) return [];
     
     const filteredTiles = gameState.map.tiles.filter(tile => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      const isExplored = exploredTiles.has(tileKey); // Show on explored tiles, not just currently visible
+      const isCurrentlyVisible = visibleTiles.has(tileKey); // Only currently visible, not explored
       const hasFeatures = tile.resources.length > 0; // Add improvements check when available
       
 
       
-      return isExplored && hasFeatures;
+      return isCurrentlyVisible && hasFeatures;
     });
     
 
     
     return filteredTiles;
-  }, [gameState, exploredTiles]);
+  }, [gameState, visibleTiles]);
   
   if (!gameState) return null;
   
   // Function to render resource models with enhanced visuals and tooltips
-  const renderResource = (resource: string, position: { x: number; y: number }, key: string, hasUnit: boolean = false) => {
+  const renderResource = (resource: string, position: { x: number; y: number }, key: string) => {
     const y = 0.2; // Proper elevation above hex tiles
-    
-    // Offset position if a unit is on this tile to prevent occlusion
-    const renderPosition = hasUnit ? {
-      x: position.x + 0.35,  // Offset to the side
-      y: position.y + 0.35
-    } : position;
     
     const getResourceModel = (resource: string) => {
       switch (resource) {
         // Unified World Elements System - All resources now provide moral choices
         case 'timber_grove':
-          return <WorldElementModel elementId="timber_grove" position={renderPosition} />; 
+          return <WorldElementModel elementId="timber_grove" position={position} />; 
         case 'wild_goats':
-          return <WorldElementModel elementId="wild_goats" position={renderPosition} />; 
+          return <WorldElementModel elementId="wild_goats" position={position} />; 
         case 'grain_patch':
-          return <WorldElementModel elementId="grain_patch" position={renderPosition} />; 
+          return <WorldElementModel elementId="grain_patch" position={position} />; 
         case 'ore_vein':
-          return <WorldElementModel elementId="ore_vein" position={renderPosition} />; 
+          return <WorldElementModel elementId="ore_vein" position={position} />; 
         case 'fishing_shoal':
-          return <WorldElementModel elementId="fishing_shoal" position={renderPosition} />; 
+          return <WorldElementModel elementId="fishing_shoal" position={position} />; 
         case 'sea_beast':
-          return <WorldElementModel elementId="sea_beast" position={renderPosition} />; 
+          return <WorldElementModel elementId="sea_beast" position={position} />; 
         case 'jaredite_ruins':
-          // Ruins should be prominently visible even with units
-          return <WorldElementModel elementId="jaredite_ruins" position={renderPosition} />; 
+          return <WorldElementModel elementId="jaredite_ruins" position={position} />; 
         
         default:
           return null;
@@ -375,7 +362,7 @@ export default function MapFeatures() {
       <ResourceWithTooltip 
         key={`resource-${key}`} 
         resourceType={resource} 
-        position={renderPosition}
+        position={position}
       >
         {model}
       </ResourceWithTooltip>
@@ -658,18 +645,12 @@ export default function MapFeatures() {
           imp.coordinate.q === tile.coordinate.q && imp.coordinate.r === tile.coordinate.r
         );
         
-        // Check if there's a unit on this tile
-        const hasUnit = gameState.units.some(unit =>
-          unit.coordinate.q === tile.coordinate.q && 
-          unit.coordinate.r === tile.coordinate.r
-        );
-        
         if (hasImprovement) return null; // Don't render raw resources on improved tiles
         
         return (
           <group key={`tile-features-${tileKey}`}>
             {tile.resources.map((resource, index) => 
-              renderResource(resource, position, `${tileKey}-${index}`, hasUnit)
+              renderResource(resource, position, `${tileKey}-${index}`)
             )}
           </group>
         );

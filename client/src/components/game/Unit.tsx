@@ -13,7 +13,6 @@ import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameDebugger } from "../../utils/gameDebug";
 import { UnitModel } from "./UnitModel";
 import * as THREE from "three";
-import { getUnitAbilityStates } from "../../utils/unitAbilityState";
 
 interface UnitProps {
   unit: UnitType;
@@ -26,8 +25,7 @@ const HEX_SIZE = 1;
 
 export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
   const meshRef = useRef<THREE.Group>(null);
-  const abilityReadyRef = useRef<THREE.Group>(null);
-  const { setSelectedUnit, setReachableTiles, isMovementMode, abilityTargetMode } = useGameState();
+  const { setSelectedUnit, setReachableTiles, isMovementMode } = useGameState();
   const { gameState } = useLocalGame();
   const { getReachableTiles: getReachableTilesWorker } = usePathfindingWorker();
   const debug = useGameDebugger();
@@ -35,26 +33,30 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
   const pixelPos = hexToPixel(unit.coordinate, HEX_SIZE);
   
   // Debug unit rendering
+  console.log(`🎨 Unit ${unit.id} rendering:`, {
+    coordinate: unit.coordinate,
+    pixelPos,
+    type: unit.type,
+    playerId: unit.playerId,
+    visionRadius: unit.visionRadius,
+    attackRange: unit.attackRange,
+    isSelected
+  });
   
   // Get player and faction info
   const player = gameState?.players.find(p => p.id === unit.playerId);
   const faction = player ? getFaction(player.factionId as any) : null;
   const currentPlayer = gameState?.players[gameState?.currentPlayerIndex || 0];
   const isCurrentPlayerUnit = currentPlayer?.id === unit.playerId;
-  const abilityStates = useMemo(() => {
-    if (!gameState) return [];
-    const owner = gameState.players.find(p => p.id === unit.playerId);
-    if (!owner) return [];
-    return getUnitAbilityStates(unit, owner, gameState);
-  }, [gameState, unit]);
-  const hasReadyAbility = abilityStates.some(state => !state.isPassive && state.status === 'ready');
 
   // Units are already filtered by GameCanvas using getVisibleUnits()
   // No need for additional visibility checks here - just render the unit
+  console.log(`✅ Unit ${unit.id} passed visibility filter and is rendering`);
   
   // Calculate reachable tiles when this unit is selected AND in movement mode
   useEffect(() => {
     if (isSelected && isMovementMode && gameState) {
+      console.log('Calculating reachable tiles for unit:', unit.id, 'Movement:', unit.remainingMovement);
       
       // Generate passable tiles list for the worker
       const passableTiles = gameState.map.tiles
@@ -74,6 +76,7 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
           }
           
           const reachableKeys = reachable.map(coord => `${coord.q},${coord.r}`);
+          console.log('Reachable tiles:', reachableKeys);
           setReachableTiles(reachableKeys);
         }
       );
@@ -86,11 +89,6 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
   useFrame((state) => {
     if (meshRef.current && isSelected) {
       meshRef.current.position.y = UNIT_HEIGHT + Math.sin(state.clock.elapsedTime * 3) * 0.1;
-    }
-    if (abilityReadyRef.current && hasReadyAbility) {
-      const pulse = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.15;
-      abilityReadyRef.current.scale.set(pulse, pulse, pulse);
-      abilityReadyRef.current.position.y = UNIT_HEIGHT + 0.85 + Math.sin(state.clock.elapsedTime * 2) * 0.05;
     }
   });
 
@@ -406,17 +404,12 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
   }, [unit.type, faction]);
 
   const handleClick = () => {
-    if (abilityTargetMode.isActive) {
-      if (abilityTargetMode.eligibleUnitIds.includes(unit.id)) {
-        abilityTargetMode.onSelectUnit?.(unit.id);
-        setSelectedUnit(unit);
-      }
-      return;
-    }
+    console.log('Unit clicked:', unit.id, 'Current player:', gameState?.players[gameState.currentPlayerIndex]?.id, 'Unit player:', unit.playerId);
     
     if (gameState && canSelectUnit(unit, gameState)) {
       setSelectedUnit(unit);
     } else {
+      console.log('Cannot select unit - not current player\'s turn');
     }
   };
 
@@ -444,21 +437,6 @@ export default function Unit({ unit, isSelected, onUnitClick }: UnitProps) {
             position={{ x: 0, y: -UNIT_HEIGHT + 0.025 }}
             isPlayerUnit={gameState?.players[gameState.currentPlayerIndex]?.id === unit.playerId}
           />
-
-          {hasReadyAbility && (
-            <group ref={abilityReadyRef} position={[0, UNIT_HEIGHT + 0.85, 0]}>
-              <Text
-                fontSize={0.35}
-                color="#facc15"
-                outlineWidth={0.02}
-                outlineColor="#1f2937"
-                anchorX="center"
-                anchorY="middle"
-              >
-                ✨
-              </Text>
-            </group>
-          )}
           
           {/* Status Effect Visual Indicators */}
           {unit.status === 'stealthed' && (

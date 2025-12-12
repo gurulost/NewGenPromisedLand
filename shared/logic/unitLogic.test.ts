@@ -67,7 +67,7 @@ describe('Unit Logic', () => {
       researchedTechs: [],
       turnOrder: 0,
       visibilityMask: [],
-      researchInspiration: 0,
+      researchProgress: 0,
       citiesOwned: []
     };
 

@@ -1,91 +1,55 @@
-import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
-import { axe } from 'vitest-axe';
-import * as matchers from 'vitest-axe/matchers';
-import { PlayerHUD } from '../../client/src/components/hud/PlayerHUD';
-import { CityPanel } from '../../client/src/components/city/CityPanel';
-import { TechPanel } from '../../client/src/components/tech/TechPanel';
-import { CombatPanel } from '../../client/src/components/combat/CombatPanel';
-import type { Unit } from '../../shared/types/unit';
+import { axe, toHaveNoViolations } from 'jest-axe';
+import { PlayerHUD } from '../../client/src/components/ui/PlayerHUD';
+import { CityPanel } from '../../client/src/components/ui/CityPanel';
+import { TechPanel } from '../../client/src/components/ui/TechPanel';
+import { CombatPanel } from '../../client/src/components/ui/CombatPanel';
 
-// Extend Vitest matchers
-expect.extend(matchers);
+// Extend Jest matchers
+expect.extend(toHaveNoViolations);
 
 // Mock data for components
-const mockPlayer = {
-  id: 'player1',
-  name: 'Test Player',
-  factionId: 'NEPHITES' as const,
-  isAI: false,
-  stars: 25,
-  stats: { faith: 8, pride: 3, internalDissent: 2 },
-  modifiers: [],
-  researchedTechs: ['organization'],
-  researchInspiration: 0,
-  citiesOwned: ['city1'],
-  constructionQueue: [],
-  visibilityMask: [],
-  exploredTiles: [],
-  isEliminated: false,
-  turnOrder: 0,
-  abilityCooldowns: {}
-};
-
 const mockGameState = {
-  id: 'test-game',
-  players: [mockPlayer],
-  currentPlayerIndex: 0,
-  turn: 1,
-  phase: 'playing' as const,
-  map: { tiles: [], width: 10, height: 10 },
-  units: [],
-  cities: [{
-    id: 'city1',
-    name: 'Test City',
-    ownerId: 'player1',
-    coordinate: { q: 0, r: 0, s: 0 },
-    population: 5,
-    maxPopulation: 10,
-    level: 1,
-    productionQueue: [],
-    discoveredBy: ['player1']
+  players: [{
+    id: 'player1',
+    name: 'Test Player',
+    faction: 'nephites',
+    stars: 25,
+    faith: 8,
+    pride: 3,
+    dissent: 2,
+    population: 12,
+    cities: [],
+    technologies: ['organization']
   }],
-  improvements: [],
-  structures: []
+  currentPlayerId: 'player1'
 };
 
-// Properly typed mock unit for CombatPanel tests
-const mockUnit: Unit = {
-  id: 'unit1',
-  playerId: 'player1',
-  type: 'warrior',
+const mockCity = {
+  id: 'city1',
+  name: 'Test City',
+  ownerId: 'player1',
   coordinate: { q: 0, r: 0, s: 0 },
-  hp: 25,
-  maxHp: 25,
-  attack: 6,
-  defense: 4,
-  movement: 3,
-  remainingMovement: 3,
-  status: 'active',
-  visionRadius: 2,
-  attackRange: 1,
-  hasAttacked: false,
-  abilities: [],
-  level: 1,
-  experience: 0,
+  population: 5,
+  structures: [],
+  improvements: []
 };
 
-describe('Accessibility Tests (vitest-axe)', () => {
+const mockUnit = {
+  id: 'unit1',
+  type: 'warrior',
+  ownerId: 'player1',
+  coordinate: { q: 0, r: 0, s: 0 },
+  health: 10,
+  maxHealth: 10,
+  attackRange: 1
+};
+
+describe('Accessibility Tests (jest-axe)', () => {
   it('PlayerHUD has no WCAG violations', async () => {
     const { container } = render(
-      <PlayerHUD 
-        player={mockPlayer}
-        gameState={mockGameState}
-        onShowTechPanel={() => {}}
-        onShowConstructionHall={() => {}}
-        onEndTurn={() => {}}
-      />
+      <PlayerHUD gameState={mockGameState} playerId="player1" />
     );
     
     const results = await axe(container);
@@ -95,11 +59,10 @@ describe('Accessibility Tests (vitest-axe)', () => {
   it('CityPanel has no WCAG violations', async () => {
     const { container } = render(
       <CityPanel 
-        isOpen
-        city={mockGameState.cities[0]}
+        city={mockCity}
         gameState={mockGameState}
-        currentPlayer={mockPlayer}
         onClose={() => {}}
+        onAction={() => {}}
       />
     );
     
@@ -108,45 +71,12 @@ describe('Accessibility Tests (vitest-axe)', () => {
   });
 
   it('TechPanel has no WCAG violations', async () => {
-    const accessibilityPlayer = {
-      id: 'player1',
-      name: 'Accessibility Tester',
-      factionId: 'NEPHITES' as const,
-      isAI: false,
-      stars: 40,
-      stats: { faith: 30, pride: 15, internalDissent: 5 },
-      modifiers: [],
-      abilityCooldowns: {},
-      researchedTechs: ['organization', 'woodcraft'],
-      researchInspiration: 0,
-      citiesOwned: [],
-      constructionQueue: [],
-      visibilityMask: [],
-      exploredTiles: [],
-      isEliminated: false,
-      turnOrder: 0
-    } as const;
-
-    const accessibilityGameState = {
-      id: 'game-accessibility',
-      players: [accessibilityPlayer],
-      currentPlayerIndex: 0,
-      turn: 1,
-      phase: 'playing',
-      map: { tiles: [], width: 5, height: 5 },
-      units: [],
-      cities: [],
-      improvements: [],
-      structures: []
-    } as const;
-
     const { container } = render(
       <TechPanel 
-        isOpen
+        gameState={mockGameState}
+        playerId="player1"
         onClose={() => {}}
-        gameState={accessibilityGameState as any}
-        currentPlayer={accessibilityPlayer as any}
-        onResearchTech={() => {}}
+        onResearch={() => {}}
       />
     );
     
@@ -157,10 +87,10 @@ describe('Accessibility Tests (vitest-axe)', () => {
   it('CombatPanel has no WCAG violations', async () => {
     const { container } = render(
       <CombatPanel 
-        attacker={mockUnit}
-        defenders={[]}
+        selectedUnit={mockUnit}
+        enemies={[]}
         onAttack={() => {}}
-        onCancel={() => {}}
+        onClose={() => {}}
       />
     );
     
@@ -334,24 +264,16 @@ describe('Accessibility Tests (vitest-axe)', () => {
           aria-hidden="false"
         >
           <h3>Available Structures</h3>
-          <div role="grid" aria-label="Structure options">
-            <div role="row">
-              <div role="gridcell">
-                <button aria-describedby="temple-desc">Temple</button>
-                <div id="temple-desc">Cost: 10 stars. Provides faith bonus.</div>
-              </div>
-            </div>
-          </div>
+          <ul role="grid" aria-label="Structure options">
+            <li role="gridcell">
+              <button aria-describedby="temple-desc">Temple</button>
+              <div id="temple-desc">Cost: 10 stars. Provides faith bonus.</div>
+            </li>
+          </ul>
         </div>
         
         {/* Progress indicator */}
-        <div 
-          role="progressbar" 
-          aria-label="Research progress"
-          aria-valuenow={33} 
-          aria-valuemin={0} 
-          aria-valuemax={100}
-        >
+        <div role="progressbar" aria-valuenow={33} aria-valuemin={0} aria-valuemax={100}>
           <span aria-label="Research progress: 33 percent complete">33%</span>
         </div>
       </div>
