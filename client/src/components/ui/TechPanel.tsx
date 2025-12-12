@@ -93,9 +93,14 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     const tech = TECHNOLOGIES[techId];
     if (!tech) return;
     
+    // Only allow if prerequisites are met and the tech is available
+    const prerequisitesMet = tech.prerequisites.every(prereq =>
+      currentPlayer.researchedTechs.includes(prereq)
+    );
+    const status = techStatuses[techId] || 'locked';
     const cost = calculateResearchCost(tech, researchedCount);
     
-    if (currentPlayer.stars >= cost) {
+    if (status === 'available' && prerequisitesMet && currentPlayer.stars >= cost) {
       dispatch({
         type: 'RESEARCH_TECHNOLOGY',
         payload: {
