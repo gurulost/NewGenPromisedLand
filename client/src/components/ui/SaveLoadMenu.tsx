@@ -202,9 +202,11 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                 <GlowingButton
                   onClick={saveGame}
                   disabled={!saveName.trim()}
-                  icon={<Save />}
                 >
-                  Save
+                  <span className="flex items-center justify-center gap-2">
+                    <Save />
+                    Save
+                  </span>
                 </GlowingButton>
               </div>
             </div>
@@ -223,23 +225,27 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                 className="hidden"
                 id="import-save"
               />
-              <GlowingButton
-                variant="secondary"
-                onClick={() => document.getElementById('import-save')?.click()}
-                icon={<Upload />}
-              >
-                Import Save
-              </GlowingButton>
-              
-              {selectedSave && (
                 <GlowingButton
                   variant="secondary"
-                  onClick={() => exportSave(selectedSave)}
-                  icon={<Download />}
+                  onClick={() => document.getElementById('import-save')?.click()}
                 >
-                  Export Selected
+                  <span className="flex items-center justify-center gap-2">
+                    <Upload />
+                    Import Save
+                  </span>
                 </GlowingButton>
-              )}
+              
+                {selectedSave && (
+                  <GlowingButton
+                    variant="secondary"
+                    onClick={() => exportSave(selectedSave)}
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <Download />
+                      Export Selected
+                    </span>
+                  </GlowingButton>
+                )}
             </div>
           </div>
 
@@ -306,8 +312,9 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                             e?.stopPropagation();
                             loadGame(save.id);
                           }}
-                          icon={<FolderOpen />}
-                        />
+                        >
+                          <FolderOpen className="w-4 h-4" />
+                        </GlowingButton>
                         <GlowingButton
                           variant="destructive"
                           size="sm"
@@ -315,8 +322,9 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                             e?.stopPropagation();
                             deleteSave(save.id);
                           }}
-                          icon={<Trash2 />}
-                        />
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </GlowingButton>
                       </div>
                     </div>
                   </motion.div>
@@ -326,17 +334,19 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
           </div>
 
           {/* Load Button */}
-          {selectedSave && (
-            <div className="flex justify-center pt-4">
-              <GlowingButton
-                onClick={() => loadGame(selectedSave)}
-                icon={<FolderOpen />}
-                size="lg"
-              >
-                Load Selected Game
-              </GlowingButton>
-            </div>
-          )}
+              {selectedSave && (
+                <div className="flex justify-center pt-4">
+                  <GlowingButton
+                    onClick={() => loadGame(selectedSave)}
+                    size="lg"
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <FolderOpen />
+                      Load Selected Game
+                    </span>
+                  </GlowingButton>
+                </div>
+              )}
         </div>
       </div>
     </PanelShell>

@@ -334,24 +334,28 @@ export default function VictoryScreen({
             transition={{ delay: 1.5, duration: 0.6 }}
             className="flex gap-4 pt-4"
           >
-            <GlowingButton
-              onClick={onPlayAgain}
-              icon={<RotateCw />}
-              className="flex-1"
-              size="lg"
-            >
+          <GlowingButton
+            onClick={onPlayAgain}
+            className="flex-1"
+            size="lg"
+          >
+            <span className="flex items-center justify-center gap-2">
+              <RotateCw />
               Play Again
-            </GlowingButton>
-            
-            <GlowingButton
-              onClick={onMainMenu}
-              variant="secondary"
-              icon={<Home />}
-              className="flex-1"
-              size="lg"
-            >
+            </span>
+          </GlowingButton>
+          
+          <GlowingButton
+            onClick={onMainMenu}
+            variant="secondary"
+            className="flex-1"
+            size="lg"
+          >
+            <span className="flex items-center justify-center gap-2">
+              <Home />
               Main Menu
-            </GlowingButton>
+            </span>
+          </GlowingButton>
           </motion.div>
         </motion.div>
       </div>

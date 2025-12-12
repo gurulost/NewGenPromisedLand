@@ -81,31 +81,37 @@ export default function MainMenu() {
             <div className="space-y-4">
               <GlowingButton
                 onClick={() => setGamePhase('playerSetup')}
-                icon={<Users />}
                 className="w-full"
                 size="lg"
               >
-                Pass-and-Play (Local)
+                <span className="flex items-center justify-center gap-2">
+                  <Users />
+                  Pass-and-Play (Local)
+                </span>
               </GlowingButton>
               
               <GlowingButton
                 disabled
-                icon={<Crown />}
                 variant="secondary"
                 className="w-full"
                 size="lg"
               >
-                Single Player (Coming Soon)
+                <span className="flex items-center justify-center gap-2">
+                  <Crown />
+                  Single Player (Coming Soon)
+                </span>
               </GlowingButton>
               
               <GlowingButton
                 disabled
-                icon={<Globe />}
                 variant="secondary"
                 className="w-full"
                 size="lg"
               >
-                Online Multiplayer (Coming Soon)
+                <span className="flex items-center justify-center gap-2">
+                  <Globe />
+                  Online Multiplayer (Coming Soon)
+                </span>
               </GlowingButton>
             </div>
             

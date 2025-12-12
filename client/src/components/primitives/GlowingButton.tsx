@@ -6,13 +6,11 @@ import clsx from 'clsx';
 import { useSfxEngine } from '../../hooks/useSfx';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
-interface GlowingButtonProps extends Omit<ButtonProps, 'onClick' | 'size'> {
+interface GlowingButtonProps extends Omit<ButtonProps, 'onClick'> {
   onClick?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   glowColor?: 'amber' | 'blue' | 'red' | 'green' | 'purple';
   intensity?: 'low' | 'medium' | 'high';
   soundEffect?: string;
-  icon?: React.ReactNode;
-  size?: ButtonProps['size'] | 'large' | 'small';
 }
 
 const glowStyles = {
@@ -51,8 +49,6 @@ export function GlowingButton({
   className,
   disabled,
   children,
-  icon,
-  size,
   ...props 
 }: GlowingButtonProps) {
   const reducedMotion = useReducedMotion();
@@ -77,8 +73,6 @@ export function GlowingButton({
         }
       };
 
-  const normalizedSize = size === 'large' ? 'lg' : size === 'small' ? 'sm' : size;
-
   return (
     <motion.div {...motionProps}>
       <Button
@@ -91,7 +85,6 @@ export function GlowingButton({
           disabled && "opacity-50 cursor-not-allowed",
           className
         )}
-        size={normalizedSize}
         {...props}
       >
         {/* Glow effect background */}
@@ -102,7 +95,6 @@ export function GlowingButton({
         
         {/* Content */}
         <span className="relative z-10 flex items-center justify-center gap-2">
-          {icon}
           {children}
         </span>
       </Button>
