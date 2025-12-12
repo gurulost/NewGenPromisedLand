@@ -16,10 +16,11 @@ interface GameError {
     gameState?: any;
     playerAction?: string;
     component?: string;
-    userAgent: string;
-    url: string;
+    userAgent?: string;
+    url?: string;
     gamePhase?: string;
     currentPlayer?: string;
+    [key: string]: any;
   };
   userActions: UserAction[];
 }

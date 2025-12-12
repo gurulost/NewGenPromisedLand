@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 
-type SfxType = 'panel-open' | 'panel-close' | 'cta-click' | 'error' | 'hover' | 'success';
+export type SfxType = string;
 
 // Throttle map to prevent sound spam
 const throttleMap = new Map<SfxType, number>();
@@ -15,6 +15,20 @@ export function useSfxEngine() {
     'error': { frequency: 220, duration: 0.2, type: 'sawtooth' as OscillatorType },
     'hover': { frequency: 880, duration: 0.04, type: 'sine' as OscillatorType },
     'success': { frequency: 523, duration: 0.15, type: 'triangle' as OscillatorType },
+    'unit-select': { frequency: 540, duration: 0.08, type: 'triangle' as OscillatorType },
+    'unit-move': { frequency: 360, duration: 0.12, type: 'square' as OscillatorType },
+    'unit-attack': { frequency: 260, duration: 0.12, type: 'sawtooth' as OscillatorType },
+    'unit-built': { frequency: 520, duration: 0.12, type: 'triangle' as OscillatorType },
+    'building-built': { frequency: 300, duration: 0.12, type: 'square' as OscillatorType },
+    'city-capture': { frequency: 480, duration: 0.16, type: 'triangle' as OscillatorType },
+    'village-capture': { frequency: 520, duration: 0.14, type: 'triangle' as OscillatorType },
+    'tech-research': { frequency: 600, duration: 0.14, type: 'sine' as OscillatorType },
+    'turn-start': { frequency: 420, duration: 0.1, type: 'triangle' as OscillatorType },
+    'turn-end': { frequency: 380, duration: 0.1, type: 'triangle' as OscillatorType },
+    'resource-collect': { frequency: 500, duration: 0.08, type: 'triangle' as OscillatorType },
+    'notification': { frequency: 560, duration: 0.08, type: 'triangle' as OscillatorType },
+    'warning': { frequency: 200, duration: 0.18, type: 'sawtooth' as OscillatorType },
+    'achievement': { frequency: 700, duration: 0.14, type: 'sine' as OscillatorType },
   }), []);
 
   const playSound = useCallback((type: SfxType) => {
@@ -29,7 +43,9 @@ export function useSfxEngine() {
     
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const config = soundConfig[type];
+      const config = (soundConfig as Record<string, { frequency: number; duration: number; type: OscillatorType }>)[type] 
+        || soundConfig['cta-click'];
+      if (!config) return;
       
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();

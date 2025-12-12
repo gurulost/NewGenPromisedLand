@@ -244,6 +244,7 @@ interface ActionSectionProps {
 
 function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }: ActionSectionProps) {
   const isImmediate = theme === 'red';
+  const playSfx = useSfxEngine();
   
   // Transform legacy action data to structured format
   const actionData: ActionData = {

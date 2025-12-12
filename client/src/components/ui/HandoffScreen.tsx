@@ -178,11 +178,11 @@ export default function HandoffScreen() {
             >
               <GlowingButton
                 onClick={() => setShowPrivacyMode(!showPrivacyMode)}
-                icon={showPrivacyMode ? <Eye /> : <EyeOff />}
                 variant="secondary"
                 size="sm"
-                className="mb-4"
+                className="mb-4 flex items-center gap-2 justify-center"
               >
+                {showPrivacyMode ? <Eye /> : <EyeOff />}
                 {showPrivacyMode ? 'Show Details' : 'Privacy Mode'}
               </GlowingButton>
             </motion.div>
@@ -195,10 +195,10 @@ export default function HandoffScreen() {
             >
               <GlowingButton
                 onClick={handleStartTurn}
-                icon={<Play />}
-                className="w-full"
+                className="w-full flex items-center gap-2 justify-center"
                 size="lg"
               >
+                <Play />
                 Start Turn
               </GlowingButton>
             </motion.div>

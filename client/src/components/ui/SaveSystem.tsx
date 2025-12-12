@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Save, Trash2, Download, Upload, Calendar, Clock, Users } from 'lucide-react';
-import { GameState } from '../../../shared/types/game';
+import { GameState } from '@shared/types/game';
 import { compress, decompress } from 'lz-string';
 
 interface SaveSlot {

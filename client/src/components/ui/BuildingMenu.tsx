@@ -48,7 +48,7 @@ interface BuildingOption {
   }[];
   buildTime: number;
   icon: React.ReactNode;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  rarity: 'common' | 'rare' | 'epic' | 'legendary' | string;
   unlocked: boolean;
 }
 

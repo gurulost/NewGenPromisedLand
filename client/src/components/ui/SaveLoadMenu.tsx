@@ -303,7 +303,7 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                           variant="secondary"
                           size="sm"
                           onClick={(e) => {
-                            e.stopPropagation();
+                            e?.stopPropagation();
                             loadGame(save.id);
                           }}
                           icon={<FolderOpen />}
@@ -312,7 +312,7 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                           variant="destructive"
                           size="sm"
                           onClick={(e) => {
-                            e.stopPropagation();
+                            e?.stopPropagation();
                             deleteSave(save.id);
                           }}
                           icon={<Trash2 />}

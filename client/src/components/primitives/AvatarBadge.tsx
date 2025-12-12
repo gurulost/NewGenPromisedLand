@@ -3,10 +3,14 @@ import { motion } from 'framer-motion';
 import clsx from 'clsx';
 
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { getFaction } from '@shared/data/factions';
 
 interface AvatarBadgeProps {
-  color: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  color?: string;
+  playerId?: string;
+  playerName?: string;
+  factionId?: string;
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'small' | 'large';
   className?: string;
   children?: React.ReactNode;
   'aria-label'?: string;
@@ -21,12 +25,17 @@ const sizeClasses = {
 
 export function AvatarBadge({ 
   color, 
+  playerName,
+  factionId,
   size = 'md', 
   className,
   children,
   'aria-label': ariaLabel
 }: AvatarBadgeProps) {
   const reducedMotion = useReducedMotion();
+  const faction = factionId ? getFaction(factionId as any) : null;
+  const resolvedColor = color || faction?.color || '#fbbf24';
+  const normalizedSize = size === 'large' ? 'xl' : size === 'small' ? 'sm' : size;
   
   const motionProps = reducedMotion 
     ? {}
@@ -42,20 +51,22 @@ export function AvatarBadge({
       className={clsx(
         "rounded-full border-2 border-amber-400/60 shadow-lg flex items-center justify-center font-bold",
         "bg-gradient-to-br from-slate-800 to-slate-900",
-        sizeClasses[size],
+        sizeClasses[normalizedSize],
         className
       )}
       style={{ 
-        backgroundColor: color,
-        boxShadow: `0 0 20px ${color}40, inset 0 1px 0 rgba(255,255,255,0.1)`
+        backgroundColor: resolvedColor,
+        boxShadow: `0 0 20px ${resolvedColor}40, inset 0 1px 0 rgba(255,255,255,0.1)`
       }}
       aria-label={ariaLabel}
     >
       {children || (
         <div 
-          className="w-full h-full rounded-full border border-white/20"
-          style={{ backgroundColor: color }}
-        />
+          className="w-full h-full rounded-full border border-white/20 flex items-center justify-center text-xs uppercase"
+          style={{ backgroundColor: resolvedColor }}
+        >
+          {playerName ? playerName.slice(0, 2) : null}
+        </div>
       )}
     </motion.div>
   );

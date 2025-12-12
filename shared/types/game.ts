@@ -91,6 +91,7 @@ export const PlayerStateSchema = z.object({
   currentResearch: z.string().optional(), // Tech being researched
   researchProgress: z.number().default(0), // Progress toward current tech
   researchInspiration: z.number().optional(),
+  abilityCooldowns: z.record(z.number()).optional(),
   citiesOwned: z.array(z.string()).default([]), // City IDs owned by player
   constructionQueue: z.array(ConstructionItemSchema).default([]), // Buildings under construction
   visibilityMask: z.array(z.string()).default([]), // Currently visible tiles

@@ -8,6 +8,16 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+const logMessage = (message: string, source = "express") => {
+  const formattedTime = new Date().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+  console.log(`${formattedTime} [${source}] ${message}`);
+};
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -31,7 +41,7 @@ app.use((req, res, next) => {
         logLine = logLine.slice(0, 79) + "…";
       }
 
-      log(logLine);
+      logMessage(logLine);
     }
   });
 
@@ -53,17 +63,6 @@ app.use((req, res, next) => {
 
     res.status(status).json({ message });
   });
-
-  // Simple logger for server messages
-  function log(message: string, source = "express") {
-    const formattedTime = new Date().toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true,
-    });
-    console.log(`${formattedTime} [${source}] ${message}`);
-  }
 
   // Static file serving for production
   function serveStatic(app: Express) {
@@ -99,6 +98,6 @@ app.use((req, res, next) => {
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
-    log(`serving on port ${port}`);
+    logMessage(`serving on port ${port}`);
   });
 })();

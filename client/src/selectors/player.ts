@@ -1,4 +1,4 @@
-import { GameState, Player } from '../../../shared/types/game';
+import { GameState, PlayerState } from '@shared/types/game';
 
 export interface PlayerStats {
   faithPercentage: number;
@@ -10,7 +10,7 @@ export interface PlayerStats {
   starProductionBreakdown: Array<{ source: string; amount: number }>;
 }
 
-export function getPlayerStats(player: Player, gameState: GameState): PlayerStats {
+export function getPlayerStats(player: PlayerState, gameState: GameState): PlayerStats {
   const breakdown: Array<{ source: string; amount: number }> = [];
   let totalStarProduction = 1; // Base production
 
@@ -36,8 +36,9 @@ export function getPlayerStats(player: Player, gameState: GameState): PlayerStat
   let improvementStars = 0;
   playerImprovements.forEach(improvement => {
     if (improvement.constructionTurns === 0) {
-      improvementStars += improvement.effects.starProduction;
-      totalStarProduction += improvement.effects.starProduction;
+      const stars = improvement.starProduction ?? (improvement as any).effects?.starProduction ?? 0;
+      improvementStars += stars;
+      totalStarProduction += stars;
     }
   });
 

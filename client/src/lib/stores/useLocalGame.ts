@@ -52,6 +52,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       id: setup.id,
       name: setup.name,
       factionId: setup.factionId,
+      modifiers: [],
       stats: {
         faith: 50,
         pride: 30,
@@ -64,6 +65,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       stars: 10, // Starting currency
       researchedTechs: [], // No starting technologies
       researchProgress: 0,
+      researchInspiration: 0,
+      abilityCooldowns: {},
+      constructionQueue: [],
       citiesOwned: [],
       currentResearch: undefined,
     }));
