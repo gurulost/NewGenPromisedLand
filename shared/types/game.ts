@@ -82,12 +82,15 @@ export const PlayerStateSchema = z.object({
   id: z.string(),
   name: z.string(),
   factionId: z.string(),
+  isAI: z.boolean().optional(),
+  aiDifficulty: z.string().optional(),
   stars: z.number().default(10), // Currency for building/recruiting (starting stars)
   stats: GameStatsSchema,
   modifiers: z.array(z.any()).default([]),
   researchedTechs: z.array(z.string()).default([]),
   currentResearch: z.string().optional(), // Tech being researched
   researchProgress: z.number().default(0), // Progress toward current tech
+  researchInspiration: z.number().optional(),
   citiesOwned: z.array(z.string()).default([]), // City IDs owned by player
   constructionQueue: z.array(ConstructionItemSchema).default([]), // Buildings under construction
   visibilityMask: z.array(z.string()).default([]), // Currently visible tiles
@@ -106,6 +109,7 @@ export const GameStateSchema = z.object({
   turn: z.number(),
   phase: z.enum(['setup', 'playing', 'ended']),
   map: GameMapSchema,
+  visibility: z.record(z.any()).optional(),
   units: z.array(UnitSchema),
   cities: z.array(CitySchema).default([]),
   improvements: z.array(ImprovementSchema).default([]),

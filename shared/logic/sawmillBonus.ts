@@ -3,8 +3,9 @@
  * Sawmills provide +1 population for each adjacent Lumber Hut
  */
 
-import { GameState, HexCoordinate } from '../types/game';
-import { hexDistance } from '../utils/hexCoordinates';
+import { GameState } from '../types/game';
+import { HexCoordinate } from '../types/coordinates';
+import { hexDistance } from '../utils/hex';
 
 /**
  * Calculate the population bonus for a sawmill based on adjacent lumber huts
