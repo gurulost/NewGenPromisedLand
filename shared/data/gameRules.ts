@@ -259,6 +259,13 @@ export const GameRuleHelpers = {
   },
 
   /**
+   * Clamp inspiration used for research discounts
+   */
+  clampInspiration: (inspiration: number): number => {
+    return Math.max(0, Math.min(inspiration, GAME_RULES.research.maxInspiration));
+  },
+
+  /**
    * Get movement cost for terrain type
    */
   getMovementCost: (terrain: string): number => {

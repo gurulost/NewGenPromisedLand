@@ -6,6 +6,7 @@ export const ImprovementTypeSchema = z.enum([
   'mine', 
   'forest_camp',
   'lumber_hut',
+  'sawmill',
   'plantation',
   'irrigation',
   'workshop',
