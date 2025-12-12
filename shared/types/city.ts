@@ -88,6 +88,10 @@ export interface ImprovementDefinition {
   validTerrain: string[];
   requiredTech: string;
   constructionTime: number; // Turns to build
+  effects?: {
+    populationGrowth?: number;
+    [key: string]: number | undefined;
+  };
 }
 
 export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinition> = {
