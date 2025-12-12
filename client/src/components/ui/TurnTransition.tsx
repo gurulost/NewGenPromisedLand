@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Crown, Swords, Shield } from 'lucide-react';
-import { PlayerState } from '../../../shared/types/game';
+import { PlayerState } from '@shared/types/game';
 import { AvatarBadge } from '../primitives/AvatarBadge';
 import { getFaction } from '@shared/data/factions';
 

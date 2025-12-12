@@ -1,31 +1,3 @@
-import pino from 'pino';
-import { nanoid } from 'nanoid';
-
-const isDevelopment = process.env.NODE_ENV !== 'production';
-
-export const logger = pino({
-  level: process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info'),
-  transport: isDevelopment
-    ? {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'HH:MM:ss',
-          ignore: 'pid,hostname',
-          singleLine: false,
-        },
-      }
-    : undefined,
-  formatters: {
-    level: (label) => ({ level: label }),
-  },
-  base: {
-    env: process.env.NODE_ENV || 'development',
-    version: process.env.npm_package_version || '1.0.0',
-  },
-  timestamp: pino.stdTimeFunctions.isoTime,
-});
-
 export interface RequestContext {
   requestId?: string;
   sessionId?: string;
@@ -36,40 +8,41 @@ export interface RequestContext {
   userAgent?: string;
 }
 
+const formatContext = (context?: Record<string, any>) =>
+  context && Object.keys(context).length > 0 ? ` ${JSON.stringify(context)}` : "";
+
+export const logger = {
+  info: (message: string, context?: Record<string, any>) =>
+    console.log(`[info] ${message}${formatContext(context)}`),
+  warn: (message: string, context?: Record<string, any>) =>
+    console.warn(`[warn] ${message}${formatContext(context)}`),
+  error: (message: string, context?: Record<string, any>) =>
+    console.error(`[error] ${message}${formatContext(context)}`),
+  debug: (message: string, context?: Record<string, any>) =>
+    console.debug(`[debug] ${message}${formatContext(context)}`),
+};
+
 export class RequestLogger {
   private context: RequestContext;
 
   constructor(context: Partial<RequestContext> = {}) {
-    this.context = {
-      requestId: context.requestId || nanoid(),
-      ...context,
-    };
+    this.context = context;
   }
 
   info(message: string, data?: Record<string, unknown>) {
-    logger.info({ ...this.context, ...data }, message);
+    logger.info(message, { ...this.context, ...data });
   }
 
   warn(message: string, data?: Record<string, unknown>) {
-    logger.warn({ ...this.context, ...data }, message);
+    logger.warn(message, { ...this.context, ...data });
   }
 
   error(message: string, error?: Error | unknown, data?: Record<string, unknown>) {
-    const errorData = error instanceof Error
-      ? {
-          error: {
-            message: error.message,
-            stack: error.stack,
-            name: error.name,
-          },
-        }
-      : { error };
-
-    logger.error({ ...this.context, ...errorData, ...data }, message);
+    logger.error(message, { ...this.context, error, ...data });
   }
 
   debug(message: string, data?: Record<string, unknown>) {
-    logger.debug({ ...this.context, ...data }, message);
+    logger.debug(message, { ...this.context, ...data });
   }
 
   child(additionalContext: Partial<RequestContext>) {
@@ -83,11 +56,11 @@ export class RequestLogger {
 
 export function createRequestLogger(req: any): RequestLogger {
   return new RequestLogger({
-    requestId: req.headers['x-request-id'] || nanoid(),
-    sessionId: req.headers['x-session-id'] || req.session?.id,
+    requestId: req.headers?.['x-request-id'],
+    sessionId: req.headers?.['x-session-id'],
     playerId: req.session?.playerId || req.user?.id,
-    ip: req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress,
-    userAgent: req.headers['user-agent'],
+    ip: req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress,
+    userAgent: req.headers?.['user-agent'],
   });
 }
 

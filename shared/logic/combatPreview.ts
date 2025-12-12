@@ -25,12 +25,20 @@ export function getCombatPreview(
   if (!attacker || !defender) return null;
 
   // Check if attack is valid
+  const attackerDef = UNIT_DEFINITIONS[attacker.type];
+  const defenderDef = UNIT_DEFINITIONS[defender.type];
+  
+  if (!attackerDef || !defenderDef) return null;
+
+  const attackerHp = attacker.currentHp ?? attackerDef.baseStats.hp;
+  const defenderHp = defender.currentHp ?? defenderDef.baseStats.hp;
+
   if (attacker.ownerId === defender.ownerId) {
     return {
       attackerDamage: 0,
       defenderDamage: 0,
-      attackerHealthAfter: attacker.currentHp,
-      defenderHealthAfter: defender.currentHp,
+      attackerHealthAfter: attackerHp,
+      defenderHealthAfter: defenderHp,
       odds: 'Even',
       modifiers: { attacker: [], defender: [] },
       canAttack: false,
@@ -42,19 +50,14 @@ export function getCombatPreview(
     return {
       attackerDamage: 0,
       defenderDamage: 0,
-      attackerHealthAfter: attacker.currentHp,
-      defenderHealthAfter: defender.currentHp,
+      attackerHealthAfter: attackerHp,
+      defenderHealthAfter: defenderHp,
       odds: 'Even',
       modifiers: { attacker: [], defender: [] },
       canAttack: false,
       reason: 'Unit has already attacked this turn'
     };
   }
-
-  const attackerDef = UNIT_DEFINITIONS[attacker.type];
-  const defenderDef = UNIT_DEFINITIONS[defender.type];
-  
-  if (!attackerDef || !defenderDef) return null;
 
   // Get player states for bonuses
   const attackerPlayer = gameState.players.find(p => p.id === attacker.ownerId);
@@ -70,37 +73,40 @@ export function getCombatPreview(
   const defenderModifiers: string[] = [];
 
   // Apply status effects
-  if (attacker.statusEffects) {
-    if (attacker.statusEffects.formation_fighting) {
+  const attackerEffects = (attacker.statusEffects as any) || {};
+  const defenderEffects = (defender.statusEffects as any) || {};
+
+  if (attackerEffects) {
+    if (attackerEffects.formation_fighting) {
       attackerAttack += 2;
       attackerDefense += 2;
       attackerModifiers.push('+2 Attack/Defense (Formation)');
     }
-    if (attacker.statusEffects.siege_mode) {
+    if (attackerEffects.siege_mode) {
       attackerAttack += 5;
       attackerModifiers.push('+5 Attack (Siege Mode)');
     }
-    if (attacker.statusEffects.rally_troops) {
+    if (attackerEffects.rally_troops) {
       attackerAttack += 3;
       attackerModifiers.push('+3 Attack (Rally)');
     }
   }
 
-  if (defender.statusEffects) {
-    if (defender.statusEffects.formation_fighting) {
+  if (defenderEffects) {
+    if (defenderEffects.formation_fighting) {
       defenderAttack += 2;
       defenderDefense += 2;
       defenderModifiers.push('+2 Attack/Defense (Formation)');
     }
-    if (defender.statusEffects.siege_mode) {
+    if (defenderEffects.siege_mode) {
       defenderAttack += 5;
       defenderModifiers.push('+5 Attack (Siege Mode)');
     }
-    if (defender.statusEffects.rally_troops) {
+    if (defenderEffects.rally_troops) {
       defenderAttack += 3;
       defenderModifiers.push('+3 Attack (Rally)');
     }
-    if (defender.statusEffects.stealth) {
+    if (defenderEffects.stealth) {
       defenderDefense += 3;
       defenderModifiers.push('+3 Defense (Stealth)');
     }
@@ -138,13 +144,13 @@ export function getCombatPreview(
   const defenderDamage = Math.max(1, defenderAttack - attackerDefense);
 
   // Calculate health after combat
-  const attackerHealthAfter = Math.max(0, attacker.currentHp - defenderDamage);
-  const defenderHealthAfter = Math.max(0, defender.currentHp - attackerDamage);
+  const attackerHealthAfter = Math.max(0, attackerHp - defenderDamage);
+  const defenderHealthAfter = Math.max(0, defenderHp - attackerDamage);
 
   // Determine odds based on damage ratio and health
   let odds: CombatPreview['odds'] = 'Even';
   const damageRatio = attackerDamage / defenderDamage;
-  const healthRatio = attacker.currentHp / defender.currentHp;
+  const healthRatio = attackerHp / defenderHp;
   const combinedRatio = damageRatio * healthRatio;
 
   if (combinedRatio > 3) odds = 'Overwhelming';

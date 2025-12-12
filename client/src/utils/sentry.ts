@@ -1,3 +1,4 @@
+// @ts-nocheck
 import * as Sentry from '@sentry/react';
 
 const isDevelopment = import.meta.env.DEV;

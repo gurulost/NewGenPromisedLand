@@ -33,6 +33,7 @@ export interface GameRules {
   research: {
     baseTechCost: number;
     costScalingFactor: number; // Multiplier for each additional tech researched
+    maxInspiration: number;
   };
 
   // City Management
@@ -134,6 +135,7 @@ export const GAME_RULES: GameRules = {
   research: {
     baseTechCost: 5,
     costScalingFactor: 1.2,
+    maxInspiration: 50,
   },
 
   cities: {

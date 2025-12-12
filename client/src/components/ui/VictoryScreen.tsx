@@ -112,12 +112,12 @@ export default function VictoryScreen({
               initial={{ 
                 x: Math.random() * window.innerWidth,
                 y: -50,
-                rotation: Math.random() * 360,
+                rotate: Math.random() * 360,
                 scale: 0
               }}
               animate={{ 
                 y: window.innerHeight + 50,
-                rotation: Math.random() * 720,
+                rotate: Math.random() * 720,
                 scale: [0, 1, 0]
               }}
               transition={{ 

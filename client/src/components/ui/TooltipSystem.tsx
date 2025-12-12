@@ -25,9 +25,11 @@ interface LegacyTooltipProps extends BaseTooltipProps {
 interface InfoTooltipProps extends BaseTooltipProps {}
 
 interface ActionTooltipProps {
-  cost?: number;
+  cost?: number | string;
   requirements?: string[];
   effects?: string[];
+  title?: string;
+  description?: string;
   placement?: TooltipPlacement;
   disabled?: boolean;
 }

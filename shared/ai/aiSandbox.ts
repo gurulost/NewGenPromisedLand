@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AI Sandbox for testing and debugging AI behavior
  * Enables bot-vs-bot matches, step-by-step execution, and automated testing

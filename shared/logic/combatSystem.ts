@@ -362,3 +362,12 @@ export function calculateConversion(
     faithCost: 0
   };
 }
+
+export function resolveMeleeCombat(
+  attacker: Unit,
+  defender: Unit,
+  state: GameState,
+  terrain?: string
+): CombatResult {
+  return calculateCombatDamage(attacker, defender, state, terrain);
+}

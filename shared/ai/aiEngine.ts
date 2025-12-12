@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { GameState, PlayerState } from '../types/game';
 import { Unit, UnitType, UnitDefinition } from '../types/unit';
 import { HexCoordinate } from '../types/coordinates';

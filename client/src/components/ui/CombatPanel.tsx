@@ -32,7 +32,7 @@ export default function CombatPanel({ selectedUnit, gameState, onAttackUnit, hov
       unit: enemy,
       definition: getUnitDefinition(enemy.type),
       distance: hexDistance(selectedUnit.coordinate, enemy.coordinate),
-      hpPercentage: (enemy.currentHp / getUnitDefinition(enemy.type).baseStats.hp) * 100,
+      hpPercentage: ((enemy.currentHp ?? getUnitDefinition(enemy.type).baseStats.hp) / getUnitDefinition(enemy.type).baseStats.hp) * 100,
       preview: getCombatPreview(selectedUnit, enemy, gameState)
     }));
   }, [selectedUnit, gameState]);
