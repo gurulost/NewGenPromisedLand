@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { GameState, PlayerState } from '../types/game';
 import { Unit, UnitType, UnitDefinition } from '../types/unit';
 import { HexCoordinate } from '../types/coordinates';
@@ -125,7 +124,7 @@ export class AIEngine {
   constructor(gameState: GameState, aiPlayer: PlayerState) {
     this.gameState = gameState;
     this.aiPlayer = aiPlayer;
-    this.difficulty = aiPlayer.aiDifficulty || 'normal';
+    this.difficulty = (aiPlayer.aiDifficulty as AIDifficulty) || 'normal';
     
     // Initialize advanced AI systems
     const seed = this.generateSeed();
@@ -1068,8 +1067,8 @@ export class AIEngine {
       if (!tech.prerequisites.every(prereq => this.aiPlayer.researchedTechs.includes(prereq))) continue;
 
       const { finalCost, discount } = getTechCostDetails(tech, this.aiPlayer);
-      const guidance = tech.aiGuidance ?? { priority: 60, minFaith: 200, recommendedCities: 4 };
-      const personalityWeight = this.personalityEngine.getTechPreferenceWeight?.(techId) ??
+      const guidance = (tech as any).aiGuidance ?? { priority: 60, minFaith: 200, recommendedCities: 4 };
+      const personalityWeight = (this.personalityEngine as any).getTechPreferenceWeight?.(techId) ??
         (personality.techPriorities.includes(techId) ? 1.25 : 1);
       const situationalModifier = this.getSituationalTechModifier(techId, tech, personality);
       const priority = guidance.priority * personalityWeight * situationalModifier + discount * 0.5;
@@ -1094,7 +1093,7 @@ export class AIEngine {
     };
 
     const playerFaith = this.aiPlayer.stats.faith;
-    const targetFaith = techTarget ? (TECHNOLOGIES[techTarget.id].aiGuidance?.minFaith ?? playerFaith) : playerFaith;
+    const targetFaith = techTarget ? ((TECHNOLOGIES[techTarget.id] as any).aiGuidance?.minFaith ?? playerFaith) : playerFaith;
     const faithDeficit = Math.max(0, targetFaith - playerFaith);
 
     const cityPlans = this.buildCityPlans(personality, faithDeficit, availableStars);
@@ -1155,6 +1154,13 @@ export class AIEngine {
         },
       });
     }
+  }
+
+  /**
+   * Stub for future city build planning. Returns an empty decision list for now.
+   */
+  private evaluateBuildingOptions(_cityId: string): AIDecision[] {
+    return [];
   }
 
   private getSituationalTechModifier(techId: string, tech: Technology, personality: FactionPersonality): number {
@@ -1567,7 +1573,7 @@ export class AIEngine {
     if (distance > attacker.attackRange) {
       return null;
     }
-    return resolveMeleeCombat(this.gameState, attacker, defender);
+    return resolveMeleeCombat(attacker, defender, this.gameState);
   }
 
   private calculateLocalStrength(center: HexCoordinate, playerId: string, radius: number): number {
@@ -2066,11 +2072,11 @@ export class AIEngine {
       return 0;
     }
 
-    const defenderRemaining = Math.max(0, defender.hp - outcome.damageToDefender);
-    const attackerRemaining = Math.max(0, attacker.hp - outcome.damageToAttacker);
+    const defenderRemaining = Math.max(0, outcome.defenderHp);
+    const attackerRemaining = Math.max(0, outcome.attackerHp);
     const defenderLoss = defender.hp - defenderRemaining;
     const attackerLoss = attacker.hp - attackerRemaining;
-    const lethalityBonus = outcome.defenderSurvived ? 0 : defender.hp * 0.5;
+    const lethalityBonus = outcome.defenderHp > 0 ? 0 : defender.hp * 0.5;
     const netGain = defenderLoss + lethalityBonus - attackerLoss;
     const normaliser = Math.max(1, attacker.hp + defender.hp);
 
@@ -2092,13 +2098,10 @@ export class AIEngine {
       return 0.6;
     }
 
-    const attackerLossRatio = outcome.damageToAttacker / Math.max(1, attacker.hp);
-    const defenderLossRatio = outcome.damageToDefender / Math.max(1, defender.hp);
+    const attackerLossRatio = (attacker.hp - outcome.attackerHp) / Math.max(1, attacker.hp);
+    const defenderLossRatio = (defender.hp - outcome.defenderHp) / Math.max(1, defender.hp);
     let risk = attackerLossRatio - defenderLossRatio * 0.4;
-    if (outcome.counterOccurred) {
-      risk += 0.1;
-    }
-    if (!outcome.defenderSurvived) {
+    if (outcome.defenderHp <= 0) {
       risk -= 0.1;
     }
     return Math.max(0, Math.min(1, risk + 0.3));

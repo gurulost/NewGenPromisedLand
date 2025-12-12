@@ -48,7 +48,7 @@ interface BuildingOption {
   }[];
   buildTime: number;
   icon: React.ReactNode;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary' | string;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
   unlocked: boolean;
 }
 
@@ -180,7 +180,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       rarity: improvement.starProduction >= 3 ? 'rare' : 'common' as const,
       unlocked: player.researchedTechs.includes(improvement.requiredTech)
     }))
-  ];
+  ] as BuildingOption[];
 
   const filteredOptions = buildingOptions
     .filter(option => option.category === selectedCategory)

@@ -1,6 +1,5 @@
-// @ts-nocheck
 import { GameState, PlayerState } from '../types/game';
-import { executeAITurn, AIDecision } from './aiEngine';
+import { executeAITurn, AIDecision, AIDifficulty } from './aiEngine';
 // Note: gameDebugger import removed to avoid cross-layer dependency
 
 /**
@@ -59,7 +58,8 @@ export class AITurnManager {
   private async executeDecisions(decisions: AIDecision[], aiPlayer: PlayerState): Promise<void> {
     let actionsExecuted = 0;
     let actionsFailed = 0;
-    const maxActionsPerTurn = this.getMaxActionsForDifficulty(aiPlayer.aiDifficulty || 'normal');
+    const difficulty = (aiPlayer.aiDifficulty as AIDifficulty) || 'normal';
+    const maxActionsPerTurn = this.getMaxActionsForDifficulty(difficulty);
 
     for (let i = 0; i < decisions.length; i++) {
       const decision = decisions[i];
@@ -73,7 +73,7 @@ export class AITurnManager {
       if (success) {
         actionsExecuted++;
         // Add delay between actions for more natural feel
-        const delay = this.getActionDelay(aiPlayer.aiDifficulty || 'normal');
+        const delay = this.getActionDelay(difficulty);
         await this.delay(delay);
       } else {
         actionsFailed++;

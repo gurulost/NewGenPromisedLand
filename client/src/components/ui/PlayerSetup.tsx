@@ -157,8 +157,10 @@ export default function PlayerSetup() {
                           variant="destructive"
                           size="sm"
                           onClick={() => removePlayer(player.id)}
-                          icon={<X />}
-                        />
+                          className="flex items-center justify-center"
+                        >
+                          <X />
+                        </GlowingButton>
                       )}
                     </div>
                   </motion.div>
@@ -166,14 +168,16 @@ export default function PlayerSetup() {
               </div>
 
               {players.length < 6 && (
-                <GlowingButton
-                  variant="secondary"
-                  onClick={addPlayer}
-                  icon={<Plus />}
-                  className="w-full"
-                >
+              <GlowingButton
+                variant="secondary"
+                onClick={addPlayer}
+                className="w-full"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <Plus />
                   Add Player (Max 6)
-                </GlowingButton>
+                </span>
+              </GlowingButton>
               )}
 
               {/* Map Size Selection */}
@@ -211,23 +215,27 @@ export default function PlayerSetup() {
               </div>
 
               <div className="flex gap-4 pt-4">
-                <GlowingButton
-                  variant="secondary"
-                  onClick={() => setGamePhase('menu')}
-                  icon={<ArrowLeft />}
-                  className="flex-1"
-                >
+              <GlowingButton
+                variant="secondary"
+                onClick={() => setGamePhase('menu')}
+                className="flex-1"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <ArrowLeft />
                   Back to Menu
-                </GlowingButton>
-                
-                <GlowingButton
-                  onClick={handleStartGame}
-                  disabled={!canStart}
-                  icon={<Play />}
-                  className="flex-1"
-                >
+                </span>
+              </GlowingButton>
+              
+              <GlowingButton
+                onClick={handleStartGame}
+                disabled={!canStart}
+                className="flex-1"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <Play />
                   Start Game
-                </GlowingButton>
+                </span>
+              </GlowingButton>
               </div>
 
               {!canStart && (
