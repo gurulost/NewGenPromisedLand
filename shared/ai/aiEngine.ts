@@ -529,6 +529,25 @@ export class AIEngine {
     return totalStrength > 0 ? enemyStrength / totalStrength : 0;
   }
 
+  private getGameStanding(): number {
+    const myScore = this.scorePlayer(this.aiPlayer);
+    const enemyScores = this.gameState.players
+      .filter(p => p.id !== this.aiPlayer.id)
+      .map(p => this.scorePlayer(p));
+    const maxEnemy = enemyScores.length ? Math.max(...enemyScores) : myScore;
+    if (maxEnemy === 0) return 0;
+    // -1 (far behind) to +1 (far ahead)
+    return Math.max(-1, Math.min(1, (myScore - maxEnemy) / Math.max(1, maxEnemy)));
+  }
+
+  private scorePlayer(player: PlayerState): number {
+    const stars = player.stars;
+    const techs = player.researchedTechs.length * 8;
+    const cities = player.citiesOwned.length * 15;
+    const units = this.gameState.units.filter(u => u.playerId === player.id).length * 3;
+    return stars + techs + cities + units;
+  }
+
   // Enhanced AI methods using tactical engine and personality
 
   /**
@@ -1936,7 +1955,37 @@ export class AIEngine {
           });
         });
     });
-    return jobs.sort((a, b) => b.priority - a.priority).slice(0, 12);
+    // Add connective road jobs between nearby cities to boost mobility
+    jobs.push(...this.createRoadJobs());
+
+    return jobs.sort((a, b) => b.priority - a.priority).slice(0, 20);
+  }
+
+  private createRoadJobs(): AIImprovementJob[] {
+    const jobs: AIImprovementJob[] = [];
+    const myCities = this.getMyCities();
+    if (myCities.length < 2) return jobs;
+
+    // Pair each city with its nearest neighbor
+    for (const city of myCities) {
+      const nearest = this.findNearestCity(city, myCities.filter(c => c.id !== city.id));
+      if (!nearest) continue;
+
+      const path = this.buildStraightPath(city.coordinate, nearest.coordinate);
+      path.forEach((coord, idx) => {
+        const jobId = `road:${city.id}:${nearest.id}:${idx}`;
+        jobs.push({
+          id: jobId,
+          cityId: city.id,
+          improvementId: 'road',
+          coordinate: coord,
+          priority: 55,
+          reason: 'connect cities for faster movement',
+        });
+      });
+    }
+
+    return jobs;
   }
 
   private buildExplorationGoals(personality: FactionPersonality): AIExplorationGoal[] {
@@ -1968,6 +2017,39 @@ export class AIEngine {
 
     goals.sort((a, b) => b.priority - a.priority);
     return goals.slice(0, 15);
+  }
+
+  private buildStraightPath(from: HexCoordinate, to: HexCoordinate): HexCoordinate[] {
+    const path: HexCoordinate[] = [];
+    let current = { ...from };
+    const steps = hexDistance(from, to);
+
+    for (let i = 0; i < steps; i++) {
+      const dq = Math.sign(to.q - current.q);
+      const dr = Math.sign(to.r - current.r);
+      const next: HexCoordinate = { q: current.q + dq, r: current.r + dr, s: -(current.q + dq) - (current.r + dr) };
+      const tile = this.gameState.map.tiles.find(t => t.coordinate.q === next.q && t.coordinate.r === next.r);
+      if (!tile || tile.terrain === 'water') {
+        break;
+      }
+      path.push(next);
+      current = next;
+    }
+
+    return path;
+  }
+
+  private findNearestCity(source: City, others: City[]): City | null {
+    let nearest: City | null = null;
+    let best = Infinity;
+    for (const city of others) {
+      const dist = hexDistance(source.coordinate, city.coordinate);
+      if (dist < best) {
+        best = dist;
+        nearest = city;
+      }
+    }
+    return nearest;
   }
 
   private distanceToNearestUnit(target: HexCoordinate, units: Unit[]): number {
@@ -2166,6 +2248,11 @@ export class AIEngine {
     if (outcome.defenderHp <= 0) {
       risk -= 0.1;
     }
+
+    // Adaptive aggression: if behind, take a bit more risk; if ahead, be more cautious
+    const standing = this.getGameStanding();
+    risk += standing * 0.1;
+
     return Math.max(0, Math.min(1, risk + 0.3));
   }
 
