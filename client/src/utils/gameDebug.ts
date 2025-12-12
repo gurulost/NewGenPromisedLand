@@ -346,10 +346,6 @@ class GameDebugger {
     this.session.warnings = 0;
     console.log('🧹 Debug logs cleared');
   }
-
-  getSessionId(): string {
-    return this.session.sessionId;
-  }
 }
 
 export const gameDebugger = new GameDebugger();

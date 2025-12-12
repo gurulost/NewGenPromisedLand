@@ -20,18 +20,15 @@ import {
   Pickaxe,
   Home,
   Castle,
-  AlertTriangle,
-  Loader2
+  AlertTriangle
 } from 'lucide-react';
 import { GameState, PlayerState } from '@shared/types/game';
 import { City } from '@shared/types/city';
 import { InfoTooltip, ActionTooltip, StarProductionTooltip, FaithSystemTooltip, PrideSystemTooltip, DissentTooltip } from './TooltipSystem';
 import { BuildingMenuBackground } from './AnimatedBackground';
-import { PrimaryButton, SuccessButton, GhostButton, EnhancedButton } from './EnhancedButton';
+import { PrimaryButton, SuccessButton, GhostButton } from './EnhancedButton';
 import { getUnitDefinition, UNIT_DEFINITIONS } from '@shared/data/units';
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '@shared/types/city';
-import { useToastContext } from './ToastProvider';
-import { useGameAudio } from '../../hooks/useAudioIntegration';
 
 interface BuildingOption {
   id: string;
@@ -65,13 +62,10 @@ interface BuildingMenuProps {
 }
 
 export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShowCities }: BuildingMenuProps) {
-  const toast = useToastContext();
   const [selectedCategory, setSelectedCategory] = useState<'units' | 'structures' | 'improvements'>('units');
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'cost' | 'name' | 'buildTime'>('cost');
-  const [isBuilding, setIsBuilding] = useState(false);
-  const [buildSuccess, setBuildSuccess] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Calculate star production breakdown
@@ -80,7 +74,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
   const breakdown: Array<{source: string, amount: number}> = [];
   
   // Cities
-  const cityStarProduction = playerCityObjects.reduce((sum, city) => sum + (city.starProduction || 0), 0);
+  const cityStarProduction = playerCityObjects.reduce((sum, city) => sum + city.starProduction, 0);
   totalStarProduction += cityStarProduction;
   if (playerCityObjects.length > 0) {
     breakdown.push({ source: `Cities (${playerCityObjects.length})`, amount: cityStarProduction });
@@ -109,24 +103,10 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
     breakdown.push({ source: `Structures (${playerStructures.length})`, amount: structureStars });
   }
 
-  // Enhanced audio feedback for building actions
-  const gameAudio = useGameAudio();
-  
+  // Play UI sounds
   const playSound = (soundType: 'hover' | 'select' | 'build' | 'error') => {
-    switch (soundType) {
-      case 'hover':
-        gameAudio.onButtonHover();
-        break;
-      case 'select':
-        gameAudio.onButtonClick();
-        break;
-      case 'build':
-        gameAudio.onBuildingBuilt();
-        break;
-      case 'error':
-        gameAudio.onError();
-        break;
-    }
+    // Sound effects would be implemented here
+    console.log(`Playing ${soundType} sound`);
   };
 
   // Generate building options from actual game data
@@ -146,7 +126,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       ],
       buildTime: 1,
       icon: <Users className="w-6 h-6" />,
-      rarity: (unit.factionSpecific.length > 0 ? 'rare' : 'common') as 'common' | 'rare',
+      rarity: unit.factionSpecific.length > 0 ? 'rare' : 'common' as const,
       unlocked: unit.factionSpecific.length === 0 || unit.factionSpecific.includes(player.factionId)
     })),
     
@@ -177,7 +157,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       ],
       buildTime: 1,
       icon: <Castle className="w-6 h-6" />,
-      rarity: (structure.effects.starProduction >= 3 ? 'epic' : 'common') as 'common' | 'epic',
+      rarity: structure.effects.starProduction >= 3 ? 'epic' : 'common' as const,
       unlocked: player.researchedTechs.includes(structure.requiredTech)
     })),
     
@@ -197,7 +177,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       ],
       buildTime: improvement.constructionTime,
       icon: <TrendingUp className="w-6 h-6" />,
-      rarity: (improvement.starProduction >= 3 ? 'rare' : 'common') as 'common' | 'rare',
+      rarity: improvement.starProduction >= 3 ? 'rare' : 'common' as const,
       unlocked: player.researchedTechs.includes(improvement.requiredTech)
     }))
   ];
@@ -251,19 +231,9 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
   return (
     <div 
       className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto p-4"
-      style={{ touchAction: 'pan-y pinch-zoom' }}
       onClick={(e) => {
         // Close menu if clicking on backdrop
         if (e.target === e.currentTarget) {
-          e.preventDefault();
-          e.stopPropagation();
-          onClose();
-        }
-      }}
-      onTouchEnd={(e) => {
-        if (e.target === e.currentTarget) {
-          e.preventDefault();
-          e.stopPropagation();
           onClose();
         }
       }}
@@ -271,8 +241,6 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       <motion.div
         className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border-2 border-amber-500/30 w-full max-w-[1200px] h-full max-h-[90vh] overflow-hidden shadow-2xl shadow-amber-500/10"
         onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
-        onTouchEnd={(e) => e.stopPropagation()} // Prevent touches inside modal from closing it
-        style={{ touchAction: 'pan-y' }} // Allow vertical scrolling
         initial={{ scale: 0.8, opacity: 0, y: 50 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.8, opacity: 0, y: 50 }}
@@ -414,34 +382,11 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
                       setSelectedOption(option.id);
                       playSound('hover');
                     }}
-                    onBuild={async () => {
+                    onBuild={() => {
                       if (canAfford(option) && option.unlocked) {
-                        setIsBuilding(true);
-                        toast?.info('Starting Construction', `Building ${option.name}...`);
+                        onBuild(option.id);
                         playSound('build');
-                        
-                        try {
-                          // Add delay to show loading state
-                          await new Promise(resolve => setTimeout(resolve, 800));
-                          onBuild(option.id);
-                          setBuildSuccess(true);
-                          toast?.success('Construction Started!', `${option.name} construction has begun!`);
-                          
-                          // Reset success state
-                          setTimeout(() => {
-                            setBuildSuccess(false);
-                          }, 2000);
-                        } catch (error) {
-                          toast?.error('Construction Failed', `Could not build ${option.name}. Please try again.`);
-                        } finally {
-                          setIsBuilding(false);
-                        }
                       } else {
-                        if (!option.unlocked) {
-                          toast?.warning('Not Available', `${option.name} is not yet unlocked`);
-                        } else {
-                          toast?.warning('Insufficient Resources', `You need ${option.cost.stars} stars to build ${option.name}`);
-                        }
                         playSound('error');
                       }
                     }}
@@ -605,21 +550,10 @@ function BuildingCard({
               </>
             )}
           </motion.button>
-          <InfoTooltip
-            className="ml-2"
-            placement="left"
-            content={
-              <ActionTooltip
-                title={canAfford && option.unlocked ? "Build Now" : "Cannot Build"}
-                description={
-                  !option.unlocked
-                    ? "Requirements not met"
-                    : !canAfford
-                      ? "Insufficient resources"
-                      : `Build ${option.name} (${option.cost.stars || 0} stars, ${option.buildTime} turns)`
-                }
-              />
-            }
+          <ActionTooltip
+            title={canAfford && option.unlocked ? "Build Now" : "Cannot Build"}
+            description={!option.unlocked ? "Requirements not met" : !canAfford ? "Insufficient resources" : `Build ${option.name}`}
+            cost={`${option.cost.stars || 0} stars, ${option.buildTime} turns`}
           />
         </div>
       </div>

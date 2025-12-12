@@ -4,7 +4,6 @@ import * as THREE from 'three';
 import type { City } from '@shared/types/city';
 import { getCityModelPath } from '../../utils/modelManager';
 import { GroundedModel } from './GroundedModel';
-import { GLTFErrorBoundary } from './GLTFErrorBoundary';
 
 interface CityModelProps {
   city: City;
@@ -12,23 +11,7 @@ interface CityModelProps {
   isPlayerCity: boolean;
 }
 
-// Fallback component when model fails to load
-function CityFallback({ position, isPlayerCity }: { position: { x: number; y: number }, isPlayerCity: boolean }) {
-  return (
-    <group position={[position.x, 0, position.y]}>
-      <mesh position={[0, 0.5, 0]}>
-        <cylinderGeometry args={[0.4, 0.6, 1, 6]} />
-        <meshStandardMaterial 
-          color={isPlayerCity ? "#FFD700" : "#8B4513"}
-          metalness={0.4}
-          roughness={0.6}
-        />
-      </mesh>
-    </group>
-  );
-}
-
-function CityModelInner({ city, position, isPlayerCity }: CityModelProps) {
+export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
   // Use centralized model manager for consistent model loading
   const modelPath = getCityModelPath(city.level);
   const { scene } = useGLTF(modelPath);
@@ -146,22 +129,6 @@ function CityModelInner({ city, position, isPlayerCity }: CityModelProps) {
         </>
       )}
     </group>
-  );
-}
-
-// Export wrapped component with error boundary
-export function CityModel(props: CityModelProps) {
-  // Calculate the actual model path for key - ensures ErrorBoundary remounts on any path change
-  const modelPath = getCityModelPath(props.city.level);
-  
-  return (
-    <GLTFErrorBoundary 
-      key={modelPath}
-      resetKey={modelPath}
-      fallback={<CityFallback position={props.position} isPlayerCity={props.isPlayerCity} />}
-    >
-      <CityModelInner {...props} />
-    </GLTFErrorBoundary>
   );
 }
 

@@ -7,15 +7,13 @@ import { Separator } from "./separator";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { getUnitDefinition } from "@shared/data/units";
-import { ABILITIES } from "@shared/data/abilities";
-import { getActionAvailability } from "../../lib/helpers/actionAvailabilityHelpers";
+import { getActionAvailability, getDetailedActionFeedback } from "../../lib/helpers/actionAvailabilityHelpers";
 import type { Unit } from "@shared/types/unit";
 import { 
   Sparkles, Move, Settings, Swords 
 } from "lucide-react";
 import UnitActionsPanel from "./AbilitiesPanel";
 import { InfoTooltip } from "./TooltipSystem";
-import { getUnitAbilityStates } from "../../utils/unitAbilityState";
 
 interface SelectedUnitPanelProps {
   unit: Unit;
@@ -47,54 +45,6 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
 
     return getActionAvailability(unit, gameState);
   }, [gameState, unit]);
-
-  const unitOwner = useMemo(
-    () => gameState?.players.find(player => player.id === unit.playerId) ?? null,
-    [gameState, unit.playerId]
-  );
-
-  const abilityStates = useMemo(() => {
-    if (!unitOwner || !gameState) return [];
-    return getUnitAbilityStates(unit, unitOwner, gameState);
-  }, [unit, unitOwner, gameState]);
-
-  const abilityStateMap = useMemo(() => {
-    const entries = abilityStates.map(state => [state.abilityId.toUpperCase(), state] as const);
-    return new Map(entries);
-  }, [abilityStates]);
-
-  const describeAbilityStatus = (abilityId: string) => {
-    const state = abilityStateMap.get(abilityId.toUpperCase());
-    if (!state || state.status === 'passive') {
-      return {
-        label: 'Passive',
-        className: 'text-xs text-amber-200 border-amber-500/40 bg-amber-500/10',
-        helper: state?.reason,
-      };
-    }
-
-    switch (state.status) {
-      case 'ready':
-        return {
-          label: 'Ready',
-          className: 'text-xs text-emerald-200 border-emerald-500/40 bg-emerald-500/10',
-          helper: state.reason,
-        };
-      case 'exhausted':
-        return {
-          label: 'Spent',
-          className: 'text-xs text-slate-200 border-slate-500/40 bg-slate-800/40',
-          helper: state.reason || 'Already acted this turn',
-        };
-      case 'locked':
-      default:
-        return {
-          label: 'Locked',
-          className: 'text-xs text-amber-200 border-amber-500/40 bg-amber-800/30',
-          helper: state.reason || 'Requirements not met',
-        };
-    }
-  };
 
   return (
     <div className="absolute bottom-4 left-4 pointer-events-auto">
@@ -168,41 +118,12 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
           {unitStats.definition.abilities.length > 0 && (
             <div>
               <h4 className="text-sm font-semibold text-amber-100 mb-2 font-cinzel">Abilities</h4>
-              <div className="space-y-2">
-                {unitStats.definition.abilities.map((abilityId) => {
-                  const abilityKey = abilityId.toUpperCase();
-                  const abilityDefinition = ABILITIES[abilityKey];
-                  const abilityName = abilityDefinition?.name ?? abilityKey.replace(/_/g, ' ');
-                  const abilityState = abilityStateMap.get(abilityKey);
-                  const statusInfo = describeAbilityStatus(abilityKey);
-                  const description = abilityDefinition?.description || abilityState?.description;
-                  return (
-                    <div
-                      key={abilityKey}
-                      className="rounded-xl border border-amber-500/25 bg-amber-900/15 px-3 py-2 text-xs text-amber-100/90 space-y-1"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-amber-100">{abilityName}</span>
-                        <Badge
-                          variant="outline"
-                          className={statusInfo.className}
-                        >
-                          {statusInfo.label}
-                        </Badge>
-                      </div>
-                      {description && (
-                        <p className="text-[11px] leading-relaxed text-amber-200/80">
-                          {description}
-                        </p>
-                      )}
-                      {statusInfo.helper && (
-                        <p className="text-[10px] text-amber-300/80 italic">
-                          {statusInfo.helper}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="flex flex-wrap gap-1">
+                {unitStats.definition.abilities.map((ability) => (
+                  <Badge key={ability} variant="outline" className="text-xs text-amber-300 border-amber-500/50 bg-amber-900/20">
+                    {ability.replace('_', ' ')}
+                  </Badge>
+                ))}
               </div>
             </div>
           )}

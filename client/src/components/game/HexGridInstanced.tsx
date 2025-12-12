@@ -347,6 +347,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       
       if (instanceId !== undefined && instanceId < map.tiles.length) {
         const clickedTile = map.tiles[instanceId];
+        console.log('Tile clicked:', clickedTile.coordinate);
         
         // Check if there's a unit on this tile
         const unitOnTile = gameState?.units.find(unit => 
@@ -358,6 +359,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         
         // Handle construction mode - tile selection for building
         if (constructionMode.isActive && currentPlayer) {
+          console.log('Construction mode: selecting tile for', constructionMode.buildingType);
           
           // Validate if this tile is valid for construction
           const isValidTile = isValidConstructionTile(
@@ -369,6 +371,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           );
           
           if (!isValidTile) {
+            console.log('Invalid construction tile selected');
             return;
           }
           
@@ -434,27 +437,32 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           // If clicking on a unit
           if (unitOnTile.playerId === currentPlayer.id) {
             // Select own unit (but don't show movement tiles yet)
+            console.log('Unit clicked:', unitOnTile.id, 'Current player:', currentPlayer.id, 'Unit player:', unitOnTile.playerId);
             setSelectedUnit(unitOnTile);
             // Exit any previous modes
             setMovementMode(false);
           } else if (selectedUnit && selectedUnit.playerId === currentPlayer.id) {
             // Attack enemy unit if we have a unit selected
             // This would need attack logic implementation
+            console.log('Attack target clicked:', unitOnTile.id);
           }
         } else if (selectedUnit && selectedUnit.playerId === currentPlayer?.id && isMovementMode) {
           // Move selected unit to empty tile only if in movement mode
           const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
           
           if (reachableTiles.includes(tileKey)) {
+            console.log('Moving unit to:', clickedTile.coordinate);
             moveUnit(selectedUnit.id, clickedTile.coordinate);
             // Exit movement mode after moving
             setMovementMode(false);
           } else {
+            console.log('Tile not reachable');
           }
         } else if (!unitOnTile) {
           // Check for world elements on this tile first
           if (clickedTile.resources && clickedTile.resources.length > 0) {
-
+            console.log('🎯 Tile clicked with resources:', clickedTile.resources, 'at coordinate:', clickedTile.coordinate);
+            console.log('🔍 Tile terrain:', clickedTile.terrain, 'Tile details:', clickedTile);
             
             // Dispatch custom event for world element interaction
             const worldElementEvent = new CustomEvent('worldElementClick', {
@@ -464,12 +472,16 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
                 terrain: clickedTile.terrain
               }
             });
+            
+            console.log('📡 Dispatching worldElementClick event:', worldElementEvent.detail);
             window.dispatchEvent(worldElementEvent);
             return; // Don't deselect unit if clicking on world element
           } else {
+            console.log('🔍 Clicked tile has no resources:', clickedTile);
           }
           
           // Clicked on empty tile - exit movement mode and deselect
+          console.log('Clicked on empty tile - exiting movement mode');
           setMovementMode(false);
           if (!isMovementMode) {
             setSelectedUnit(null);

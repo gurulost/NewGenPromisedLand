@@ -13,24 +13,6 @@ vi.mock('../client/src/components/game/GameCanvas', () => ({
   default: () => <div data-testid="game-canvas">Mock Game Canvas</div>
 }));
 
-// Mock ToastProvider
-vi.mock('../client/src/components/ui/ToastProvider', () => ({
-  ToastProvider: ({ children }: any) => children,
-  useToastContext: () => ({
-    showToast: vi.fn()
-  })
-}));
-
-// Mock useGameAudio with correct API
-vi.mock('../client/src/hooks/useAudioIntegration', () => ({
-  useGameAudio: () => ({
-    onUnitSelect: vi.fn(),
-    onUnitMove: vi.fn(),
-    onButtonClick: vi.fn(),
-    onPanelOpen: vi.fn()
-  })
-}));
-
 describe('Movement UI Flow Integration Tests', () => {
   let mockGameState: GameState;
   let mockUnit: Unit;

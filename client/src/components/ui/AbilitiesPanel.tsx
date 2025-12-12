@@ -14,13 +14,6 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { getUnitDefinition } from "@shared/data/units";
 import { getActionAvailability } from "../../lib/helpers/actionAvailabilityHelpers";
 import type { Unit } from "@shared/types/unit";
-import type { City, ImprovementType } from "@shared/types/city";
-import type { Tile, PlayerState } from "@shared/types/game";
-import { IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
-import { hexDistance } from "@shared/utils/hex";
-import { useToastContext } from "./ToastProvider";
-import { ABILITIES } from "@shared/data/abilities";
-import type { AbilityDefinition } from "@shared/data/abilities";
 
 interface UnitActionsPanelProps {
   unit: Unit;
@@ -41,13 +34,11 @@ interface ActionDefinition {
   rangeType?: 'movement' | 'attack' | 'ability';
   range?: number;
   consequences?: string[];
-  abilityId?: string;
 }
 
 export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProps) {
-  const { gameState, dispatch, harvestResource } = useLocalGame();
+  const { gameState, dispatch } = useLocalGame();
   const { setMovementMode, setAttackMode } = useGameState();
-  const toast = useToastContext();
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [actionToConfirm, setActionToConfirm] = useState<ActionDefinition | null>(null);
@@ -58,18 +49,6 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const isPlayerTurn = currentPlayer.id === unit.playerId;
   const actionAvailability = getActionAvailability(unit, gameState);
-  const getTileUnderUnit = (): Tile | undefined =>
-    gameState.map.tiles.find(
-      (tile) =>
-        tile.coordinate.q === unit.coordinate.q &&
-        tile.coordinate.r === unit.coordinate.r
-    );
-  const getControllingCity = (coordinate = unit.coordinate): City | undefined =>
-    gameState.cities?.find(
-      (city) =>
-        city.ownerId === unit.playerId &&
-        hexDistance(city.coordinate, coordinate) <= 2
-    );
 
   // Generate available actions based on unit type and game state
   const getUnitActions = (): ActionDefinition[] => {
@@ -153,8 +132,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             faithCost: 5,
             available: hasHealingTech && currentPlayer.stats.faith >= 5 && !unit.hasAttacked,
             rangeType: 'ability',
-            range: 2,
-            abilityId: 'HEAL',
+            range: 2
           },
           {
             id: 'convert',
@@ -165,8 +143,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             faithCost: 10,
             available: currentPlayer.stats.faith >= 10,
             rangeType: 'attack',
-            range: 1,
-            abilityId: 'CONVERT',
+            range: 1
           }
         );
         break;
@@ -179,8 +156,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: 'Become invisible to enemies',
             icon: <Eye className="w-4 h-4" />,
             cost: 'Turn',
-            available: !unit.hasAttacked && unit.status !== 'stealthed',
-            abilityId: 'STEALTH',
+            available: !unit.hasAttacked && unit.status !== 'stealthed'
           },
           {
             id: 'reconnaissance',
@@ -188,8 +164,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: 'Reveal large area around unit',
             icon: <Target className="w-4 h-4" />,
             cost: 'Turn',
-            available: !unit.hasAttacked,
-            abilityId: 'RECONNAISSANCE',
+            available: !unit.hasAttacked
           }
         );
         break;
@@ -198,17 +173,16 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         actions.push({
           id: 'rally_troops',
           name: 'Rally Troops',
-            description: currentPlayer.stats.pride >= 5 ? 
-              'Boost nearby friendly units' : 
-              'Insufficient pride (need 5)',
-            icon: <Crown className="w-4 h-4" />,
-            cost: '5 Pride',
-            prideCost: 5,
-            available: currentPlayer.stats.pride >= 5,
-            rangeType: 'ability',
-            range: 3,
-            abilityId: 'RALLY_TROOPS',
-          });
+          description: currentPlayer.stats.pride >= 5 ? 
+            'Boost nearby friendly units' : 
+            'Insufficient pride (need 5)',
+          icon: <Crown className="w-4 h-4" />,
+          cost: '5 Pride',
+          prideCost: 5,
+          available: currentPlayer.stats.pride >= 5,
+          rangeType: 'ability',
+          range: 3
+        });
         break;
 
       case 'catapult':
@@ -229,58 +203,6 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
 
     return actions;
   };
-
-  const resolveAbilityDefinition = (action: ActionDefinition): AbilityDefinition | undefined => {
-    const candidates = [
-      action.abilityId,
-      action.abilityId?.toLowerCase(),
-      action.abilityId?.toUpperCase(),
-      action.id,
-      action.id.toLowerCase(),
-      action.id.toUpperCase(),
-    ].filter(Boolean) as string[];
-
-    for (const candidate of candidates) {
-      if (candidate && ABILITIES[candidate]) {
-        return ABILITIES[candidate];
-      }
-    }
-    return undefined;
-  };
-
-  const meetsAbilityRequirement = (key: string, value: number): boolean => {
-    switch (key) {
-      case 'faith':
-        return currentPlayer.stats.faith >= value;
-      case 'pride':
-        return currentPlayer.stats.pride >= value;
-      case 'dissent':
-        return currentPlayer.stats.internalDissent >= value;
-      default:
-        return true;
-    }
-  };
-
-  const formatAbilityTarget = (target?: string) => {
-    switch (target) {
-      case 'ally':
-        return 'Allies';
-      case 'enemy':
-        return 'Enemies';
-      case 'tile':
-        return 'Tile';
-      case 'area':
-        return 'Area';
-      case 'global':
-        return 'Global';
-      case 'self':
-      default:
-        return 'Self';
-    }
-  };
-
-  const formatRequirementLabel = (label: string) =>
-    label.charAt(0).toUpperCase() + label.slice(1);
 
   const needsConfirmation = (action: ActionDefinition): boolean => {
     return !!action.irreversible || 
@@ -305,36 +227,6 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
       // Select the action to show details
       setSelectedAction(action.id);
     }
-  };
-
-  const suggestImprovementForTile = (tile: Tile | undefined, player: PlayerState): ImprovementType | null => {
-    if (!tile) return null;
-    const resourcePriority: ImprovementType[] = [];
-    if (tile.resources?.includes('ore_vein')) resourcePriority.push('mine');
-    if (tile.resources?.includes('grain_patch')) resourcePriority.push('farm');
-    if (tile.resources?.includes('timber_grove')) resourcePriority.push('forest_camp');
-    
-    const terrainPriority: Record<string, ImprovementType[]> = {
-      plains: ['farm', 'irrigation', 'plantation', 'workshop', 'sawmill'],
-      desert: ['farm', 'irrigation'],
-      forest: ['forest_camp', 'lumber_hut', 'plantation'],
-      mountain: ['mine', 'workshop'],
-      swamp: ['irrigation'],
-    };
-    
-    const candidates = [...resourcePriority, ...(terrainPriority[tile.terrain] || [])];
-    const seen = new Set<ImprovementType>();
-    
-    for (const candidate of candidates) {
-      if (seen.has(candidate)) continue;
-      seen.add(candidate);
-      const def = IMPROVEMENT_DEFINITIONS[candidate];
-      if (!def) continue;
-      if (!def.validTerrain.includes(tile.terrain)) continue;
-      if (def.requiredTech && !player.researchedTechs.includes(def.requiredTech)) continue;
-      return candidate;
-    }
-    return null;
   };
 
   const handleActionExecute = (action: ActionDefinition) => {
@@ -373,66 +265,17 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         });
         break;
       case 'bombardment':
-        if (unit.status !== 'siege_mode') {
-          toast?.warning('Deploy Siege Mode', 'Set the catapult into siege mode before launching a bombardment.');
-          break;
-        }
-        setAttackMode(true);
-        toast?.info('Bombardment Ready', 'Select a target tile to unleash your bombardment.');
+        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'bombardment' });
         break;
-      case 'build_road': {
-        const tile = getTileUnderUnit();
-        if (!tile) {
-          toast?.error('Unable to build road', 'Unknown tile data for this unit.');
-          return;
-        }
-        dispatch({
-          type: 'BUILD_ROAD',
-          payload: {
-            unitId: unit.id,
-            playerId: unit.playerId,
-            targetCoordinate: tile.coordinate
-          }
-        });
+      case 'build_road':
+        dispatch({ type: 'BUILD_ROAD', unitId: unit.id });
         break;
-      }
-      case 'build_improvement': {
-        const tile = getTileUnderUnit();
-        const controllingCity = getControllingCity();
-        if (!tile || !controllingCity) {
-          toast?.warning('Outside city borders', 'Move within 2 tiles of one of your cities to build improvements.');
-          return;
-        }
-        const improvementType = suggestImprovementForTile(tile, currentPlayer);
-        if (!improvementType) {
-          toast?.info('No valid improvements', 'Research the appropriate technology or move to a more suitable tile.');
-          return;
-        }
-        dispatch({
-          type: 'BUILD_IMPROVEMENT',
-          payload: {
-            playerId: unit.playerId,
-            coordinate: tile.coordinate,
-            improvementType,
-            cityId: controllingCity.id
-          }
-        });
+      case 'build_improvement':
+        dispatch({ type: 'BUILD_IMPROVEMENT', unitId: unit.id });
         break;
-      }
-      case 'harvest_resource': {
-        const tile = getTileUnderUnit();
-        const controllingCity = getControllingCity();
-        if (!tile || !tile.resources || tile.resources.length === 0) {
-          toast?.info('Nothing to harvest', 'Move onto a tile with an unharvested resource first.');
-          return;
-        }
-        if (!controllingCity) {
-          toast?.warning('Outside city influence', 'Harvesting requires a friendly city within 2 tiles.');
-          return;
-        }
-        harvestResource(unit.id, tile.coordinate, controllingCity.id);
+      case 'harvest_resource':
+        dispatch({ type: 'HARVEST_RESOURCE', unitId: unit.id });
         break;
-      }
       case 'convert':
         dispatch({ 
           type: 'USE_ABILITY', 
@@ -440,6 +283,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         });
         break;
       default:
+        console.warn('Action not implemented:', action.id);
         return;
     }
     
@@ -523,23 +367,8 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                 </div>
               </div>
             ) : (
-              actions.map((action) => {
-                const abilityDefinition = resolveAbilityDefinition(action);
-                const abilityCooldowns = currentPlayer.abilityCooldowns || {};
-                const abilityCooldownRemaining = abilityDefinition
-                  ? abilityCooldowns[abilityDefinition.id] ??
-                    abilityCooldowns[action.abilityId ?? ''] ??
-                    abilityCooldowns[action.id] ??
-                    0
-                  : 0;
-                const abilityRequirementEntries = abilityDefinition?.requirements
-                  ? Object.entries(abilityDefinition.requirements).filter(
-                      ([, value]) => typeof value === 'number'
-                    )
-                  : [];
-
-                return (
-                  <div
+              actions.map((action) => (
+                <div
                   key={action.id}
                   className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 min-h-[80px] touch-manipulation ${
                     selectedAction === action.id
@@ -629,69 +458,19 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                             </Badge>
                           )}
                           
+                          {/* Range indicator */}
+                          {action.rangeType && action.range && (
+                            <Badge variant="outline" className="text-xs text-purple-300 border-purple-500/50 bg-purple-500/10">
+                              Range: {action.range}
+                            </Badge>
+                          )}
+                          
                           {!action.available && (
                             <Badge variant="outline" className="text-xs text-red-300 border-red-500/50 bg-red-500/10">
                               Unavailable
                             </Badge>
                           )}
                         </div>
-
-                        {(action.rangeType || typeof action.range === 'number' || abilityDefinition || abilityRequirementEntries.length > 0 || abilityCooldownRemaining > 0) && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {action.rangeType && (
-                              <Badge variant="outline" className="text-xs text-purple-200 border-purple-500/40 bg-purple-900/20">
-                                {action.rangeType === 'attack'
-                                  ? 'Attack Ability'
-                                  : action.rangeType === 'movement'
-                                  ? 'Movement'
-                                  : 'Ability'}
-                              </Badge>
-                            )}
-                            {typeof action.range === 'number' && (
-                              <Badge variant="outline" className="text-xs text-purple-200 border-purple-500/40 bg-purple-900/20">
-                                Range {action.range}
-                              </Badge>
-                            )}
-                            {abilityDefinition?.target && (
-                              <Badge variant="outline" className="text-xs text-amber-200 border-amber-500/40 bg-amber-900/20">
-                                Target: {formatAbilityTarget(abilityDefinition.target)}
-                              </Badge>
-                            )}
-                            {abilityDefinition?.cooldown && (
-                              <Badge variant="outline" className="text-xs text-sky-200 border-sky-500/40 bg-sky-900/20">
-                                Cooldown {abilityDefinition.cooldown} turn{abilityDefinition.cooldown > 1 ? 's' : ''}
-                              </Badge>
-                            )}
-                            {abilityCooldownRemaining > 0 && (
-                              <Badge variant="outline" className="text-xs text-slate-200 border-slate-500/40 bg-slate-800/30">
-                                Ready in {abilityCooldownRemaining} turn{abilityCooldownRemaining > 1 ? 's' : ''}
-                              </Badge>
-                            )}
-                            {abilityRequirementEntries.map(([key, value]) => {
-                              const requirementValue = Number(value);
-                              const satisfied = meetsAbilityRequirement(key, requirementValue);
-                              return (
-                                <Badge
-                                  key={key}
-                                  variant="outline"
-                                  className={`text-xs border ${
-                                    satisfied
-                                      ? 'text-emerald-200 border-emerald-500/40 bg-emerald-900/20'
-                                      : 'text-red-200 border-red-500/40 bg-red-900/20'
-                                  }`}
-                                >
-                                  {formatRequirementLabel(key)} ≥ {requirementValue}
-                                </Badge>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {abilityDefinition && abilityDefinition.description && abilityDefinition.description !== action.description && (
-                          <p className="text-xs text-amber-200/70 mt-2 leading-relaxed">
-                            {abilityDefinition.description}
-                          </p>
-                        )}
                         
                         {/* Consequences warning for irreversible actions */}
                         {action.consequences && selectedAction === action.id && (
@@ -725,8 +504,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                     </div>
                   )}
                 </div>
-              );
-            })
+              ))
             )}
           </div>
 

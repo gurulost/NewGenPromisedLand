@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Crown, Swords, Shield } from 'lucide-react';
-import { PlayerState } from '@shared/types/game';
+import { PlayerState } from '../../../shared/types/game';
 import { AvatarBadge } from '../primitives/AvatarBadge';
 import { getFaction } from '@shared/data/factions';
 
@@ -19,19 +19,6 @@ export function TurnTransition({
   duration = 2000 
 }: TurnTransitionProps) {
   const [phase, setPhase] = useState<'enter' | 'display' | 'exit'>('enter');
-
-  // Map faction IDs to colors
-  const getFactionColor = (factionId: string) => {
-    const colors: Record<string, string> = {
-      NEPHITES: '#3b82f6',
-      LAMANITES: '#ef4444',
-      MULEKITES: '#10b981',
-      ANTI_NEPHI_LEHIES: '#fbbf24',
-      ZORAMITES: '#8b5cf6',
-      JAREDITES: '#6366f1'
-    };
-    return colors[factionId] || '#f59e0b';
-  };
 
   useEffect(() => {
     if (!isVisible) return;
@@ -91,15 +78,12 @@ export function TurnTransition({
             }}
           >
             <AvatarBadge 
-              color={getFactionColor(currentPlayer.factionId)}
-              size="xl"
+              playerId={currentPlayer.id}
+              playerName={currentPlayer.name}
+              factionId={currentPlayer.factionId as any}
+              size="large"
               className="shadow-2xl shadow-amber-500/30"
-              aria-label={`${currentPlayer.name} - ${getFaction(currentPlayer.factionId as any)?.name}`}
-            >
-              <div className="text-3xl font-bold text-white">
-                {currentPlayer.name.charAt(0)}
-              </div>
-            </AvatarBadge>
+            />
           </motion.div>
 
           {/* Player Name */}

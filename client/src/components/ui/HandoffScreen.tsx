@@ -100,59 +100,8 @@ export default function HandoffScreen() {
     return null;
   }
 
-  // Defensive check: ensure currentPlayerIndex is valid
-  if (gameState.currentPlayerIndex >= gameState.players.length || gameState.currentPlayerIndex < 0) {
-    console.error('❌ CRITICAL: currentPlayerIndex out of bounds!', {
-      currentPlayerIndex: gameState.currentPlayerIndex,
-      playerCount: gameState.players.length,
-      players: gameState.players.map(p => ({ id: p.id, name: p.name }))
-    });
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-slate-900 text-white p-8">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Error: Invalid Player Index</h2>
-          <p className="mb-4">Current player index ({gameState.currentPlayerIndex}) is out of bounds for {gameState.players.length} players.</p>
-          <button onClick={() => setGamePhase('menu')} className="px-4 py-2 bg-blue-600 rounded">
-            Return to Menu
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  if (!currentPlayer) {
-    console.error('❌ CRITICAL: Current player is undefined!', {
-      currentPlayerIndex: gameState.currentPlayerIndex,
-      players: gameState.players
-    });
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-slate-900 text-white p-8">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Error: Player Not Found</h2>
-          <p className="mb-4">Could not find player at index {gameState.currentPlayerIndex}.</p>
-          <button onClick={() => setGamePhase('menu')} className="px-4 py-2 bg-blue-600 rounded">
-            Return to Menu
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const faction = getFaction(currentPlayer.factionId as any);
-
-  // Map faction IDs to colors
-  const getFactionColor = (factionId: string) => {
-    const colors: Record<string, string> = {
-      NEPHITES: '#3b82f6',
-      LAMANITES: '#ef4444',
-      MULEKITES: '#10b981',
-      ANTI_NEPHI_LEHIES: '#fbbf24',
-      ZORAMITES: '#8b5cf6',
-      JAREDITES: '#6366f1'
-    };
-    return colors[factionId] || '#f59e0b';
-  };
 
   const handleStartTurn = () => {
     setGamePhase('playing');
@@ -193,15 +142,12 @@ export default function HandoffScreen() {
             >
               {!showPrivacyMode && (
                 <AvatarBadge 
-                  color={getFactionColor(currentPlayer.factionId)}
-                  size="xl"
+                  playerId={currentPlayer.id}
+                  playerName={currentPlayer.name}
+                  factionId={currentPlayer.factionId as any}
+                  size="large"
                   className="shadow-2xl shadow-amber-500/30"
-                  aria-label={`${currentPlayer.name} - ${faction.name}`}
-                >
-                  <div className="text-2xl font-bold text-white">
-                    {currentPlayer.name.charAt(0)}
-                  </div>
-                </AvatarBadge>
+                />
               )}
               <div className="text-center">
                 <div className="text-2xl font-bold font-cinzel text-amber-100">
@@ -232,11 +178,12 @@ export default function HandoffScreen() {
             >
               <GlowingButton
                 onClick={() => setShowPrivacyMode(!showPrivacyMode)}
+                icon={showPrivacyMode ? <Eye /> : <EyeOff />}
                 variant="secondary"
                 size="sm"
                 className="mb-4"
               >
-                {showPrivacyMode ? <><Eye className="w-4 h-4 inline mr-2" />Show Details</> : <><EyeOff className="w-4 h-4 inline mr-2" />Privacy Mode</>}
+                {showPrivacyMode ? 'Show Details' : 'Privacy Mode'}
               </GlowingButton>
             </motion.div>
             
@@ -248,10 +195,10 @@ export default function HandoffScreen() {
             >
               <GlowingButton
                 onClick={handleStartTurn}
+                icon={<Play />}
                 className="w-full"
                 size="lg"
               >
-                <Play className="w-5 h-5 inline mr-2" />
                 Start Turn
               </GlowingButton>
             </motion.div>

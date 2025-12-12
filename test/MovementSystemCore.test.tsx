@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/react';
 import { useGameState } from '../client/src/lib/stores/useGameState';
-import { useLocalGame } from '../client/src/lib/stores/useLocalGame';
 import SelectedUnitPanel from '../client/src/components/ui/SelectedUnitPanel';
 import type { Unit } from '../shared/types/unit';
 import type { GameState } from '../shared/types/game';
@@ -9,24 +8,6 @@ import type { GameState } from '../shared/types/game';
 // Mock the stores
 vi.mock('../client/src/lib/stores/useGameState');
 vi.mock('../client/src/lib/stores/useLocalGame');
-
-// Mock ToastProvider
-vi.mock('../client/src/components/ui/ToastProvider', () => ({
-  ToastProvider: ({ children }: any) => children,
-  useToastContext: () => ({
-    showToast: vi.fn()
-  })
-}));
-
-// Mock useGameAudio with correct API
-vi.mock('../client/src/hooks/useAudioIntegration', () => ({
-  useGameAudio: () => ({
-    onUnitSelect: vi.fn(),
-    onUnitMove: vi.fn(),
-    onButtonClick: vi.fn(),
-    onButtonHover: vi.fn()
-  })
-}));
 
 describe('Movement System Core Logic Tests', () => {
   let mockUnit: Unit;
@@ -112,12 +93,12 @@ describe('Movement System Core Logic Tests', () => {
     });
 
     // Mock useLocalGame
-    vi.mocked(useLocalGame).mockReturnValue({
+    const mockUseLocalGame = require('../client/src/lib/stores/useLocalGame');
+    vi.mocked(mockUseLocalGame.useLocalGame).mockReturnValue({
       gameState: mockGameState,
       moveUnit: vi.fn(),
-      dispatch: vi.fn(),
-      setGameState: vi.fn()
-    } as any);
+      dispatch: vi.fn()
+    });
   });
 
   describe('Movement Mode State Management', () => {

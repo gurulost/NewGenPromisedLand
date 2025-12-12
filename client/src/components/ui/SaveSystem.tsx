@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Save, Trash2, Download, Upload, Calendar, Clock, Users } from 'lucide-react';
-import { GameState } from '@shared/types/game';
+import { GameState } from '../../../shared/types/game';
 import { compress, decompress } from 'lz-string';
-import { PanelShell } from '../primitives/PanelShell';
-import { useToastContext } from './ToastProvider';
 
 interface SaveSlot {
   id: string;
@@ -29,7 +27,6 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
   const [saveName, setSaveName] = useState('');
   const [selectedSave, setSelectedSave] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const toast = useToastContext();
 
   useEffect(() => {
     loadSaveSlots();
@@ -61,6 +58,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
               loadedSaves.push(save);
             }
           } catch (error) {
+            console.warn(`Failed to load save ${saveId}:`, error);
           }
         }
       }
@@ -108,7 +106,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
       setSaveName('');
     } catch (error) {
       console.error('Failed to save game:', error);
-      toast.error('Save Failed', 'Storage might be full or local storage quota was exceeded.');
+      alert('Failed to save game. Storage might be full.');
     }
   };
 
@@ -159,7 +157,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Failed to export save:', error);
-      toast.error('Export Failed', 'Unable to generate a downloadable save file.');
+      alert('Failed to export save file.');
     } finally {
       setIsExporting(false);
     }
@@ -195,10 +193,10 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
         localStorage.setItem('game_save_indices', JSON.stringify(saveIndices));
 
         loadSaveSlots();
-        toast.success('Import Complete', 'Save file added to your local slots.');
+        alert('Save file imported successfully!');
       } catch (error) {
         console.error('Failed to import save:', error);
-        toast.error('Import Failed', 'Please verify the file format and try again.');
+        alert('Failed to import save file. Please check the file format.');
       }
     };
     
@@ -240,29 +238,36 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
   };
 
   return (
-    <PanelShell
-      isOpen={true}
-      onClose={onClose}
-      size="full"
-      fullScreen
-      aria-labelledby="save-system-title"
-      className="bg-slate-900 border border-slate-700 flex flex-col"
+    <div 
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50"
+      onClick={(e) => {
+        // Close system if clicking on backdrop
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
     >
-      {/* Header */}
-      <div className="bg-slate-800 px-6 py-4 border-b border-slate-600">
-        <div className="flex items-center justify-between">
-          <h2 id="save-system-title" className="text-xl font-bold text-white font-cinzel">Save & Load Game</h2>
-          <button
-            onClick={onClose}
-            aria-label="Close save system"
-            className="text-slate-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded-full"
-          >
-            ✕
-          </button>
+      <motion.div
+        className="bg-slate-900 rounded-xl border border-slate-600 w-[800px] max-h-[80vh] overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+      >
+        {/* Header */}
+        <div className="bg-slate-800 px-6 py-4 border-b border-slate-600">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white font-cinzel">Save & Load Game</h2>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white transition-colors"
+            >
+              ✕
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+        <div className="p-6 space-y-6 max-h-[calc(80vh-80px)] overflow-y-auto">
           {/* Quick Save */}
           <div className="space-y-3">
             <h3 className="text-lg font-semibold text-white font-cinzel">Quick Save</h3>
@@ -326,7 +331,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
                 No saved games found
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3 max-h-96 md:max-h-[28rem] overflow-y-auto">
+              <div className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto">
                 <AnimatePresence>
                   {saves.map((save) => (
                     <SaveSlotCard
@@ -343,12 +348,13 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
               </div>
             )}
           </div>
-      </div>
-    </PanelShell>
+        </div>
+      </motion.div>
+    </div>
   );
 }
 
-const SaveSlotCard = React.memo(function SaveSlotCard({
+function SaveSlotCard({
   save,
   isSelected,
   onSelect,
@@ -460,4 +466,4 @@ const SaveSlotCard = React.memo(function SaveSlotCard({
       </div>
     </motion.div>
   );
-});
+}
