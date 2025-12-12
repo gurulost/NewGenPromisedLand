@@ -1157,10 +1157,72 @@ export class AIEngine {
   }
 
   /**
-   * Stub for future city build planning. Returns an empty decision list for now.
+   * Plan builds for a city: choose best improvement/structure the city can afford.
    */
-  private evaluateBuildingOptions(_cityId: string): AIDecision[] {
-    return [];
+  private evaluateBuildingOptions(cityId: string): AIDecision[] {
+    const city = this.gameState.cities.find(c => c.id === cityId);
+    if (!city) return [];
+
+    const decisions: AIDecision[] = [];
+    const availableStars = this.strategy?.budget?.availableStars ?? this.aiPlayer.stars;
+    const researched = new Set(this.aiPlayer.researchedTechs);
+
+    // Structures the city does not already have
+    Object.values(STRUCTURE_DEFINITIONS).forEach(struct => {
+      if (city.structures.includes(struct.id)) return;
+      if (struct.requiredTech && !researched.has(struct.requiredTech)) return;
+      if (struct.cost > availableStars) return;
+
+      const benefit =
+        (struct.effects.starProduction || 0) * 3 +
+        (struct.effects.defenseBonus || 0) * 2 +
+        (struct.effects.unitProduction || 0);
+
+      const priority = 50 + benefit * 5 - struct.cost;
+      decisions.push({
+        type: 'BUILD_STRUCTURE',
+        cityId: city.id,
+        buildingType: struct.id,
+        constructionCategory: 'structures',
+        priority,
+      });
+    });
+
+    // Improvements around the city
+    const workableTiles = this.getCityWorkableTiles(city);
+    const occupiedKeys = new Set(
+      this.gameState.improvements.map(
+        imp => `${imp.coordinate.q},${imp.coordinate.r}`,
+      ),
+    );
+
+    workableTiles.forEach(tile => {
+      const key = `${tile.coordinate.q},${tile.coordinate.r}`;
+      if (occupiedKeys.has(key)) return;
+
+      Object.values(IMPROVEMENT_DEFINITIONS).forEach(imp => {
+        if (imp.requiredTech && !researched.has(imp.requiredTech)) return;
+        if (!imp.validTerrain.includes(tile.terrain)) return;
+        if (imp.cost > availableStars) return;
+
+        const priority =
+          40 +
+          (imp.starProduction || 0) * 6 +
+          (imp.effects?.populationGrowth ? imp.effects.populationGrowth * 4 : 0) -
+          imp.cost;
+
+        decisions.push({
+          type: 'BUILD_STRUCTURE',
+          cityId: city.id,
+          buildingType: imp.id,
+          constructionCategory: 'improvements',
+          targetCoordinate: tile.coordinate,
+          priority,
+        });
+      });
+    });
+
+    return decisions;
   }
 
   private getSituationalTechModifier(techId: string, tech: Technology, personality: FactionPersonality): number {
