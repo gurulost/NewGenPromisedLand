@@ -18,11 +18,12 @@ interface PlayerHUDProps {
   gameState: GameState;
   onShowTechPanel: () => void;
   onShowConstructionHall: () => void;
-  onEndTurn: () => void;
+  onEndTurn?: () => void;
 }
 
 export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructionHall, onEndTurn }: PlayerHUDProps) {
-  const faction = getFaction(player.factionId);
+  const faction = getFaction(player.factionId as any);
+  const handleEndTurn = onEndTurn ?? (() => {});
   
   // Moved expensive calculations to selector
   const playerStats = useMemo(() => 
@@ -67,6 +68,7 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
           <ActionButtonsSection 
             onShowTechPanel={onShowTechPanel}
             onShowConstructionHall={onShowConstructionHall}
+            onEndTurn={handleEndTurn}
           />
         </CardContent>
       </Card>
@@ -160,7 +162,7 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
   </>
 ));
 
-const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHall }: {
+const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHall, onEndTurn }: {
   onShowTechPanel: () => void;
   onShowConstructionHall: () => void;
   onEndTurn: () => void;
@@ -204,7 +206,7 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
     <GlowingButton
       variant="default"
       size="sm"
-      glowColor="emerald"
+      glowColor="green"
       intensity="high"
       className="w-full text-sm font-semibold"
       onClick={onEndTurn}
