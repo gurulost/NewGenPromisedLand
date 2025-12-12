@@ -115,13 +115,15 @@ export class AISandbox {
       modifiers: [],
       abilityCooldowns: {},
       researchedTechs: [],
+      researchProgress: 0,
       researchInspiration: 0,
       citiesOwned: [],
       exploredTiles: [],
       visibilityMask: [],
       turnOrder: index,
       isEliminated: false,
-      constructionQueue: []
+      constructionQueue: [],
+      currentResearch: undefined,
     }));
 
     return createInitialGameState(players, this.config.mapSize);

@@ -7,6 +7,21 @@ import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenera
 import { useGameState } from "./useGameState";
 import { gameDebugger } from "../../utils/gameDebug";
 
+const applyPlayerDefaults = (player: PlayerState): PlayerState => {
+  const normalized: PlayerState = { ...player };
+  normalized.modifiers = player.modifiers ?? [];
+  normalized.researchedTechs = player.researchedTechs ?? [];
+  normalized.researchProgress = player.researchProgress ?? 0;
+  normalized.researchInspiration = player.researchInspiration ?? 0;
+  normalized.citiesOwned = player.citiesOwned ?? [];
+  normalized.constructionQueue = player.constructionQueue ?? [];
+  normalized.visibilityMask = player.visibilityMask ?? [];
+  normalized.exploredTiles = player.exploredTiles ?? [];
+  normalized.abilityCooldowns = player.abilityCooldowns ?? {};
+  normalized.currentResearch = player.currentResearch;
+  return normalized;
+};
+
 type GamePhase = 'menu' | 'playerSetup' | 'handoff' | 'playing' | 'gameOver';
 
 interface LocalGameStore {
@@ -48,7 +63,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
   
   startLocalGame: (playerSetup, mapSize = 'normal') => {
     // Create initial game state
-    const players: PlayerState[] = playerSetup.map(setup => ({
+    const players: PlayerState[] = playerSetup.map(setup => applyPlayerDefaults({
       id: setup.id,
       name: setup.name,
       factionId: setup.factionId,
@@ -328,8 +343,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
   },
 
   loadGameState: (state: GameState) => {
+    const normalizedPlayers = state.players.map(applyPlayerDefaults);
     set({ 
-      gameState: state,
+      gameState: { ...state, players: normalizedPlayers },
       gamePhase: 'playing'
     });
   },
