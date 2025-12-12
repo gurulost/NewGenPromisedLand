@@ -18,9 +18,10 @@ interface PlayerHUDProps {
   gameState: GameState;
   onShowTechPanel: () => void;
   onShowConstructionHall: () => void;
+  onEndTurn: () => void;
 }
 
-export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructionHall }: PlayerHUDProps) {
+export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructionHall, onEndTurn }: PlayerHUDProps) {
   const faction = getFaction(player.factionId);
   
   // Moved expensive calculations to selector
@@ -162,6 +163,7 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
 const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHall }: {
   onShowTechPanel: () => void;
   onShowConstructionHall: () => void;
+  onEndTurn: () => void;
 }) => (
   <div className="space-y-2">
     <div className="grid grid-cols-2 gap-2">
@@ -198,6 +200,18 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
         </div>
       </GlowingButton>
     </div>
+
+    <GlowingButton
+      variant="default"
+      size="sm"
+      glowColor="emerald"
+      intensity="high"
+      className="w-full text-sm font-semibold"
+      onClick={onEndTurn}
+      soundEffect="cta-click"
+    >
+      End Turn
+    </GlowingButton>
   </div>
 ));
 

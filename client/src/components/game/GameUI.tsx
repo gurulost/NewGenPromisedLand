@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useKeyboardControls } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
+import { useAITurn } from "../../hooks/useAITurn";
 import { getFaction } from "@shared/data/factions";
 import { PlayerHUD } from "../hud/PlayerHUD";
 import SelectedUnitPanel from "../ui/SelectedUnitPanel";
@@ -19,7 +20,7 @@ import { WorldElementPanel } from "../ui/WorldElementPanel";
 import MovementControls from "../game/MovementControls";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
-import { getWorldElement, WORLD_ELEMENTS } from "../../../../shared/data/worldElements";
+import { getWorldElement, WORLD_ELEMENTS } from "@shared/data/worldElements";
 import type { Unit } from "@shared/types/unit";
 
 export default function GameUI() {
@@ -45,6 +46,9 @@ export default function GameUI() {
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
   
   if (!gameState) return null;
+
+  // Enable AI opponents
+  useAITurn();
 
   // Enhanced end turn with transition  
   const handleEndTurn = () => {
@@ -316,6 +320,7 @@ export default function GameUI() {
         gameState={gameState}
         onShowTechPanel={() => setShowTechPanel(true)}
         onShowConstructionHall={handleShowConstructionHall}
+        onEndTurn={handleEndTurn}
       />
 
       {/* Selected Unit Panel - Unified interface with all unit actions */}
