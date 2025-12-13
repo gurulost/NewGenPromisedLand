@@ -2,6 +2,9 @@ import { useCallback, useMemo } from 'react';
 
 export type SfxType = string;
 
+// SFX disabled by default - set to true to enable UI sounds
+const SFX_ENABLED = (import.meta as any).env?.VITE_ENABLE_SFX === 'true';
+
 // Throttle map to prevent sound spam
 const throttleMap = new Map<SfxType, number>();
 const THROTTLE_DURATION = 150; // ms
@@ -32,6 +35,9 @@ export function useSfxEngine() {
   }), []);
 
   const playSound = useCallback((type: SfxType) => {
+    // SFX disabled by default
+    if (!SFX_ENABLED) return;
+    
     // Check if user has disabled sounds or if we're throttling
     if (!window.AudioContext) return;
     
