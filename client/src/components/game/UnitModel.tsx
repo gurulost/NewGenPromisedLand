@@ -14,14 +14,14 @@ interface UnitModelProps {
 
 export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   const { gameState } = useLocalGame();
-  
+
   // Get the player's faction to determine which model variant to use
   const player = gameState?.players.find(p => p.id === unit.playerId);
   const playerFaction = player?.factionId;
 
   const modelPath = getUnitModelPath(unit.type);
   const { scene } = useGLTF(modelPath);
-  
+
   // Calculate unit scale based on type - increased for better visibility
   const unitScale = useMemo(() => {
     if (unit.type === 'worker') {
@@ -35,18 +35,18 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     }
     return 0.65; // Increased default scale for most units
   }, [unit.type]);
-  
+
   // Clone and modify the scene for materials and status effects
   const clonedScene = useMemo(() => {
     const clone = scene.clone();
-    
+
     // Adjust materials based on ownership and unit status
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         if (child.material) {
           // Clone material to avoid modifying the original
           const material = child.material.clone();
-          
+
           // Adjust colors based on ownership
           if (isPlayerUnit) {
             // Player units get slightly brighter colors
@@ -65,7 +65,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
               material.emissive.setHex(0x220000); // Subtle red tint
             }
           }
-          
+
           // Add status-based effects
           if (unit.status === 'stealthed') {
             material.transparent = true;
@@ -79,15 +79,15 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
               material.emissive.setHex(0x000044); // Blue glow for formation
             }
           }
-          
+
           child.material = material;
         }
       }
     });
-    
+
     return clone;
   }, [scene, isPlayerUnit, unit.status]);
-  
+
   // Apply auto-grounding to the cloned scene
   const groundedScene = useMemo(() => {
     const box = new THREE.Box3().setFromObject(clonedScene);
@@ -95,56 +95,41 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     clonedScene.position.set(0, bottomShift, 0);
     return clonedScene;
   }, [clonedScene]);
-  
+
   return (
     <group position={[position.x, 0, position.y]}>
       <primitive object={groundedScene} scale={[unitScale, unitScale, unitScale]} />
-      
-      {/* Unit status indicators */}
-      {unit.status !== 'active' && (
-        <mesh position={[0, 0.8, 0]}>
-          <sphereGeometry args={[0.05]} />
-          <meshBasicMaterial 
-            color={
-              unit.status === 'stealthed' ? "#9333EA" :
-              unit.status === 'siege_mode' ? "#F59E0B" :
-              unit.status === 'formation' ? "#3B82F6" :
-              unit.status === 'rallied' ? "#10B981" :
-              "#6B7280"
-            }
-            transparent 
-            opacity={0.9} 
-          />
-        </mesh>
-      )}
-      
-      {/* Health indicator for damaged units */}
-      {unit.hp < unit.maxHp && (
-        <group position={[0, 0.9, 0]}>
-          {/* Health bar background */}
-          <mesh position={[0, 0, 0]}>
-            <boxGeometry args={[0.3, 0.05, 0.01]} />
-            <meshBasicMaterial color="#FF0000" transparent opacity={0.7} />
+
+
+
+
+
+      {/* Movement indicator for units that can still move */}
+      {unit.remainingMovement > 0 && (
+
+        <group position={[0, -0.04, 0]}>
+          {/* Main Disc Body - High contrast opacity */}
+          <mesh>
+            <cylinderGeometry args={[0.6, 0.6, 0.01, 32]} />
+            <meshBasicMaterial
+              color={isPlayerUnit ? "#06B6D4" : "#EF4444"}
+              transparent
+              opacity={0.5}
+            />
           </mesh>
-          {/* Health bar foreground */}
-          <mesh position={[-0.15 + (0.15 * unit.hp / unit.maxHp), 0, 0.001]}>
-            <boxGeometry args={[0.3 * (unit.hp / unit.maxHp), 0.05, 0.01]} />
-            <meshBasicMaterial color="#00FF00" transparent opacity={0.9} />
+
+          {/* Bright Outer Rim for Definition */}
+          <mesh position={[0, 0.006, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.55, 0.6, 32]} />
+            <meshBasicMaterial
+              color={isPlayerUnit ? "#67E8F9" : "#FCA5A5"}
+              transparent
+              opacity={0.9}
+            />
           </mesh>
         </group>
       )}
-      
-      {/* Movement indicator for units that can still move */}
-      {unit.remainingMovement > 0 && (
-        <mesh position={[0, -0.04, 0]}>
-          <cylinderGeometry args={[0.6, 0.6, 0.01, 16]} />
-          <meshBasicMaterial 
-            color={isPlayerUnit ? "#22C55E" : "#EF4444"} 
-            transparent 
-            opacity={0.3} 
-          />
-        </mesh>
-      )}
+
     </group>
   );
 }
