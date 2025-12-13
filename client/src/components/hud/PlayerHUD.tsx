@@ -173,12 +173,12 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
         glowColor="blue"
         intensity="medium"
         className="w-full bg-gradient-to-r from-blue-600/20 to-blue-700/20 border-blue-400/60 
-                   text-blue-100 text-xs px-2 py-2 min-h-[44px]"
+                   text-blue-100 text-xs px-4 py-3 min-h-[48px] justify-center"
         onClick={onShowTechPanel}
         soundEffect="cta-click"
       >
-        <Book className="w-3 h-3 mr-1 flex-shrink-0" />
-        <span>Sacred Knowledge</span>
+        <Book className="w-4 h-4 flex-shrink-0" />
+        <span className="ml-2">Knowledge</span>
       </GlowingButton>
       
       <GlowingButton
@@ -187,12 +187,12 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
         glowColor="amber"
         intensity="medium"
         className="w-full bg-gradient-to-r from-amber-600/20 to-amber-700/20 border-amber-400/60 
-                   text-amber-100 text-xs px-2 py-2 min-h-[44px]"
+                   text-amber-100 text-xs px-4 py-3 min-h-[48px] justify-center"
         onClick={onShowConstructionHall}
         soundEffect="cta-click"
       >
-        <Hammer className="w-3 h-3 mr-1 flex-shrink-0" />
-        <span>Construction</span>
+        <Hammer className="w-4 h-4 flex-shrink-0" />
+        <span className="ml-2">Build</span>
       </GlowingButton>
     </div>
 
