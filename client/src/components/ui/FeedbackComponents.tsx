@@ -13,7 +13,7 @@ interface LoadingSpinnerProps {
 export function LoadingSpinner({ size = 'md', color = 'currentColor', className }: LoadingSpinnerProps) {
   const sizeClasses = {
     sm: 'w-4 h-4',
-    md: 'w-6 h-6', 
+    md: 'w-6 h-6',
     lg: 'w-8 h-8'
   };
 
@@ -48,9 +48,11 @@ export function PulseLoader({ className }: { className?: string }) {
   );
 }
 
-// Success/Error/Warning Toast notifications
+// Success/Error/Warning Toast notifications with game themes
+export type ToastType = 'success' | 'error' | 'warning' | 'info' | 'combat' | 'discovery' | 'faith' | 'pride';
+
 interface ToastProps {
-  type: 'success' | 'error' | 'warning' | 'info';
+  type: ToastType;
   title: string;
   message?: string;
   onClose?: () => void;
@@ -59,7 +61,7 @@ interface ToastProps {
 
 export function Toast({ type, title, message, onClose }: ToastProps) {
 
-  const config = {
+  const config: Record<ToastType, { icon: typeof Check; bgColor: string; textColor: string; iconBg: string; glow?: string }> = {
     success: {
       icon: Check,
       bgColor: 'bg-green-500',
@@ -83,26 +85,56 @@ export function Toast({ type, title, message, onClose }: ToastProps) {
       bgColor: 'bg-blue-500',
       textColor: 'text-white',
       iconBg: 'bg-blue-600'
-    }
+    },
+    // === GAME-THEMED VARIANTS ===
+    combat: {
+      icon: AlertCircle, // Would be Swords ideally
+      bgColor: 'bg-gradient-to-r from-red-600 to-orange-600',
+      textColor: 'text-white',
+      iconBg: 'bg-red-700',
+      glow: 'shadow-[0_0_20px_rgba(239,68,68,0.5)]'
+    },
+    discovery: {
+      icon: Check, // Would be Map ideally
+      bgColor: 'bg-gradient-to-r from-emerald-600 to-teal-600',
+      textColor: 'text-white',
+      iconBg: 'bg-emerald-700',
+      glow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]'
+    },
+    faith: {
+      icon: Check, // Would be Cross ideally
+      bgColor: 'bg-gradient-to-r from-blue-600 to-indigo-600',
+      textColor: 'text-white',
+      iconBg: 'bg-blue-700',
+      glow: 'shadow-[0_0_20px_rgba(59,130,246,0.5)]'
+    },
+    pride: {
+      icon: AlertCircle, // Would be Crown ideally
+      bgColor: 'bg-gradient-to-r from-amber-600 to-yellow-500',
+      textColor: 'text-black',
+      iconBg: 'bg-amber-700',
+      glow: 'shadow-[0_0_20px_rgba(251,191,36,0.5)]'
+    },
   };
 
-  const { icon: Icon, bgColor, textColor, iconBg } = config[type];
+  const { icon: Icon, bgColor, textColor, iconBg, glow } = config[type];
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -50, scale: 0.9 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -50, scale: 0.9 }}
+      initial={{ opacity: 0, x: 50, scale: 0.9 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={{ opacity: 0, x: 50, scale: 0.9 }}
       className={cn(
-        'flex items-center gap-3 p-4 rounded-lg shadow-lg max-w-sm',
+        'flex items-center gap-3 p-4 rounded-lg shadow-lg max-w-sm border border-white/10',
         bgColor,
-        textColor
+        textColor,
+        glow
       )}
     >
       <div className={cn('p-1.5 rounded-full', iconBg)}>
         <Icon className="w-4 h-4" />
       </div>
-      
+
       <div className="flex-1">
         <div className="font-semibold text-sm">{title}</div>
         {message && <div className="text-xs opacity-90 mt-1">{message}</div>}
@@ -120,6 +152,7 @@ export function Toast({ type, title, message, onClose }: ToastProps) {
   );
 }
 
+
 // Button with built-in loading and success states
 interface ActionButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onDrag' | 'onDragEnd' | 'onDragEnter' | 'onDragExit' | 'onDragLeave' | 'onDragOver' | 'onDragStart' | 'onDrop' | 'onAnimationStart' | 'onAnimationEnd' | 'onAnimationIteration'> {
   loading?: boolean;
@@ -130,19 +163,19 @@ interface ActionButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonEl
   size?: 'sm' | 'md' | 'lg';
 }
 
-export function ActionButton({ 
-  loading, 
-  success, 
-  error, 
-  children, 
-  variant = 'primary', 
+export function ActionButton({
+  loading,
+  success,
+  error,
+  children,
+  variant = 'primary',
   size = 'md',
   disabled,
   className,
-  ...props 
+  ...props
 }: ActionButtonProps) {
   const baseClasses = 'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2';
-  
+
   const variants = {
     primary: 'bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary',
     secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80 focus-visible:ring-secondary',
@@ -185,7 +218,7 @@ export function ActionButton({
             <LoadingSpinner size="sm" />
           </motion.div>
         )}
-        
+
         {success && !loading && (
           <motion.div
             key="success"
@@ -197,7 +230,7 @@ export function ActionButton({
             <Check className="w-4 h-4" />
           </motion.div>
         )}
-        
+
         {error && !loading && !success && (
           <motion.div
             key="error"
@@ -210,7 +243,7 @@ export function ActionButton({
           </motion.div>
         )}
       </AnimatePresence>
-      
+
       <motion.span
         layout
         className={cn(loading && 'ml-2')}
@@ -231,16 +264,16 @@ interface ProgressProps {
   animated?: boolean;
 }
 
-export function Progress({ 
-  value, 
-  max = 100, 
-  size = 'md', 
+export function Progress({
+  value,
+  max = 100,
+  size = 'md',
   color = 'primary',
   showPercentage = false,
   animated = true
 }: ProgressProps) {
   const percentage = Math.min((value / max) * 100, 100);
-  
+
   const heights = {
     sm: 'h-1',
     md: 'h-2',
@@ -264,7 +297,7 @@ export function Progress({
           transition={animated ? { duration: 0.5, ease: 'easeOut' } : { duration: 0 }}
         />
       </div>
-      
+
       {showPercentage && (
         <div className="text-xs text-muted-foreground text-right">
           {Math.round(percentage)}%
@@ -294,10 +327,10 @@ export function FloatingActionButton({ icon, position = 'bottom-right', classNam
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    
+
     const newRipple = { id: Date.now(), x, y };
     setRipples(prev => [...prev, newRipple]);
-    
+
     setTimeout(() => {
       setRipples(prev => prev.filter(ripple => ripple.id !== newRipple.id));
     }, 600);
@@ -320,7 +353,7 @@ export function FloatingActionButton({ icon, position = 'bottom-right', classNam
       {...props}
     >
       {icon}
-      
+
       {ripples.map(({ id, x, y }) => (
         <motion.span
           key={id}
