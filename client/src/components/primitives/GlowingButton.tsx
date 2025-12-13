@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { motion } from 'framer-motion';
 import { Button, ButtonProps } from '../ui/button';
 import clsx from 'clsx';
@@ -10,9 +10,11 @@ import { useHaptic } from '../../hooks/useHaptic';
 
 interface GlowingButtonProps extends Omit<ButtonProps, 'onClick'> {
   onClick?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
-  glowColor?: 'amber' | 'blue' | 'red' | 'green' | 'purple';
+  glowColor?: 'amber' | 'blue' | 'red' | 'green' | 'purple' | 'slate' | 'none';
   intensity?: 'low' | 'medium' | 'high';
   soundEffect?: string;
+  enableSfx?: boolean;
+  loading?: boolean;
 }
 
 const glowStyles = {
@@ -40,36 +42,50 @@ const glowStyles = {
     low: 'shadow-purple-500/20 hover:shadow-purple-500/30',
     medium: 'shadow-purple-500/30 hover:shadow-purple-500/40',
     high: 'shadow-purple-500/40 hover:shadow-purple-500/50'
+  },
+  slate: {
+    low: 'shadow-slate-500/20 hover:shadow-slate-500/30',
+    medium: 'shadow-slate-500/30 hover:shadow-slate-500/40',
+    high: 'shadow-slate-500/40 hover:shadow-slate-500/50'
+  },
+  none: {
+    low: '',
+    medium: '',
+    high: ''
   }
 };
 
-export function GlowingButton({ 
+export const GlowingButton = forwardRef<HTMLButtonElement, GlowingButtonProps>(({ 
   onClick,
   glowColor = 'amber',
   intensity = 'medium',
   soundEffect = 'cta-click',
+  enableSfx = true,
+  loading = false,
   className,
   disabled,
   children,
   ...props 
-}: GlowingButtonProps) {
+}, ref) => {
   const reducedMotion = useReducedMotion();
   const { isTouchDevice } = useTouchMode();
   const playSfx = useSfxEngine();
   const haptic = useHaptic();
 
+  const isDisabled = disabled || loading;
+
   const handleClick = (e?: React.MouseEvent<HTMLButtonElement>) => {
-    if (!disabled && onClick) {
-      playSfx('cta-click');
+    if (!isDisabled && onClick) {
+      if (enableSfx) playSfx('cta-click');
       onClick(e);
     }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     e.preventDefault();
-    if (!disabled && onClick) {
+    if (!isDisabled && onClick) {
       haptic('light');
-      playSfx('cta-click');
+      if (enableSfx) playSfx('cta-click');
       onClick();
     }
   };
@@ -89,31 +105,61 @@ export function GlowingButton({
   return (
     <motion.div {...motionProps}>
       <Button
+        ref={ref}
         onClick={handleClick}
         onTouchEnd={isTouchDevice ? handleTouchEnd : undefined}
-        disabled={disabled}
-        tabIndex={disabled ? -1 : undefined}
+        disabled={isDisabled}
+        tabIndex={isDisabled ? -1 : undefined}
+        aria-busy={loading ? true : undefined}
+        aria-disabled={isDisabled ? true : undefined}
         className={clsx(
           "relative overflow-hidden transition-all duration-200 flex items-center justify-center gap-2",
-          "shadow-lg hover:shadow-xl",
+          glowColor !== 'none' && "shadow-lg hover:shadow-xl",
           glowStyles[glowColor][intensity],
-          disabled && "opacity-50 cursor-not-allowed pointer-events-none",
+          isDisabled && "opacity-50 cursor-not-allowed pointer-events-none",
           isTouchDevice && "min-h-[48px] min-w-[48px] touch-spacing",
           className
         )}
         {...props}
       >
         {/* Glow effect background */}
-        {!disabled && (
+        {!isDisabled && glowColor !== 'none' && (
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent 
                           -translate-x-full hover:translate-x-full transition-transform duration-700" />
         )}
         
         {/* Content */}
         <span className="relative z-10 flex items-center justify-center gap-2">
-          {children}
+          {loading ? (
+            <>
+              <svg 
+                className="animate-spin h-4 w-4" 
+                xmlns="http://www.w3.org/2000/svg" 
+                fill="none" 
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <circle 
+                  className="opacity-25" 
+                  cx="12" 
+                  cy="12" 
+                  r="10" 
+                  stroke="currentColor" 
+                  strokeWidth="4"
+                />
+                <path 
+                  className="opacity-75" 
+                  fill="currentColor" 
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              <span className="sr-only">Loading...</span>
+            </>
+          ) : children}
         </span>
       </Button>
     </motion.div>
   );
-}
+});
+
+GlowingButton.displayName = 'GlowingButton';
