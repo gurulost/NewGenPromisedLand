@@ -23,7 +23,7 @@ const notify = () => {
     try {
       listener(snapshot);
     } catch (error) {
-      if (process.env.NODE_ENV !== 'production') {
+      if ((import.meta as any).env?.DEV) {
         console.error('[telemetryStore] listener error', error);
       }
     }
@@ -35,7 +35,7 @@ const persist = () => {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   } catch (error) {
-    if (process.env.NODE_ENV !== 'production') {
+    if ((import.meta as any).env?.DEV) {
       console.warn('[telemetryStore] persist failed', error);
     }
   }
@@ -60,7 +60,7 @@ const ensureHistory = () => {
         }
       }
     } catch (error) {
-      if (process.env.NODE_ENV !== 'production') {
+      if ((import.meta as any).env?.DEV) {
         console.warn('[telemetryStore] failed to parse stored history', error);
       }
     }

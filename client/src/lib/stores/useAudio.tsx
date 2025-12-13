@@ -1,10 +1,8 @@
 import { create } from "zustand";
 import { Howl } from "howler";
 
-// Allow turning off SFX globally (default off to avoid unwanted beeps)
-const SFX_ENABLED =
-  (import.meta as any).env?.VITE_ENABLE_SFX === 'true' ||
-  (process as any).env?.ENABLE_SFX === 'true';
+// SFX disabled by default - user can enable via settings if desired
+const SFX_ENABLED = (import.meta as any).env?.VITE_ENABLE_SFX === 'true';
 
 type SoundKey =
   | 'hit'
