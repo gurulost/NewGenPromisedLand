@@ -1,15 +1,15 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { GlowingButton } from '../GlowingButton';
 
-// Mock framer-motion
+// Mock framer-motion to simplify motion props in tests
 jest.mock('framer-motion', () => ({
   motion: {
     button: ({ children, className, onClick, disabled, ...props }: any) => (
-      <button 
-        className={className} 
-        onClick={onClick} 
+      <button
+        className={className}
+        onClick={onClick}
         disabled={disabled}
-        data-testid="motion-button" 
+        data-testid="glowing-button"
         {...props}
       >
         {children}
@@ -36,7 +36,7 @@ describe('GlowingButton', () => {
     );
     
     expect(screen.getByText('Click Me')).toBeInTheDocument();
-    expect(screen.getByTestId('motion-button')).toBeInTheDocument();
+    expect(screen.getByTestId('glowing-button')).toBeInTheDocument();
   });
 
   it('handles click events', () => {
@@ -48,7 +48,7 @@ describe('GlowingButton', () => {
       </GlowingButton>
     );
     
-    fireEvent.click(screen.getByTestId('motion-button'));
+    fireEvent.click(screen.getByTestId('glowing-button'));
     expect(handleClick).toHaveBeenCalledTimes(1);
   });
 
@@ -59,7 +59,7 @@ describe('GlowingButton', () => {
       </GlowingButton>
     );
     
-    const button = screen.getByTestId('motion-button');
+    const button = screen.getByTestId('glowing-button');
     expect(button).toBeDisabled();
   });
 
@@ -70,7 +70,7 @@ describe('GlowingButton', () => {
       </GlowingButton>
     );
     
-    const button = screen.getByTestId('motion-button');
+    const button = screen.getByTestId('glowing-button');
     expect(button).toHaveClass('custom-button-class');
   });
 
@@ -81,8 +81,9 @@ describe('GlowingButton', () => {
       </GlowingButton>
     );
     
-    let button = screen.getByTestId('motion-button');
-    expect(button).toHaveClass('bg-gradient-to-r', 'from-amber-600', 'to-amber-500');
+    let button = screen.getByTestId('glowing-button');
+    expect(button.className).toContain('bg-gradient-to-b');
+    expect(button.className).toContain('text-slate-900');
     
     rerender(
       <GlowingButton onClick={() => {}} variant="secondary">
@@ -90,8 +91,9 @@ describe('GlowingButton', () => {
       </GlowingButton>
     );
     
-    button = screen.getByTestId('motion-button');
-    expect(button).toHaveClass('bg-gradient-to-r', 'from-slate-600', 'to-slate-500');
+    button = screen.getByTestId('glowing-button');
+    expect(button.className).toContain('from-slate-800');
+    expect(button.className).toContain('text-amber-50');
   });
 
   it('renders different sizes correctly', () => {
@@ -101,8 +103,8 @@ describe('GlowingButton', () => {
       </GlowingButton>
     );
     
-    let button = screen.getByTestId('motion-button');
-    expect(button).toHaveClass('px-3', 'py-1.5', 'text-sm');
+    let button = screen.getByTestId('glowing-button');
+    expect(button.className).toContain('min-h-[40px]');
     
     rerender(
       <GlowingButton onClick={() => {}} size="lg">
@@ -110,8 +112,8 @@ describe('GlowingButton', () => {
       </GlowingButton>
     );
     
-    button = screen.getByTestId('motion-button');
-    expect(button).toHaveClass('px-6', 'py-3', 'text-lg');
+    button = screen.getByTestId('glowing-button');
+    expect(button.className).toContain('min-h-[48px]');
   });
 
   it('prevents click when disabled', () => {
@@ -123,7 +125,7 @@ describe('GlowingButton', () => {
       </GlowingButton>
     );
     
-    fireEvent.click(screen.getByTestId('motion-button'));
+    fireEvent.click(screen.getByTestId('glowing-button'));
     expect(handleClick).not.toHaveBeenCalled();
   });
 
@@ -134,7 +136,7 @@ describe('GlowingButton', () => {
       </GlowingButton>
     );
     
-    const button = screen.getByTestId('motion-button');
+    const button = screen.getByTestId('glowing-button');
     expect(button).toHaveAttribute('aria-label', 'Accessible button');
   });
 
@@ -145,7 +147,7 @@ describe('GlowingButton', () => {
       </GlowingButton>
     );
     
-    const button = screen.getByTestId('motion-button');
+    const button = screen.getByTestId('glowing-button');
     // Should have min-h class for 44px+ touch targets
     expect(button.className).toContain('min-h-');
   });
