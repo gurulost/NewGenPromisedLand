@@ -94,8 +94,8 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
 }
 
 export default function HexGridInstanced({ map }: HexGridInstancedProps) {
-  const { gameState, moveUnit } = useLocalGame();
-  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction, isMovementMode, setMovementMode } = useGameState();
+  const { gameState, moveUnit, attackUnit } = useLocalGame();
+  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction, isMovementMode, setMovementMode, isAttackMode, setAttackMode, attackableTargets } = useGameState();
   const { camera, raycaster, gl } = useThree();
   
   // Calculate valid construction tiles when in construction mode
@@ -441,10 +441,25 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             setSelectedUnit(unitOnTile);
             // Exit any previous modes
             setMovementMode(false);
+            setAttackMode(false);
           } else if (selectedUnit && selectedUnit.playerId === currentPlayer.id) {
-            // Attack enemy unit if we have a unit selected
-            // This would need attack logic implementation
-            console.log('Attack target clicked:', unitOnTile.id);
+            // Clicking on enemy unit
+            if (isAttackMode) {
+              // Check if target is in attackable range
+              const isValidTarget = attackableTargets.some(
+                target => target.q === unitOnTile.coordinate.q && target.r === unitOnTile.coordinate.r
+              );
+              
+              if (isValidTarget) {
+                console.log('Attacking target:', unitOnTile.id);
+                attackUnit(selectedUnit.id, unitOnTile.id);
+                setAttackMode(false);
+              } else {
+                console.log('Target not in range');
+              }
+            } else {
+              console.log('Attack target clicked (not in attack mode):', unitOnTile.id);
+            }
           }
         } else if (selectedUnit && selectedUnit.playerId === currentPlayer?.id && isMovementMode) {
           // Move selected unit to empty tile only if in movement mode
