@@ -55,11 +55,15 @@ export function PanelHeader({
           size="icon" 
           aria-label="Close panel"
           onClick={onClose}
-          className="h-10 w-10 rounded-full bg-amber-600/10 p-0 text-amber-300
-                     transition-all duration-200 hover:scale-110 hover:bg-amber-600/20 
-                     hover:text-amber-100 active:scale-95"
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            onClose();
+          }}
+          className="h-12 w-12 min-h-[48px] min-w-[48px] rounded-full bg-amber-600/20 p-0 text-amber-300
+                     transition-all duration-200 hover:scale-110 hover:bg-amber-600/30 
+                     hover:text-amber-100 active:scale-95 active:bg-amber-600/40"
         >
-          <span className="text-lg font-bold">×</span>
+          <span className="text-2xl font-bold">×</span>
         </Button>
       )}
     </header>
