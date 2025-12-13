@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { Howl } from "howler";
 
+// Allow turning off SFX globally (default off to avoid unwanted beeps)
+const SFX_ENABLED =
+  (import.meta as any).env?.VITE_ENABLE_SFX === 'true' ||
+  (process as any).env?.ENABLE_SFX === 'true';
+
 type SoundKey =
   | 'hit'
   | 'success'
@@ -62,16 +67,24 @@ export const useAudio = create<AudioState>((set, get) => ({
   },
 
   initializeAudio: async () => {
-    // Preload tiny procedural sounds as fallback using base64-encoded beeps
-    const loadBeep = (dataUri: string) => new Howl({ src: [dataUri], volume: 0.6 });
-    const clickBeep = 'data:audio/wav;base64,UklGRhYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQwAAAAA//8AAP//AAD//wAA//8AAP//AAD//wAA';
-    const successBeep = 'data:audio/wav;base64,UklGRhYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQwAAAAA////AP///wD///8A////AP///wD///8A////AP///wD///8A';
+    if (SFX_ENABLED) {
+      // Preload tiny procedural sounds as fallback using base64-encoded beeps
+      const loadBeep = (dataUri: string) => new Howl({ src: [dataUri], volume: 0.6 });
+      const clickBeep = 'data:audio/wav;base64,UklGRhYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQwAAAAA//8AAP//AAD//wAA//8AAP//AAD//wAA';
+      const successBeep = 'data:audio/wav;base64,UklGRhYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQwAAAAA////AP///wD///8A////AP///wD///8A////AP///wD///8A';
 
-    set({
-      isInitialized: true,
-      hitSound: loadBeep(clickBeep),
-      successSound: loadBeep(successBeep),
-    });
+      set({
+        isInitialized: true,
+        hitSound: loadBeep(clickBeep),
+        successSound: loadBeep(successBeep),
+      });
+    } else {
+      set({
+        isInitialized: true,
+        hitSound: null,
+        successSound: null,
+      });
+    }
   },
 
   startBackgroundMusic: () => {
@@ -90,7 +103,7 @@ export const useAudio = create<AudioState>((set, get) => ({
   
   playHit: () => {
     const { hitSound, isMuted, sfxVolume } = get();
-    if (hitSound && !isMuted) {
+    if (SFX_ENABLED && hitSound && !isMuted) {
       hitSound.volume(sfxVolume);
       hitSound.play();
     }
@@ -98,7 +111,7 @@ export const useAudio = create<AudioState>((set, get) => ({
   
   playSuccess: () => {
     const { successSound, isMuted, sfxVolume } = get();
-    if (successSound && !isMuted) {
+    if (SFX_ENABLED && successSound && !isMuted) {
       successSound.volume(sfxVolume);
       successSound.play();
     }
@@ -106,7 +119,7 @@ export const useAudio = create<AudioState>((set, get) => ({
 
   playUnitMove: () => {
     const { hitSound, isMuted, sfxVolume } = get();
-    if (hitSound && !isMuted) {
+    if (SFX_ENABLED && hitSound && !isMuted) {
       hitSound.volume(sfxVolume * 0.6);
       hitSound.play();
     }
@@ -114,7 +127,7 @@ export const useAudio = create<AudioState>((set, get) => ({
 
   playConstruction: () => {
     const { successSound, isMuted, sfxVolume } = get();
-    if (successSound && !isMuted) {
+    if (SFX_ENABLED && successSound && !isMuted) {
       successSound.volume(sfxVolume * 0.7);
       successSound.play();
     }
@@ -122,7 +135,7 @@ export const useAudio = create<AudioState>((set, get) => ({
 
   playNotification: () => {
     const { successSound, isMuted, sfxVolume } = get();
-    if (successSound && !isMuted) {
+    if (SFX_ENABLED && successSound && !isMuted) {
       successSound.volume(sfxVolume * 0.5);
       successSound.play();
     }
