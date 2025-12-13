@@ -13,7 +13,6 @@ import {
   Sparkles, Move, Settings, Swords 
 } from "lucide-react";
 import UnitActionsPanel from "./AbilitiesPanel";
-import { InfoTooltip } from "./TooltipSystem";
 
 interface SelectedUnitPanelProps {
   unit: Unit;
@@ -49,9 +48,9 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
   return (
     <div className="absolute bottom-4 left-4 pointer-events-auto">
       <Card className="w-64 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20">
-        <CardHeader className="pb-2 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
-          <CardTitle className="text-amber-100 font-cinzel font-semibold tracking-wide">{unitStats.definition.name}</CardTitle>
-          <div className="text-xs text-amber-300/70 font-normal">— Chosen Warrior of the Promised Land —</div>
+        <CardHeader className="pb-2 px-4 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
+          <CardTitle className="text-amber-100 font-cinzel font-semibold tracking-wide text-center">{unitStats.definition.name}</CardTitle>
+          <div className="text-xs text-amber-300/70 font-normal text-center truncate">— Chosen Warrior of the Promised Land —</div>
         </CardHeader>
         <CardContent className="space-y-2 bg-slate-900/40">
           <div className="text-sm text-amber-200/90 font-body bg-amber-900/10 rounded p-2 border border-amber-500/20">
@@ -70,40 +69,23 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
             />
           </div>
           
-          {/* Unit Stats */}
-          <div className="grid grid-cols-2 gap-2 text-sm font-body">
-            <div className="flex justify-between">
+          {/* Unit Stats - Clean grid layout */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm font-body">
+            <div className="flex justify-between items-center">
               <span className="text-amber-300/70">Attack:</span>
-              <span className="text-amber-100">{unit.attack}</span>
+              <span className="text-amber-100 font-medium">{unit.attack}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-amber-300/70">Defense:</span>
-              <span className="text-amber-100">{unit.defense}</span>
+              <span className="text-amber-100 font-medium">{unit.defense}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-amber-300/70 flex items-center gap-1">
-                Movement:
-                <InfoTooltip 
-                  content={
-                    <div className="space-y-2">
-                      <div className="font-semibold text-green-300">Movement System</div>
-                      <div className="text-xs text-slate-300">
-                        Shows remaining movement points this turn.
-                      </div>
-                      <div className="text-xs space-y-1">
-                        <div>• Each tile costs movement points</div>
-                        <div>• Different terrain has different costs</div>
-                        <div>• Movement resets each turn</div>
-                      </div>
-                    </div>
-                  }
-                />
-              </span>
-              <span className="text-amber-100">{unitStats.movementDisplay}</span>
+            <div className="flex justify-between items-center">
+              <span className="text-amber-300/70">Movement:</span>
+              <span className="text-amber-100 font-medium">{unitStats.movementDisplay}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-amber-300/70">Vision:</span>
-              <span className="text-amber-100">{unitStats.definition.baseStats.visionRadius || 2}</span>
+              <span className="text-amber-100 font-medium">{unitStats.definition.baseStats.visionRadius || 2}</span>
             </div>
           </div>
           
@@ -139,31 +121,34 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
               View All Actions
             </Button>
             
-            {/* Enhanced Quick Status Summary with Dynamic Colors */}
-            <div className="flex justify-center gap-4 text-xs bg-amber-900/20 rounded-lg p-2 border border-amber-500/20">
-              <div className={`flex items-center gap-1 transition-colors duration-200 ${
-                actionAvailability.canMove 
-                  ? 'text-green-400 font-medium' 
-                  : 'text-red-400'
+            {/* Quick Status Summary - Vertical layout for better readability */}
+            <div className="grid grid-cols-3 gap-2 text-xs bg-amber-900/20 rounded-lg p-3 border border-amber-500/20">
+              <div className={`flex flex-col items-center gap-1 ${
+                actionAvailability.canMove ? 'text-green-400' : 'text-slate-500'
               }`}>
-                <Move className={`w-3 h-3 ${actionAvailability.canMove ? 'text-green-400' : 'text-red-400'}`} />
-                Move: {actionAvailability.canMove ? `${actionAvailability.reachableTilesCount} tiles` : 'Unavailable'}
+                <Move className="w-4 h-4" />
+                <span className="font-medium">Move</span>
+                <span className="text-[10px]">
+                  {actionAvailability.canMove ? `${actionAvailability.reachableTilesCount} tiles` : 'None'}
+                </span>
               </div>
-              <div className={`flex items-center gap-1 transition-colors duration-200 ${
-                actionAvailability.canAttack 
-                  ? 'text-red-400 font-medium' 
-                  : 'text-red-400/50'
+              <div className={`flex flex-col items-center gap-1 ${
+                actionAvailability.canAttack ? 'text-red-400' : 'text-slate-500'
               }`}>
-                <Swords className={`w-3 h-3 ${actionAvailability.canAttack ? 'text-red-400' : 'text-red-400/50'}`} />
-                Attack: {actionAvailability.canAttack ? `${actionAvailability.attackTargetsCount} targets` : 'Unavailable'}
+                <Swords className="w-4 h-4" />
+                <span className="font-medium">Attack</span>
+                <span className="text-[10px]">
+                  {actionAvailability.canAttack ? `${actionAvailability.attackTargetsCount} targets` : 'None'}
+                </span>
               </div>
-              <div className={`flex items-center gap-1 transition-colors duration-200 ${
-                actionAvailability.hasAbilities 
-                  ? 'text-purple-400 font-medium' 
-                  : 'text-purple-400/50'
+              <div className={`flex flex-col items-center gap-1 ${
+                actionAvailability.hasAbilities ? 'text-purple-400' : 'text-slate-500'
               }`}>
-                <Settings className={`w-3 h-3 ${actionAvailability.hasAbilities ? 'text-purple-400' : 'text-purple-400/50'}`} />
-                Abilities: {actionAvailability.hasAbilities ? 'Available' : 'Unavailable'}
+                <Settings className="w-4 h-4" />
+                <span className="font-medium">Abilities</span>
+                <span className="text-[10px]">
+                  {actionAvailability.hasAbilities ? 'Ready' : 'None'}
+                </span>
               </div>
             </div>
           </div>
