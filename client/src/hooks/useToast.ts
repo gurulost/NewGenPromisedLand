@@ -1,8 +1,11 @@
 import { useState, useCallback } from 'react';
 
+// Extended toast types including game-themed variants
+export type ToastDataType = 'success' | 'error' | 'warning' | 'info' | 'combat' | 'discovery' | 'faith' | 'pride';
+
 interface ToastData {
   id: string;
-  type: 'success' | 'error' | 'warning' | 'info';
+  type: ToastDataType;
   title: string;
   message?: string;
   duration?: number;
@@ -14,16 +17,16 @@ export function useToast() {
   const addToast = useCallback((toast: Omit<ToastData, 'id'>) => {
     const id = Math.random().toString(36).substring(2, 9);
     const newToast = { ...toast, id };
-    
+
     setToasts(prev => [...prev, newToast]);
-    
+
     // Auto-remove after duration
     if (toast.duration !== 0) {
       setTimeout(() => {
         removeToast(id);
       }, toast.duration || 4000);
     }
-    
+
     return id;
   }, []);
 
