@@ -25,6 +25,8 @@ export default function GameCanvas() {
   const controlsRef = useRef<any>();
   const debug = useGameDebugger();
   
+  console.log('[GameCanvas] Rendering, gameState exists:', !!gameState, 'map tiles:', gameState?.map?.tiles?.length);
+  
   // Enhanced selection and effects
   const {
     selectedCoordinate,

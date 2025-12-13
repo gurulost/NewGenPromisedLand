@@ -394,10 +394,85 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                       </div>
                       <div>
                         <div className="font-semibold text-amber-200">Unlocks</div>
-                        <p className="text-xs text-slate-300 mt-1">
-                          See unit/building panels for exact effects; this panel focuses on navigation and research.
-                        </p>
+                        <div className="space-y-2 mt-2">
+                          {detailTech.unlocks.units && detailTech.unlocks.units.length > 0 && (
+                            <div className="flex flex-wrap gap-1 items-center">
+                              <Swords className="w-3 h-3 text-red-400" />
+                              <span className="text-xs text-slate-400 mr-1">Units:</span>
+                              {detailTech.unlocks.units.map(unit => (
+                                <Badge key={unit} variant="outline" className="text-xs border-red-400/50 text-red-200 bg-red-500/10">
+                                  {unit.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {detailTech.unlocks.improvements && detailTech.unlocks.improvements.length > 0 && (
+                            <div className="flex flex-wrap gap-1 items-center">
+                              <Map className="w-3 h-3 text-green-400" />
+                              <span className="text-xs text-slate-400 mr-1">Improvements:</span>
+                              {detailTech.unlocks.improvements.map(imp => (
+                                <Badge key={imp} variant="outline" className="text-xs border-green-400/50 text-green-200 bg-green-500/10">
+                                  {imp.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {detailTech.unlocks.structures && detailTech.unlocks.structures.length > 0 && (
+                            <div className="flex flex-wrap gap-1 items-center">
+                              <Church className="w-3 h-3 text-blue-400" />
+                              <span className="text-xs text-slate-400 mr-1">Buildings:</span>
+                              {detailTech.unlocks.structures.map(struct => (
+                                <Badge key={struct} variant="outline" className="text-xs border-blue-400/50 text-blue-200 bg-blue-500/10">
+                                  {struct.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {detailTech.unlocks.abilities && detailTech.unlocks.abilities.length > 0 && (
+                            <div className="flex flex-wrap gap-1 items-center">
+                              <Sparkles className="w-3 h-3 text-purple-400" />
+                              <span className="text-xs text-slate-400 mr-1">Abilities:</span>
+                              {detailTech.unlocks.abilities.map(ability => (
+                                <Badge key={ability} variant="outline" className="text-xs border-purple-400/50 text-purple-200 bg-purple-500/10">
+                                  {ability.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {(!detailTech.unlocks.units?.length && !detailTech.unlocks.improvements?.length && 
+                            !detailTech.unlocks.structures?.length && !detailTech.unlocks.abilities?.length) && (
+                            <p className="text-xs text-slate-400">No direct unlocks</p>
+                          )}
+                        </div>
                       </div>
+                      
+                      {/* Technologies this unlocks */}
+                      {(() => {
+                        const unlockedTechs = Object.values(TECHNOLOGIES).filter(
+                          tech => tech.prerequisites.includes(detailTech.id)
+                        );
+                        if (unlockedTechs.length === 0) return null;
+                        return (
+                          <div className="pt-2 border-t border-amber-500/20">
+                            <div className="font-semibold text-amber-200 flex items-center gap-2">
+                              <ArrowUpRight className="w-4 h-4" />
+                              Leads To
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {unlockedTechs.map(tech => (
+                                <button
+                                  key={tech.id}
+                                  onClick={() => setSelectedTech(tech.id)}
+                                  className="group flex items-center gap-1 px-2 py-1 rounded bg-slate-700/50 border border-slate-600 hover:border-amber-400/50 transition text-left"
+                                >
+                                  {getCategoryIcon(tech.category)}
+                                  <span className="text-xs text-amber-100 group-hover:text-amber-200">{tech.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <Button
                       disabled={techStatuses[detailTech.id] !== "available"}
