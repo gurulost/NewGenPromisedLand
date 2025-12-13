@@ -94,8 +94,8 @@ canvas {
 
 /* Touch Mode Styles */
 .touch-mode {
-  /* Increase tap targets to 44px minimum */
-  --touch-min-size: 44px;
+  /* Increase tap targets to 48px minimum (WCAG/Material strict) */
+  --touch-min-size: 48px;
   
   /* Larger scrollbars */
   --scrollbar-size: 12px;
@@ -106,6 +106,12 @@ canvas {
 .touch-mode [role="button"] {
   min-height: var(--touch-min-size);
   min-width: var(--touch-min-size);
+}
+
+/* Prevent accidental taps on disabled elements */
+.touch-mode button:disabled,
+.touch-mode [role="button"][aria-disabled="true"] {
+  pointer-events: none;
 }
 
 /* Momentum scrolling for touch */

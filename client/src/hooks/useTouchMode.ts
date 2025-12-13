@@ -34,12 +34,14 @@ export function useTouchModeProvider() {
 
     const mediaQuery = window.matchMedia('(pointer: coarse)');
     const handleChange = () => detectTouch();
+    const handleTouchStart = () => setIsTouchDevice(true);
     
     mediaQuery.addEventListener('change', handleChange);
-    window.addEventListener('touchstart', () => setIsTouchDevice(true), { once: true });
+    window.addEventListener('touchstart', handleTouchStart, { once: true });
 
     return () => {
       mediaQuery.removeEventListener('change', handleChange);
+      window.removeEventListener('touchstart', handleTouchStart);
     };
   }, []);
 
