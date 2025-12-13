@@ -4,7 +4,6 @@ import { Star, TrendingUp, Book, Hammer, Info } from 'lucide-react';
 import { HUDShell } from '../primitives/HUDShell';
 import { AvatarBadge } from '../primitives/AvatarBadge';
 import { GlowingButton } from '../primitives/GlowingButton';
-import { HoverCard } from '../primitives/HoverCard';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Progress } from '../ui/progress';
 import { InfoTooltip } from '../primitives/InfoTooltip';
@@ -84,11 +83,12 @@ const StarResourcesSection = React.memo(({ stars, starProduction, breakdown }: {
 }) => (
   <div className="space-y-2">
     <div className="flex items-center justify-between text-amber-100">
-      <div className="flex items-center gap-2 relative">
+      <div className="flex items-center gap-2">
         <Star className="w-4 h-4 text-amber-400" />
         <span className="font-semibold text-amber-200">{stars}</span>
-        <Info className="w-3 h-3 text-amber-400/60 opacity-60" />
-        <InfoTooltip content={<StarProductionTooltip totalIncome={starProduction} breakdown={breakdown} />} />
+        <InfoTooltip content={<StarProductionTooltip totalIncome={starProduction} breakdown={breakdown} />}>
+          <Info className="w-3 h-3 text-amber-400/60 hover:text-amber-400 cursor-help transition-colors" />
+        </InfoTooltip>
       </div>
       <div className="flex items-center gap-1 text-sm text-amber-300">
         <TrendingUp className="w-3 h-3" />
@@ -120,17 +120,16 @@ const StarResourcesSection = React.memo(({ stars, starProduction, breakdown }: {
 const ResourceProgressSection = React.memo(({ playerStats }: {
   playerStats: PlayerStats;
 }) => (
-  <>
+  <div className="space-y-3">
     {/* Faith Progress */}
     <div>
       <div className="flex justify-between text-sm mb-1">
-        <div className="relative">
-          <span className="text-blue-300 font-cinzel font-medium flex items-center gap-1">
-            Faith
-            <Info className="w-3 h-3 text-amber-400/60 opacity-60" />
-          </span>
-          <InfoTooltip content={<FaithSystemTooltip />} />
-        </div>
+        <span className="text-blue-300 font-cinzel font-medium flex items-center gap-1">
+          Faith
+          <InfoTooltip content={<FaithSystemTooltip />}>
+            <Info className="w-3 h-3 text-blue-400/60 hover:text-blue-400 cursor-help transition-colors" />
+          </InfoTooltip>
+        </span>
         <span className="text-amber-100 font-body font-medium">{playerStats.faithPercentage}/100</span>
       </div>
       <Progress value={playerStats.faithPercentage} className="h-2" />
@@ -139,13 +138,12 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
     {/* Pride Progress */}
     <div>
       <div className="flex justify-between text-sm mb-1">
-        <div className="relative">  
-          <span className="text-purple-300 font-cinzel font-medium flex items-center gap-1">
-            Pride
-            <Info className="w-3 h-3 text-amber-400/60 opacity-60" />
-          </span>
-          <InfoTooltip content={<PrideSystemTooltip />} />
-        </div>
+        <span className="text-purple-300 font-cinzel font-medium flex items-center gap-1">
+          Pride
+          <InfoTooltip content={<PrideSystemTooltip />}>
+            <Info className="w-3 h-3 text-purple-400/60 hover:text-purple-400 cursor-help transition-colors" />
+          </InfoTooltip>
+        </span>
         <span className="text-amber-100 font-body font-medium">{playerStats.pridePercentage}/100</span>
       </div>
       <Progress value={playerStats.pridePercentage} className="h-2" />
@@ -159,7 +157,7 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
       </div>
       <Progress value={playerStats.dissentPercentage} className="h-2" />
     </div>
-  </>
+  </div>
 ));
 
 const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHall, onEndTurn }: {
@@ -167,24 +165,21 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
   onShowConstructionHall: () => void;
   onEndTurn: () => void;
 }) => (
-  <div className="space-y-2">
+  <div className="space-y-2 pt-2">
     <div className="grid grid-cols-2 gap-2">
-      <div className="relative">
-        <GlowingButton
-          variant="outline"
-          size="sm"
-          glowColor="blue"
-          intensity="medium"
-          className="w-full bg-gradient-to-r from-blue-600/20 to-blue-700/20 border-blue-400/60 
-                     text-blue-100 text-xs px-2 py-2 min-h-[44px]"
-          onClick={onShowTechPanel}
-          soundEffect="cta-click"
-        >
-          <Book className="w-3 h-3 mr-1 flex-shrink-0" />
-          <span>Sacred Knowledge</span>
-        </GlowingButton>
-        <InfoTooltip content={<TechnologyTooltip />} />
-      </div>
+      <GlowingButton
+        variant="outline"
+        size="sm"
+        glowColor="blue"
+        intensity="medium"
+        className="w-full bg-gradient-to-r from-blue-600/20 to-blue-700/20 border-blue-400/60 
+                   text-blue-100 text-xs px-2 py-2 min-h-[44px]"
+        onClick={onShowTechPanel}
+        soundEffect="cta-click"
+      >
+        <Book className="w-3 h-3 mr-1 flex-shrink-0" />
+        <span>Sacred Knowledge</span>
+      </GlowingButton>
       
       <GlowingButton
         variant="outline"
@@ -196,10 +191,8 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
         onClick={onShowConstructionHall}
         soundEffect="cta-click"
       >
-        <div className="flex flex-col items-center justify-center">
-          <Hammer className="w-3 h-3 mb-1" />
-          <span className="text-xs leading-tight">Construction Hall</span>
-        </div>
+        <Hammer className="w-3 h-3 mr-1 flex-shrink-0" />
+        <span>Construction</span>
       </GlowingButton>
     </div>
 
@@ -254,16 +247,6 @@ const PrideSystemTooltip = () => (
     <p className="text-xs text-purple-200">
       Pride measures worldly power and ambition. Pride enables certain military and 
       economic actions but can lead to spiritual consequences.
-    </p>
-  </div>
-);
-
-const TechnologyTooltip = () => (
-  <div className="space-y-2">
-    <h4 className="font-semibold text-blue-300">Sacred Knowledge</h4>
-    <p className="text-xs text-blue-200">
-      Research technologies inspired by Book of Mormon civilizations to unlock new 
-      units, buildings, and abilities.
     </p>
   </div>
 );

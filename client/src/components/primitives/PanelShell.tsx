@@ -80,7 +80,7 @@ export function PanelShell({
         onClose={onClose}
         aria-labelledby={ariaLabelledBy}
       >
-        {/* Backdrop */}
+        {/* Backdrop - clicking this closes the panel */}
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -90,7 +90,15 @@ export function PanelShell({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md pointer-events-auto" aria-hidden="true" />
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-md cursor-pointer" 
+            onClick={onClose}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              onClose();
+            }}
+            aria-hidden="true" 
+          />
         </Transition.Child>
 
         {/* Panel */}

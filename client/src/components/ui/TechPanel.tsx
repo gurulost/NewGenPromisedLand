@@ -35,6 +35,16 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const researchedCount = currentPlayer?.researchedTechs.length || 0;
   const normalizedSearch = search.trim().toLowerCase();
 
+  const tieredTechs = useMemo(() => {
+    const byTier: Record<number, Technology[]> = { 1: [], 2: [], 3: [] };
+    Object.values(TECHNOLOGIES).forEach(tech => {
+      const tier = (tech as any).tier || tech.prerequisites.length + 1;
+      if (!byTier[tier]) byTier[tier] = [];
+      byTier[tier].push(tech);
+    });
+    return byTier;
+  }, []);
+
   const techStatuses = useMemo(() => {
     if (!currentPlayer) return {};
     const statuses: Record<string, TechStatus> = {};
@@ -53,16 +63,6 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   }, [currentPlayer, availableTechs]);
   
   if (!open || !gameState || !currentPlayer) return null;
-
-  const tieredTechs = useMemo(() => {
-    const byTier: Record<number, Technology[]> = { 1: [], 2: [], 3: [] };
-    Object.values(TECHNOLOGIES).forEach(tech => {
-      const tier = (tech as any).tier || tech.prerequisites.length + 1;
-      if (!byTier[tier]) byTier[tier] = [];
-      byTier[tier].push(tech);
-    });
-    return byTier;
-  }, []);
 
   const matchesFilter = (tech: Technology) => {
     if (filter !== "all" && tech.category !== filter) return false;

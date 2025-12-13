@@ -91,3 +91,67 @@ canvas {
     animation: sparkle-slow 12s linear infinite;
   }
 }
+
+/* Touch Mode Styles */
+.touch-mode {
+  /* Increase tap targets to 44px minimum */
+  --touch-min-size: 44px;
+  
+  /* Larger scrollbars */
+  --scrollbar-size: 12px;
+}
+
+/* Touch-friendly button sizing */
+.touch-mode button,
+.touch-mode [role="button"] {
+  min-height: var(--touch-min-size);
+  min-width: var(--touch-min-size);
+}
+
+/* Momentum scrolling for touch */
+.touch-mode .scroll-container,
+.touch-mode [data-radix-scroll-area-viewport] {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Larger scrollbars in touch mode */
+.touch-mode ::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+.touch-mode ::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
+.touch-mode ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.touch-mode ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Touch-friendly spacing */
+.touch-mode .touch-spacing {
+  padding: 12px 16px;
+  gap: 12px;
+}
+
+/* Disable hover-only states on touch */
+@media (hover: none) {
+  .hover-only {
+    display: none !important;
+  }
+}
+
+/* Touch selection highlight */
+.touch-selected {
+  outline: 3px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 2px;
+}
