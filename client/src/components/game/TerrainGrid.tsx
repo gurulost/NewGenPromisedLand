@@ -35,8 +35,13 @@ export default function TerrainGrid({ map }: TerrainGridProps) {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
       const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
       
-      // Check visibility states
-      const isCurrentlyVisible = (gameState as any).visibility?.[currentPlayer.id]?.has(tileKey) || false;
+      // Check visibility states (handle both Set and Array formats)
+      const playerVisibility = (gameState as any).visibility?.[currentPlayer.id];
+      const isCurrentlyVisible = playerVisibility 
+        ? (typeof playerVisibility.has === 'function' 
+            ? playerVisibility.has(tileKey) 
+            : Array.isArray(playerVisibility) && playerVisibility.includes(tileKey))
+        : false;
       const hasBeenExplored = tile.exploredBy?.includes(currentPlayer.id) || false;
       
       // Check for special features

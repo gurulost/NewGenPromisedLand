@@ -26,7 +26,13 @@ export default function WaterAnimation({ map }: WaterAnimationProps) {
       if (tile.terrain !== 'water') return false;
       
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      const isCurrentlyVisible = gameState?.visibility?.[currentPlayer.id]?.has(tileKey) || false;
+      // Handle both Set and Array formats for visibility
+      const playerVisibility = gameState?.visibility?.[currentPlayer.id];
+      const isCurrentlyVisible = playerVisibility 
+        ? (typeof playerVisibility.has === 'function' 
+            ? playerVisibility.has(tileKey) 
+            : Array.isArray(playerVisibility) && playerVisibility.includes(tileKey))
+        : false;
       const hasBeenExplored = tile.exploredBy?.includes(currentPlayer.id) || false;
       
       return isCurrentlyVisible || hasBeenExplored;
