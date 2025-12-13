@@ -28,7 +28,7 @@ export function initWebVitals(config?: { sessionId?: string; onReport?: WebVital
     };
 
     // Log to console in development
-    if (process.env.NODE_ENV === 'development') {
+    if ((import.meta as any).env?.DEV) {
       console.log(`[Web Vitals] ${metric.name}:`, {
         value: metric.value,
         rating: metric.rating,
