@@ -1,5 +1,5 @@
 import { useLocalGame } from "../../lib/stores/useLocalGame";
-import { hexToPixel } from "@shared/utils/hex";
+import { hexToPixel, hexDistance } from "@shared/utils/hex";
 import { Box, Cylinder, Sphere, Cone, Torus, useGLTF, Html } from "@react-three/drei";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useMemo } from "react";
@@ -267,6 +267,20 @@ export default function MapFeatures() {
         // Add all visible tiles to the set
         unitVisibleTiles.forEach((tileKey: string) => visible.add(tileKey));
       });
+
+    // Add visibility around owned cities
+    const CITY_VISION_RADIUS = 2;
+    const ownedCities = gameState.cities?.filter(city => city.ownerId === currentPlayer.id) || [];
+    ownedCities.forEach(city => {
+      gameState.map.tiles.forEach(tile => {
+        const distance = hexDistance(city.coordinate, tile.coordinate);
+        if (distance <= CITY_VISION_RADIUS) {
+          const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
+          visible.add(tileKey);
+          explored.add(tileKey);
+        }
+      });
+    });
     
     // Filter cities that are currently visible only (not just explored)
     const cities = gameState.cities?.filter(city => {

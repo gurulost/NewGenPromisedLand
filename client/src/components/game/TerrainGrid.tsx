@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { GameMap } from '@shared/types/game';
-import { hexToPixel } from '@shared/utils/hex';
+import { hexToPixel, hexDistance } from '@shared/utils/hex';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
 import TerrainTile from './TerrainTile';
 
@@ -30,13 +30,22 @@ export default function TerrainGrid({ map }: TerrainGridProps) {
   // Calculate fog of war states for all tiles
   const tileStates = useMemo(() => {
     if (!currentPlayer) return [];
+    const CITY_VISION_RADIUS = 2;
     
     return map.tiles.map(tile => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
       const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
       
       // Check visibility states
-      const isCurrentlyVisible = (gameState as any).visibility?.[currentPlayer.id]?.has(tileKey) || false;
+      const isVisibleFromCity = gameState.cities?.some(city =>
+        city.ownerId === currentPlayer.id &&
+        hexDistance(city.coordinate, tile.coordinate) <= CITY_VISION_RADIUS
+      ) || false;
+
+      const isCurrentlyVisible =
+        (gameState as any).visibility?.[currentPlayer.id]?.has(tileKey) ||
+        isVisibleFromCity ||
+        false;
       const hasBeenExplored = tile.exploredBy?.includes(currentPlayer.id) || false;
       
       // Check for special features
