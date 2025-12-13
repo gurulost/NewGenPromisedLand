@@ -23,7 +23,6 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const { gameState, dispatch } = useLocalGame();
   const vibrate = useHaptic();
   const [selectedTech, setSelectedTech] = useState<string | null>(null);
-  const [hoveredTech, setHoveredTech] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<CategoryFilter>("all");
 
@@ -169,6 +168,8 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     const isMatch = matchesFilter(techId);
     if (!isMatch) return null;
 
+    const isSelected = selectedTech === techId;
+
     return (
       <div
         className="absolute transition-all duration-300"
@@ -180,14 +181,13 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
         }}
       >
         <Card
-          className={`h-full relative overflow-hidden border-2 ${getTechStatusStyles(status)} cursor-pointer hover:-translate-y-1 hover:shadow-xl transition-all`}
-          onClick={() => {
+          className={`h-full relative overflow-hidden border-2 ${getTechStatusStyles(status)} cursor-pointer hover:-translate-y-1 hover:shadow-xl transition-all ${isSelected ? 'ring-2 ring-white scale-105 z-10' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent drag/click-through
             vibrate('light'); // Slight feedback on selection
             setSelectedTech(techId);
-            if (status === "available") handleResearchTech(techId);
+            // Removed auto-research here. User must confirm in side panel.
           }}
-          onMouseEnter={() => setHoveredTech(techId)}
-          onMouseLeave={() => setHoveredTech(null)}
         >
           {/* Connecting Nodes (dots) for visual connections */}
           <div className="absolute top-1/2 -left-1 w-2 h-2 bg-current rounded-full opacity-50" />
@@ -285,7 +285,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     );
   };
 
-  const detailTech = selectedTech ? TECHNOLOGIES[selectedTech] : hoveredTech ? TECHNOLOGIES[hoveredTech] : null;
+  const detailTech = selectedTech ? TECHNOLOGIES[selectedTech] : null;
 
   // Drag to scroll logic
   const containerRef = useRef<HTMLDivElement>(null);
