@@ -45,7 +45,12 @@ export default function GameUI() {
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
   
-  if (!gameState) return null;
+  console.log('[GameUI] Rendering, gameState exists:', !!gameState, 'players:', gameState?.players?.length, 'currentPlayerIndex:', gameState?.currentPlayerIndex);
+  
+  if (!gameState) {
+    console.warn('[GameUI] gameState is null, returning null');
+    return null;
+  }
 
   // Enable AI opponents
   useAITurn();
