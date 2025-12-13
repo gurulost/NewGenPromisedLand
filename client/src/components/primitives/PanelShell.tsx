@@ -74,7 +74,7 @@ export function PanelShell({
       <Dialog 
         as="div" 
         className={clsx(
-          "fixed inset-0 z-50",
+          "fixed inset-0 z-50 pointer-events-auto",
           fullScreen ? "flex" : "flex items-center justify-center p-4"
         )}
         onClose={onClose}
@@ -90,7 +90,7 @@ export function PanelShell({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md" />
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md pointer-events-auto" aria-hidden="true" />
         </Transition.Child>
 
         {/* Panel */}
