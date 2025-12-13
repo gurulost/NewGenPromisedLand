@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import { useSfxEngine } from '../../hooks/useSfx';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTouchMode } from '../../hooks/useTouchMode';
+import { useHaptic } from '../../hooks/useHaptic';
 
 interface GlowingButtonProps extends Omit<ButtonProps, 'onClick'> {
   onClick?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
@@ -55,6 +56,7 @@ export function GlowingButton({
   const reducedMotion = useReducedMotion();
   const { isTouchDevice } = useTouchMode();
   const playSfx = useSfxEngine();
+  const haptic = useHaptic();
 
   const handleClick = (e?: React.MouseEvent<HTMLButtonElement>) => {
     if (!disabled && onClick) {
@@ -66,6 +68,7 @@ export function GlowingButton({
   const handleTouchEnd = (e: React.TouchEvent) => {
     e.preventDefault();
     if (!disabled && onClick) {
+      haptic('light');
       playSfx('cta-click');
       onClick();
     }
@@ -89,12 +92,13 @@ export function GlowingButton({
         onClick={handleClick}
         onTouchEnd={isTouchDevice ? handleTouchEnd : undefined}
         disabled={disabled}
+        tabIndex={disabled ? -1 : undefined}
         className={clsx(
           "relative overflow-hidden transition-all duration-200 flex items-center justify-center gap-2",
           "shadow-lg hover:shadow-xl",
           glowStyles[glowColor][intensity],
-          disabled && "opacity-50 cursor-not-allowed",
-          isTouchDevice && "min-h-[44px] min-w-[44px] touch-spacing",
+          disabled && "opacity-50 cursor-not-allowed pointer-events-none",
+          isTouchDevice && "min-h-[48px] min-w-[48px] touch-spacing",
           className
         )}
         {...props}
