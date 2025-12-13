@@ -2,7 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GameMap } from '@shared/types/game';
-import { hexToPixel } from '@shared/utils/hex';
+import { hexToPixel, hexDistance } from '@shared/utils/hex';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
 
 interface WaterAnimationProps {
@@ -21,12 +21,21 @@ export default function WaterAnimation({ map }: WaterAnimationProps) {
   // Find all water tiles that are visible or explored
   const waterTiles = useMemo(() => {
     if (!currentPlayer) return [];
+    const CITY_VISION_RADIUS = 2;
     
     return map.tiles.filter(tile => {
       if (tile.terrain !== 'water') return false;
       
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      const isCurrentlyVisible = gameState?.visibility?.[currentPlayer.id]?.has(tileKey) || false;
+      const isVisibleFromCity = gameState?.cities?.some(city =>
+        city.ownerId === currentPlayer.id &&
+        hexDistance(city.coordinate, tile.coordinate) <= CITY_VISION_RADIUS
+      ) || false;
+
+      const isCurrentlyVisible =
+        gameState?.visibility?.[currentPlayer.id]?.has(tileKey) ||
+        isVisibleFromCity ||
+        false;
       const hasBeenExplored = tile.exploredBy?.includes(currentPlayer.id) || false;
       
       return isCurrentlyVisible || hasBeenExplored;
