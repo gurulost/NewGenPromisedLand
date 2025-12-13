@@ -25,6 +25,14 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const [selectedTech, setSelectedTech] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<CategoryFilter>("all");
+  
+  // Drag to scroll state - must be before any early returns
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [startY, setStartY] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const [scrollTop, setScrollTop] = useState(0);
 
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
   const availableTechs = currentPlayer ? getAvailableTechnologies(currentPlayer.researchedTechs) : [];
@@ -287,14 +295,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
 
   const detailTech = selectedTech ? TECHNOLOGIES[selectedTech] : null;
 
-  // Drag to scroll logic
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [startY, setStartY] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
-  const [scrollTop, setScrollTop] = useState(0);
-
+  // Drag to scroll handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
     setIsDragging(true);
