@@ -101,6 +101,13 @@ export default function HandoffScreen() {
   }
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  
+  // Guard against undefined currentPlayer (can happen during turn transitions with 4+ players)
+  if (!currentPlayer) {
+    console.warn('HandoffScreen: currentPlayer is undefined at index', gameState.currentPlayerIndex);
+    return null;
+  }
+
   const faction = getFaction(currentPlayer.factionId as any);
 
   const handleStartTurn = () => {

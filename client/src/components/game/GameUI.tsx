@@ -50,13 +50,28 @@ export default function GameUI() {
   // Enable AI opponents
   useAITurn();
 
+  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  
+  // Guard against undefined currentPlayer (can happen during turn transitions with 4+ players)
+  if (!currentPlayer) {
+    console.warn('GameUI: currentPlayer is undefined at index', gameState.currentPlayerIndex);
+    return null;
+  }
+
+  const faction = getFaction(currentPlayer.factionId as any);
+
   // Enhanced end turn with transition  
   const handleEndTurn = () => {
-    if (!gameState) return;
+    if (!gameState || !currentPlayer) return;
     
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
     const nextPlayer = gameState.players[nextPlayerIndex];
+    
+    // Guard against undefined next player
+    if (!nextPlayer) {
+      console.warn('GameUI: nextPlayer is undefined at index', nextPlayerIndex);
+      return;
+    }
     
     // Start turn transition animation
     startTransition(nextPlayer);
@@ -67,9 +82,6 @@ export default function GameUI() {
       completeTransition();
     }, 1000);
   };
-
-  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  const faction = getFaction(currentPlayer.factionId as any);
 
   // Keyboard controls
   useEffect(() => {
