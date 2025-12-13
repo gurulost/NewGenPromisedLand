@@ -175,8 +175,8 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
       disabled={disabled}
       aria-label="More information"
     >
-      {/* Animated glow effect */}
-      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-400/40 to-blue-600/40 animate-pulse group-hover:animate-none" />
+      {/* Subtle glow effect - no animation */}
+      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-400/30 to-blue-600/30" />
       
       {/* Info icon with enhanced styling */}
       <Info className="relative z-10 w-4 h-4 drop-shadow-sm transition-transform duration-300 group-hover:scale-110" />
