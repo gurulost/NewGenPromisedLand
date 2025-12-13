@@ -4,12 +4,13 @@ import clsx from 'clsx';
 
 import { useSfxEngine } from '../../hooks/useSfx';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { useTouchMode } from '../../hooks/useTouchMode';
 
 type GlowingVariant = 'primary' | 'secondary' | 'ghost';
 type GlowingSize = 'sm' | 'md' | 'lg' | 'xl';
 
 interface GlowingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  onClick?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
+  onClick?: (event?: React.MouseEvent<HTMLButtonElement> | React.TouchEvent<HTMLButtonElement>) => void;
   glowColor?: 'amber' | 'blue' | 'red' | 'green' | 'purple';
   intensity?: 'low' | 'medium' | 'high';
   variant?: GlowingVariant;
@@ -81,25 +82,34 @@ export function GlowingButton({
   ...props
 }: GlowingButtonProps) {
   const reducedMotion = useReducedMotion();
+  const { isTouchDevice } = useTouchMode();
   const playSfx = useSfxEngine();
   const paletteChoice = palette[glowColor];
 
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleClick = (
+    event?: React.MouseEvent<HTMLButtonElement> | React.TouchEvent<HTMLButtonElement>
+  ) => {
     if (disabled) return;
     playSfx(soundEffect);
     onClick?.(event);
   };
 
-  const motionProps = reducedMotion || disabled
-    ? {}
-    : {
-        whileTap: { scale: 0.985, y: 0 },
-        whileHover: {
-          scale: 1.01,
-          y: -1,
-          transition: { duration: 0.15, ease: 'easeOut' },
-        },
-      };
+  const handleTouchEnd = (event: React.TouchEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    handleClick(event);
+  };
+
+  const motionProps =
+    reducedMotion || disabled || isTouchDevice
+      ? {}
+      : {
+          whileTap: { scale: 0.985, y: 0 },
+          whileHover: {
+            scale: 1.01,
+            y: -1,
+            transition: { duration: 0.15, ease: 'easeOut' },
+          },
+        };
 
   const variantStyles: Record<GlowingVariant, string> = {
     primary: clsx(
@@ -128,6 +138,7 @@ export function GlowingButton({
       type="button"
       data-testid="glowing-button"
       onClick={handleClick}
+      onTouchEnd={isTouchDevice ? handleTouchEnd : undefined}
       disabled={disabled}
       className={clsx(
         'relative inline-flex items-center justify-center overflow-hidden rounded-2xl font-semibold tracking-wide transition-all duration-200',
