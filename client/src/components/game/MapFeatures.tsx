@@ -271,7 +271,12 @@ export default function MapFeatures() {
     // Filter cities that are currently visible only (not just explored)
     const cities = gameState.cities?.filter(city => {
       const cityKey = `${city.coordinate.q},${city.coordinate.r}`;
-      return visible.has(cityKey); // Only currently visible, not explored
+      // Show cities if currently visible OR explored OR owned by the current player
+      return (
+        visible.has(cityKey) ||
+        explored.has(cityKey) ||
+        currentPlayer.citiesOwned.includes(city.id)
+      );
     }) || [];
     
     // Filter improvements that are currently visible only (not just explored)
