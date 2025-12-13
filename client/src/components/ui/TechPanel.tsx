@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 import { Badge } from "./badge";
@@ -8,6 +8,8 @@ import { Input } from "./input";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { TECHNOLOGIES, calculateResearchCost, getAvailableTechnologies, type Technology } from "@shared/data/technologies";
 import { Star, Book, Swords, Church, Map, Lock, CheckCircle, Clock, Sparkles, Filter, ArrowUpRight, Search, XCircle, Link as LinkIcon } from "lucide-react";
+import { TECH_LAYOUT, CELL_WIDTH, CELL_HEIGHT, COL_GAP, ROW_GAP, CANVAS_PADDING } from "../tech/techLayout";
+import { useHaptic } from "../../hooks/useHaptic";
 
 interface TechPanelProps {
   open: boolean;
@@ -17,33 +19,18 @@ interface TechPanelProps {
 type TechStatus = "researched" | "available" | "locked" | "researching";
 type CategoryFilter = "all" | Technology["category"];
 
-const TIERS = [
-  { id: 1, title: "Foundations", accent: "from-amber-300/40 via-amber-500/10 to-transparent", motif: "bg-gradient-to-br from-amber-500/10 to-transparent" },
-  { id: 2, title: "Growth", accent: "from-emerald-300/40 via-emerald-500/10 to-transparent", motif: "bg-gradient-to-br from-emerald-500/10 to-transparent" },
-  { id: 3, title: "Mastery", accent: "from-indigo-300/40 via-indigo-500/10 to-transparent", motif: "bg-gradient-to-br from-indigo-500/10 to-transparent" },
-];
-
 export default function TechPanel({ open, onClose }: TechPanelProps) {
   const { gameState, dispatch } = useLocalGame();
+  const vibrate = useHaptic();
   const [selectedTech, setSelectedTech] = useState<string | null>(null);
   const [hoveredTech, setHoveredTech] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<CategoryFilter>("all");
-  
+
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
   const availableTechs = currentPlayer ? getAvailableTechnologies(currentPlayer.researchedTechs) : [];
   const researchedCount = currentPlayer?.researchedTechs.length || 0;
   const normalizedSearch = search.trim().toLowerCase();
-
-  const tieredTechs = useMemo(() => {
-    const byTier: Record<number, Technology[]> = { 1: [], 2: [], 3: [] };
-    Object.values(TECHNOLOGIES).forEach(tech => {
-      const tier = (tech as any).tier || tech.prerequisites.length + 1;
-      if (!byTier[tier]) byTier[tier] = [];
-      byTier[tier].push(tech);
-    });
-    return byTier;
-  }, []);
 
   const techStatuses = useMemo(() => {
     if (!currentPlayer) return {};
@@ -61,10 +48,11 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     });
     return statuses;
   }, [currentPlayer, availableTechs]);
-  
+
   if (!open || !gameState || !currentPlayer) return null;
 
-  const matchesFilter = (tech: Technology) => {
+  const matchesFilter = (techId: string) => {
+    const tech = TECHNOLOGIES[techId];
     if (filter !== "all" && tech.category !== filter) return false;
     if (!normalizedSearch) return true;
     return (
@@ -80,10 +68,13 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     const cost = calculateResearchCost(tech, researchedCount);
     const prerequisitesMet = tech.prerequisites.every(pr => currentPlayer.researchedTechs.includes(pr));
     if (status === "available" && prerequisitesMet && currentPlayer.stars >= cost) {
+      vibrate('success'); // Tactical vibration on research
       dispatch({
         type: "RESEARCH_TECHNOLOGY",
         payload: { playerId: currentPlayer.id, technologyId: techId },
       });
+    } else {
+      vibrate('error'); // Feedback for failed actions
     }
   };
 
@@ -98,14 +89,14 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
 
   const getTechStatusStyles = (status: TechStatus) => {
     switch (status) {
-      case "researched": 
-        return "bg-gradient-to-br from-green-500 to-green-600 border-green-400 shadow-green-500/25 shadow-lg text-white";
-      case "available": 
-        return "bg-gradient-to-br from-blue-500 to-blue-600 border-blue-400 shadow-blue-500/25 shadow-lg text-white hover:shadow-blue-500/40 hover:scale-105 cursor-pointer";
-      case "researching": 
-        return "bg-gradient-to-br from-yellow-500 to-yellow-600 border-yellow-400 shadow-yellow-500/25 shadow-lg text-white animate-pulse";
-      case "locked": 
-        return "bg-gradient-to-br from-gray-600 to-gray-700 border-gray-500 text-gray-300 opacity-60";
+      case "researched":
+        return "bg-gradient-to-br from-green-900/80 to-green-950/90 border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.3)] text-green-50";
+      case "available":
+        return "bg-gradient-to-br from-blue-900/80 to-slate-900/90 border-blue-400/60 shadow-[0_0_15px_rgba(59,130,246,0.3)] text-blue-50 hover:scale-105 cursor-pointer hover:border-blue-300";
+      case "researching":
+        return "bg-gradient-to-br from-amber-900/80 to-amber-950/90 border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.4)] text-amber-50 animate-pulse";
+      case "locked":
+        return "bg-slate-900/90 border-slate-700 text-slate-500 opacity-80 grayscale";
     }
   };
 
@@ -145,346 +136,389 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     );
   };
 
-  const Legend = () => (
-    <div className="flex flex-wrap gap-3 text-xs text-amber-100/70">
-      <LegendPill color="bg-green-500" label="Researched" />
-      <LegendPill color="bg-blue-500" label="Available" />
-      <LegendPill color="bg-yellow-500" label="Researching" />
-      <LegendPill color="bg-slate-600" label="Locked" />
-    </div>
-  );
+  const UnlockBadge = ({ type, name }: { type: 'unit' | 'building' | 'ability' | 'improvement', name: string }) => {
+    const getIcon = () => {
+      switch (type) {
+        case 'unit': return '⚔️';
+        case 'building': return '🏛️';
+        case 'improvement': return '🔨';
+        case 'ability': return '✨';
+      }
+    };
 
-  const LegendPill = ({ color, label }: { color: string; label: string }) => (
-    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/70 border border-slate-700">
-      <span className={`w-3 h-3 rounded-full ${color}`} />
-      <span>{label}</span>
-    </span>
-  );
-
-  const FilterPills = () => (
-    <div className="flex flex-wrap gap-2">
-      {["all", "economic", "military", "religious", "exploration"].map(cat => (
-        <button
-          key={cat}
-          onClick={() => setFilter(cat as CategoryFilter)}
-          className={`px-3 py-1 rounded-full text-xs font-semibold border transition ${
-            filter === cat
-              ? "border-amber-400 bg-amber-500/20 text-amber-100"
-              : "border-slate-600 bg-slate-800/60 text-slate-200 hover:border-amber-400/60"
-          }`}
-        >
-          {cat === "all" ? "All" : cat[0].toUpperCase() + cat.slice(1)}
-        </button>
-      ))}
-    </div>
-  );
-
-  const TechCard = ({ tech }: { tech: Technology }) => {
-    const status = techStatuses[tech.id] || "locked";
-    const cost = calculateResearchCost(tech, researchedCount);
-    const prereqsMet = tech.prerequisites.every(pr => currentPlayer.researchedTechs.includes(pr));
-    const canAfford = currentPlayer.stars >= cost;
-    const actionable = status === "available" && prereqsMet && canAfford;
-    const prereqBadges = tech.prerequisites.map(pr => ({
-      id: pr,
-      name: TECHNOLOGIES[pr]?.name || pr,
-      met: currentPlayer.researchedTechs.includes(pr),
-    }));
+    // Format name (replace underscores with spaces and capitalize)
+    const displayName = name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
     return (
-      <Card
-        key={tech.id}
-        className={`relative overflow-hidden border ${getTechStatusStyles(status)} transition hover:translate-y-[-2px]`}
-        onMouseEnter={() => setHoveredTech(tech.id)}
-        onMouseLeave={() => setHoveredTech(null)}
+      <div className="flex items-center gap-2 p-2 rounded bg-white/5 border border-white/10">
+        <span className="text-xl">{getIcon()}</span>
+        <span className="text-sm font-medium text-amber-100">{displayName}</span>
+      </div>
+    );
+  };
+
+  const TechNode = ({ techId }: { techId: string }) => {
+    const tech = TECHNOLOGIES[techId];
+    const pos = TECH_LAYOUT[techId];
+    if (!tech || !pos) return null;
+
+    const status = techStatuses[techId] || "locked";
+    const x = pos.x * (CELL_WIDTH + COL_GAP) + CANVAS_PADDING;
+    const y = pos.y * (CELL_HEIGHT + ROW_GAP) + CANVAS_PADDING;
+
+    const isMatch = matchesFilter(techId);
+    if (!isMatch) return null;
+
+    return (
+      <div
+        className="absolute transition-all duration-300"
+        style={{
+          left: x,
+          top: y,
+          width: CELL_WIDTH,
+          height: CELL_HEIGHT,
+        }}
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-20 pointer-events-none" />
-        <CardHeader className="pb-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {getTechStatusIcon(status)}
-            <CardTitle className="text-lg">{tech.name}</CardTitle>
-          </div>
-          <Badge variant="outline" className="bg-black/20 border-white/10">
-            {getCategoryIcon(tech.category)}
-          </Badge>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-white/80 leading-relaxed min-h-[48px]">{tech.description}</p>
-          <div className="flex items-center gap-3 text-xs text-white/80">
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-black/30">
-              <Star className="w-3 h-3" /> {cost} stars
-            </span>
-            {tech.prerequisites.length > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-black/30">
-                <Lock className="w-3 h-3" /> {tech.prerequisites.length} prereq{tech.prerequisites.length > 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
-          {prereqBadges.length > 0 && (
-            <div className="flex flex-wrap gap-2 text-xs">
-              {prereqBadges.map(pr => (
-                <Badge
-                  key={pr.id}
-                  variant="outline"
-                  className={`border ${pr.met ? "border-green-400 text-green-200" : "border-slate-600 text-slate-300"} bg-black/20`}
-                >
-                  <LinkIcon className="w-3 h-3 mr-1" />
-                  {pr.name}
-                </Badge>
-              ))}
+        <Card
+          className={`h-full relative overflow-hidden border-2 ${getTechStatusStyles(status)} cursor-pointer hover:-translate-y-1 hover:shadow-xl transition-all`}
+          onClick={() => {
+            vibrate('light'); // Slight feedback on selection
+            setSelectedTech(techId);
+            if (status === "available") handleResearchTech(techId);
+          }}
+          onMouseEnter={() => setHoveredTech(techId)}
+          onMouseLeave={() => setHoveredTech(null)}
+        >
+          {/* Connecting Nodes (dots) for visual connections */}
+          <div className="absolute top-1/2 -left-1 w-2 h-2 bg-current rounded-full opacity-50" />
+          <div className="absolute top-1/2 -right-1 w-2 h-2 bg-current rounded-full opacity-50" />
+
+          <CardHeader className="p-3 pb-0">
+            <div className="flex justify-between items-start">
+              <Badge variant="outline" className="bg-black/30 border-white/20 text-[10px] uppercase tracking-wider mb-1">
+                {tech.category}
+              </Badge>
+              {getTechStatusIcon(status)}
             </div>
-          )}
-          <Button
-            disabled={!actionable}
-            onClick={() => handleResearchTech(tech.id)}
-            className="w-full flex items-center justify-center gap-2"
-          >
-            <ArrowUpRight className="w-4 h-4" />
-            {actionable ? "Research" : status === "researched" ? "Completed" : "Locked"}
-          </Button>
-        </CardContent>
-      </Card>
+            <CardTitle className="text-base leading-tight mt-1">{tech.name}</CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-2">
+            <p className="text-xs opacity-70 line-clamp-2 mb-2 min-h-[2.5em]">{tech.description}</p>
+            <div className="flex items-center justify-between text-xs font-mono bg-black/20 rounded px-2 py-1">
+              <span className="flex items-center gap-1">
+                <Star className="w-3 h-3 text-amber-400" />
+                {calculateResearchCost(tech, researchedCount)}
+              </span>
+              {status === 'researching' && <span className="text-amber-400 animate-pulse">Researching...</span>}
+              {status === 'researched' && <span className="text-green-400">Acquired</span>}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  const Connections = () => {
+    return (
+      <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+        <defs>
+          <linearGradient id="line-gradient-locked" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#475569" />
+            <stop offset="100%" stopColor="#475569" />
+          </linearGradient>
+          <linearGradient id="line-gradient-active" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#3b82f6" />
+            <stop offset="100%" stopColor="#22c55e" />
+          </linearGradient>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+          </marker>
+          <marker id="arrowhead-active" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+          </marker>
+        </defs>
+        {Object.keys(TECH_LAYOUT).map(techId => {
+          const tech = TECHNOLOGIES[techId];
+          const endPos = TECH_LAYOUT[techId];
+          if (!tech || !endPos) return null;
+
+          return tech.prerequisites.map(prereqId => {
+            const startPos = TECH_LAYOUT[prereqId];
+            if (!startPos) return null;
+
+            // Coordinates
+            const startX = startPos.x * (CELL_WIDTH + COL_GAP) + CANVAS_PADDING + CELL_WIDTH;
+            const startY = startPos.y * (CELL_HEIGHT + ROW_GAP) + CANVAS_PADDING + (CELL_HEIGHT / 2);
+            const endX = endPos.x * (CELL_WIDTH + COL_GAP) + CANVAS_PADDING;
+            const endY = endPos.y * (CELL_HEIGHT + ROW_GAP) + CANVAS_PADDING + (CELL_HEIGHT / 2);
+
+            // Tech Status
+            const isPrereqMet = currentPlayer.researchedTechs.includes(prereqId);
+            const isDestinationResearched = currentPlayer.researchedTechs.includes(techId);
+            const strokeColor = isDestinationResearched ? "url(#line-gradient-active)" : isPrereqMet ? "#3b82f6" : "#475569";
+            const opacity = isPrereqMet ? 0.8 : 0.3;
+            const width = isPrereqMet ? 3 : 2;
+            const marker = isPrereqMet ? "url(#arrowhead-active)" : "url(#arrowhead)";
+
+            // Curvy path (Bezier)
+            const controlPoint1X = startX + (COL_GAP / 2);
+            const controlPoint1Y = startY;
+            const controlPoint2X = endX - (COL_GAP / 2);
+            const controlPoint2Y = endY;
+
+            const d = `M ${startX} ${startY} C ${controlPoint1X} ${controlPoint1Y}, ${controlPoint2X} ${controlPoint2Y}, ${endX} ${endY}`;
+
+            return (
+              <path
+                key={`${prereqId}-${techId}`}
+                d={d}
+                stroke={strokeColor}
+                strokeWidth={width}
+                fill="none"
+                opacity={opacity}
+                markerEnd={marker}
+              />
+            );
+          });
+        })}
+      </svg>
     );
   };
 
   const detailTech = selectedTech ? TECHNOLOGIES[selectedTech] : hoveredTech ? TECHNOLOGIES[hoveredTech] : null;
 
+  // Drag to scroll logic
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [startY, setStartY] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const [scrollTop, setScrollTop] = useState(0);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!containerRef.current) return;
+    setIsDragging(true);
+    setStartX(e.pageX - containerRef.current.offsetLeft);
+    setStartY(e.pageY - containerRef.current.offsetTop);
+    setScrollLeft(containerRef.current.scrollLeft);
+    setScrollTop(containerRef.current.scrollTop);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !containerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - containerRef.current.offsetLeft;
+    const y = e.pageY - containerRef.current.offsetTop;
+    const walkX = (x - startX) * 1.5; // Scroll speed multiplier
+    const walkY = (y - startY) * 1.5;
+    containerRef.current.scrollLeft = scrollLeft - walkX;
+    containerRef.current.scrollTop = scrollTop - walkY;
+  };
+
+  // Touch support for iPad/Mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!containerRef.current) return;
+    setIsDragging(true);
+    setStartX(e.touches[0].pageX - containerRef.current.offsetLeft);
+    setStartY(e.touches[0].pageY - containerRef.current.offsetTop);
+    setScrollLeft(containerRef.current.scrollLeft);
+    setScrollTop(containerRef.current.scrollTop);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || !containerRef.current) return;
+    // Prevent default to stop page swipe-back or scaling behavior
+    e.preventDefault();
+
+    // but be careful not to block UI interactions if overlapping
+    // In this case, dragging the map is the primary action.
+    const x = e.touches[0].pageX - containerRef.current.offsetLeft;
+    const y = e.touches[0].pageY - containerRef.current.offsetTop;
+    const walkX = (x - startX) * 1.5;
+    const walkY = (y - startY) * 1.5;
+    containerRef.current.scrollLeft = scrollLeft - walkX;
+    containerRef.current.scrollTop = scrollTop - walkY;
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+
   return (
-    <div 
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4"
+    <div
+      className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto p-0 md:p-6"
       style={{ pointerEvents: "auto" }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
+        if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="w-full h-full max-w-7xl max-h-[90vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 rounded-2xl shadow-2xl shadow-amber-500/10 overflow-hidden"
+        className="w-full h-full max-w-[95vw] max-h-[95vh] bg-slate-950 border border-slate-700/50 rounded-xl shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_left,#fde68a_0%,transparent_30%)]" />
-          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_bottom_right,#a78bfa_0%,transparent_35%)]" />
-        </div>
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20 p-6">
-          <div className="flex justify-between items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-amber-600 to-amber-700 rounded-lg shadow-lg shadow-amber-500/25">
-                <Book className="w-7 h-7 text-amber-100" />
-              </div>
-              <div>
-                <h1 className="font-cinzel text-2xl font-bold text-amber-100">Sacred Knowledge Tree</h1>
-                <p className="text-amber-300/70 text-sm">Book of Mormon Technologies</p>
+        <div className="h-20 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0 z-20 shadow-xl">
+          <div className="flex items-center gap-4">
+            <div className="p-2.5 bg-gradient-to-br from-amber-600 to-amber-800 rounded-lg shadow-lg border border-amber-500/30">
+              <Book className="w-6 h-6 text-amber-50" />
+            </div>
+            <div>
+              <h1 className="font-cinzel text-2xl font-bold text-amber-50 tracking-wide">Sacred Knowledge</h1>
+              <div className="flex items-center gap-3 text-sm text-slate-400">
+                <span className="flex items-center gap-1.5"><Star className="w-3.5 h-3.5 text-amber-400" /> {currentPlayer.stars} Stars Available</span>
               </div>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <Badge variant="outline" className="border-amber-500/40 text-amber-200 bg-amber-500/10">
-                <Star className="w-4 h-4 mr-2" />
-                Stars: {currentPlayer.stars}
-              </Badge>
-              
-              <Button variant="secondary" onClick={onClose}>
-                Close
-              </Button>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-col gap-3">
-            <div className="flex flex-wrap gap-3 items-center">
-              <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/60 rounded-lg border border-slate-700">
-                <Filter className="w-4 h-4 text-amber-200" />
-                <span className="text-sm text-amber-100">Filter by category</span>
-              </div>
-              <FilterPills />
-            </div>
-            <div className="flex flex-wrap gap-3 items-center">
-              <div className="relative w-64">
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search technologies..."
-                  className="pl-9 bg-slate-800 border-slate-700 text-white"
-                />
-                <Search className="w-4 h-4 text-amber-200 absolute left-3 top-1/2 -translate-y-1/2" />
-                {search && (
-                  <button
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-200"
-                    onClick={() => setSearch("")}
-                  >
-                    <XCircle className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-              <div className="flex-1">
-                <ProgressSummary />
-              </div>
-            </div>
-            <Legend />
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-3 gap-6 p-6 h-[calc(90vh-96px)] relative z-10">
-          {/* Tiered tree */}
-          <div className="col-span-2 overflow-y-auto pr-2 space-y-6">
-            {TIERS.map(tier => (
-              <div key={tier.id} className={`space-y-3 rounded-xl border border-amber-500/10 p-3 relative overflow-hidden`}>
-                <div className={`absolute inset-0 pointer-events-none ${tier.accent}`} />
-                <div className="flex items-center justify-between">
-                  <h2 className="text-amber-100 font-semibold flex items-center gap-2">
-                    <span className="text-xs uppercase tracking-wide text-amber-300/70">Tier {tier.id}</span>
-                    <span className="text-lg">{tier.title}</span>
-                  </h2>
-                  <Separator className="flex-1 ml-3 bg-amber-500/30" />
-                </div>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 relative z-10">
-                  {(tieredTechs[tier.id] || [])
-                    .filter(matchesFilter)
-                    .map(tech => (
-                      <TechCard key={tech.id} tech={tech} />
-                    ))}
-                </div>
-              </div>
-            ))}
           </div>
 
-          {/* Detail sidebar */}
-          <div className="col-span-1">
-            <Card className="h-full bg-slate-800/60 border-amber-500/20">
-              <CardHeader>
-                <CardTitle className="text-amber-100">Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {!detailTech && (
-                  <p className="text-sm text-slate-300">
-                    Hover or select a technology to see its details, prerequisites, and benefits.
+          <div className="flex items-center gap-4">
+            <div className="w-64">
+              <ProgressSummary />
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-slate-800 rounded-full">
+              <XCircle className="w-8 h-8 text-slate-500 hover:text-white transition" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex overflow-hidden relative">
+
+          {/* Left: Scrollable Tech Tree Canvas */}
+          <div
+            ref={containerRef}
+            className="flex-1 relative overflow-auto bg-slate-950/50 cursor-grab active:cursor-grabbing custom-scrollbar select-none"
+            onMouseDown={handleMouseDown}
+            onMouseLeave={handleMouseLeave}
+            onMouseUp={handleMouseUp}
+            onMouseMove={handleMouseMove}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* Background Grid Pattern */}
+            <div className="absolute inset-0 w-[2000px] h-[1500px]"
+              style={{
+                backgroundImage: 'radial-gradient(circle, #334155 1px, transparent 1px)',
+                backgroundSize: '40px 40px',
+                opacity: 0.1
+              }}
+            />
+
+            {/* The Tree Layout */}
+            <div className="relative w-[1500px] h-[1000px]">
+              <Connections />
+              {Object.keys(TECH_LAYOUT).map(techId => (
+                <TechNode key={techId} techId={techId} />
+              ))}
+            </div>
+          </div>
+
+          {/* Right: Detail Sidebar */}
+          <div className="w-96 bg-slate-900 border-l border-slate-800 shrink-0 flex flex-col shadow-2xl z-20">
+            {detailTech ? (
+              <div className="flex flex-col h-full animate-in slide-in-from-right duration-300">
+                {/* Hero Image / Banner */}
+                <div className={`h-40 relative bg-gradient-to-br ${getCategoryGradient(detailTech.category)} p-6 flex flex-col justify-end`}>
+                  <div className="absolute inset-0 bg-black/20" />
+                  <div className="absolute top-4 right-4">
+                    {getCategoryIcon(detailTech.category)}
+                  </div>
+                  <div className="relative z-10">
+                    <div className="text-xs font-bold uppercase tracking-widest text-white/60 mb-1">{detailTech.category}</div>
+                    <h2 className="text-3xl font-bold text-white leading-none">{detailTech.name}</h2>
+                  </div>
+                </div>
+
+                <div className="p-6 flex-1 overflow-y-auto space-y-6">
+                  {/* Description */}
+                  <p className="text-slate-300 leading-relaxed italic border-l-2 border-amber-500/30 pl-4 py-1">
+                    "{detailTech.description}"
                   </p>
-                )}
-                {detailTech && (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <Badge className={`bg-${getCategoryGradient(detailTech.category)} text-white border-white/10`}>
-                        {getCategoryIcon(detailTech.category)}
-                      </Badge>
-                      <h3 className="text-lg font-semibold text-amber-100">{detailTech.name}</h3>
+
+                  {/* Cost & Requirements */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-slate-800 rounded-lg border border-slate-700">
+                      <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Cost</div>
+                      <div className="flex items-center gap-2 text-amber-400 font-mono text-lg">
+                        <Star className="w-4 h-4" /> {calculateResearchCost(detailTech, researchedCount)}
+                      </div>
                     </div>
-                    <p className="text-sm text-slate-200 leading-relaxed">{detailTech.description}</p>
-                    <div className="space-y-2 text-sm text-amber-100/80">
-                      <div className="flex items-center gap-2">
-                        <Star className="w-4 h-4" />
-                        <span>Cost: {calculateResearchCost(detailTech, researchedCount)} stars</span>
+                    <div className="p-3 bg-slate-800 rounded-lg border border-slate-700">
+                      <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Time</div>
+                      <div className="flex items-center gap-2 text-blue-400 font-mono text-lg">
+                        <Clock className="w-4 h-4" /> Instant
                       </div>
-                      <div>
-                        <div className="font-semibold text-amber-200">Prerequisites</div>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {detailTech.prerequisites.length === 0 && (
-                            <Badge variant="outline" className="text-slate-200 border-slate-600">None</Badge>
-                          )}
-                          {detailTech.prerequisites.map(pr => (
-                            <Badge
-                              key={pr}
-                              variant="outline"
-                              className={`border ${currentPlayer.researchedTechs.includes(pr) ? "border-green-400 text-green-200" : "border-slate-600 text-slate-300"}`}
-                            >
-                              {TECHNOLOGIES[pr]?.name || pr}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="font-semibold text-amber-200">Unlocks</div>
-                        <div className="space-y-2 mt-2">
-                          {detailTech.unlocks.units && detailTech.unlocks.units.length > 0 && (
-                            <div className="flex flex-wrap gap-1 items-center">
-                              <Swords className="w-3 h-3 text-red-400" />
-                              <span className="text-xs text-slate-400 mr-1">Units:</span>
-                              {detailTech.unlocks.units.map(unit => (
-                                <Badge key={unit} variant="outline" className="text-xs border-red-400/50 text-red-200 bg-red-500/10">
-                                  {unit.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                          {detailTech.unlocks.improvements && detailTech.unlocks.improvements.length > 0 && (
-                            <div className="flex flex-wrap gap-1 items-center">
-                              <Map className="w-3 h-3 text-green-400" />
-                              <span className="text-xs text-slate-400 mr-1">Improvements:</span>
-                              {detailTech.unlocks.improvements.map(imp => (
-                                <Badge key={imp} variant="outline" className="text-xs border-green-400/50 text-green-200 bg-green-500/10">
-                                  {imp.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                          {detailTech.unlocks.structures && detailTech.unlocks.structures.length > 0 && (
-                            <div className="flex flex-wrap gap-1 items-center">
-                              <Church className="w-3 h-3 text-blue-400" />
-                              <span className="text-xs text-slate-400 mr-1">Buildings:</span>
-                              {detailTech.unlocks.structures.map(struct => (
-                                <Badge key={struct} variant="outline" className="text-xs border-blue-400/50 text-blue-200 bg-blue-500/10">
-                                  {struct.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                          {detailTech.unlocks.abilities && detailTech.unlocks.abilities.length > 0 && (
-                            <div className="flex flex-wrap gap-1 items-center">
-                              <Sparkles className="w-3 h-3 text-purple-400" />
-                              <span className="text-xs text-slate-400 mr-1">Abilities:</span>
-                              {detailTech.unlocks.abilities.map(ability => (
-                                <Badge key={ability} variant="outline" className="text-xs border-purple-400/50 text-purple-200 bg-purple-500/10">
-                                  {ability.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                          {(!detailTech.unlocks.units?.length && !detailTech.unlocks.improvements?.length && 
-                            !detailTech.unlocks.structures?.length && !detailTech.unlocks.abilities?.length) && (
-                            <p className="text-xs text-slate-400">No direct unlocks</p>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Technologies this unlocks */}
-                      {(() => {
-                        const unlockedTechs = Object.values(TECHNOLOGIES).filter(
-                          tech => tech.prerequisites.includes(detailTech.id)
-                        );
-                        if (unlockedTechs.length === 0) return null;
-                        return (
-                          <div className="pt-2 border-t border-amber-500/20">
-                            <div className="font-semibold text-amber-200 flex items-center gap-2">
-                              <ArrowUpRight className="w-4 h-4" />
-                              Leads To
-                            </div>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {unlockedTechs.map(tech => (
-                                <button
-                                  key={tech.id}
-                                  onClick={() => setSelectedTech(tech.id)}
-                                  className="group flex items-center gap-1 px-2 py-1 rounded bg-slate-700/50 border border-slate-600 hover:border-amber-400/50 transition text-left"
-                                >
-                                  {getCategoryIcon(tech.category)}
-                                  <span className="text-xs text-amber-100 group-hover:text-amber-200">{tech.name}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
                     </div>
-                    <Button
-                      disabled={techStatuses[detailTech.id] !== "available"}
-                      onClick={() => handleResearchTech(detailTech.id)}
-                      className="w-full flex items-center justify-center gap-2"
-                    >
-                      {techStatuses[detailTech.id] === "researched" ? "Completed" : "Research"}
-                    </Button>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                  </div>
+
+                  {/* Unlocks Section - The "Reward" Area */}
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <ArrowUpRight className="w-4 h-4 text-green-500" /> Unlocks
+                    </h3>
+                    <div className="grid grid-cols-1 gap-2">
+                      {/* Scan for all potential unlocks */}
+                      {detailTech.unlocks.units?.map(u => (
+                        <UnlockBadge key={u} type="unit" name={u} />
+                      ))}
+                      {detailTech.unlocks.structures?.map(s => (
+                        <UnlockBadge key={s} type="building" name={s} />
+                      ))}
+                      {detailTech.unlocks.improvements?.map(i => (
+                        <UnlockBadge key={i} type="improvement" name={i} />
+                      ))}
+                      {detailTech.unlocks.abilities?.map(a => (
+                        <UnlockBadge key={a} type="ability" name={a} />
+                      ))}
+
+                      {/* Fallback if nothing specific listed */}
+                      {(!detailTech.unlocks.units?.length && !detailTech.unlocks.structures?.length && !detailTech.unlocks.improvements?.length) && (
+                        <div className="text-sm text-slate-500 italic px-2">Advanced functionality</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Button */}
+                <div className="p-6 border-t border-slate-800 bg-slate-900/50">
+                  <Button
+                    size="lg"
+                    disabled={techStatuses[detailTech.id] !== "available"}
+                    onClick={() => handleResearchTech(detailTech.id)}
+                    className={`w-full text-lg font-bold h-14 shadow-xl active:scale-95 transition-all
+                        ${techStatuses[detailTech.id] === "available"
+                        ? "bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 border-amber-400/30"
+                        : "bg-slate-800 text-slate-500 border-slate-700"}
+                      `}
+                  >
+                    {techStatuses[detailTech.id] === "researched" ? (
+                      <span className="flex items-center gap-2"><CheckCircle className="w-6 h-6" /> Research Complete</span>
+                    ) : techStatuses[detailTech.id] === "locked" ? (
+                      <span className="flex items-center gap-2"><Lock className="w-5 h-5" /> Locked</span>
+                    ) : (
+                      <span className="flex items-center gap-2">Research Technology</span>
+                    )}
+                  </Button>
+                </div>
+
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-600 p-8 text-center">
+                <div className="w-20 h-20 rounded-full bg-slate-800/50 flex items-center justify-center mb-6 border border-slate-700">
+                  <Book className="w-8 h-8 opacity-50" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-400 mb-2">Knowledge Archive</h3>
+                <p>Select a technology node from the neural web to view its secrets.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
