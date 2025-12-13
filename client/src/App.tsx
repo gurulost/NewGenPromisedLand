@@ -10,9 +10,23 @@ import GameCanvas from "./components/game/GameCanvas";
 import GameUI from "./components/game/GameUI";
 import { CombatEffectsDemo } from "./components/effects/CombatEffectsDemo";
 import { ToastProvider } from "./components/ui/ToastProvider";
+import { useTouchModeProvider, TouchModeContext } from "./hooks/useTouchMode";
 import "@fontsource/inter";
 
 const queryClient = new QueryClient();
+
+function TouchModeProvider({ children }: { children: React.ReactNode }) {
+  const touchMode = useTouchModeProvider();
+  return (
+    <touchMode.TouchModeContext.Provider value={{
+      isTouchDevice: touchMode.isTouchDevice,
+      forceTouchMode: touchMode.forceTouchMode,
+      setForceTouchMode: touchMode.setForceTouchMode,
+    }}>
+      {children}
+    </touchMode.TouchModeContext.Provider>
+  );
+}
 
 // Define control keys for the game
 const controls = [
@@ -40,9 +54,10 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
-          <KeyboardControls map={controls}>
+      <TouchModeProvider>
+        <ToastProvider>
+          <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
+            <KeyboardControls map={controls}>
             {gamePhase === 'menu' && <MainMenu />}
             
             {gamePhase === 'playerSetup' && <PlayerSetup />}
@@ -89,9 +104,10 @@ function App() {
                 <GameUI />
               </>
             )}
-          </KeyboardControls>
-        </div>
-      </ToastProvider>
+            </KeyboardControls>
+          </div>
+        </ToastProvider>
+      </TouchModeProvider>
     </QueryClientProvider>
   );
 }
