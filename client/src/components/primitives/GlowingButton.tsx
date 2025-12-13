@@ -11,8 +11,13 @@ type GlowingVariant = 'primary' | 'secondary' | 'ghost';
 type GlowingSize = 'sm' | 'md' | 'lg' | 'xl';
 
 interface GlowingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+<<<<<<< HEAD
   onClick?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   glowColor?: 'amber' | 'blue' | 'red' | 'green' | 'purple' | 'slate' | 'none';
+=======
+  onClick?: (event?: React.MouseEvent<HTMLButtonElement> | React.TouchEvent<HTMLButtonElement>) => void;
+  glowColor?: 'amber' | 'blue' | 'red' | 'green' | 'purple';
+>>>>>>> b7e6bbac31bcee7c745a714b7535f0e2332f145f
   intensity?: 'low' | 'medium' | 'high';
   variant?: GlowingVariant;
   size?: GlowingSize;
@@ -57,6 +62,7 @@ const palette = {
     accentShadow: 'shadow-[0_14px_36px_-16px_rgba(129,140,248,0.55)]',
     text: 'text-slate-900',
   },
+<<<<<<< HEAD
   slate: {
     gradient: 'from-slate-200/95 via-slate-300/80 to-slate-500/90',
     border: 'border-slate-100/50',
@@ -71,6 +77,8 @@ const palette = {
     accentShadow: '',
     text: 'text-inherit',
   },
+=======
+>>>>>>> b7e6bbac31bcee7c745a714b7535f0e2332f145f
 };
 
 const sizeStyles: Record<GlowingSize, string> = {
@@ -86,7 +94,11 @@ const intensityStyles = {
   high: 'shadow-2xl',
 };
 
+<<<<<<< HEAD
 export const GlowingButton = forwardRef<HTMLButtonElement, GlowingButtonProps>(({
+=======
+export function GlowingButton({
+>>>>>>> b7e6bbac31bcee7c745a714b7535f0e2332f145f
   onClick,
   glowColor = 'amber',
   intensity = 'medium',
@@ -99,6 +111,7 @@ export const GlowingButton = forwardRef<HTMLButtonElement, GlowingButtonProps>((
   disabled,
   children,
   ...props
+<<<<<<< HEAD
 }, ref) => {
   const reducedMotion = useReducedMotion();
   const { isTouchDevice } = useTouchMode();
@@ -133,6 +146,60 @@ export const GlowingButton = forwardRef<HTMLButtonElement, GlowingButtonProps>((
           transition: { duration: 0.15, ease: 'easeOut' },
         },
       };
+=======
+}: GlowingButtonProps) {
+  const reducedMotion = useReducedMotion();
+  const { isTouchDevice } = useTouchMode();
+  const playSfx = useSfxEngine();
+  const paletteChoice = palette[glowColor];
+
+  const handleClick = (
+    event?: React.MouseEvent<HTMLButtonElement> | React.TouchEvent<HTMLButtonElement>
+  ) => {
+    if (disabled) return;
+    playSfx(soundEffect);
+    onClick?.(event);
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    handleClick(event);
+  };
+
+  const motionProps =
+    reducedMotion || disabled || isTouchDevice
+      ? {}
+      : {
+          whileTap: { scale: 0.985, y: 0 },
+          whileHover: {
+            scale: 1.01,
+            y: -1,
+            transition: { duration: 0.15, ease: 'easeOut' },
+          },
+        };
+
+  const variantStyles: Record<GlowingVariant, string> = {
+    primary: clsx(
+      'bg-gradient-to-b',
+      paletteChoice.gradient,
+      paletteChoice.border,
+      paletteChoice.text,
+      'shadow-[0_12px_30px_-14px_rgba(0,0,0,0.7)]',
+      paletteChoice.accentShadow,
+      'hover:brightness-105'
+    ),
+    secondary: clsx(
+      'bg-gradient-to-b from-slate-800/70 via-slate-900/70 to-slate-950/75',
+      'text-amber-50 border border-white/10 ring-1 ring-white/5',
+      'shadow-[0_12px_28px_-16px_rgba(0,0,0,0.7)]',
+      paletteChoice.accentShadow
+    ),
+    ghost: clsx(
+      'bg-white/5 text-amber-50 border border-white/10',
+      'shadow-none hover:border-amber-100/40'
+    ),
+  };
+>>>>>>> b7e6bbac31bcee7c745a714b7535f0e2332f145f
 
   const variantStyles: Record<GlowingVariant, string> = {
     primary: clsx(
@@ -158,15 +225,22 @@ export const GlowingButton = forwardRef<HTMLButtonElement, GlowingButtonProps>((
 
   return (
     <motion.button
+<<<<<<< HEAD
       ref={ref}
+=======
+>>>>>>> b7e6bbac31bcee7c745a714b7535f0e2332f145f
       type="button"
       data-testid="glowing-button"
       onClick={handleClick}
       onTouchEnd={isTouchDevice ? handleTouchEnd : undefined}
+<<<<<<< HEAD
       disabled={isDisabled}
       tabIndex={isDisabled ? -1 : undefined}
       aria-busy={loading ? true : undefined}
       aria-disabled={isDisabled ? true : undefined}
+=======
+      disabled={disabled}
+>>>>>>> b7e6bbac31bcee7c745a714b7535f0e2332f145f
       className={clsx(
         'relative inline-flex items-center justify-center overflow-hidden rounded-2xl font-semibold tracking-wide transition-all duration-200',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
@@ -174,8 +248,12 @@ export const GlowingButton = forwardRef<HTMLButtonElement, GlowingButtonProps>((
         sizeStyles[size],
         variantStyles[variant],
         intensityStyles[intensity],
+<<<<<<< HEAD
         isDisabled && 'cursor-not-allowed opacity-70 shadow-none saturate-75 pointer-events-none',
         isTouchDevice && 'min-h-[48px] min-w-[48px] touch-spacing',
+=======
+        disabled && 'cursor-not-allowed opacity-70 shadow-none saturate-75',
+>>>>>>> b7e6bbac31bcee7c745a714b7535f0e2332f145f
         className
       )}
       {...motionProps}
@@ -190,6 +268,7 @@ export const GlowingButton = forwardRef<HTMLButtonElement, GlowingButtonProps>((
         className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/8"
       />
       <span className="relative z-10 flex items-center justify-center gap-2">
+<<<<<<< HEAD
         {loading ? (
           <>
             <svg 
@@ -216,6 +295,9 @@ export const GlowingButton = forwardRef<HTMLButtonElement, GlowingButtonProps>((
             <span className="sr-only">Loading...</span>
           </>
         ) : children}
+=======
+        {children}
+>>>>>>> b7e6bbac31bcee7c745a714b7535f0e2332f145f
       </span>
     </motion.button>
   );
