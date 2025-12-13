@@ -7,7 +7,7 @@ import { Separator } from "./separator";
 import { Input } from "./input";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { TECHNOLOGIES, calculateResearchCost, getAvailableTechnologies, type Technology } from "@shared/data/technologies";
-import { Star, Book, Swords, Church, Map, Lock, CheckCircle, Clock, Sparkles, Filter, ArrowUpRight, Search, XCircle } from "lucide-react";
+import { Star, Book, Swords, Church, Map, Lock, CheckCircle, Clock, Sparkles, Filter, ArrowUpRight, Search, XCircle, Link as LinkIcon } from "lucide-react";
 
 interface TechPanelProps {
   open: boolean;
@@ -18,9 +18,9 @@ type TechStatus = "researched" | "available" | "locked" | "researching";
 type CategoryFilter = "all" | Technology["category"];
 
 const TIERS = [
-  { id: 1, title: "Foundations" },
-  { id: 2, title: "Growth" },
-  { id: 3, title: "Mastery" },
+  { id: 1, title: "Foundations", accent: "from-amber-300/40 via-amber-500/10 to-transparent", motif: "bg-gradient-to-br from-amber-500/10 to-transparent" },
+  { id: 2, title: "Growth", accent: "from-emerald-300/40 via-emerald-500/10 to-transparent", motif: "bg-gradient-to-br from-emerald-500/10 to-transparent" },
+  { id: 3, title: "Mastery", accent: "from-indigo-300/40 via-indigo-500/10 to-transparent", motif: "bg-gradient-to-br from-indigo-500/10 to-transparent" },
 ];
 
 export default function TechPanel({ open, onClose }: TechPanelProps) {
@@ -185,6 +185,11 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     const prereqsMet = tech.prerequisites.every(pr => currentPlayer.researchedTechs.includes(pr));
     const canAfford = currentPlayer.stars >= cost;
     const actionable = status === "available" && prereqsMet && canAfford;
+    const prereqBadges = tech.prerequisites.map(pr => ({
+      id: pr,
+      name: TECHNOLOGIES[pr]?.name || pr,
+      met: currentPlayer.researchedTechs.includes(pr),
+    }));
 
     return (
       <Card
@@ -203,7 +208,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             {getCategoryIcon(tech.category)}
           </Badge>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           <p className="text-sm text-white/80 leading-relaxed min-h-[48px]">{tech.description}</p>
           <div className="flex items-center gap-3 text-xs text-white/80">
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-black/30">
@@ -215,6 +220,20 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
               </span>
             )}
           </div>
+          {prereqBadges.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {prereqBadges.map(pr => (
+                <Badge
+                  key={pr.id}
+                  variant="outline"
+                  className={`border ${pr.met ? "border-green-400 text-green-200" : "border-slate-600 text-slate-300"} bg-black/20`}
+                >
+                  <LinkIcon className="w-3 h-3 mr-1" />
+                  {pr.name}
+                </Badge>
+              ))}
+            </div>
+          )}
           <Button
             disabled={!actionable}
             onClick={() => handleResearchTech(tech.id)}
@@ -244,6 +263,10 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
         className="w-full h-full max-w-7xl max-h-[90vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 rounded-2xl shadow-2xl shadow-amber-500/10 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_left,#fde68a_0%,transparent_30%)]" />
+          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_bottom_right,#a78bfa_0%,transparent_35%)]" />
+        </div>
         {/* Header */}
         <div className="bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20 p-6">
           <div className="flex justify-between items-center gap-4 flex-wrap">
@@ -302,11 +325,12 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           </div>
         </div>
         
-        <div className="grid grid-cols-3 gap-6 p-6 h-[calc(90vh-96px)]">
+        <div className="grid grid-cols-3 gap-6 p-6 h-[calc(90vh-96px)] relative z-10">
           {/* Tiered tree */}
           <div className="col-span-2 overflow-y-auto pr-2 space-y-6">
             {TIERS.map(tier => (
-              <div key={tier.id} className="space-y-3">
+              <div key={tier.id} className={`space-y-3 rounded-xl border border-amber-500/10 p-3 relative overflow-hidden`}>
+                <div className={`absolute inset-0 pointer-events-none ${tier.accent}`} />
                 <div className="flex items-center justify-between">
                   <h2 className="text-amber-100 font-semibold flex items-center gap-2">
                     <span className="text-xs uppercase tracking-wide text-amber-300/70">Tier {tier.id}</span>
@@ -314,7 +338,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                   </h2>
                   <Separator className="flex-1 ml-3 bg-amber-500/30" />
                 </div>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 relative z-10">
                   {(tieredTechs[tier.id] || [])
                     .filter(matchesFilter)
                     .map(tech => (
