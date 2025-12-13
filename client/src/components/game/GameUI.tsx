@@ -532,14 +532,31 @@ export default function GameUI() {
         onUnitAction={handleUnitAction}
       />
 
-      {/* Save System Button - Bottom Right */}
-      <div className="pointer-events-auto">
+      {/* Touch-friendly Save/Load Buttons - Bottom Right */}
+      <div className="pointer-events-auto fixed bottom-6 right-6 flex flex-col gap-2">
         <button
-          className="fixed bottom-6 right-6 p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-600 transition-all shadow-lg"
+          className="p-3 min-w-[48px] min-h-[48px] bg-amber-700 hover:bg-amber-600 active:bg-amber-500 text-white rounded-lg border border-amber-500/60 transition-all shadow-lg flex items-center justify-center gap-2"
+          onClick={() => setShowSaveLoadMenu(true)}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            setShowSaveLoadMenu(true);
+          }}
+          title="Save/Load Game (S)"
+        >
+          <span className="text-lg">💾</span>
+          <span className="text-sm font-medium">Save/Load</span>
+        </button>
+        <button
+          className="p-3 min-w-[48px] min-h-[48px] bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all shadow-lg flex items-center justify-center gap-2"
           onClick={() => setShowAdvancedSaveSystem(true)}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            setShowAdvancedSaveSystem(true);
+          }}
           title="Advanced Save System"
         >
-          💾 Advanced Save
+          <span className="text-lg">⚙️</span>
+          <span className="text-sm font-medium">Advanced</span>
         </button>
       </div>
     </div>
