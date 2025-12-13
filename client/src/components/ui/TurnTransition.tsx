@@ -42,6 +42,12 @@ export function TurnTransition({
   }, [isVisible, duration, onComplete]);
 
   if (!isVisible) return null;
+  
+  // Guard against undefined currentPlayer (can happen during turn transitions with 4+ players)
+  if (!currentPlayer) {
+    console.warn('TurnTransition: currentPlayer is undefined');
+    return null;
+  }
 
   return (
     <AnimatePresence>
