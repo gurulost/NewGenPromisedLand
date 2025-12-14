@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 import { Input } from "./input";
 import { Label } from "./label";
-import { X, Plus, Users, Map, ArrowLeft, Play } from "lucide-react";
+import { X, Plus, Users, Map, ArrowLeft, Play, Bot, User } from "lucide-react";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { getAllFactions } from "@shared/data/factions";
 import { FactionId } from "@shared/types/faction";
@@ -13,17 +13,21 @@ import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
 import { useHotkeys } from "../../hooks/useHotkeys";
 
+export type AIDifficulty = 'easy' | 'normal' | 'hard';
+
 interface PlayerSetupData {
   id: string;
   name: string;
   factionId: FactionId | null;
+  isAI: boolean;
+  aiDifficulty: AIDifficulty;
 }
 
 export default function PlayerSetup() {
   const { setGamePhase, startLocalGame } = useLocalGame();
   const [players, setPlayers] = useState<PlayerSetupData[]>([
-    { id: '1', name: 'Player 1', factionId: null },
-    { id: '2', name: 'Player 2', factionId: null },
+    { id: '1', name: 'Player 1', factionId: null, isAI: false, aiDifficulty: 'normal' },
+    { id: '2', name: 'AI Opponent', factionId: null, isAI: true, aiDifficulty: 'normal' },
   ]);
   const [selectedMapSize, setSelectedMapSize] = useState<MapSize>('normal');
 
@@ -48,8 +52,10 @@ export default function PlayerSetup() {
     if (players.length < 6) {
       setPlayers([...players, {
         id: (players.length + 1).toString(),
-        name: `Player ${players.length + 1}`,
-        factionId: null
+        name: `AI Player ${players.length}`,
+        factionId: null,
+        isAI: true,
+        aiDifficulty: 'normal'
       }]);
     }
   };
@@ -60,15 +66,25 @@ export default function PlayerSetup() {
     }
   };
 
-  const updatePlayer = (id: string, field: keyof PlayerSetupData, value: string) => {
-    setPlayers(players.map(p => 
+  const updatePlayer = (id: string, field: keyof PlayerSetupData, value: string | boolean) => {
+    setPlayers(players.map(p =>
       p.id === id ? { ...p, [field]: value } : p
     ));
   };
 
-  const canStart = players.length >= 2 && 
-                   players.every(p => p.name.trim() && p.factionId) &&
-                   new Set(players.map(p => p.factionId)).size === players.length;
+  const togglePlayerType = (id: string) => {
+    setPlayers(players.map(p =>
+      p.id === id ? {
+        ...p,
+        isAI: !p.isAI,
+        name: !p.isAI ? `AI ${p.name}` : p.name.replace(/^AI /, '')
+      } : p
+    ));
+  };
+
+  const canStart = players.length >= 2 &&
+    players.every(p => p.name.trim() && p.factionId) &&
+    new Set(players.map(p => p.factionId)).size === players.length;
 
   const handleStartGame = () => {
     if (canStart) {
@@ -76,13 +92,15 @@ export default function PlayerSetup() {
         id: p.id,
         name: p.name,
         factionId: p.factionId!,
-        turnOrder: index
+        turnOrder: index,
+        isAI: p.isAI,
+        aiDifficulty: p.aiDifficulty
       })), selectedMapSize);
     }
   };
 
   return (
-    <div 
+    <div
       className="w-full h-full p-4 overflow-y-auto"
       style={{
         backgroundImage: 'url(/images/mesoamerican_background.png)',
@@ -100,7 +118,7 @@ export default function PlayerSetup() {
                 title="Local Game Setup"
                 description="Configure players for pass-and-play mode"
               />
-              
+
               <div className="space-y-4">
                 {players.map((player, index) => (
                   <motion.div
@@ -108,9 +126,22 @@ export default function PlayerSetup() {
                     initial={{ x: -20, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ delay: index * 0.1 }}
-                    className="bg-slate-800/50 border border-slate-600 rounded-lg p-4"
+                    className={`border rounded-lg p-4 ${player.isAI ? 'bg-purple-900/30 border-purple-500/50' : 'bg-slate-800/50 border-slate-600'}`}
                   >
                     <div className="flex items-center gap-4">
+                      {/* AI Toggle Button */}
+                      <button
+                        onClick={() => togglePlayerType(player.id)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${player.isAI
+                            ? 'bg-purple-600 text-white hover:bg-purple-500'
+                            : 'bg-slate-600 text-white hover:bg-slate-500'
+                          }`}
+                        title={player.isAI ? 'Switch to Human' : 'Switch to AI'}
+                      >
+                        {player.isAI ? <Bot className="w-5 h-5" /> : <User className="w-5 h-5" />}
+                        <span className="text-xs font-medium">{player.isAI ? 'AI' : 'Human'}</span>
+                      </button>
+
                       <div className="flex-1 space-y-2">
                         <Label htmlFor={`name-${player.id}`} className="text-amber-100">Player Name</Label>
                         <Input
@@ -121,7 +152,7 @@ export default function PlayerSetup() {
                           placeholder="Enter player name"
                         />
                       </div>
-                      
+
                       <div className="flex-1 space-y-2">
                         <Label htmlFor={`faction-${player.id}`} className="text-amber-100">Faction</Label>
                         <Select
@@ -133,14 +164,14 @@ export default function PlayerSetup() {
                           </SelectTrigger>
                           <SelectContent className="bg-slate-800 border-slate-600">
                             {factions.map(faction => (
-                              <SelectItem 
-                                key={faction.id} 
+                              <SelectItem
+                                key={faction.id}
                                 value={faction.id}
                                 disabled={usedFactions.includes(faction.id) && player.factionId !== faction.id}
                                 className="text-white hover:bg-slate-700"
                               >
                                 <div className="flex items-center gap-2">
-                                  <div 
+                                  <div
                                     className="w-3 h-3 rounded-full"
                                     style={{ backgroundColor: faction.color }}
                                   />
@@ -151,13 +182,33 @@ export default function PlayerSetup() {
                           </SelectContent>
                         </Select>
                       </div>
-                      
+
+                      {/* AI Difficulty Selector (only for AI players) */}
+                      {player.isAI && (
+                        <div className="w-28 space-y-2">
+                          <Label className="text-purple-200">Difficulty</Label>
+                          <Select
+                            value={player.aiDifficulty}
+                            onValueChange={(value) => updatePlayer(player.id, 'aiDifficulty', value as AIDifficulty)}
+                          >
+                            <SelectTrigger className="bg-purple-800/50 border-purple-500 text-white">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-purple-900 border-purple-500">
+                              <SelectItem value="easy" className="text-green-300 hover:bg-purple-800">Easy</SelectItem>
+                              <SelectItem value="normal" className="text-yellow-300 hover:bg-purple-800">Normal</SelectItem>
+                              <SelectItem value="hard" className="text-red-300 hover:bg-purple-800">Hard</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       {players.length > 2 && (
                         <GlowingButton
-                          variant="destructive"
+                          variant="secondary"
                           size="sm"
                           onClick={() => removePlayer(player.id)}
-                          className="flex items-center justify-center"
+                          className="flex items-center justify-center bg-red-600 hover:bg-red-500"
                         >
                           <X />
                         </GlowingButton>
@@ -168,16 +219,16 @@ export default function PlayerSetup() {
               </div>
 
               {players.length < 6 && (
-              <GlowingButton
-                variant="secondary"
-                onClick={addPlayer}
-                className="w-full"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <Plus />
-                  Add Player (Max 6)
-                </span>
-              </GlowingButton>
+                <GlowingButton
+                  variant="secondary"
+                  onClick={addPlayer}
+                  className="w-full"
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    <Plus />
+                    Add Player (Max 6)
+                  </span>
+                </GlowingButton>
               )}
 
               {/* Map Size Selection */}
@@ -193,8 +244,8 @@ export default function PlayerSetup() {
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-600">
                       {Object.entries(MAP_SIZE_CONFIGS).map(([size, config]) => (
-                        <SelectItem 
-                          key={size} 
+                        <SelectItem
+                          key={size}
                           value={size}
                           className="text-white hover:bg-slate-700"
                         >
@@ -215,27 +266,27 @@ export default function PlayerSetup() {
               </div>
 
               <div className="flex gap-4 pt-4">
-              <GlowingButton
-                variant="secondary"
-                onClick={() => setGamePhase('menu')}
-                className="flex-1"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <ArrowLeft />
-                  Back to Menu
-                </span>
-              </GlowingButton>
-              
-              <GlowingButton
-                onClick={handleStartGame}
-                disabled={!canStart}
-                className="flex-1"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <Play />
-                  Start Game
-                </span>
-              </GlowingButton>
+                <GlowingButton
+                  variant="secondary"
+                  onClick={() => setGamePhase('menu')}
+                  className="flex-1"
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    <ArrowLeft />
+                    Back to Menu
+                  </span>
+                </GlowingButton>
+
+                <GlowingButton
+                  onClick={handleStartGame}
+                  disabled={!canStart}
+                  className="flex-1"
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    <Play />
+                    Start Game
+                  </span>
+                </GlowingButton>
               </div>
 
               {!canStart && (

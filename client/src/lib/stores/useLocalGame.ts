@@ -27,7 +27,7 @@ type GamePhase = 'menu' | 'playerSetup' | 'handoff' | 'playing' | 'gameOver';
 interface LocalGameStore {
   gamePhase: GamePhase;
   gameState: GameState | null;
-  
+
   setGamePhase: (phase: GamePhase) => void;
   setGameState: (state: GameState | null) => void;
   startLocalGame: (playerSetup: Array<{
@@ -35,6 +35,8 @@ interface LocalGameStore {
     name: string;
     factionId: string;
     turnOrder: number;
+    isAI?: boolean;
+    aiDifficulty?: 'easy' | 'normal' | 'hard';
   }>, mapSize?: MapSize) => void;
   endTurn: (playerId: string) => void;
   moveUnit: (unitId: string, targetCoordinate: any) => void;
@@ -49,18 +51,18 @@ interface LocalGameStore {
 export const useLocalGame = create<LocalGameStore>((set, get) => ({
   gamePhase: 'menu',
   gameState: null,
-  
+
   setGamePhase: (phase) => {
     gameDebugger.trackGamePhase(phase);
     gameDebugger.logUIInteraction(`Game phase changed to: ${phase}`, { phase });
     set({ gamePhase: phase });
   },
-  
+
   setGameState: (state) => {
     gameDebugger.logUIInteraction(`Game state updated`, { hasState: !!state });
     set({ gameState: state });
   },
-  
+
   startLocalGame: (playerSetup, mapSize = 'normal') => {
     // Create initial game state
     const players: PlayerState[] = playerSetup.map(setup => applyPlayerDefaults({
@@ -76,6 +78,8 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       visibilityMask: [],
       exploredTiles: [],
       isEliminated: false,
+      isAI: setup.isAI ?? false,
+      aiDifficulty: setup.aiDifficulty ?? 'normal',
       turnOrder: setup.turnOrder,
       stars: 10, // Starting currency
       researchedTechs: [], // No starting technologies
@@ -89,10 +93,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
 
     // Extract faction IDs for terrain generation
     const playerFactions = playerSetup.map(p => p.factionId);
-    
+
     // Get map configuration based on selected size
     const mapConfig = MAP_SIZE_CONFIGS[mapSize];
-    
+
     // Generate balanced map with faction-biased terrain generation
     const mapGenerator = new MapGenerator({
       width: mapConfig.dimensions,
@@ -103,16 +107,16 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       minResourceDistance: 2,
       maxResourcesPerPlayer: 3
     }, playerFactions);
-    
+
     const map = mapGenerator.generateMap();
-    
+
     // Find city tiles from the generated map for player starting positions
     const cityTiles = map.tiles.filter(tile => tile.hasCity);
-    
+
     // Assign cities to players (first cities generated are best positioned for players)
     const cities = players.map((player, index) => {
       const cityTile = cityTiles[index] || cityTiles[0]; // Fallback to first city if not enough
-      
+
       return {
         id: `city-${player.id}`,
         name: `${player.name}'s Capital`,
@@ -127,17 +131,17 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
         harvestedResources: [], // Track harvested resource tiles
       };
     });
-    
+
     // Update player city ownership
     const playersWithCities = players.map((player, index) => ({
       ...player,
       citiesOwned: [cities[index].id],
     }));
-    
+
     // Mark starting areas around player cities as explored
     const exploreAreaAroundCity = (cityCoord: HexCoordinate, playerId: string): void => {
       const exploreRadius = 2;
-      
+
       for (const tile of map.tiles) {
         const distance = hexDistance(tile.coordinate, cityCoord);
         if (distance <= exploreRadius) {
@@ -145,7 +149,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
         }
       }
     };
-    
+
     // Explore areas around each player's starting city
     cities.forEach((city, index) => {
       if (index < players.length) {
@@ -157,7 +161,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     const units: any[] = players.flatMap((player, index) => {
       const city = cities[index];
       if (!city) return [];
-      
+
       // Find suitable spawn position near the city (not on the city tile itself)
       const findUnitSpawnPosition = (cityCoord: HexCoordinate): HexCoordinate => {
         const adjacentTiles = [
@@ -168,22 +172,22 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
           { q: cityCoord.q - 1, r: cityCoord.r + 1, s: cityCoord.s },
           { q: cityCoord.q, r: cityCoord.r + 1, s: cityCoord.s - 1 },
         ];
-        
+
         for (const coord of adjacentTiles) {
-          const tile = map.tiles.find(t => 
+          const tile = map.tiles.find(t =>
             t.coordinate.q === coord.q && t.coordinate.r === coord.r
           );
           if (tile && tile.terrain !== 'water' && tile.terrain !== 'mountain' && !tile.hasCity) {
             return coord;
           }
         }
-        
+
         // Fallback to city coordinate if no adjacent suitable tile found
         return cityCoord;
       };
-      
+
       const unitPosition = findUnitSpawnPosition(city.coordinate);
-      
+
       return [
         {
           id: `unit-${player.id}-1`,
@@ -225,15 +229,15 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     const updatedPlayers = playersWithCities.map((player, index) => {
       const playerUnits = units.filter(unit => unit.playerId === player.id);
       const allVisibleTiles: string[] = [];
-      
+
       // Add vision around each unit for this player
       playerUnits.forEach(unit => {
         const visionTiles = getVisionTiles(unit.coordinate.q, unit.coordinate.r, 2);
         allVisibleTiles.push(...visionTiles);
       });
-      
+
       const uniqueVisibleTiles = Array.from(new Set(allVisibleTiles));
-      
+
       return {
         ...player,
         visibilityMask: uniqueVisibleTiles,
@@ -256,12 +260,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       winner: undefined,
     };
 
-    set({ 
+    set({
       gameState,
       gamePhase: 'handoff'
     });
   },
-  
+
   endTurn: (playerId) => {
     const { gameState } = get();
     if (!gameState) return;
@@ -272,16 +276,16 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     };
 
     const newGameState = gameReducer(gameState, action);
-    
+
     // Clear selected unit when turn changes
     useGameState.getState().setSelectedUnit(null);
-    
-    set({ 
+
+    set({
       gameState: newGameState,
       gamePhase: 'handoff'
     });
   },
-  
+
   moveUnit: (unitId, targetCoordinate) => {
     const { gameState } = get();
     if (!gameState) return;
@@ -313,7 +317,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     console.log('Combat result:', newGameState);
     set({ gameState: newGameState });
   },
-  
+
   useAbility: (playerId, abilityId) => {
     const { gameState } = get();
     if (!gameState) return;
@@ -326,15 +330,15 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     const newGameState = gameReducer(gameState, action);
     set({ gameState: newGameState });
   },
-  
+
   dispatch: (action) => {
     const { gameState } = get();
     if (!gameState) return;
-    
+
     const newGameState = gameReducer(gameState, action);
     set({ gameState: newGameState });
   },
-  
+
   resetGame: () => {
     set({
       gamePhase: 'menu',
@@ -344,12 +348,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
 
   loadGameState: (state: GameState) => {
     const normalizedPlayers = state.players.map(applyPlayerDefaults);
-    set({ 
+    set({
       gameState: { ...state, players: normalizedPlayers },
       gamePhase: 'playing'
     });
   },
-  
+
   harvestResource: (unitId, resourceCoordinate, cityId) => {
     const { gameState } = get();
     if (!gameState) return;

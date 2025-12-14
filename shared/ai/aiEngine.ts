@@ -22,17 +22,17 @@ export type AIDifficulty = 'easy' | 'normal' | 'hard';
 
 export interface AIDecision {
   type:
-    | 'MOVE_UNIT'
-    | 'ATTACK_UNIT'
-    | 'RESEARCH_TECH'
-    | 'BUILD_STRUCTURE'
-    | 'END_TURN'
-    | 'USE_ABILITY'
-    | 'HEAL_UNIT'
-    | 'APPLY_STEALTH'
-    | 'FORMATION_FIGHTING'
-    | 'SIEGE_MODE'
-    | 'RALLY_TROOPS';
+  | 'MOVE_UNIT'
+  | 'ATTACK_UNIT'
+  | 'RESEARCH_TECH'
+  | 'BUILD_STRUCTURE'
+  | 'END_TURN'
+  | 'USE_ABILITY'
+  | 'HEAL_UNIT'
+  | 'APPLY_STEALTH'
+  | 'FORMATION_FIGHTING'
+  | 'SIEGE_MODE'
+  | 'RALLY_TROOPS';
   unitId?: string;
   targetCoordinate?: HexCoordinate;
   targetId?: string;
@@ -93,6 +93,10 @@ interface AIBudgetState {
   availableStars: number;
   savingForTech: boolean;
   targetCost?: number;
+  // Economic planning additions
+  incomePerTurn: number;        // Projected income from cities
+  turnsToSaveForTech: number;   // How many turns needed to afford target tech
+  shouldDelayPurchases: boolean; // If true, avoid non-essential spending
 }
 
 interface AIStrategicPlan {
@@ -125,7 +129,7 @@ export class AIEngine {
     this.gameState = gameState;
     this.aiPlayer = aiPlayer;
     this.difficulty = (aiPlayer.aiDifficulty as AIDifficulty) || 'normal';
-    
+
     // Initialize advanced AI systems
     const seed = this.generateSeed();
     this.tacticalEngine = new TacticalEngine(gameState, aiPlayer, seed);
@@ -138,6 +142,9 @@ export class AIEngine {
         reservedStars: 0,
         availableStars: aiPlayer.stars,
         savingForTech: false,
+        incomePerTurn: 0,
+        turnsToSaveForTech: 0,
+        shouldDelayPurchases: false,
       },
       cityPlans: {},
       goalQueue: [],
@@ -154,11 +161,11 @@ export class AIEngine {
   public makeDecision(): AIDecision[] {
     const startTime = performance.now();
     const decisions: AIDecision[] = [];
-    
+
     // Update AI mood based on current game state
     this.updatePersonalityMood();
     this.recalculateStrategy();
-    
+
     // Generate influence map for tactical awareness
     const influenceMap = this.tacticalEngine.generateInfluenceMap();
 
@@ -174,6 +181,9 @@ export class AIEngine {
     // 4. Intelligent movement with threat assessment
     decisions.push(...this.evaluateIntelligentMovement());
 
+    // 4.5. Naval movement - embark/sail/disembark for water crossings
+    decisions.push(...this.evaluateNavalMovement());
+
     // 5. Personality-driven technology research
     decisions.push(...this.evaluatePersonalityTechResearch());
 
@@ -182,19 +192,19 @@ export class AIEngine {
 
     // 7. Advanced unit abilities usage
     decisions.push(...this.evaluateAbilityUsage());
-    
+
     // Apply personality modifiers to decisions
     this.applyPersonalityModifiers(decisions);
-    
+
     // Sort by priority and limit actions based on difficulty
     const maxActions = this.getMaxActionsPerTurn();
     const finalDecisions = decisions
       .sort((a, b) => b.priority - a.priority)
       .slice(0, maxActions);
-    
+
     // Update debug overlay
     this.updateDebugInfo(influenceMap, decisions, performance.now() - startTime);
-    
+
     return finalDecisions;
   }
 
@@ -215,10 +225,10 @@ export class AIEngine {
       // Find enemy units within attack range
       for (const enemy of enemyUnits) {
         const distance = hexDistance(unit.coordinate, enemy.coordinate);
-        
+
         if (distance <= attackRange) {
           const combatOdds = this.calculateCombatOdds(unit, enemy);
-          
+
           // Attack if we have good odds or if we're on hard difficulty
           if (combatOdds > 0.6 || (this.difficulty === 'hard' && combatOdds > 0.4)) {
             decisions.push({
@@ -264,11 +274,11 @@ export class AIEngine {
    */
   private evaluateTechResearch(): AIDecision[] {
     const decisions: AIDecision[] = [];
-    
+
     const availableTechs = Object.keys(TECHNOLOGIES).filter(techId => {
       const tech = TECHNOLOGIES[techId];
       return !this.aiPlayer.researchedTechs.includes(techId) &&
-             tech.prerequisites.every(prereq => this.aiPlayer.researchedTechs.includes(prereq));
+        tech.prerequisites.every(prereq => this.aiPlayer.researchedTechs.includes(prereq));
     });
 
     for (const techId of availableTechs) {
@@ -316,7 +326,7 @@ export class AIEngine {
 
     for (const coordinate of possibleMoves) {
       const priority = this.evaluateMovementPriority(unit, coordinate);
-      
+
       if (!bestMove || priority > bestMove.priority) {
         bestMove = { target: coordinate, priority };
       }
@@ -440,8 +450,8 @@ export class AIEngine {
   }
 
   private getEnemyUnitsInRange(): Unit[] {
-    return this.gameState.units.filter(unit => 
-      unit.playerId !== this.aiPlayer.id && 
+    return this.gameState.units.filter(unit =>
+      unit.playerId !== this.aiPlayer.id &&
       this.aiPlayer.visibilityMask.includes(`${unit.coordinate.q},${unit.coordinate.r}`)
     );
   }
@@ -453,25 +463,25 @@ export class AIEngine {
   private getReachableTiles(unit: Unit): HexCoordinate[] {
     const reachable: HexCoordinate[] = [];
     const maxDistance = unit.remainingMovement;
-    
+
     // Simple pathfinding - check tiles within movement range
     for (let q = unit.coordinate.q - maxDistance; q <= unit.coordinate.q + maxDistance; q++) {
       for (let r = unit.coordinate.r - maxDistance; r <= unit.coordinate.r + maxDistance; r++) {
         const s = -q - r;
         const distance = hexDistance(unit.coordinate, { q, r, s });
-        
+
         if (distance <= maxDistance && distance > 0) {
-          const tile = this.gameState.map.tiles.find(t => 
+          const tile = this.gameState.map.tiles.find(t =>
             t.coordinate.q === q && t.coordinate.r === r
           );
-          
+
           if (tile && tile.terrain !== 'water') { // Basic passability check
             reachable.push({ q, r, s });
           }
         }
       }
     }
-    
+
     return reachable;
   }
 
@@ -496,7 +506,7 @@ export class AIEngine {
   private evaluateStrategicValue(coordinate: HexCoordinate, faction: any): number {
     // Evaluate strategic value based on faction preferences and map position
     let value = 0;
-    
+
     // Center of map bonus
     const mapCenter = {
       q: Math.floor(this.gameState.map.width / 2),
@@ -512,19 +522,19 @@ export class AIEngine {
   private assessEnemyThreat(): number {
     const myUnits = this.getMyUnits();
     const enemyUnits = this.getEnemyUnitsInRange();
-    
+
     if (myUnits.length === 0) return 1; // Maximum threat if no units
-    
+
     const enemyStrength = enemyUnits.reduce((total, unit) => {
       const def = getUnitDefinition(unit.type);
       return total + def.baseStats.attack + def.baseStats.defense;
     }, 0);
-    
+
     const myStrength = myUnits.reduce((total, unit) => {
       const def = getUnitDefinition(unit.type);
       return total + def.baseStats.attack + def.baseStats.defense;
     }, 0);
-    
+
     const totalStrength = enemyStrength + myStrength;
     return totalStrength > 0 ? enemyStrength / totalStrength : 0;
   }
@@ -563,13 +573,13 @@ export class AIEngine {
 
       // Get tactical targets from advanced engine
       const targets = this.tacticalEngine.findTacticalTargets(unit);
-      
+
       for (const target of targets.slice(0, 3)) { // Top 3 targets per unit
         if (target.targetType === 'unit' && target.unitId) {
           // Check if we should attack based on personality
           const advantage = this.calculateCombatAdvantage(unit, target);
           const riskLevel = this.assessCombatRisk(unit, target);
-          
+
           if (this.personalityEngine.shouldAttack(advantage, riskLevel)) {
             const basePriority = target.priority + advantage * 60 - riskLevel * 30;
             const modifier = this.personalityEngine.getDecisionModifier('attack');
@@ -588,7 +598,7 @@ export class AIEngine {
         const advantage = this.calculateUnitAdvantage(unit);
         if (this.personalityEngine.shouldRetreat(unit.hp / unit.maxHp, advantage)) {
           const retreatPositions = this.tacticalEngine.findRetreatPositions(unit);
-          
+
           if (retreatPositions.length > 0) {
             decisions.push({
               type: 'MOVE_UNIT',
@@ -616,11 +626,11 @@ export class AIEngine {
       if (unit.remainingMovement <= 0) continue;
 
       const unitDef = getUnitDefinition(unit.type);
-      
+
       // Escort logic for vulnerable units  
       if (unit.type === 'worker') {
         const escortPriority = this.tacticalEngine.calculateEscortPriority(unit);
-        
+
         if (escortPriority > 0.5) {
           // Find nearby military units to escort
           const escorts = this.findNearbyMilitaryUnits(unit.coordinate);
@@ -851,8 +861,8 @@ export class AIEngine {
           tech.category === 'religious'
             ? this.personalityEngine.getDecisionModifier('tech_faith')
             : tech.category === 'military'
-            ? this.personalityEngine.getDecisionModifier('tech_military')
-            : 0.5;
+              ? this.personalityEngine.getDecisionModifier('tech_military')
+              : 0.5;
 
         const urgencyBonus = budget.savingForTech ? 50 : 30;
         const priority = target.priority + urgencyBonus * (1 + categoryModifier);
@@ -1103,12 +1113,32 @@ export class AIEngine {
       ? (savingForTech ? this.aiPlayer.stars : Math.min(this.aiPlayer.stars, Math.ceil(techTarget.cost * 0.25)))
       : 0;
     const availableStars = Math.max(0, this.aiPlayer.stars - reservedStars);
+
+    // Calculate income per turn from cities for economic planning
+    const myCities = this.getMyCities();
+    const incomePerTurn = myCities.reduce((total, city) => {
+      // Base star production + improvements
+      const baseProduction = city.starProduction || 2;
+      return total + baseProduction;
+    }, 0);
+
+    // Calculate how many turns needed to save for target tech
+    const turnsToSaveForTech = savingsNeeded > 0 && incomePerTurn > 0
+      ? Math.ceil(savingsNeeded / incomePerTurn)
+      : 0;
+
+    // Delay non-essential purchases if saving for expensive tech within 3 turns
+    const shouldDelayPurchases = savingForTech && turnsToSaveForTech <= 3 && techTarget && techTarget.priority > 60;
+
     const budget: AIBudgetState = {
       totalStars: this.aiPlayer.stars,
       reservedStars,
       availableStars,
       savingForTech,
       targetCost: techTarget?.cost,
+      incomePerTurn,
+      turnsToSaveForTech,
+      shouldDelayPurchases,
     };
 
     const playerFaith = this.aiPlayer.stats.faith;
@@ -1908,6 +1938,26 @@ export class AIEngine {
       reasons.push('responding to threat');
     }
 
+    // FAIR PLAY: Counter-unit logic based only on VISIBLE enemy units
+    const counterBonus = this.calculateCounterUnitBonus(unitDef);
+    if (counterBonus > 0) {
+      score += counterBonus;
+      reasons.push('counters visible enemy units');
+    }
+
+    // Army composition balance - avoid too many of same type
+    const myTypeCount = unitCounts[unitDef.type] || 0;
+    const totalUnits = Object.values(unitCounts).reduce((sum, c) => sum + c, 0);
+    if (totalUnits > 0) {
+      const ratio = myTypeCount / totalUnits;
+      if (ratio > 0.4) {
+        score -= 15; // Already have too many of this type
+      } else if (ratio < 0.1 && unitDef.baseStats.attack > 3) {
+        score += 10; // Need more variety in army
+        reasons.push('army diversity');
+      }
+    }
+
     if (unitDef.type === 'worker') {
       const workerTarget = Math.max(1, this.getMyCities().length * 2);
       const workerCount = unitCounts.worker ?? 0;
@@ -1935,6 +1985,52 @@ export class AIEngine {
     }
 
     return { score, reason: reasons.join(', ') || 'balanced army composition' };
+  }
+
+  /**
+   * Calculate bonus for recruiting units that counter VISIBLE enemy units
+   * FAIR PLAY: Only considers units within AI's visibility mask
+   */
+  private calculateCounterUnitBonus(unitDef: UnitDefinition): number {
+    const visibleEnemies = this.getVisibleEnemyUnits();
+    if (visibleEnemies.length === 0) return 0;
+
+    let bonus = 0;
+
+    // Count visible enemy unit types
+    const enemyCounts: Record<string, number> = {};
+    for (const enemy of visibleEnemies) {
+      enemyCounts[enemy.type] = (enemyCounts[enemy.type] || 0) + 1;
+    }
+
+    // Counter-unit relationships (rock-paper-scissors style)
+    const counters: Record<string, string[]> = {
+      spearman: ['cavalry', 'rider'],      // Spears counter mounted
+      archer: ['warrior', 'spearman'],     // Ranged counters infantry
+      cavalry: ['archer', 'catapult'],     // Fast units counter ranged/siege
+      warrior: ['archer'],                  // Basic can swarm archers
+      catapult: ['spearman', 'warrior'],   // Siege counters slow infantry
+    };
+
+    const unitCounters = counters[unitDef.type] || [];
+    for (const counteredType of unitCounters) {
+      const counteredCount = enemyCounts[counteredType] || 0;
+      bonus += counteredCount * 8; // +8 per visible enemy we counter
+    }
+
+    return bonus;
+  }
+
+  /**
+   * Get enemy units within AI's visibility mask
+   * FAIR PLAY: AI only sees what a human player in their position would see
+   */
+  private getVisibleEnemyUnits(): Unit[] {
+    return this.gameState.units.filter(unit => {
+      if (unit.playerId === this.aiPlayer.id) return false; // Not our unit
+      const tileKey = `${unit.coordinate.q},${unit.coordinate.r}`;
+      return this.aiPlayer.visibilityMask.includes(tileKey); // Only if visible
+    });
   }
 
   private createImprovementJobs(cityPlans: Record<string, AICityPlanEntry[]>): AIImprovementJob[] {
@@ -2179,7 +2275,7 @@ export class AIEngine {
   private updateDebugInfo(influenceMap: any, decisions: AIDecision[], decisionTime: number): void {
     if (aiDebugOverlay.isEnabled()) {
       const personality = this.personalityEngine.getPersonality();
-      
+
       aiDebugOverlay.updateDebugInfo(this.aiPlayer.id, {
         influenceMap: influenceMap.influences,
         threatAssessment: new Map(),
@@ -2287,7 +2383,7 @@ export class AIEngine {
 
   private findNearestUnit(coord: HexCoordinate, units: Unit[]): Unit | null {
     if (units.length === 0) return null;
-    
+
     return units.reduce((nearest, unit) => {
       const distance = hexDistance(coord, unit.coordinate);
       const nearestDistance = hexDistance(coord, nearest.coordinate);
@@ -2302,7 +2398,7 @@ export class AIEngine {
   }
 
   private isValidMovePosition(coord: HexCoordinate): boolean {
-    const tile = this.gameState.map.tiles.find(t => 
+    const tile = this.gameState.map.tiles.find(t =>
       t.coordinate.q === coord.q && t.coordinate.r === coord.r
     );
     return tile ? tile.terrain !== 'water' : false;
@@ -2320,7 +2416,7 @@ export class AIEngine {
 
   private getResourcePriority(resource: string): number {
     const personality = this.personalityEngine.getPersonality();
-    
+
     switch (resource) {
       case 'stars': return 70;
       case 'faith': return Math.round(personality.piety * 100);
@@ -2334,20 +2430,20 @@ export class AIEngine {
       const tech = TECHNOLOGIES[techId];
       const playerTechs = this.aiPlayer.researchedTechs || [];
       return !playerTechs.includes(techId) &&
-             tech.prerequisites.every(prereq => playerTechs.includes(prereq));
+        tech.prerequisites.every(prereq => playerTechs.includes(prereq));
     }).map(techId => ({ ...TECHNOLOGIES[techId], id: techId }));
   }
 
   private calculateTechValue(tech: any): number {
     // Base tech value calculation
     let value = 50;
-    
+
     // Bonus for faction alignment
     const personality = this.personalityEngine.getPersonality();
     if (personality.techPriorities.includes(tech.id)) {
       value += 30;
     }
-    
+
     // Bonus for urgent needs (military vs economic)
     const enemyThreat = this.assessEnemyThreat();
     if (enemyThreat > 0.6 && tech.category === 'military') {
@@ -2355,8 +2451,317 @@ export class AIEngine {
     } else if (enemyThreat < 0.4 && tech.category === 'economic') {
       value += 20;
     }
-    
+
     return value;
+  }
+
+  // ============================================================
+  // NAVAL MOVEMENT SYSTEM
+  // Enables AI to cross water using boats (embark/sail/disembark)
+  // ============================================================
+
+  /**
+   * Evaluate naval movement opportunities for units that need to cross water
+   */
+  private evaluateNavalMovement(): AIDecision[] {
+    const decisions: AIDecision[] = [];
+    const myUnits = this.getMyUnits();
+    const myBoats = myUnits.filter((u: Unit) => u.type === 'boat');
+
+    // Skip if no boats available
+    if (myBoats.length === 0) return decisions;
+
+    for (const unit of myUnits) {
+      if (this.reservedUnits.has(unit.id)) continue;
+      if (unit.remainingMovement <= 0) continue;
+      if (unit.type === 'boat') continue;
+
+      // Check if unit needs naval transport
+      const navalOpp = this.findNavalOpportunity(unit);
+      if (!navalOpp) continue;
+
+      const { boat, embarkPoint, disembarkPoint, priority } = navalOpp;
+      const unitOnBoat = this.isUnitOnBoat(unit);
+
+      if (unitOnBoat) {
+        const distToDisembark = hexDistance(unit.coordinate, disembarkPoint);
+
+        if (distToDisembark <= 1) {
+          decisions.push({
+            type: 'MOVE_UNIT',
+            unitId: unit.id,
+            targetCoordinate: disembarkPoint,
+            priority: priority + 20
+          });
+          this.reservedUnits.add(unit.id);
+        } else {
+          const sailTarget = this.findSailPosition(unit.coordinate, disembarkPoint);
+          if (sailTarget) {
+            decisions.push({
+              type: 'MOVE_UNIT',
+              unitId: unit.id,
+              targetCoordinate: sailTarget,
+              priority: priority + 10
+            });
+            this.reservedUnits.add(unit.id);
+          }
+        }
+      } else {
+        const distToEmbark = hexDistance(unit.coordinate, embarkPoint);
+
+        if (distToEmbark <= 1 && boat) {
+          decisions.push({
+            type: 'MOVE_UNIT',
+            unitId: unit.id,
+            targetCoordinate: boat.coordinate,
+            priority: priority + 15
+          });
+          this.reservedUnits.add(unit.id);
+        } else if (distToEmbark <= unit.remainingMovement) {
+          const nextStep = this.getNextStepTowards(unit, embarkPoint);
+          if (nextStep) {
+            decisions.push({
+              type: 'MOVE_UNIT',
+              unitId: unit.id,
+              targetCoordinate: nextStep,
+              priority: priority
+            });
+            this.reservedUnits.add(unit.id);
+          }
+        }
+      }
+    }
+
+    // Move idle boats towards units waiting to embark
+    for (const boat of myBoats) {
+      if (this.reservedUnits.has(boat.id)) continue;
+      if (boat.remainingMovement <= 0) continue;
+
+      const waitingUnits = this.findUnitsWaitingToEmbark();
+      if (waitingUnits.length > 0) {
+        const nearestWaiting = this.findNearestUnit(boat.coordinate, waitingUnits);
+        if (nearestWaiting) {
+          const pickupPoint = this.findWaterTileNear(nearestWaiting.coordinate);
+          if (pickupPoint) {
+            const nextStep = this.findSailPosition(boat.coordinate, pickupPoint);
+            if (nextStep) {
+              decisions.push({
+                type: 'MOVE_UNIT',
+                unitId: boat.id,
+                targetCoordinate: nextStep,
+                priority: 55
+              });
+              this.reservedUnits.add(boat.id);
+            }
+          }
+        }
+      }
+    }
+
+    return decisions;
+  }
+
+  /**
+   * Find if unit has a naval opportunity (target across water)
+   */
+  private findNavalOpportunity(unit: Unit): {
+    boat: Unit | null;
+    embarkPoint: HexCoordinate;
+    disembarkPoint: HexCoordinate;
+    priority: number;
+  } | null {
+    // Check if any tactical targets are across water
+    const targets = this.tacticalEngine.findTacticalTargets(unit);
+
+    for (const target of targets) {
+      if (!this.requiresWaterCrossing(unit.coordinate, target.coordinate)) continue;
+
+      // This target requires water crossing
+      const embarkPoint = this.findNearestCoastTile(unit.coordinate);
+      const disembarkPoint = this.findNearestCoastTile(target.coordinate);
+
+      if (!embarkPoint || !disembarkPoint) continue;
+
+      const boat = this.findAvailableBoat(embarkPoint);
+
+      return {
+        boat,
+        embarkPoint,
+        disembarkPoint,
+        priority: target.priority * 0.8 // Slight discount for complexity
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Check if path between two points requires crossing water
+   */
+  private requiresWaterCrossing(from: HexCoordinate, to: HexCoordinate): boolean {
+    // Simple check: if direct path crosses water tiles
+    const distance = hexDistance(from, to);
+    if (distance <= 1) return false; // Adjacent tiles don't require crossing
+
+    // Check tiles along rough path
+    const steps = Math.max(1, Math.floor(distance / 2));
+    for (let i = 1; i < steps; i++) {
+      const ratio = i / steps;
+      const checkQ = Math.round(from.q + (to.q - from.q) * ratio);
+      const checkR = Math.round(from.r + (to.r - from.r) * ratio);
+
+      const tile = this.gameState.map.tiles.find(t =>
+        t.coordinate.q === checkQ && t.coordinate.r === checkR
+      );
+
+      if (tile && tile.terrain === 'water') {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Find nearest coast tile from a position
+   */
+  private findNearestCoastTile(from: HexCoordinate): HexCoordinate | null {
+    let nearestCoast: HexCoordinate | null = null;
+    let nearestDist = Infinity;
+
+    for (const tile of this.gameState.map.tiles) {
+      if (tile.terrain === 'water') continue; // Must be land
+
+      // Check if adjacent to water
+      const neighbors = hexNeighbors(tile.coordinate);
+      const adjacentToWater = neighbors.some(n => {
+        const neighborTile = this.gameState.map.tiles.find(t =>
+          t.coordinate.q === n.q && t.coordinate.r === n.r
+        );
+        return neighborTile && neighborTile.terrain === 'water';
+      });
+
+      if (adjacentToWater) {
+        const dist = hexDistance(from, tile.coordinate);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestCoast = tile.coordinate;
+        }
+      }
+    }
+
+    return nearestCoast;
+  }
+
+  /**
+   * Find available boat near an embark point
+   */
+  private findAvailableBoat(nearPoint: HexCoordinate): Unit | null {
+    const myBoats = this.getMyUnits().filter(u => u.type === 'boat');
+
+    let nearestBoat: Unit | null = null;
+    let nearestDist = Infinity;
+
+    for (const boat of myBoats) {
+      if (this.reservedUnits.has(boat.id)) continue;
+
+      const dist = hexDistance(nearPoint, boat.coordinate);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestBoat = boat;
+      }
+    }
+
+    return nearestBoat;
+  }
+
+  /**
+   * Check if unit is currently on a boat (on water tile)
+   */
+  private isUnitOnBoat(unit: Unit): boolean {
+    const tile = this.gameState.map.tiles.find(t =>
+      t.coordinate.q === unit.coordinate.q && t.coordinate.r === unit.coordinate.r
+    );
+    return tile !== undefined && tile.terrain === 'water';
+  }
+
+  /**
+   * Find next sail position towards destination
+   */
+  private findSailPosition(from: HexCoordinate, to: HexCoordinate): HexCoordinate | null {
+    const neighbors = hexNeighbors(from);
+    let best: HexCoordinate | null = null;
+    let bestDist = Infinity;
+
+    for (const neighbor of neighbors) {
+      const tile = this.gameState.map.tiles.find(t =>
+        t.coordinate.q === neighbor.q && t.coordinate.r === neighbor.r
+      );
+
+      // Allow sailing on water or moving to coast (disembark)
+      if (tile && (tile.terrain === 'water' || this.isCoastTile(tile.coordinate))) {
+        const dist = hexDistance(neighbor, to);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = neighbor;
+        }
+      }
+    }
+
+    return best;
+  }
+
+  /**
+   * Check if tile is a coast tile (land adjacent to water)
+   */
+  private isCoastTile(coord: HexCoordinate): boolean {
+    const tile = this.gameState.map.tiles.find(t =>
+      t.coordinate.q === coord.q && t.coordinate.r === coord.r
+    );
+
+    if (!tile || tile.terrain === 'water') return false;
+
+    const neighbors = hexNeighbors(coord);
+    return neighbors.some(n => {
+      const neighborTile = this.gameState.map.tiles.find(t =>
+        t.coordinate.q === n.q && t.coordinate.r === n.r
+      );
+      return neighborTile && neighborTile.terrain === 'water';
+    });
+  }
+
+  /**
+   * Find units waiting to embark (near coast, have cross-water targets)
+   */
+  private findUnitsWaitingToEmbark(): Unit[] {
+    const myUnits = this.getMyUnits();
+
+    return myUnits.filter(unit => {
+      if (unit.type === 'boat') return false;
+      if (this.isUnitOnBoat(unit)) return false;
+
+      // Check if near coast
+      return this.isCoastTile(unit.coordinate);
+    });
+  }
+
+  /**
+   * Find water tile near a land coordinate
+   */
+  private findWaterTileNear(coord: HexCoordinate): HexCoordinate | null {
+    const neighbors = hexNeighbors(coord);
+
+    for (const neighbor of neighbors) {
+      const tile = this.gameState.map.tiles.find(t =>
+        t.coordinate.q === neighbor.q && t.coordinate.r === neighbor.r
+      );
+
+      if (tile && tile.terrain === 'water') {
+        return neighbor;
+      }
+    }
+
+    return null;
   }
 
 }
