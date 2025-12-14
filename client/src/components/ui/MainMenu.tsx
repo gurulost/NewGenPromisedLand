@@ -29,20 +29,19 @@ function HeroBackground() {
   return (
     <div className="absolute inset-0 overflow-hidden">
       {/* Fallback Background Image */}
-      <div 
+      <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000"
-        style={{ 
+        style={{
           backgroundImage: 'url(/assets/hero-image.avif)',
           opacity: videoEnded || !videoLoaded ? 1 : 0
         }}
       />
-      
+
       {/* Hero Video */}
       <video
         ref={videoRef}
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
-          videoEnded ? 'opacity-0' : 'opacity-100'
-        }`}
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${videoEnded ? 'opacity-0' : 'opacity-100'
+          }`}
         autoPlay
         muted
         playsInline
@@ -52,10 +51,10 @@ function HeroBackground() {
       >
         <source src="/assets/hero-video.webm" type="video/webm" />
       </video>
-      
+
       {/* Gradient Overlay for better text readability */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
-      
+
       {/* Subtle vignette effect */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-black/30" />
     </div>
@@ -68,7 +67,7 @@ export default function MainMenu() {
   return (
     <div className="w-full h-full flex items-center justify-center relative">
       <HeroBackground />
-      
+
       <div className="relative z-10 w-full max-w-md">
         <ContentShell size="md">
           <div className="p-6 space-y-6">
@@ -77,31 +76,35 @@ export default function MainMenu() {
               title="Chronicles of the Promised Land"
               description="A Book of Mormon Strategy Game"
             />
-            
+
             <div className="space-y-4">
               <GlowingButton
-                onClick={() => setGamePhase('playerSetup')}
-                className="w-full"
-                size="lg"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <Users />
-                  Pass-and-Play (Local)
-                </span>
-              </GlowingButton>
-              
-              <GlowingButton
-                disabled
-                variant="secondary"
+                onClick={() => {
+                  // Quick start single player: Human vs AI
+                  // Goes directly to player setup with AI pre-configured
+                  setGamePhase('playerSetup');
+                }}
                 className="w-full"
                 size="lg"
               >
                 <span className="flex items-center justify-center gap-2">
                   <Crown />
-                  Single Player (Coming Soon)
+                  Single Player vs AI
                 </span>
               </GlowingButton>
-              
+
+              <GlowingButton
+                onClick={() => setGamePhase('playerSetup')}
+                variant="secondary"
+                className="w-full"
+                size="lg"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <Users />
+                  Local Multiplayer (Pass-and-Play)
+                </span>
+              </GlowingButton>
+
               <GlowingButton
                 disabled
                 variant="secondary"
@@ -114,7 +117,7 @@ export default function MainMenu() {
                 </span>
               </GlowingButton>
             </div>
-            
+
             <div className="pt-4 border-t border-amber-500/20">
               <p className="text-sm text-amber-100/70 text-center leading-relaxed font-body">
                 Lead your people through faith, struggle, and triumph in the ancient Americas
