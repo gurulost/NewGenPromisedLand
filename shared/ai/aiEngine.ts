@@ -99,6 +99,20 @@ interface AIBudgetState {
   shouldDelayPurchases: boolean; // If true, avoid non-essential spending
 }
 
+/**
+ * Victory progress tracking for strategy pivoting
+ * FAIR PLAY: Only uses visible information
+ */
+interface VictoryProgress {
+  conquest: number;    // 0-100 based on cities controlled vs total visible
+  faith: number;       // 0-100 based on faith level vs target
+  economic: number;    // 0-100 based on tech progress and income
+  cultural: number;    // 0-100 based on improvements and population
+  preferredType: 'conquest' | 'faith' | 'cultural' | 'economic';
+  shouldPivot: boolean; // True if another victory path is more viable
+  pivotRecommendation?: 'conquest' | 'faith' | 'cultural' | 'economic';
+}
+
 interface AIStrategicPlan {
   techTarget?: AITechTarget;
   savingsNeeded: number;
@@ -107,6 +121,7 @@ interface AIStrategicPlan {
   goalQueue: AIStrategyGoal[];
   improvementJobs: AIImprovementJob[];
   explorationGoals: AIExplorationGoal[];
+  victoryProgress?: VictoryProgress; // Victory condition tracking
 }
 
 const CITY_WORK_RADIUS = 2;
@@ -228,14 +243,25 @@ export class AIEngine {
 
         if (distance <= attackRange) {
           const combatOdds = this.calculateCombatOdds(unit, enemy);
+          const modifiers = this.getDifficultyModifiers();
 
-          // Attack if we have good odds or if we're on hard difficulty
-          if (combatOdds > 0.6 || (this.difficulty === 'hard' && combatOdds > 0.4)) {
+          // ADAPTIVE DIFFICULTY: Easy AI might miss optimal attacks
+          if (this.shouldSkipOptimalPlay()) continue;
+
+          // BUILD ARMY THRESHOLD: Don't attack with too few units
+          if (!this.hasMinimumArmyForAttack()) {
+            // Still attack if enemy is very weak or we're defending
+            const isDefensive = hexDistance(unit.coordinate, this.getMyCities()[0]?.coordinate || unit.coordinate) <= 3;
+            if (!isDefensive && enemy.hp > unit.hp * 0.5) continue;
+          }
+
+          // Use difficulty-adjusted combat odds threshold
+          if (combatOdds > modifiers.combatOddsThreshold) {
             decisions.push({
               type: 'ATTACK_UNIT',
               unitId: unit.id,
               targetId: enemy.id,
-              priority: 100 + combatOdds * 20 // Very high priority for favorable combat
+              priority: 100 + combatOdds * 20 + modifiers.aggressionBonus
             });
           }
         }
@@ -1173,6 +1199,9 @@ export class AIEngine {
       });
     }
 
+    // Calculate victory progress for strategic focus
+    const victoryProgress = this.calculateVictoryProgress(personality);
+
     this.strategy = {
       techTarget,
       savingsNeeded,
@@ -1181,6 +1210,7 @@ export class AIEngine {
       goalQueue,
       improvementJobs,
       explorationGoals,
+      victoryProgress,
     };
 
     if (process.env.NODE_ENV !== 'production') {
@@ -1326,13 +1356,16 @@ export class AIEngine {
       const existingImprovements = this.getCityImprovementsMap(city.id);
       const queuedImprovements = this.getQueuedImprovements(city.id);
 
+      // City Specialization: classify city role
+      const cityRole = this.classifyCityRole(city, myCities);
+
       for (const structure of Object.values(STRUCTURE_DEFINITIONS)) {
         if (structuresOwned.has(structure.id)) continue;
         if (queuedStructures.has(structure.id)) continue;
         if (!this.canBuildStructure(structure.id)) continue;
         if (structure.id === 'lighthouse' && !this.isCoastalCity(city)) continue;
 
-        const { score, reason } = this.evaluateStructurePlan(city, structure, personality, faithDeficit, threatLevel);
+        const { score, reason } = this.evaluateStructurePlan(city, structure, personality, faithDeficit, threatLevel, cityRole);
         if (score <= 0) continue;
 
         entries.push({
@@ -1368,12 +1401,47 @@ export class AIEngine {
     return plans;
   }
 
+  /**
+   * Classify a city's role for specialization
+   * - capital: First city or highest population
+   * - frontier: Near visible enemies or at map edge
+   * - interior: Safe cities away from threats
+   */
+  private classifyCityRole(city: City, allMyCities: City[]): 'capital' | 'frontier' | 'interior' {
+    // Capital: first city (usually) or highest pop
+    const isCapital = allMyCities.length === 1 ||
+      allMyCities.indexOf(city) === 0 ||
+      city.population >= Math.max(...allMyCities.map(c => c.population || 1));
+
+    if (isCapital) return 'capital';
+
+    // Frontier: near visible enemies
+    const visibleEnemies = this.getVisibleEnemyUnits();
+    const nearbyEnemies = visibleEnemies.filter(e =>
+      hexDistance(city.coordinate, e.coordinate) <= 5
+    );
+
+    const visibleEnemyCities = this.gameState.cities.filter(c => {
+      if (c.ownerId === this.aiPlayer.id) return false;
+      const key = `${c.coordinate.q},${c.coordinate.r}`;
+      return this.aiPlayer.exploredTiles.includes(key) &&
+        hexDistance(city.coordinate, c.coordinate) <= 6;
+    });
+
+    if (nearbyEnemies.length > 0 || visibleEnemyCities.length > 0) {
+      return 'frontier';
+    }
+
+    return 'interior';
+  }
+
   private evaluateStructurePlan(
     city: City,
     structure: StructureDefinition,
     personality: FactionPersonality,
     faithDeficit: number,
-    threatLevel: number
+    threatLevel: number,
+    cityRole: 'capital' | 'frontier' | 'interior' = 'interior'
   ): { score: number; reason: string } {
     let score = 10;
     const reasons: string[] = [];
@@ -1383,6 +1451,31 @@ export class AIEngine {
     if (preferenceIndex >= 0) {
       score += Math.max(0, 25 - preferenceIndex * 4);
       reasons.push('faction preference');
+    }
+
+    // CITY SPECIALIZATION: Role-based bonuses
+    switch (cityRole) {
+      case 'frontier':
+        // Frontier cities prioritize defense and military
+        if (['fortress', 'walls', 'barracks'].includes(structure.id)) {
+          score += 25;
+          reasons.push('frontier defense');
+        }
+        break;
+      case 'interior':
+        // Interior cities prioritize economy
+        if (['granary', 'market', 'farm'].includes(structure.id)) {
+          score += 20;
+          reasons.push('interior economy');
+        }
+        break;
+      case 'capital':
+        // Capital prioritizes tech, faith, and prestige buildings
+        if (['temple', 'cathedral', 'academy', 'library'].includes(structure.id)) {
+          score += 20;
+          reasons.push('capital development');
+        }
+        break;
     }
 
     switch (structure.id) {
@@ -2033,6 +2126,73 @@ export class AIEngine {
     });
   }
 
+  /**
+   * Calculate progress toward each victory condition
+   * FAIR PLAY: Only uses information the AI can actually see
+   */
+  private calculateVictoryProgress(personality: FactionPersonality): VictoryProgress {
+    const preferredType = personality.preferredVictory;
+
+    // --- Conquest Progress ---
+    // FAIR PLAY: Only count cities we can see (explored tiles)
+    const myCities = this.getMyCities().length;
+    const visibleEnemyCities = this.gameState.cities.filter(city => {
+      if (city.ownerId === this.aiPlayer.id) return false;
+      const tileKey = `${city.coordinate.q},${city.coordinate.r}`;
+      return this.aiPlayer.exploredTiles.includes(tileKey);
+    }).length;
+    const totalVisibleCities = myCities + visibleEnemyCities;
+    const conquestProgress = totalVisibleCities > 0
+      ? Math.min(100, (myCities / totalVisibleCities) * 150) // 66% of visible = 100%
+      : 50;
+
+    // --- Faith Progress ---
+    const faithTarget = 100; // Target faith level
+    const faithProgress = Math.min(100, (this.aiPlayer.stats.faith / faithTarget) * 100);
+
+    // --- Economic Progress ---
+    const techCount = this.aiPlayer.researchedTechs.length;
+    const totalTechs = Object.keys(TECHNOLOGIES).length;
+    const income = this.strategy.budget?.incomePerTurn || 0;
+    const economicProgress = Math.min(100,
+      (techCount / totalTechs) * 60 + // 60% from tech
+      (income / 20) * 40               // 40% from income
+    );
+
+    // --- Cultural Progress ---
+    const totalPop = this.getMyCities().reduce((sum, c) => sum + (c.population || 1), 0);
+    const improvements = (this.gameState.improvements || []).filter(
+      i => i.ownerId === this.aiPlayer.id
+    ).length;
+    const culturalProgress = Math.min(100, totalPop * 5 + improvements * 3);
+
+    // Determine if we should pivot strategy
+    const progressMap = { conquest: conquestProgress, faith: faithProgress, economic: economicProgress, cultural: culturalProgress };
+    const currentProgress = progressMap[preferredType];
+
+    // Find best alternative
+    let bestAlt: typeof preferredType = preferredType;
+    let bestAltProgress = currentProgress;
+    for (const [type, progress] of Object.entries(progressMap) as [typeof preferredType, number][]) {
+      if (type !== preferredType && progress > bestAltProgress + 20) {
+        bestAlt = type;
+        bestAltProgress = progress;
+      }
+    }
+
+    const shouldPivot = bestAlt !== preferredType && bestAltProgress > currentProgress + 20;
+
+    return {
+      conquest: conquestProgress,
+      faith: faithProgress,
+      economic: economicProgress,
+      cultural: culturalProgress,
+      preferredType,
+      shouldPivot,
+      pivotRecommendation: shouldPivot ? bestAlt : undefined,
+    };
+  }
+
   private createImprovementJobs(cityPlans: Record<string, AICityPlanEntry[]>): AIImprovementJob[] {
     const jobs: AIImprovementJob[] = [];
     Object.entries(cityPlans).forEach(([cityId, plans]) => {
@@ -2308,6 +2468,65 @@ export class AIEngine {
       case 'normal': return 3;
       case 'hard': return 4;
       default: return 3;
+    }
+  }
+
+  /**
+   * ADAPTIVE DIFFICULTY: Easy AI occasionally misses optimal plays
+   * This makes Easy feel more forgiving without being completely random
+   */
+  private shouldSkipOptimalPlay(): boolean {
+    if (this.difficulty !== 'easy') return false;
+
+    // 15% chance to skip an optimal decision on Easy
+    return this.rng.next() < 0.15;
+  }
+
+  /**
+   * ADAPTIVE DIFFICULTY: Check if AI has minimum army before aggressive actions
+   * Prevents suicidal lone-unit attacks
+   */
+  private hasMinimumArmyForAttack(): boolean {
+    const combatUnits = this.getMyUnits().filter(u => {
+      const def = getUnitDefinition(u.type);
+      return def.baseStats.attack > 0 && u.type !== 'worker';
+    });
+
+    // Minimum army thresholds by difficulty
+    const minArmy = this.difficulty === 'easy' ? 2 :
+      this.difficulty === 'normal' ? 3 : 4;
+
+    return combatUnits.length >= minArmy;
+  }
+
+  /**
+   * ADAPTIVE DIFFICULTY: Get combat odds modifier based on difficulty
+   * Hard AI takes more calculated risks, Easy is more cautious
+   */
+  private getDifficultyModifiers(): {
+    combatOddsThreshold: number;
+    economyFocus: number;
+    aggressionBonus: number;
+  } {
+    switch (this.difficulty) {
+      case 'easy':
+        return {
+          combatOddsThreshold: 0.7,  // Only attack with 70%+ odds
+          economyFocus: 1.3,          // Focus more on economy
+          aggressionBonus: -10        // Less aggressive
+        };
+      case 'hard':
+        return {
+          combatOddsThreshold: 0.4,  // Take risks at 40%+ odds
+          economyFocus: 0.8,          // Less economy focus
+          aggressionBonus: 15         // More aggressive
+        };
+      default: // normal
+        return {
+          combatOddsThreshold: 0.55,
+          economyFocus: 1.0,
+          aggressionBonus: 0
+        };
     }
   }
 

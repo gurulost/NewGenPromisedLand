@@ -71,7 +71,7 @@ export class TacticalEngine {
         const distance = hexDistance(coord, unit.coordinate);
         const unitDef = getUnitDefinition(unit.type);
         const range = Math.max(unitDef.baseStats.attackRange || 1, 3);
-        
+
         if (distance <= range) {
           const influence = this.calculateUnitInfluence(unit, distance);
           if (unit.playerId === this.aiPlayer.id) {
@@ -113,26 +113,26 @@ export class TacticalEngine {
 
     // Check enemy units that can attack this position
     const enemyUnits = this.gameState.units.filter(u => u.playerId !== this.aiPlayer.id);
-    
+
     for (const enemy of enemyUnits) {
       const distance = hexDistance(coordinate, enemy.coordinate);
       const unitDef = getUnitDefinition(enemy.type);
       const attackRange = unitDef.baseStats.attackRange || 1;
       const movementRange = enemy.remainingMovement || unitDef.baseStats.movement;
-      
+
       // Can this unit threaten this position this turn or next?
       const canReach = distance <= attackRange + movementRange;
-      
+
       if (canReach) {
         const damage = this.estimateDamage(enemy, coordinate);
         const threat = damage / Math.max(1, distance);
-        
+
         sources.push({
           unitId: enemy.id,
           distance,
           damage
         });
-        
+
         totalThreat += threat;
         maxDamage += damage;
       }
@@ -159,15 +159,15 @@ export class TacticalEngine {
     const maxRange = unit.remainingMovement + attackRange;
 
     // 1. Enemy units within range
-    const enemyUnits = this.gameState.units.filter(u => 
-      u.playerId !== this.aiPlayer.id && 
+    const enemyUnits = this.gameState.units.filter(u =>
+      u.playerId !== this.aiPlayer.id &&
       hexDistance(unit.coordinate, u.coordinate) <= maxRange
     );
 
     for (const enemy of enemyUnits) {
       const distance = hexDistance(unit.coordinate, enemy.coordinate);
       const priority = this.calculateTargetPriority(unit, enemy);
-      
+
       targets.push({
         coordinate: enemy.coordinate,
         targetType: 'unit',
@@ -178,15 +178,15 @@ export class TacticalEngine {
     }
 
     // 2. Enemy cities within range
-    const enemyCities = this.gameState.cities.filter(c => 
-      c.ownerId !== this.aiPlayer.id && 
+    const enemyCities = this.gameState.cities.filter(c =>
+      c.ownerId !== this.aiPlayer.id &&
       hexDistance(unit.coordinate, c.coordinate) <= maxRange
     );
 
     for (const city of enemyCities) {
       const distance = hexDistance(unit.coordinate, city.coordinate);
       const priority = this.calculateCityTargetPriority(unit, city, distance);
-      
+
       targets.push({
         coordinate: city.coordinate,
         targetType: 'city',
@@ -214,12 +214,12 @@ export class TacticalEngine {
     let totalStrength = 0;
 
     for (const neighbor of neighbors) {
-      const adjacentUnit = this.gameState.units.find(u => 
-        u.coordinate.q === neighbor.q && 
-        u.coordinate.r === neighbor.r && 
+      const adjacentUnit = this.gameState.units.find(u =>
+        u.coordinate.q === neighbor.q &&
+        u.coordinate.r === neighbor.r &&
         u.playerId === unit.playerId
       );
-      
+
       if (adjacentUnit) {
         friendlyNeighbors++;
         const unitDef = getUnitDefinition(adjacentUnit.type);
@@ -229,10 +229,10 @@ export class TacticalEngine {
 
     // Formation bonus: 10% per adjacent friendly, max 30%
     const formationBonus = Math.min(0.3, friendlyNeighbors * 0.1);
-    
+
     // Strength bonus: Additional bonus based on combined strength
     const strengthBonus = Math.min(0.2, totalStrength / 100);
-    
+
     return formationBonus + strengthBonus;
   }
 
@@ -249,16 +249,16 @@ export class TacticalEngine {
         const s = -q - r;
         const coord = { q, r, s };
         const distance = hexDistance(unit.coordinate, coord);
-        
+
         if (distance <= maxDistance && distance > 0) {
-          const tile = this.gameState.map.tiles.find(t => 
+          const tile = this.gameState.map.tiles.find(t =>
             t.coordinate.q === q && t.coordinate.r === r
           );
-          
+
           if (tile && this.isPassable(tile)) {
             const threat = this.assessThreat(coord);
             const safetyScore = this.calculateSafetyScore(coord, unit);
-            
+
             retreatPositions.push({
               coord,
               safety: safetyScore - threat.threatLevel
@@ -280,7 +280,7 @@ export class TacticalEngine {
   calculateEscortPriority(worker: Unit): number {
     const threat = this.assessThreat(worker.coordinate);
     const importance = this.calculateUnitImportance(worker);
-    
+
     // Higher priority if worker is threatened and important
     return threat.threatLevel * importance;
   }
@@ -303,72 +303,72 @@ export class TacticalEngine {
   private estimateDamage(attacker: Unit, targetCoord: HexCoordinate): number {
     const attackerDef = getUnitDefinition(attacker.type);
     const baseDamage = attackerDef.baseStats.attack;
-    
+
     // Add terrain and formation modifiers
     const formationBonus = this.calculateFormationBonus(attacker);
     const terrainBonus = this.getTerrainBonus(attacker.coordinate);
-    
+
     return baseDamage * (1 + formationBonus + terrainBonus);
   }
 
   private calculateTargetPriority(attacker: Unit, target: Unit): number {
     const targetDef = getUnitDefinition(target.type);
     const attackerDef = getUnitDefinition(attacker.type);
-    
+
     // Base priority from target value
     let priority = targetDef.baseStats.attack + targetDef.baseStats.defense;
-    
+
     // Bonus for soft targets
     if (targetDef.baseStats.defense < 20) {
       priority *= 1.5;
     }
-    
+
     // Bonus for damaged enemies
     if (target.hp < target.maxHp * 0.5) {
       priority *= 2;
     }
-    
+
     // Range consideration
     const distance = hexDistance(attacker.coordinate, target.coordinate);
     const rangeBonus = distance <= 1 ? 1.3 : 1.0;
-    
+
     return priority * rangeBonus;
   }
 
   private calculateCityTargetPriority(attacker: Unit, city: City, distance: number): number {
     let priority = 100; // Cities are high value
-    
+
     // Distance penalty
     priority *= Math.max(0.3, 1 - distance / 10);
-    
+
     // Size bonus
     priority *= (1 + city.population * 0.1);
-    
+
     return priority;
   }
 
   private findStrategicPositions(unit: Unit): TacticalTarget[] {
     const targets: TacticalTarget[] = [];
-    
+
     // Look for choke points (mountains/forests near water)
     // Look for resource tiles
     // Look for defensive positions
-    
+
     return targets;
   }
 
   private findExplorationTargets(unit: Unit): TacticalTarget[] {
     const targets: TacticalTarget[] = [];
     const maxRange = unit.remainingMovement;
-    
+
     // Find unexplored tiles within range
     for (const tile of this.gameState.map.tiles) {
       if (!tile.exploredBy.includes(this.aiPlayer.id)) {
         const distance = hexDistance(unit.coordinate, tile.coordinate);
-        
+
         if (distance <= maxRange) {
           const priority = this.calculateExplorationPriority(tile, distance);
-          
+
           targets.push({
             coordinate: tile.coordinate,
             targetType: 'exploration',
@@ -378,58 +378,97 @@ export class TacticalEngine {
         }
       }
     }
-    
+
     return targets.slice(0, 3); // Limit exploration targets
   }
 
   private calculateSafetyScore(coord: HexCoordinate, unit: Unit): number {
-    // Higher score = safer position
+    // Higher score = safer position (smarter retreat logic)
     let safety = 0;
-    
-    // Distance from friendly units/cities
-    const friendlyUnits = this.gameState.units.filter(u => u.playerId === this.aiPlayer.id);
-    const nearestFriendly = Math.min(...friendlyUnits.map(u => hexDistance(coord, u.coordinate)));
-    safety += Math.max(0, 5 - nearestFriendly) * 10;
-    
-    // Terrain bonuses
-    const tile = this.gameState.map.tiles.find(t => 
-      t.coordinate.q === coord.q && t.coordinate.r === coord.r
+
+    // 1. Distance to friendly cities (retreat toward safety)
+    const friendlyCities = this.gameState.cities.filter(c => c.ownerId === this.aiPlayer.id);
+    if (friendlyCities.length > 0) {
+      const nearestCity = Math.min(...friendlyCities.map(c => hexDistance(coord, c.coordinate)));
+      // Big bonus for being close to friendly city
+      safety += Math.max(0, 50 - nearestCity * 8);
+    }
+
+    // 2. Nearby friendly units (retreat toward reinforcements)
+    const friendlyUnits = this.gameState.units.filter(u =>
+      u.playerId === this.aiPlayer.id && u.id !== unit.id
     );
-    
-    if (tile) {
-      if (tile.terrain === 'forest' || tile.terrain === 'mountain') {
-        safety += 20; // Defensive terrain
+    const nearbyFriendlies = friendlyUnits.filter(u => hexDistance(coord, u.coordinate) <= 2).length;
+    safety += nearbyFriendlies * 15; // +15 per nearby friendly
+
+    // 3. Avoid adjacent to visible enemies (don't retreat into danger)
+    const neighbors = hexNeighbors(coord);
+    const enemyUnits = this.gameState.units.filter(u => u.playerId !== this.aiPlayer.id);
+    for (const neighbor of neighbors) {
+      const adjacentEnemy = enemyUnits.some(e =>
+        e.coordinate.q === neighbor.q && e.coordinate.r === neighbor.r
+      );
+      if (adjacentEnemy) {
+        safety -= 40; // Heavy penalty for retreating next to enemy
       }
     }
-    
+
+    // 4. Terrain bonuses (defensive positions)
+    const tile = this.gameState.map.tiles.find(t =>
+      t.coordinate.q === coord.q && t.coordinate.r === coord.r
+    );
+
+    if (tile) {
+      if (tile.terrain === 'forest') {
+        safety += 25; // Good cover
+      } else if (tile.terrain === 'mountain') {
+        safety += 20; // High ground
+      } else if (tile.terrain === 'plains') {
+        safety += 5; // Minimal cover
+      }
+    }
+
+    // 5. Avoid being in enemy attack range
+    for (const enemy of enemyUnits) {
+      const dist = hexDistance(coord, enemy.coordinate);
+      const enemyDef = getUnitDefinition(enemy.type);
+      const attackRange = enemyDef.baseStats.attackRange || 1;
+
+      if (dist <= attackRange) {
+        safety -= 30; // In attack range - bad!
+      } else if (dist <= attackRange + 1) {
+        safety -= 10; // Just outside range
+      }
+    }
+
     return safety;
   }
 
   private calculateUnitImportance(unit: Unit): number {
     const unitDef = getUnitDefinition(unit.type);
-    
+
     // Workers and settlers are very important
     if (unit.type === 'worker') {
       return 1.0;
     }
-    
+
     // Combat units less important for escort
     return 0.3;
   }
 
   private calculateExplorationPriority(tile: any, distance: number): number {
     let priority = 50 - distance * 5; // Closer is better
-    
+
     // Bonus for potential resources
     if (tile.resources && tile.resources.length > 0) {
       priority += 30;
     }
-    
+
     // Bonus for being near water (exploration value)
     if (tile.terrain === 'water') {
       priority += 15;
     }
-    
+
     return Math.max(0, priority);
   }
 
@@ -438,12 +477,12 @@ export class TacticalEngine {
   }
 
   private getTerrainBonus(coord: HexCoordinate): number {
-    const tile = this.gameState.map.tiles.find(t => 
+    const tile = this.gameState.map.tiles.find(t =>
       t.coordinate.q === coord.q && t.coordinate.r === coord.r
     );
-    
+
     if (!tile) return 0;
-    
+
     switch (tile.terrain) {
       case 'mountain': return 0.3;
       case 'forest': return 0.2;
