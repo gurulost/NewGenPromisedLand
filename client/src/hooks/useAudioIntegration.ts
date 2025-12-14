@@ -152,27 +152,36 @@ export function useAudioControls() {
     isMuted, 
     musicVolume, 
     sfxVolume, 
+    musicTracks,
+    currentTrackIndex,
+    isMusicPlaying,
     toggleMute, 
     setMusicVolume, 
     setSfxVolume,
+    setMusicTracks,
     startBackgroundMusic,
-    stopBackgroundMusic
+    stopBackgroundMusic,
+    playNextTrack,
+    shuffleTracks
   } = useAudio();
   
   return {
-    // State
     isMuted,
     musicVolume,
     sfxVolume,
+    musicTracks,
+    currentTrackIndex,
+    isMusicPlaying,
     
-    // Controls
     toggleMute,
     setMusicVolume,
     setSfxVolume,
+    setMusicTracks,
     startBackgroundMusic,
     stopBackgroundMusic,
+    playNextTrack,
+    shuffleTracks,
     
-    // Quick actions
     muteAll: () => {
       if (!isMuted) toggleMute();
     },
