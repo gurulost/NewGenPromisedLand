@@ -135,6 +135,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
         maxPopulation: 4, // Population needed to level up
         level: 1,
         starProduction: 2, // Base star production
+        unrestTurns: 0,
         improvements: [],
         structures: [],
         harvestedResources: [], // Track harvested resource tiles

@@ -7,6 +7,7 @@ import { Button } from './button';
 import { Badge } from './badge';
 import { Separator } from './separator';
 import { GameState } from '../../../../shared/types/game';
+import { hexDistance, hexNeighbors } from '../../../../shared/utils/hex';
 import { TOKENS } from '../../theme/tokens';
 import { useHotkeys } from '../../hooks/useHotkeys';
 import { useSfxEngine } from '../../hooks/useSfx';
@@ -478,6 +479,94 @@ function AllianceTab({ otherPlayers, currentPlayer, onFormAlliance }: any) {
 // Trade Routes Tab
 function TradeTab({ gameState, currentPlayer, playerCities, selectedFromCity, selectedToCity, onSelectFromCity, onSelectToCity, onEstablishTrade }: any) {
     const allCities = gameState.cities || [];
+    const hasTradeTech = (currentPlayer.researchedTechs || []).includes('trade');
+    const tradeCooldown = currentPlayer.diplomaticCooldowns?.requestTrade || 0;
+    const tradeRoutes = currentPlayer.tradeRoutes || [];
+    const maxRoutes = Math.max(1, (currentPlayer.citiesOwned || []).length);
+
+    const fromCity = allCities.find((c: any) => c.id === selectedFromCity);
+    const toCity = allCities.find((c: any) => c.id === selectedToCity);
+
+    const roadKeys = new Set(
+        (gameState.improvements || [])
+            .filter((imp: any) => imp.ownerId === currentPlayer.id)
+            .filter((imp: any) => imp.type === 'road')
+            .filter((imp: any) => imp.constructionTurns === 0)
+            .map((imp: any) => `${imp.coordinate.q},${imp.coordinate.r}`)
+    );
+
+    const areCitiesConnectedByRoad = (fromId: string, toId: string): boolean => {
+        if (!fromId || !toId || fromId === toId) return false;
+        const a = allCities.find((c: any) => c.id === fromId);
+        const b = allCities.find((c: any) => c.id === toId);
+        if (!a || !b) return false;
+        if (!(currentPlayer.citiesOwned || []).includes(fromId)) return false;
+        if (!(currentPlayer.citiesOwned || []).includes(toId)) return false;
+        if (roadKeys.size === 0) return false;
+
+        const aKey = `${a.coordinate.q},${a.coordinate.r}`;
+        const bKey = `${b.coordinate.q},${b.coordinate.r}`;
+        const cityKeys = new Set([aKey, bKey]);
+
+        const aHasAdjacentRoad = hexNeighbors(a.coordinate).some(n => roadKeys.has(`${n.q},${n.r}`));
+        const bHasAdjacentRoad = hexNeighbors(b.coordinate).some(n => roadKeys.has(`${n.q},${n.r}`));
+        if (!aHasAdjacentRoad || !bHasAdjacentRoad) return false;
+
+        const visited = new Set<string>();
+        const queue = [a.coordinate];
+
+        while (queue.length > 0) {
+            const current = queue.shift()!;
+            const key = `${current.q},${current.r}`;
+            if (visited.has(key)) continue;
+            visited.add(key);
+            if (key === bKey) return true;
+
+            const isCity = cityKeys.has(key);
+            const isRoad = roadKeys.has(key);
+
+            for (const neighbor of hexNeighbors(current)) {
+                const nKey = `${neighbor.q},${neighbor.r}`;
+                const canTraverse =
+                    (isCity && roadKeys.has(nKey)) ||
+                    (isRoad && (roadKeys.has(nKey) || cityKeys.has(nKey)));
+                if (canTraverse && !visited.has(nKey)) queue.push(neighbor);
+            }
+        }
+
+        return false;
+    };
+
+    const isConnected = !!(selectedFromCity && selectedToCity && areCitiesConnectedByRoad(selectedFromCity, selectedToCity));
+
+    const isDuplicatePair = !!(selectedFromCity && selectedToCity && tradeRoutes.some((r: any) =>
+        (r.fromCityId === selectedFromCity && r.toCityId === selectedToCity) ||
+        (r.fromCityId === selectedToCity && r.toCityId === selectedFromCity)
+    ));
+
+    const fromAlreadyHasOutgoing = !!(selectedFromCity && tradeRoutes.some((r: any) => r.fromCityId === selectedFromCity));
+
+    const starsPerTurn = (() => {
+        if (!fromCity || !toCity) return 0;
+        const base = 1 + Math.floor(((fromCity.level || 1) + (toCity.level || 1)) / 2);
+        const distance = hexDistance(fromCity.coordinate, toCity.coordinate);
+        const proximity = Math.max(0, 2 - Math.floor(distance / 4));
+        const connectivityBonus = isConnected ? 1 : 0;
+        return Math.max(1, Math.min(6, base + proximity + connectivityBonus));
+    })();
+
+    const costStars = Math.max(8, starsPerTurn * 5);
+
+    const canEstablish =
+        hasTradeTech &&
+        tradeCooldown === 0 &&
+        !!selectedFromCity &&
+        !!selectedToCity &&
+        !isDuplicatePair &&
+        tradeRoutes.length < maxRoutes &&
+        !fromAlreadyHasOutgoing &&
+        isConnected &&
+        currentPlayer.stars >= costStars;
 
     return (
         <StaggeredContent>
@@ -485,8 +574,24 @@ function TradeTab({ gameState, currentPlayer, playerCities, selectedFromCity, se
                 <div className="bg-amber-900/20 border border-amber-600/40 rounded-lg p-4">
                     <h3 className="font-cinzel text-lg font-semibold text-amber-200 mb-2">Establish Trade Route</h3>
                     <p className="text-sm text-amber-100/80 mb-4">
-                        Create a trade route between two cities. Generates stars based on distance.
+                        Establish a persistent trade route between your cities. Requires Trade tech and a road connection.
                     </p>
+                    <div className="grid grid-cols-2 gap-3 text-xs text-amber-200/80">
+                        <div>Requires: Trade technology</div>
+                        <div>Limit: {tradeRoutes.length}/{maxRoutes} routes</div>
+                        <div>Cooldown: {tradeCooldown > 0 ? `${tradeCooldown} turns` : 'Ready'}</div>
+                        <div>Income: {starsPerTurn > 0 ? `+${starsPerTurn}★/turn` : '—'}</div>
+                    </div>
+                    {!hasTradeTech && (
+                        <div className="mt-3 text-xs text-red-200/90">
+                            Research Trade to unlock trade routes.
+                        </div>
+                    )}
+                    {hasTradeTech && selectedFromCity && selectedToCity && !isConnected && (
+                        <div className="mt-3 text-xs text-red-200/90">
+                            Cities must be connected by roads to trade.
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -506,7 +611,12 @@ function TradeTab({ gameState, currentPlayer, playerCities, selectedFromCity, se
                                     )}
                                 >
                                     <div className="font-semibold text-sm">{city.name}</div>
-                                    <div className="text-xs text-amber-300/70">Pop: {city.population}</div>
+                                    <div className="text-xs text-amber-300/70">
+                                        Pop: {city.population} • Lvl: {city.level}
+                                        {tradeRoutes.some((r: any) => r.fromCityId === city.id) && (
+                                            <span className="ml-2 text-amber-200/80">(has outgoing route)</span>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -514,9 +624,9 @@ function TradeTab({ gameState, currentPlayer, playerCities, selectedFromCity, se
 
                     {/* To City Selection */}
                     <div>
-                        <h4 className="text-sm font-semibold text-amber-200 mb-2">To (Any City)</h4>
+                        <h4 className="text-sm font-semibold text-amber-200 mb-2">To (Your City)</h4>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {allCities.filter((c: any) => c.id !== selectedFromCity).map((city: any) => (
+                            {playerCities.filter((c: any) => c.id !== selectedFromCity).map((city: any) => (
                                 <div
                                     key={city.id}
                                     onClick={() => onSelectToCity(city.id)}
@@ -528,20 +638,48 @@ function TradeTab({ gameState, currentPlayer, playerCities, selectedFromCity, se
                                     )}
                                 >
                                     <div className="font-semibold text-sm">{city.name}</div>
-                                    <div className="text-xs text-amber-300/70">Owner: {gameState.players.find((p: any) => p.citiesOwned.includes(city.id))?.name || 'Unknown'}</div>
+                                    <div className="text-xs text-amber-300/70">
+                                        Pop: {city.population} • Lvl: {city.level}
+                                        {selectedFromCity && (
+                                            <span className="ml-2">
+                                                {areCitiesConnectedByRoad(selectedFromCity, city.id) ? 'Connected' : 'Not connected'}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     </div>
                 </div>
 
+                {/* Existing routes */}
+                {tradeRoutes.length > 0 && (
+                    <div className="bg-stone-900/40 border border-amber-900/30 rounded-lg p-4">
+                        <div className="text-sm font-semibold text-amber-200 mb-2">Active Routes</div>
+                        <div className="space-y-2 text-xs">
+                            {tradeRoutes.map((route: any, idx: number) => {
+                                const a = allCities.find((c: any) => c.id === route.fromCityId);
+                                const b = allCities.find((c: any) => c.id === route.toCityId);
+                                return (
+                                    <div key={`${route.fromCityId}_${route.toCityId}_${idx}`} className="flex items-center justify-between">
+                                        <div className="text-amber-100/90">
+                                            {a?.name || route.fromCityId} → {b?.name || route.toCityId}
+                                        </div>
+                                        <div className="text-amber-300/80">+{route.starsPerTurn}★/turn</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
                 <Button
                     onClick={onEstablishTrade}
-                    disabled={!selectedFromCity || !selectedToCity}
+                    disabled={!canEstablish}
                     className="w-full bg-amber-700 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <TrendingUp className="w-4 h-4 mr-2" />
-                    Establish Trade Route
+                    Establish Trade Route {starsPerTurn > 0 ? `(Cost ${costStars}★)` : ''}
                 </Button>
             </div>
         </StaggeredContent>

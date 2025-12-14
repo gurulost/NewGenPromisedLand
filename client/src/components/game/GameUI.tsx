@@ -96,6 +96,44 @@ export default function GameUI() {
           triggerFlash('blue');
         }
       }
+    } else if (action.type === 'MORALE_EVENT') {
+      const { kind, playerId, starsDelta, cityId } = action.payload || {};
+      const cityName = typeof cityId === 'string' ? (gameState.cities.find(c => c.id === cityId)?.name || 'a city') : 'a city';
+
+      if (kind === 'rebellion') {
+        triggerFlash('red');
+        showToast(`Rebellion! Unrest in ${cityName} (${starsDelta ?? -5}★)`, 'warning');
+      } else if (kind === 'desertion') {
+        triggerFlash('red');
+        showToast(`Desertion! A unit abandoned you (${starsDelta ?? -3}★)`, 'warning');
+      } else if (kind === 'contention') {
+        triggerFlash('red');
+        showToast(`Contention! Wealth lost (${starsDelta ?? -5}★)`, 'warning');
+      } else if (kind === 'blessing') {
+        triggerFlash('green');
+        showToast(`Blessings of humility (+${starsDelta ?? 0}★, +Faith)`, 'success');
+      } else {
+        showToast(`Morale shifted`, 'info');
+      }
+
+      // Log it (best-effort; keep concise)
+      const actor = gameState.players.find(p => p.id === playerId);
+      if (actor) {
+        const message =
+          kind === 'rebellion' ? `Rebellion: unrest in ${cityName}` :
+            kind === 'desertion' ? `Desertion: a unit abandoned them` :
+              kind === 'contention' ? `Contention: lost wealth` :
+                kind === 'blessing' ? `Blessings of humility` : 'Morale event';
+        setGameLogEntries(prev => [...prev, {
+          id: `log_${Date.now()}`,
+          turn: gameState.turn,
+          playerId: actor.id,
+          playerName: actor.name,
+          type: 'morale',
+          message,
+          timestamp: Date.now(),
+        }]);
+      }
     }
   }, [gameState?.lastAction, gameState?.cities, gameState?.units, addToast, triggerFlash, gameState?.players, gameState?.currentPlayerIndex]);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
@@ -330,8 +368,10 @@ export default function GameUI() {
 
         console.log('🤝 Diplomacy action:', type, payload);
 
+        const beforeState = useLocalGame.getState().gameState;
         // Dispatch the diplomacy action through the game reducer
         useLocalGame.getState().dispatch({ type, payload } as any);
+        const afterState = useLocalGame.getState().gameState;
 
         // Visual feedback based on action type
         if (type === 'DECLARE_WAR') {
@@ -341,8 +381,26 @@ export default function GameUI() {
           triggerFlash('blue');
           showToast(`Alliance Formed!`, 'info');
         } else if (type === 'ESTABLISH_TRADE_ROUTE') {
-          triggerFlash('gold');
-          showToast(`Trade Route Established`, 'reward');
+          const beforePlayer = beforeState?.players?.find(p => p.id === payload.playerId);
+          const afterPlayer = afterState?.players?.find(p => p.id === payload.playerId);
+          const beforeRoutes = beforePlayer?.tradeRoutes || [];
+          const afterRoutes = afterPlayer?.tradeRoutes || [];
+          const established = afterRoutes.length > beforeRoutes.length;
+
+          if (established) {
+            const newRoute = afterRoutes.find(r => !beforeRoutes.some(br =>
+              (br.fromCityId === r.fromCityId && br.toCityId === r.toCityId) ||
+              (br.fromCityId === r.toCityId && br.toCityId === r.fromCityId)
+            ));
+            triggerFlash('gold');
+            showToast(
+              newRoute ? `Trade Route Established (+${newRoute.starsPerTurn}★/turn)` : `Trade Route Established`,
+              'reward'
+            );
+          } else {
+            triggerFlash('red');
+            showToast(`Trade Route Failed`, 'error');
+          }
         }
 
         // Add to game log
@@ -354,6 +412,10 @@ export default function GameUI() {
           } else if (type === 'FORM_ALLIANCE') {
             message = `Formed alliance with ${targetPlayer?.name || 'Unknown'}`;
           } else if (type === 'ESTABLISH_TRADE_ROUTE') {
+            const beforePlayer = beforeState?.players?.find(p => p.id === payload.playerId);
+            const afterPlayer = afterState?.players?.find(p => p.id === payload.playerId);
+            const established = (afterPlayer?.tradeRoutes?.length || 0) > (beforePlayer?.tradeRoutes?.length || 0);
+            if (!established) return;
             message = 'Established a new trade route';
           }
 

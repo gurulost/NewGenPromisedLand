@@ -37,11 +37,11 @@ export const FACTION_MODIFIERS: GameModifier[] = [
   // Lamanites - Pride-based damage bonus
   {
     id: 'lamanite_pride_damage',
-    name: 'Fierce Pride',
-    description: 'Deal +2 damage when Pride is above 60',
-    trigger: 'on_attack',
+    name: 'Prideful Overreach',
+    description: 'When Pride is above 60, your forces become rash and suffer -1 defense on being attacked',
+    trigger: 'on_defend',
     condition: { stat: 'pride', operator: '>', value: 60 },
-    effect: [{ stat: 'attack', value: 2, target: 'self' }],
+    effect: [{ stat: 'defense', value: -1, target: 'self' }],
     factionId: 'LAMANITES'
   },
 

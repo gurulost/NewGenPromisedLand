@@ -107,6 +107,19 @@ export interface GameRules {
     fortificationBonus: number;
     terrainDefenseMultiplier: number;
   };
+
+  // Morale / Pride Cycle
+  morale: {
+    desertionFloorDissent: number; // below this, desertion cannot happen
+    unrestDurationTurns: number;
+    rebellionStarsLoss: number;
+    desertionStarsLoss: number;
+    contentionStarsLoss: number;
+    unrestIncomePenaltyPerCity: number;
+    badChanceBase: number;
+    badChanceScale: number;
+    goodChanceMax: number;
+  };
 }
 
 export const GAME_RULES: GameRules = {
@@ -216,6 +229,18 @@ export const GAME_RULES: GameRules = {
     damageReduction: 0.8,
     fortificationBonus: 2,
     terrainDefenseMultiplier: 1.5,
+  },
+
+  morale: {
+    desertionFloorDissent: 55,
+    unrestDurationTurns: 3,
+    rebellionStarsLoss: 5,
+    desertionStarsLoss: 3,
+    contentionStarsLoss: 5,
+    unrestIncomePenaltyPerCity: 1,
+    badChanceBase: 0.02,
+    badChanceScale: 0.18,
+    goodChanceMax: 0.11,
   },
 };
 

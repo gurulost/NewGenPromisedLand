@@ -66,6 +66,7 @@ export const CitySchema = z.object({
   maxPopulation: z.number().default(4), // Population needed to level up
   level: z.number().default(1), // City level affects max population and bonuses
   starProduction: z.number().default(2), // Base star production (increases with level)
+  unrestTurns: z.number().default(0), // Temporary unrest that reduces income (rebellion/desertion system)
   improvements: z.array(z.string()).default([]), // Improvement IDs
   structures: z.array(z.string()).default([]), // Structure IDs
   currentProduction: z.object({
