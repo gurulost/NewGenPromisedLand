@@ -63,7 +63,14 @@ function createAudioElement(src: string, volume: number, onEnded: () => void): H
 
 export const useAudio = create<AudioState>((set, get) => ({
   backgroundMusic: null,
-  musicTracks: ['/sounds/background.mp3'],
+  musicTracks: [
+    '/sounds/jungle_whispers.mp3',
+    '/sounds/temple_shadows.mp3',
+    '/sounds/jungle_spirits_awaken.mp3',
+    '/sounds/echoes_of_jaguar.mp3',
+    '/sounds/jungle_warcry.mp3',
+    '/sounds/jungle_echoes.mp3',
+  ],
   currentTrackIndex: 0,
   hitSound: null,
   successSound: null,
