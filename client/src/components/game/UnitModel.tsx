@@ -1,6 +1,7 @@
 import { useGLTF } from '@react-three/drei';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
 import type { Unit } from '@shared/types/unit';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
 import { getUnitModelPath } from '../../utils/modelManager';
@@ -12,6 +13,84 @@ interface UnitModelProps {
   isPlayerUnit: boolean;
 }
 
+// Calculate total upgrades for a unit
+function getTotalUpgrades(unit: Unit): number {
+  if (!unit.upgrades) return 0;
+  return (unit.upgrades.attack || 0) +
+    (unit.upgrades.defense || 0) +
+    (unit.upgrades.movement || 0) +
+    (unit.upgrades.vision || 0);
+}
+
+// Upgrade indicator component - floating chevrons above unit
+function UpgradeIndicators({ upgradeCount, isPlayerUnit }: { upgradeCount: number; isPlayerUnit: boolean }) {
+  const groupRef = useRef<THREE.Group>(null);
+
+  // Animate the indicators
+  useFrame((state) => {
+    if (groupRef.current) {
+      // Gentle floating animation
+      groupRef.current.position.y = 1.2 + Math.sin(state.clock.elapsedTime * 2) * 0.05;
+      // Slow rotation
+      groupRef.current.rotation.y = state.clock.elapsedTime * 0.5;
+    }
+  });
+
+  if (upgradeCount === 0) return null;
+
+  // Determine indicator style based on upgrade count
+  const indicatorColor = isPlayerUnit ? '#06B6D4' : '#F97316';
+  const glowColor = isPlayerUnit ? '#67E8F9' : '#FBBF24';
+
+  // Show stars based on upgrade tiers
+  const starCount = Math.min(upgradeCount, 5); // Cap at 5 stars
+  const starRadius = 0.15;
+  const starSpacing = 0.25;
+
+  return (
+    <group ref={groupRef} position={[0, 1.2, 0]}>
+      {/* Star indicators arranged in arc */}
+      {Array.from({ length: starCount }).map((_, i) => {
+        const angle = ((i - (starCount - 1) / 2) / Math.max(starCount - 1, 1)) * Math.PI * 0.6;
+        const x = Math.sin(angle) * starSpacing * 1.5;
+        const z = Math.cos(angle) * starSpacing * 0.5;
+
+        return (
+          <group key={i} position={[x, 0, z]}>
+            {/* Glowing star core */}
+            <mesh>
+              <sphereGeometry args={[0.06, 8, 8]} />
+              <meshBasicMaterial color={glowColor} />
+            </mesh>
+            {/* Outer glow */}
+            <mesh>
+              <sphereGeometry args={[0.1, 8, 8]} />
+              <meshBasicMaterial
+                color={indicatorColor}
+                transparent
+                opacity={0.4}
+              />
+            </mesh>
+          </group>
+        );
+      })}
+
+      {/* Central glow ring for highly upgraded units (3+) */}
+      {upgradeCount >= 3 && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
+          <ringGeometry args={[0.35, 0.45, 16]} />
+          <meshBasicMaterial
+            color={upgradeCount >= 5 ? '#FFD700' : indicatorColor}
+            transparent
+            opacity={0.6}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
 export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   const { gameState } = useLocalGame();
 
@@ -21,6 +100,9 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
 
   const modelPath = getUnitModelPath(unit.type);
   const { scene } = useGLTF(modelPath);
+
+  // Calculate total upgrades for visual indicators
+  const totalUpgrades = getTotalUpgrades(unit);
 
   // Calculate unit scale based on type - increased for better visibility
   const unitScale = useMemo(() => {
@@ -66,6 +148,17 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
             }
           }
 
+          // Enhanced glow for upgraded units
+          if (totalUpgrades > 0 && material.emissive) {
+            const glowIntensity = Math.min(totalUpgrades * 0.05, 0.25);
+            if (isPlayerUnit) {
+              material.emissive.setHex(0x004444); // Cyan tint for upgraded player units
+            } else {
+              material.emissive.setHex(0x442200); // Orange tint for upgraded enemy units
+            }
+            material.emissiveIntensity = 1 + glowIntensity;
+          }
+
           // Add status-based effects
           if (unit.status === 'stealthed') {
             material.transparent = true;
@@ -86,7 +179,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     });
 
     return clone;
-  }, [scene, isPlayerUnit, unit.status]);
+  }, [scene, isPlayerUnit, unit.status, totalUpgrades]);
 
   // Apply auto-grounding to the cloned scene
   const groundedScene = useMemo(() => {
@@ -100,9 +193,8 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     <group position={[position.x, 0, position.y]}>
       <primitive object={groundedScene} scale={[unitScale, unitScale, unitScale]} />
 
-
-
-
+      {/* Upgrade Indicators - floating stars above unit */}
+      <UpgradeIndicators upgradeCount={totalUpgrades} isPlayerUnit={isPlayerUnit} />
 
       {/* Movement indicator for units that can still move */}
       {unit.remainingMovement > 0 && (

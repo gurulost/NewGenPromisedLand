@@ -383,9 +383,10 @@ function executeRuinExploration(
         }
       });
 
-      if (closestEnemyCity) {
+      if (closestEnemyCity !== null) {
+        const enemyCity = closestEnemyCity as City; // Type assertion for TypeScript
         message += ` and revealed the location of an enemy city!`;
-        const cityCoordKey = `${closestEnemyCity.coordinate.q},${closestEnemyCity.coordinate.r}`;
+        const cityCoordKey = `${enemyCity.coordinate.q},${enemyCity.coordinate.r}`;
 
         if (!player.exploredTiles.includes(cityCoordKey)) {
           newPlayers = newPlayers.map(p =>

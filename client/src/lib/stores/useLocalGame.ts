@@ -19,6 +19,10 @@ const applyPlayerDefaults = (player: PlayerState): PlayerState => {
   normalized.exploredTiles = player.exploredTiles ?? [];
   normalized.abilityCooldowns = player.abilityCooldowns ?? {};
   normalized.currentResearch = player.currentResearch;
+  // Diplomatic relations defaults
+  normalized.atWarWith = player.atWarWith ?? [];
+  normalized.alliedWith = player.alliedWith ?? [];
+  normalized.tradeRoutes = player.tradeRoutes ?? [];
   return normalized;
 };
 
@@ -89,6 +93,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       constructionQueue: [],
       citiesOwned: [],
       currentResearch: undefined,
+      // Diplomatic relations - start with none
+      atWarWith: [],
+      alliedWith: [],
+      tradeRoutes: [],
     }));
 
     // Extract faction IDs for terrain generation

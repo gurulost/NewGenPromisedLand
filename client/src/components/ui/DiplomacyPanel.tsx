@@ -26,6 +26,7 @@ export function DiplomacyPanel({ gameState, currentPlayerId, onClose }: Diplomac
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [selectedFromCity, setSelectedFromCity] = useState<string | null>(null);
     const [selectedToCity, setSelectedToCity] = useState<string | null>(null);
+    const [confirmWarTarget, setConfirmWarTarget] = useState<string | null>(null);
 
     useHotkeys('Escape', onClose);
     const playSfx = useSfxEngine();
@@ -45,6 +46,10 @@ export function DiplomacyPanel({ gameState, currentPlayerId, onClose }: Diplomac
         currentPlayer.citiesOwned.includes(city.id)
     ) || [];
 
+    const handleConfirmWar = (targetPlayerId: string) => {
+        setConfirmWarTarget(targetPlayerId);
+    };
+
     const handleDeclareWar = (targetPlayerId: string) => {
         // Dispatch war declaration
         const event = new CustomEvent('diplomacyAction', {
@@ -55,6 +60,7 @@ export function DiplomacyPanel({ gameState, currentPlayerId, onClose }: Diplomac
         });
         window.dispatchEvent(event);
         playSfx('cta-click');
+        setConfirmWarTarget(null);
         onClose();
     };
 
@@ -215,7 +221,10 @@ export function DiplomacyPanel({ gameState, currentPlayerId, onClose }: Diplomac
                                 <WarTab
                                     otherPlayers={otherPlayers}
                                     currentPlayer={currentPlayer}
+                                    confirmWarTarget={confirmWarTarget}
+                                    onConfirmWar={handleConfirmWar}
                                     onDeclareWar={handleDeclareWar}
+                                    onCancelWar={() => setConfirmWarTarget(null)}
                                 />
                             )}
 
@@ -278,42 +287,99 @@ function TabButton({ active, onClick, icon, label, color }: TabButtonProps) {
 }
 
 // War Declaration Tab
-function WarTab({ otherPlayers, currentPlayer, onDeclareWar }: any) {
+function WarTab({ otherPlayers, currentPlayer, confirmWarTarget, onConfirmWar, onDeclareWar, onCancelWar }: any) {
+    const targetPlayer = confirmWarTarget ? otherPlayers.find((p: any) => p.id === confirmWarTarget) : null;
+
     return (
         <StaggeredContent>
             <div className="space-y-4">
-                <div className="bg-red-900/20 border border-red-600/40 rounded-lg p-4">
-                    <h3 className="font-cinzel text-lg font-semibold text-red-200 mb-2">Declare War</h3>
-                    <p className="text-sm text-amber-100/80 mb-4">
-                        Choose a civilization to declare war upon. This will increase your Pride but also cause Internal Dissent.
-                    </p>
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                        <div className="text-red-300">Effects: +15 Pride</div>
-                        <div className="text-orange-300">Cost: +5 Dissent</div>
-                    </div>
-                </div>
+                {/* Confirmation Dialog */}
+                {confirmWarTarget && targetPlayer && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-red-950/80 border-2 border-red-600 rounded-lg p-6 text-center"
+                    >
+                        <Swords className="w-12 h-12 text-red-400 mx-auto mb-3" />
+                        <h3 className="font-cinzel text-xl font-bold text-red-200 mb-2">
+                            Declare War on {targetPlayer.name}?
+                        </h3>
+                        <p className="text-sm text-amber-100/80 mb-4">
+                            This action cannot be undone easily. War brings pride but also internal strife.
+                        </p>
+                        <div className="flex gap-3 justify-center">
+                            <Button
+                                onClick={onCancelWar}
+                                className="bg-stone-700 hover:bg-stone-600"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={() => onDeclareWar(confirmWarTarget)}
+                                className="bg-red-700 hover:bg-red-600"
+                            >
+                                <Swords className="w-4 h-4 mr-2" />
+                                Confirm War
+                            </Button>
+                        </div>
+                    </motion.div>
+                )}
 
-                <div className="space-y-2">
-                    {otherPlayers.map((player: any) => (
-                        <motion.div
-                            key={player.id}
-                            whileHover={{ scale: 1.02 }}
-                            className="p-4 bg-stone-900/40 border border-red-600/30 rounded-lg hover:border-red-600/60 transition-all cursor-pointer"
-                            onClick={() => onDeclareWar(player.id)}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <div className="font-semibold text-amber-100">{player.name}</div>
-                                    <div className="text-xs text-amber-300/70">Cities: {player.citiesOwned.length}</div>
-                                </div>
-                                <Button size="sm" className="bg-red-700 hover:bg-red-600">
-                                    <Swords className="w-4 h-4 mr-2" />
-                                    Declare War
-                                </Button>
+                {!confirmWarTarget && (
+                    <>
+                        <div className="bg-red-900/20 border border-red-600/40 rounded-lg p-4">
+                            <h3 className="font-cinzel text-lg font-semibold text-red-200 mb-2">Declare War</h3>
+                            <p className="text-sm text-amber-100/80 mb-4">
+                                Choose a civilization to declare war upon. This will increase your Pride but also cause Internal Dissent.
+                            </p>
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div className="text-red-300">Effects: +15 Pride</div>
+                                <div className="text-orange-300">Cost: +5 Dissent</div>
                             </div>
-                        </motion.div>
-                    ))}
-                </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            {otherPlayers.map((player: any) => {
+                                const alreadyAtWar = currentPlayer.atWarWith?.includes(player.id);
+                                return (
+                                    <motion.div
+                                        key={player.id}
+                                        whileHover={{ scale: alreadyAtWar ? 1 : 1.02 }}
+                                        className={clsx(
+                                            "p-4 bg-stone-900/40 border rounded-lg transition-all",
+                                            alreadyAtWar
+                                                ? "border-red-800/50 opacity-60 cursor-not-allowed"
+                                                : "border-red-600/30 hover:border-red-600/60 cursor-pointer"
+                                        )}
+                                        onClick={() => !alreadyAtWar && onConfirmWar(player.id)}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="font-semibold text-amber-100 flex items-center gap-2">
+                                                    {player.name}
+                                                    {alreadyAtWar && (
+                                                        <span className="text-xs bg-red-800/50 text-red-300 px-2 py-0.5 rounded">
+                                                            At War
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-xs text-amber-300/70">Cities: {player.citiesOwned.length}</div>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                className="bg-red-700 hover:bg-red-600"
+                                                disabled={alreadyAtWar}
+                                            >
+                                                <Swords className="w-4 h-4 mr-2" />
+                                                {alreadyAtWar ? 'At War' : 'Declare War'}
+                                            </Button>
+                                        </div>
+                                    </motion.div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
             </div>
         </StaggeredContent>
     );
@@ -331,30 +397,59 @@ function AllianceTab({ otherPlayers, currentPlayer, onFormAlliance }: any) {
                     </p>
                     <div className="grid grid-cols-2 gap-3 text-xs">
                         <div className="text-blue-300">Effects: +10 Faith</div>
-                        <div className="text-green-300">Benefit: -5 Dissent</div>
+                        <div className="text-green-300">Benefit: -10 Dissent</div>
                     </div>
                 </div>
 
                 <div className="space-y-2">
-                    {otherPlayers.map((player: any) => (
-                        <motion.div
-                            key={player.id}
-                            whileHover={{ scale: 1.02 }}
-                            className="p-4 bg-stone-900/40 border border-blue-600/30 rounded-lg hover:border-blue-600/60 transition-all cursor-pointer"
-                            onClick={() => onFormAlliance(player.id)}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <div className="font-semibold text-amber-100">{player.name}</div>
-                                    <div className="text-xs text-amber-300/70">Faith: {player.stats.faith}</div>
+                    {otherPlayers.map((player: any) => {
+                        const alreadyAllied = currentPlayer.alliedWith?.includes(player.id);
+                        const atWar = currentPlayer.atWarWith?.includes(player.id);
+                        const canAlly = !alreadyAllied && !atWar;
+
+                        return (
+                            <motion.div
+                                key={player.id}
+                                whileHover={{ scale: canAlly ? 1.02 : 1 }}
+                                className={clsx(
+                                    "p-4 bg-stone-900/40 border rounded-lg transition-all",
+                                    alreadyAllied
+                                        ? "border-blue-600/60 bg-blue-900/20"
+                                        : atWar
+                                            ? "border-red-800/50 opacity-60 cursor-not-allowed"
+                                            : "border-blue-600/30 hover:border-blue-600/60 cursor-pointer"
+                                )}
+                                onClick={() => canAlly && onFormAlliance(player.id)}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <div className="font-semibold text-amber-100 flex items-center gap-2">
+                                            {player.name}
+                                            {alreadyAllied && (
+                                                <span className="text-xs bg-blue-800/50 text-blue-300 px-2 py-0.5 rounded">
+                                                    Allied
+                                                </span>
+                                            )}
+                                            {atWar && (
+                                                <span className="text-xs bg-red-800/50 text-red-300 px-2 py-0.5 rounded">
+                                                    At War
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-xs text-amber-300/70">Faith: {player.stats.faith}</div>
+                                    </div>
+                                    <Button
+                                        size="sm"
+                                        className={alreadyAllied ? "bg-blue-800" : atWar ? "bg-gray-700" : "bg-blue-700 hover:bg-blue-600"}
+                                        disabled={!canAlly}
+                                    >
+                                        <Heart className="w-4 h-4 mr-2" />
+                                        {alreadyAllied ? 'Allied' : atWar ? 'At War' : 'Form Alliance'}
+                                    </Button>
                                 </div>
-                                <Button size="sm" className="bg-blue-700 hover:bg-blue-600">
-                                    <Heart className="w-4 h-4 mr-2" />
-                                    Form Alliance
-                                </Button>
-                            </div>
-                        </motion.div>
-                    ))}
+                            </motion.div>
+                        );
+                    })}
                 </div>
             </div>
         </StaggeredContent>

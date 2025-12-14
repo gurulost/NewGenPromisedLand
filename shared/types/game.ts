@@ -100,6 +100,14 @@ export const PlayerStateSchema = z.object({
   exploredTiles: z.array(z.string()).default([]), // Previously explored tiles
   isEliminated: z.boolean().default(false),
   turnOrder: z.number(),
+  // Diplomatic relations
+  atWarWith: z.array(z.string()).default([]), // Player IDs currently at war with
+  alliedWith: z.array(z.string()).default([]), // Player IDs allied with
+  tradeRoutes: z.array(z.object({
+    fromCityId: z.string(),
+    toCityId: z.string(),
+    starsPerTurn: z.number(),
+  })).default([]),
 });
 
 export type PlayerState = z.infer<typeof PlayerStateSchema>;

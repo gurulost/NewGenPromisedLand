@@ -9,6 +9,7 @@ import { getAttackableTargets } from "../../selectors/combat";
 
 import Unit from "./Unit";
 import MapFeatures from "./MapFeatures";
+import { MapToastContainer } from "./MapToasts";
 import { useGameDebugger } from "../../utils/gameDebug";
 import { hexToPixel } from "@shared/utils/hex";
 import { gsap } from "gsap";
@@ -24,9 +25,9 @@ export default function GameCanvas() {
   const { camera } = useThree();
   const controlsRef = useRef<any>();
   const debug = useGameDebugger();
-  
+
   console.log('[GameCanvas] Rendering, gameState exists:', !!gameState, 'map tiles:', gameState?.map?.tiles?.length);
-  
+
   // Enhanced selection and effects
   const {
     selectedCoordinate,
@@ -45,7 +46,7 @@ export default function GameCanvas() {
         selectedUnit.coordinate,
         selectedUnit.remainingMovement,
         (coord) => {
-          const tile = gameState.map.tiles.find(t => 
+          const tile = gameState.map.tiles.find(t =>
             t.coordinate.q === coord.q && t.coordinate.r === coord.r
           );
           return !!tile && tile.terrain !== 'water';
@@ -71,7 +72,7 @@ export default function GameCanvas() {
       setAttackableTargets([]);
     }
   }, [isAttackMode, selectedUnit, gameState, setAttackableTargets]);
-  
+
   // Combat effects moved to GameUI to avoid HTML in R3F
 
   // Setup camera controls - Pure panning like RTS games
@@ -80,51 +81,51 @@ export default function GameCanvas() {
       // Enable smooth damping for responsive feel
       controlsRef.current.enableDamping = true;
       controlsRef.current.dampingFactor = 0.1;
-      
+
       // Disable rotation completely - only allow panning and zooming
       controlsRef.current.enableRotate = false;
-      
+
       // Enable panning (click and drag to move)
       controlsRef.current.enablePan = true;
       controlsRef.current.panSpeed = 1.0;
-      
+
       // Enable zooming with mouse wheel
       controlsRef.current.enableZoom = true;
       controlsRef.current.zoomSpeed = 1.0;
-      
+
       // Set zoom limits based on map size - fix terrain disappearing
       const mapSize = Math.max(gameState.map.width || 10, gameState.map.height || 10);
       controlsRef.current.minDistance = 5; // Prevent getting too close to terrain
       controlsRef.current.maxDistance = mapSize * 4; // Prevent too far zoom
-      
+
       // Fix camera clipping planes to prevent terrain disappearing
       camera.near = 0.5; // Increase near plane to prevent clipping
       camera.far = mapSize * 15; // Increase far plane for better coverage
       camera.updateProjectionMatrix();
-      
+
       // Position camera near current player's starting area
       const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-      const playerCity = gameState.cities?.find(city => 
+      const playerCity = gameState.cities?.find(city =>
         currentPlayer.citiesOwned.includes(city.id)
       );
-      
+
       let cameraTargetPosition = { x: 0, z: 0 }; // Default to center
-      
+
       if (playerCity) {
         // Convert hex coordinates to world position
         const pixelPos = hexToPixel(playerCity.coordinate, 1);
         cameraTargetPosition = { x: pixelPos.x, z: pixelPos.y };
       }
-      
+
       // Position camera in fixed isometric view above the map
       const distance = mapSize * 1.2;
       camera.position.set(
-        cameraTargetPosition.x, 
-        distance, 
+        cameraTargetPosition.x,
+        distance,
         cameraTargetPosition.z + distance * 0.7 // Slightly angled for isometric view
       );
       camera.lookAt(cameraTargetPosition.x, 0, cameraTargetPosition.z);
-      
+
       // Set the orbit target to the player's starting area
       controlsRef.current.target.set(cameraTargetPosition.x, 0, cameraTargetPosition.z);
     }
@@ -217,18 +218,18 @@ export default function GameCanvas() {
           TWO: THREE.TOUCH.DOLLY_PAN
         }}
       />
-      
+
       {/* Fog for atmosphere - adjusted for map size to prevent darkening on zoom */}
       <fog attach="fog" args={["#0f172a", mapSize * 3, mapSize * 12]} />
-      
+
       {/* Grid - Using Instanced Rendering for Performance */}
       <HexGridInstanced map={gameState.map} />
-      
 
-      
+
+
       {/* Map Features - Cities, Ruins, and other structures */}
       <MapFeatures />
-      
+
       {/* Units - using centralized vision system */}
       {(() => {
         const visibleUnits = getVisibleUnits(gameState);
@@ -238,7 +239,7 @@ export default function GameCanvas() {
           unitIds: visibleUnits.map(u => u.id),
           currentPlayer: gameState.players[gameState.currentPlayerIndex]?.name
         });
-        
+
         return visibleUnits.map((unit: any) => (
           <Unit
             key={unit.id}
@@ -263,10 +264,10 @@ export default function GameCanvas() {
 
       {/* Professional Movement Overlay */}
       {isMovementMode && selectedUnit && reachableCoordinates.length > 0 && (
-        <MovementOverlay 
+        <MovementOverlay
           reachableTiles={reachableCoordinates}
-          selectedTile={hoveredTile ? { 
-            q: Math.round(hoveredTile.tile.coordinate.q), 
+          selectedTile={hoveredTile ? {
+            q: Math.round(hoveredTile.tile.coordinate.q),
             r: Math.round(hoveredTile.tile.coordinate.r),
             s: Math.round(hoveredTile.tile.coordinate.s || 0)
           } : null}
@@ -292,8 +293,11 @@ export default function GameCanvas() {
         />
       )}
 
+      {/* Floating Map Toasts for rewards/combat feedback */}
+      <MapToastContainer />
+
       {/* Combat Effects - Note: Moved to GameUI to avoid HTML in R3F */}
-      
+
       {/* Selection indicator */}
       {hoveredTile && (
         <mesh

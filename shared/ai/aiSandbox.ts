@@ -18,9 +18,9 @@ function createInitialGameState(players: PlayerState[], mapSize: string): GameSt
     normal: { width: 20, height: 20 },
     large: { width: 30, height: 30 }
   };
-  
+
   const size = mapSizeConfig[mapSize] || mapSizeConfig.normal;
-  
+
   // Create basic map with tiles
   const tiles = [];
   for (let q = 0; q < size.width; q++) {
@@ -37,7 +37,7 @@ function createInitialGameState(players: PlayerState[], mapSize: string): GameSt
       });
     }
   }
-  
+
   return {
     id: `sandbox_game_${Date.now()}`,
     turn: 1,
@@ -124,6 +124,10 @@ export class AISandbox {
       isEliminated: false,
       constructionQueue: [],
       currentResearch: undefined,
+      // Diplomatic relations - AI starts with none
+      atWarWith: [],
+      alliedWith: [],
+      tradeRoutes: [],
     }));
 
     return createInitialGameState(players, this.config.mapSize);
@@ -185,7 +189,7 @@ export class AISandbox {
     } catch (error) {
       this.log(`Simulation error: ${error}`, 'basic');
       const totalTime = performance.now() - startTime;
-      
+
       return {
         winner: null,
         totalTurns: turnCount,
@@ -210,7 +214,7 @@ export class AISandbox {
     }
 
     this.log(`Turn ${this.gameState.turn}: ${currentPlayer.name} (${currentPlayer.factionId})`, 'basic');
-    
+
     aiPerformanceMonitor.startTurn(currentPlayer.id);
 
     // Execute AI turn
@@ -228,7 +232,7 @@ export class AISandbox {
     }
 
     const turnTime = aiPerformanceMonitor.endTurn(currentPlayer.id);
-    
+
     this.logger.logAction(
       this.gameState.turn,
       currentPlayer.id,
@@ -250,7 +254,7 @@ export class AISandbox {
 
     // Advance to next player
     this.advanceToNextPlayer();
-    
+
     return { gameEnded: false };
   }
 
@@ -261,7 +265,7 @@ export class AISandbox {
     // This is a simplified implementation for sandbox testing
     // In a real game, these would go through the full game reducer
     this.log(`Applying decision: ${decision.type}`, 'verbose');
-    
+
     switch (decision.type) {
       case 'MOVE_UNIT':
         this.log(`  Moving unit ${decision.unitId} to ${JSON.stringify(decision.targetCoordinate)}`, 'verbose');
@@ -302,11 +306,11 @@ export class AISandbox {
 
   private advanceToNextPlayer(): void {
     const nextIndex = (this.gameState.currentPlayerIndex + 1) % this.gameState.players.length;
-    
+
     if (nextIndex === 0) {
       this.gameState.turn++;
     }
-    
+
     this.gameState.currentPlayerIndex = nextIndex;
   }
 
@@ -321,7 +325,7 @@ export class AISandbox {
 
   private determineWinner(): string | null {
     // Determine winner by score
-    const bestPlayer = this.gameState.players.reduce((best, current) => 
+    const bestPlayer = this.gameState.players.reduce((best, current) =>
       (current.stars || 0) > (best.stars || 0) ? current : best
     );
     return bestPlayer.id;

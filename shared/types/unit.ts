@@ -11,7 +11,7 @@ export const UnitTypeSchema = z.enum([
   'spearman',
   'boat',
   'catapult',
-  
+
   // Faction-specific special units
   'stripling_warrior',      // Nephites
   'missionary',             // Nephites, Anti-Nephi-Lehies
@@ -59,6 +59,13 @@ export const UnitSchema = z.object({
   experience: z.number().default(0),
   visionRadius: z.number().default(2),
   attackRange: z.number().default(1),
+  // Upgrade tracking for visual indicators
+  upgrades: z.object({
+    attack: z.number().default(0),
+    defense: z.number().default(0),
+    movement: z.number().default(0),
+    vision: z.number().default(0),
+  }).optional(),
   hasAttacked: z.boolean().default(false),
 });
 

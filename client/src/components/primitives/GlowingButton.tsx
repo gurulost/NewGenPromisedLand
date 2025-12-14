@@ -7,10 +7,16 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTouchMode } from '../../hooks/useTouchMode';
 import { useHaptic } from '../../hooks/useHaptic';
 
-type GlowingVariant = 'primary' | 'secondary' | 'ghost';
+type GlowingVariant = 'primary' | 'secondary' | 'ghost' | 'outline' | 'default' | 'destructive';
 type GlowingSize = 'sm' | 'md' | 'lg' | 'xl';
 
-interface GlowingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+// Exclude React event handlers that conflict with framer-motion
+type SafeButtonProps = Omit<
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+  'onDrag' | 'onDragStart' | 'onDragEnd' | 'onAnimationStart' | 'onAnimationEnd'
+>;
+
+interface GlowingButtonProps extends SafeButtonProps {
   onClick?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   glowColor?: 'amber' | 'blue' | 'red' | 'green' | 'purple' | 'slate' | 'none';
   intensity?: 'low' | 'medium' | 'high';
@@ -126,13 +132,13 @@ export const GlowingButton = forwardRef<HTMLButtonElement, GlowingButtonProps>((
   const motionProps = reducedMotion || isDisabled || isTouchDevice
     ? {}
     : {
-        whileTap: { scale: 0.985, y: 0 },
-        whileHover: {
-          scale: 1.01,
-          y: -1,
-          transition: { duration: 0.15, ease: 'easeOut' },
-        },
-      };
+      whileTap: { scale: 0.985, y: 0 },
+      whileHover: {
+        scale: 1.01,
+        y: -1,
+        transition: { duration: 0.15, ease: 'easeOut' },
+      },
+    };
 
   const variantStyles: Record<GlowingVariant, string> = {
     primary: clsx(
@@ -153,6 +159,22 @@ export const GlowingButton = forwardRef<HTMLButtonElement, GlowingButtonProps>((
     ghost: clsx(
       'bg-white/5 text-amber-50 border border-white/10',
       'shadow-none hover:border-amber-100/40'
+    ),
+    outline: clsx(
+      'bg-transparent text-amber-50 border-2 border-amber-500/60',
+      'hover:bg-amber-500/10 hover:border-amber-400',
+      'shadow-none'
+    ),
+    default: clsx(
+      'bg-gradient-to-b from-slate-700/80 via-slate-800/80 to-slate-900/80',
+      'text-slate-100 border border-slate-600/50',
+      'shadow-md hover:brightness-110'
+    ),
+    destructive: clsx(
+      'bg-gradient-to-b from-red-600/90 via-red-700/90 to-red-800/90',
+      'text-white border border-red-400/50',
+      'shadow-[0_12px_30px_-14px_rgba(239,68,68,0.5)]',
+      'hover:brightness-110'
     ),
   };
 
@@ -192,24 +214,24 @@ export const GlowingButton = forwardRef<HTMLButtonElement, GlowingButtonProps>((
       <span className="relative z-10 flex items-center justify-center gap-2">
         {loading ? (
           <>
-            <svg 
-              className="animate-spin h-4 w-4" 
-              xmlns="http://www.w3.org/2000/svg" 
-              fill="none" 
+            <svg
+              className="animate-spin h-4 w-4"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
               viewBox="0 0 24 24"
               aria-hidden="true"
             >
-              <circle 
-                className="opacity-25" 
-                cx="12" 
-                cy="12" 
-                r="10" 
-                stroke="currentColor" 
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
                 strokeWidth="4"
               />
-              <path 
-                className="opacity-75" 
-                fill="currentColor" 
+              <path
+                className="opacity-75"
+                fill="currentColor"
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               />
             </svg>

@@ -2366,20 +2366,39 @@ function handleDeclareWar(
   if (!player || !targetPlayer) return state;
   if (playerId === targetPlayerId) return state;
 
+  // Check if already at war
+  if (player.atWarWith?.includes(targetPlayerId)) return state;
+
   console.log(`${player.name} declares war on ${targetPlayer.name}!`);
 
-  // Declaring war increases pride but also internal dissent
+  // Declaring war:
+  // - Updates atWarWith for both players (war is mutual)
+  // - Removes any existing alliance between them
+  // - Increases pride but also internal dissent
   return {
     ...state,
     players: state.players.map(p => {
       if (p.id === playerId) {
+        const newAtWarWith = [...(p.atWarWith || []), targetPlayerId];
+        const newAlliedWith = (p.alliedWith || []).filter(id => id !== targetPlayerId);
         return {
           ...p,
+          atWarWith: newAtWarWith,
+          alliedWith: newAlliedWith,
           stats: {
             ...p.stats,
             pride: Math.min(100, p.stats.pride + 15),
             internalDissent: Math.min(100, p.stats.internalDissent + 5)
           }
+        };
+      }
+      if (p.id === targetPlayerId) {
+        const newAtWarWith = [...(p.atWarWith || []), playerId];
+        const newAlliedWith = (p.alliedWith || []).filter(id => id !== playerId);
+        return {
+          ...p,
+          atWarWith: newAtWarWith,
+          alliedWith: newAlliedWith,
         };
       }
       return p;
@@ -2399,15 +2418,35 @@ function handleFormAlliance(
   if (!player || !ally) return state;
   if (playerId === allyPlayerId) return state;
 
+  // Can't ally with someone you're at war with
+  if (player.atWarWith?.includes(allyPlayerId)) return state;
+
+  // Check if already allied
+  if (player.alliedWith?.includes(allyPlayerId)) return state;
+
   console.log(`${player.name} forms alliance with ${ally.name}!`);
 
-  // Forming alliances boosts faith and reduces internal dissent
+  // Forming alliances:
+  // - Updates alliedWith for both players (alliance is mutual)
+  // - Boosts faith and reduces internal dissent for both
   return {
     ...state,
     players: state.players.map(p => {
-      if (p.id === playerId || p.id === allyPlayerId) {
+      if (p.id === playerId) {
         return {
           ...p,
+          alliedWith: [...(p.alliedWith || []), allyPlayerId],
+          stats: {
+            ...p.stats,
+            faith: Math.min(100, p.stats.faith + 10),
+            internalDissent: Math.max(0, p.stats.internalDissent - 10)
+          }
+        };
+      }
+      if (p.id === allyPlayerId) {
+        return {
+          ...p,
+          alliedWith: [...(p.alliedWith || []), playerId],
           stats: {
             ...p.stats,
             faith: Math.min(100, p.stats.faith + 10),
@@ -2598,21 +2637,28 @@ function handleUpgradeUnit(
   if (player.stars < upgradeCost) return state;
 
   let unitUpgrades = {};
+  let upgradeTracking = {};
+  const currentUpgrades = unit.upgrades || { attack: 0, defense: 0, movement: 0, vision: 0 };
+
   switch (upgradeType) {
     case 'attack':
       unitUpgrades = { attack: unit.attack + 2 };
+      upgradeTracking = { upgrades: { ...currentUpgrades, attack: currentUpgrades.attack + 1 } };
       break;
     case 'defense':
       unitUpgrades = { defense: unit.defense + 2 };
+      upgradeTracking = { upgrades: { ...currentUpgrades, defense: currentUpgrades.defense + 1 } };
       break;
     case 'movement':
       unitUpgrades = {
         movement: unit.movement + 1,
         remainingMovement: unit.remainingMovement + 1
       };
+      upgradeTracking = { upgrades: { ...currentUpgrades, movement: currentUpgrades.movement + 1 } };
       break;
     case 'vision':
       unitUpgrades = { visionRadius: unit.visionRadius + 1 };
+      upgradeTracking = { upgrades: { ...currentUpgrades, vision: currentUpgrades.vision + 1 } };
       break;
   }
 
@@ -2625,7 +2671,7 @@ function handleUpgradeUnit(
     ),
     units: state.units.map(u =>
       u.id === unitId
-        ? { ...u, ...unitUpgrades }
+        ? { ...u, ...unitUpgrades, ...upgradeTracking }
         : u
     )
   };
