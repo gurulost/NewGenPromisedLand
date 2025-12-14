@@ -19,10 +19,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/saves/:id", async (req, res) => {
     try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
       const id = parseInt(req.params.id);
       const save = await storage.getGameSaveById(id);
       if (!save) {
         return res.status(404).json({ error: "Save not found" });
+      }
+      if (save.deviceId !== deviceId) {
+        return res.status(403).json({ error: "Access denied" });
       }
       res.json(save);
     } catch (error) {
@@ -56,12 +63,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/saves/:id", async (req, res) => {
     try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
       const id = parseInt(req.params.id);
-      const { name, gameState, metadata } = req.body;
-      const save = await storage.updateGameSave(id, { name, gameState, metadata });
-      if (!save) {
+      const existingSave = await storage.getGameSaveById(id);
+      if (!existingSave) {
         return res.status(404).json({ error: "Save not found" });
       }
+      if (existingSave.deviceId !== deviceId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const { name, gameState, metadata } = req.body;
+      const save = await storage.updateGameSave(id, { name, gameState, metadata });
       res.json(save);
     } catch (error) {
       console.error("Failed to update save:", error);
@@ -71,11 +86,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/saves/:id", async (req, res) => {
     try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
       const id = parseInt(req.params.id);
-      const deleted = await storage.deleteGameSave(id);
-      if (!deleted) {
+      const existingSave = await storage.getGameSaveById(id);
+      if (!existingSave) {
         return res.status(404).json({ error: "Save not found" });
       }
+      if (existingSave.deviceId !== deviceId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      await storage.deleteGameSave(id);
       res.json({ success: true });
     } catch (error) {
       console.error("Failed to delete save:", error);
