@@ -74,7 +74,7 @@ export const useAudio = create<AudioState>((set, get) => ({
   currentTrackIndex: 0,
   hitSound: null,
   successSound: null,
-  isMuted: true,
+  isMuted: false,
   isInitialized: false,
   musicVolume: 0.5,
   sfxVolume: 0.6,
