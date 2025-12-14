@@ -7,7 +7,7 @@ import { Separator } from "./separator";
 import { Input } from "./input";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { TECHNOLOGIES, calculateResearchCost, getAvailableTechnologies, type Technology } from "@shared/data/technologies";
-import { Star, Book, Swords, Church, Map, Lock, CheckCircle, Clock, Sparkles, Filter, ArrowUpRight, Search, XCircle, Link as LinkIcon } from "lucide-react";
+import { Star, Book, Swords, Church, Map, Lock, CheckCircle, Clock, Sparkles, Filter, ArrowUpRight, Search, XCircle, Link as LinkIcon, Home } from "lucide-react";
 import { TECH_LAYOUT, CELL_WIDTH, CELL_HEIGHT, COL_GAP, ROW_GAP, CANVAS_PADDING } from "../tech/techLayout";
 import { useHaptic } from "../../hooks/useHaptic";
 
@@ -166,6 +166,13 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     );
   };
 
+  const handleTechSelect = (techId: string, e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    vibrate('light');
+    setSelectedTech(techId);
+  };
+
   const TechNode = ({ techId }: { techId: string }) => {
     const tech = TECHNOLOGIES[techId];
     const pos = TECH_LAYOUT[techId];
@@ -182,22 +189,24 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
 
     return (
       <div
+        data-tech-node="true"
         className="absolute transition-all duration-300"
         style={{
           left: x,
           top: y,
           width: CELL_WIDTH,
           height: CELL_HEIGHT,
+          touchAction: 'manipulation',
+        }}
+        onClick={(e) => handleTechSelect(techId, e)}
+        onTouchEnd={(e) => {
+          if (!isDragging) {
+            handleTechSelect(techId, e);
+          }
         }}
       >
         <Card
           className={`h-full relative overflow-hidden border-2 ${getTechStatusStyles(status)} cursor-pointer hover:-translate-y-1 hover:shadow-xl transition-all ${isSelected ? 'ring-2 ring-white scale-105 z-10' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation(); // Prevent drag/click-through
-            vibrate('light'); // Slight feedback on selection
-            setSelectedTech(techId);
-            // Removed auto-research here. User must confirm in side panel.
-          }}
         >
           {/* Connecting Nodes (dots) for visual connections */}
           <div className="absolute top-1/2 -left-1 w-2 h-2 bg-current rounded-full opacity-50" />
@@ -300,6 +309,10 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   // Drag to scroll handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
+    // Ignore if clicking on a tech node - let the node handle its own events
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-tech-node]')) return;
+    
     // Don't start dragging yet, just record the starting position
     setIsMouseDown(true);
     setIsDragging(false);
@@ -341,9 +354,18 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     }
   };
 
+  // Check if event target is a tech node
+  const isTechNodeEvent = (e: React.TouchEvent | React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    return target.closest('[data-tech-node]') !== null;
+  };
+
   // Touch support for iPad/Mobile
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!containerRef.current) return;
+    // Ignore if touching a tech node - let the node handle its own events
+    if (isTechNodeEvent(e)) return;
+    
     // Don't start dragging yet, just record the starting position
     setIsMouseDown(true);
     setIsDragging(false);
@@ -381,6 +403,13 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     setIsMouseDown(false);
   };
 
+  // Reset view to default scroll position
+  const handleResetView = () => {
+    if (containerRef.current) {
+      containerRef.current.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto p-0 md:p-6"
@@ -411,6 +440,15 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             <div className="w-64">
               <ProgressSummary />
             </div>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleResetView} 
+              className="hover:bg-slate-800 rounded-full"
+              title="Reset View"
+            >
+              <Home className="w-6 h-6 text-slate-400 hover:text-white transition" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-slate-800 rounded-full">
               <XCircle className="w-8 h-8 text-slate-500 hover:text-white transition" />
             </Button>
@@ -424,6 +462,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           <div
             ref={containerRef}
             className="flex-1 relative overflow-auto bg-slate-950/50 cursor-grab active:cursor-grabbing custom-scrollbar select-none"
+            style={{ touchAction: 'pan-x pan-y' }}
             onMouseDown={handleMouseDown}
             onMouseLeave={handleMouseLeave}
             onMouseUp={handleMouseUp}
