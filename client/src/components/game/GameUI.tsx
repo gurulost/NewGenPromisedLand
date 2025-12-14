@@ -17,6 +17,9 @@ import { SaveSystem } from "../ui/SaveSystem";
 import { UnitSelectionUI } from "../effects/UnitSelection";
 import { ActionTooltip } from "../ui/TooltipSystem";
 import { WorldElementPanel } from "../ui/WorldElementPanel";
+import { VillageCapturePanel } from "../ui/VillageCapturePanel";
+import { DiplomacyPanel } from "../ui/DiplomacyPanel";
+import { RuinsRewardPanel } from "../ui/RuinsRewardPanel";
 import MovementControls from "../game/MovementControls";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
@@ -42,11 +45,19 @@ export default function GameUI() {
     coordinate: { q: number; r: number; s: number };
   } | null>(null);
 
+  const [selectedVillage, setSelectedVillage] = useState<{
+    unitId: string;
+    coordinate: { q: number; r: number; s: number };
+  } | null>(null);
+
+  const [showDiplomacy, setShowDiplomacy] = useState(false);
+  const [ruinsReward, setRuinsReward] = useState<any | null>(null);
+
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
-  
+
   console.log('[GameUI] Rendering, gameState exists:', !!gameState, 'players:', gameState?.players?.length, 'currentPlayerIndex:', gameState?.currentPlayerIndex);
-  
+
   if (!gameState) {
     console.warn('[GameUI] gameState is null, returning null');
     return null;
@@ -56,7 +67,7 @@ export default function GameUI() {
   useAITurn();
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  
+
   // Guard against undefined currentPlayer (can happen during turn transitions with 4+ players)
   if (!currentPlayer) {
     console.warn('GameUI: currentPlayer is undefined at index', gameState.currentPlayerIndex);
@@ -68,19 +79,19 @@ export default function GameUI() {
   // Enhanced end turn with transition  
   const handleEndTurn = () => {
     if (!gameState || !currentPlayer) return;
-    
+
     const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
     const nextPlayer = gameState.players[nextPlayerIndex];
-    
+
     // Guard against undefined next player
     if (!nextPlayer) {
       console.warn('GameUI: nextPlayer is undefined at index', nextPlayerIndex);
       return;
     }
-    
+
     // Start turn transition animation
     startTransition(nextPlayer);
-    
+
     // Complete turn after transition
     setTimeout(() => {
       endTurn(currentPlayer.id); // Pass the current player's ID
@@ -130,7 +141,7 @@ export default function GameUI() {
   // Handle world element actions
   const handleWorldElementAction = (actionType: 'harvest' | 'build') => {
     if (!selectedWorldElement) return;
-    
+
     const action = {
       type: actionType === 'harvest' ? 'WORLD_ELEMENT_HARVEST' : 'WORLD_ELEMENT_BUILD',
       payload: {
@@ -139,7 +150,7 @@ export default function GameUI() {
         coordinate: selectedWorldElement.coordinate
       }
     } as any;
-    
+
     // Dispatch the action through the game reducer
     useLocalGame.getState().dispatch(action);
     setSelectedWorldElement(null);
@@ -150,10 +161,10 @@ export default function GameUI() {
     const handleWorldElementClick = (event: CustomEvent) => {
       if (event.detail?.coordinate && event.detail?.resources) {
         const { coordinate, resources } = event.detail;
-        
+
         // Enhanced logging for debugging
         console.log('🌍 World element click detected:', { coordinate, resources, availableElements: Object.keys(WORLD_ELEMENTS) });
-        
+
         // Check if any resource is a world element
         for (const resource of resources) {
           if (WORLD_ELEMENTS[resource]) {
@@ -175,9 +186,86 @@ export default function GameUI() {
 
     // Listen for world element clicks
     window.addEventListener('worldElementClick', handleWorldElementClick as EventListener);
-    
+
     return () => {
       window.removeEventListener('worldElementClick', handleWorldElementClick as EventListener);
+    };
+  }, []);
+
+  // Handle village capture actions
+  const handleVillageCaptureAction = (actionType: 'conquer' | 'convert') => {
+    if (!selectedVillage) return;
+
+    const action = {
+      type: actionType === 'conquer' ? 'CONQUER_VILLAGE' : 'CONVERT_VILLAGE',
+      payload: {
+        unitId: selectedVillage.unitId,
+        playerId: currentPlayer.id
+      }
+    } as any;
+
+    // Dispatch the action through the game reducer
+    useLocalGame.getState().dispatch(action);
+    setSelectedVillage(null);
+  };
+
+  // Detect when a unit enters a village
+  useEffect(() => {
+    const handleVillageEncounter = (event: CustomEvent) => {
+      if (event.detail?.unitId && event.detail?.coordinate) {
+        const { unitId, coordinate } = event.detail;
+
+        console.log('🏘 Village encounter detected:', { unitId, coordinate });
+
+        // Open village capture panel
+        setSelectedVillage({
+          unitId,
+          coordinate
+        });
+      }
+    };
+
+    // Listen for village encounters
+    window.addEventListener('villageEncounter', handleVillageEncounter as EventListener);
+
+    return () => {
+      window.removeEventListener('villageEncounter', handleVillageEncounter as EventListener);
+    };
+  }, []);
+
+
+  // Handle diplomacy actions
+  useEffect(() => {
+    const handleDiplomacyAction = (event: CustomEvent) => {
+      if (event.detail?.type && event.detail?.payload) {
+        const { type, payload } = event.detail;
+
+        console.log('🤝 Diplomacy action:', type, payload);
+
+        // Dispatch the diplomacy action through the game reducer
+        useLocalGame.getState().dispatch({ type, payload } as any);
+      }
+    };
+
+    window.addEventListener('diplomacyAction', handleDiplomacyAction as EventListener);
+
+    return () => {
+      window.removeEventListener('diplomacyAction', handleDiplomacyAction as EventListener);
+    };
+  }, []);
+
+  // Handle ruins rewards
+  useEffect(() => {
+    const handleRuinsReward = (event: CustomEvent) => {
+      if (event.detail?.reward) {
+        setRuinsReward(event.detail.reward);
+      }
+    };
+
+    window.addEventListener('ruinsReward', handleRuinsReward as EventListener);
+
+    return () => {
+      window.removeEventListener('ruinsReward', handleRuinsReward as EventListener);
     };
   }, []);
 
@@ -187,7 +275,7 @@ export default function GameUI() {
       // Victory screen will be shown
       return;
     }
-    
+
     // Check faith victory
     const faithWinner = gameState?.players.find(p => p.stats.faith >= 100);
     if (faithWinner) {
@@ -196,7 +284,7 @@ export default function GameUI() {
       // This would ideally be handled by the game reducer
       return;
     }
-    
+
     // Check elimination victory
     const activePlayers = gameState?.players.filter(p => !p.isEliminated);
     if (activePlayers && activePlayers.length === 1) {
@@ -223,7 +311,7 @@ export default function GameUI() {
         targetId
       }
     };
-    
+
     // Get dispatch from useLocalGame store
     const { dispatch } = useLocalGame.getState();
     dispatch(action);
@@ -235,7 +323,7 @@ export default function GameUI() {
 
   const handleUnitAction = (action: string) => {
     if (!selectedUnit) return;
-    
+
     switch (action) {
       case 'attack':
         // Enter attack mode - show attack indicators
@@ -255,15 +343,15 @@ export default function GameUI() {
   };
 
   const handleShowCityPanel = () => {
-    const playerCities = gameState.cities?.filter(city => 
+    const playerCities = gameState.cities?.filter(city =>
       currentPlayer.citiesOwned.includes(city.id)
     ) || [];
-    
+
     if (playerCities.length === 0) {
       console.log('No cities owned by player');
       return;
     }
-    
+
     if (playerCities.length === 1) {
       setSelectedCityId(playerCities[0].id);
       setShowCityPanel(true);
@@ -274,15 +362,15 @@ export default function GameUI() {
   };
 
   const handleShowConstructionHall = () => {
-    const playerCities = gameState.cities?.filter(city => 
+    const playerCities = gameState.cities?.filter(city =>
       currentPlayer.citiesOwned.includes(city.id)
     ) || [];
-    
+
     if (playerCities.length === 0) {
       console.log('No cities owned by player');
       return;
     }
-    
+
     if (playerCities.length === 1) {
       setSelectedCityId(playerCities[0].id);
       setShowConstructionHall(true);
@@ -295,7 +383,7 @@ export default function GameUI() {
   const handleSelectCity = (cityId: string) => {
     setSelectedCityId(cityId);
     setShowCitySelector(false);
-    
+
     if (citySelectorAction === 'city_panel') {
       setShowCityPanel(true);
     } else {
@@ -312,7 +400,7 @@ export default function GameUI() {
             <div className="text-center">
               <h3 className="text-sm font-bold mb-1">Construction Mode</h3>
               <p className="text-xs mb-2">Select a tile to build: <span className="font-semibold text-yellow-300">{constructionMode.buildingType}</span></p>
-              <button 
+              <button
                 onClick={cancelConstruction}
                 className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-xs text-white font-medium transition-colors"
               >
@@ -325,7 +413,7 @@ export default function GameUI() {
 
       {/* Movement Mode Controls */}
       {isMovementMode && selectedUnit && (
-        <MovementControls 
+        <MovementControls
           selectedUnit={selectedUnit}
           reachableCount={reachableCoordinates.length}
         />
@@ -337,6 +425,7 @@ export default function GameUI() {
         gameState={gameState}
         onShowTechPanel={() => setShowTechPanel(true)}
         onShowConstructionHall={handleShowConstructionHall}
+        onShowDiplomacy={() => setShowDiplomacy(true)}
         onEndTurn={handleEndTurn}
       />
 
@@ -366,7 +455,7 @@ export default function GameUI() {
 
       {/* Construction Hall */}
       {showConstructionHall && selectedCityId && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-auto"
           onClick={(e) => {
             e.stopPropagation();
@@ -375,7 +464,7 @@ export default function GameUI() {
             }
           }}
         >
-          <div 
+          <div
             onClick={(e) => e.stopPropagation()}
             style={{ pointerEvents: 'auto' }}
           >
@@ -388,7 +477,7 @@ export default function GameUI() {
                 console.log('Starting construction:', optionId);
                 // Determine building category
                 let category: 'improvements' | 'structures' | 'units';
-                
+
                 if (Object.values(STRUCTURE_DEFINITIONS).some(s => s.id === optionId)) {
                   category = 'structures';
                 } else if (Object.values(UNIT_DEFINITIONS).some(u => u.type === optionId)) {
@@ -396,7 +485,7 @@ export default function GameUI() {
                 } else {
                   category = 'improvements';
                 }
-                
+
                 // Use the game state construction system
                 const { startConstruction } = useGameState.getState();
                 startConstruction(optionId, category, selectedCityId, currentPlayer.id);
@@ -414,7 +503,7 @@ export default function GameUI() {
 
       {/* City Selector Dialog */}
       {showCitySelector && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-auto"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -430,7 +519,7 @@ export default function GameUI() {
               {citySelectorAction === 'city_panel' ? 'Choose a city to view' : 'Choose a city for construction'}
             </p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {gameState.cities?.filter(city => 
+              {gameState.cities?.filter(city =>
                 currentPlayer.citiesOwned.includes(city.id)
               ).map(city => (
                 <button
@@ -487,7 +576,7 @@ export default function GameUI() {
 
       {/* World Element Panel */}
       {selectedWorldElement && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm pointer-events-auto"
           onClick={(e) => {
             e.stopPropagation();
@@ -496,7 +585,7 @@ export default function GameUI() {
             }
           }}
         >
-          <div 
+          <div
             onClick={(e) => e.stopPropagation()}
             style={{ pointerEvents: 'auto' }}
           >
@@ -511,6 +600,50 @@ export default function GameUI() {
           </div>
         </div>
       )}
+
+      {/* Village Capture Panel */}
+      {selectedVillage && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm pointer-events-auto"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (e.target === e.currentTarget) {
+              setSelectedVillage(null);
+            }
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ pointerEvents: 'auto' }}
+          >
+            <VillageCapturePanel
+              gameState={gameState}
+              playerId={currentPlayer.id}
+              unitId={selectedVillage.unitId}
+              coordinate={selectedVillage.coordinate}
+              onAction={handleVillageCaptureAction}
+              onClose={() => setSelectedVillage(null)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Diplomacy Panel */}
+      {showDiplomacy && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm pointer-events-auto">
+          <DiplomacyPanel
+            gameState={gameState}
+            currentPlayerId={currentPlayer.id}
+            onClose={() => setShowDiplomacy(false)}
+          />
+        </div>
+      )}
+
+      {/* Ruins Reward Panel */}
+      <RuinsRewardPanel
+        reward={ruinsReward}
+        onClose={() => setRuinsReward(null)}
+      />
 
       {/* Advanced Save System */}
       {showAdvancedSaveSystem && (

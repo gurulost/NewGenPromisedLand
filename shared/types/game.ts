@@ -45,6 +45,8 @@ export const TileSchema = z.object({
   cityOwner: z.string().optional(),
   exploredBy: z.array(z.string()).default([]),
   feature: MapFeatureSchema.optional(), // New feature property for villages, ruins, etc.
+  captureType: z.enum(['conquered', 'converted']).optional(), // How village was captured
+  starBonus: z.number().optional(), // Ongoing star bonus for converted villages
 });
 
 export type Tile = z.infer<typeof TileSchema>;
@@ -318,10 +320,26 @@ export const GameActionSchema = z.discriminatedUnion('type', [
     }),
   }),
   z.object({
-    type: z.literal('CAPTURE_VILLAGE'),
+    type: z.literal('CONQUER_VILLAGE'),
     payload: z.object({
       unitId: z.string(),
       playerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('CONVERT_VILLAGE'),
+    payload: z.object({
+      unitId: z.string(),
+      playerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('EXPLORE_RUINS'),
+    payload: z.object({
+      unitId: z.string(),
+      playerId: z.string(),
+      coordinate: HexCoordinateSchema,
+      randomSeed: z.number().optional(), // For deterministic rewards
     }),
   }),
   z.object({
