@@ -39,7 +39,7 @@ interface ActiveNotification {
 
 export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
-  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates } = useGameState();
+  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const { triggerFlash, showToast } = useVisualFeedback();
   const [showTechPanel, setShowTechPanel] = useState(false);
@@ -591,6 +591,24 @@ export default function GameUI() {
               <p className="text-xs mb-2">Select a tile to build: <span className="font-semibold text-yellow-300">{constructionMode.buildingType}</span></p>
               <button
                 onClick={cancelConstruction}
+                className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-xs text-white font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Road Build Mode Indicator */}
+      {isRoadBuildMode && (
+        <div className="absolute top-4 right-4 pointer-events-auto z-50">
+          <div className="bg-black/90 text-white px-4 py-3 rounded-lg border-2 border-amber-400 shadow-lg backdrop-blur-sm max-w-xs">
+            <div className="text-center">
+              <h3 className="text-sm font-bold mb-1">Road Build Mode</h3>
+              <p className="text-xs mb-2">Select an adjacent tile to build a road.</p>
+              <button
+                onClick={cancelRoadBuild}
                 className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-xs text-white font-medium transition-colors"
               >
                 Cancel

@@ -21,7 +21,11 @@ interface GameStateStore {
   isMovementMode: boolean;
   isAttackMode: boolean;
   attackableTargets: Array<{ q: number; r: number; s: number }>;
-  
+
+  // Road building mode (worker)
+  isRoadBuildMode: boolean;
+  roadBuildUnitId: string | null;
+
   setSelectedUnit: (unit: Unit | null) => void;
   setHoveredTile: (tile: { x: number; z: number; tile: Tile } | null) => void;
   setReachableTiles: (tiles: string[]) => void;
@@ -35,6 +39,10 @@ interface GameStateStore {
   setMovementMode: (enabled: boolean) => void;
   setAttackMode: (enabled: boolean) => void;
   setAttackableTargets: (targets: Array<{ q: number; r: number; s: number }>) => void;
+
+  // Road building actions
+  startRoadBuild: (unitId: string) => void;
+  cancelRoadBuild: () => void;
 }
 
 export const useGameState = create<GameStateStore>((set) => ({
@@ -54,8 +62,19 @@ export const useGameState = create<GameStateStore>((set) => ({
   isMovementMode: false,
   isAttackMode: false,
   attackableTargets: [],
-  
-  setSelectedUnit: (unit) => set({ selectedUnit: unit, isMovementMode: false, isAttackMode: false, attackableTargets: [] }),
+
+  isRoadBuildMode: false,
+  roadBuildUnitId: null,
+
+  setSelectedUnit: (unit) =>
+    set({
+      selectedUnit: unit,
+      isMovementMode: false,
+      isAttackMode: false,
+      isRoadBuildMode: false,
+      roadBuildUnitId: null,
+      attackableTargets: [],
+    }),
   setHoveredTile: (tile) => set({ hoveredTile: tile }),
   setReachableTiles: (tiles) => set({ reachableTiles: tiles }),
   setReachableCoordinates: (coordinates) => set({ reachableCoordinates: coordinates }),
@@ -71,6 +90,8 @@ export const useGameState = create<GameStateStore>((set) => ({
     selectedUnit: null, // Clear unit selection when starting construction
     isMovementMode: false,
     isAttackMode: false,
+    isRoadBuildMode: false,
+    roadBuildUnitId: null,
   }),
   
   cancelConstruction: () => set({
@@ -83,7 +104,10 @@ export const useGameState = create<GameStateStore>((set) => ({
     },
   }),
   
-  setMovementMode: (enabled) => set({ isMovementMode: enabled, isAttackMode: enabled ? false : false, attackableTargets: [] }),
-  setAttackMode: (enabled) => set({ isAttackMode: enabled, isMovementMode: enabled ? false : false }),
+  setMovementMode: (enabled) => set({ isMovementMode: enabled, isAttackMode: enabled ? false : false, isRoadBuildMode: false, roadBuildUnitId: null, attackableTargets: [] }),
+  setAttackMode: (enabled) => set({ isAttackMode: enabled, isMovementMode: enabled ? false : false, isRoadBuildMode: false, roadBuildUnitId: null }),
   setAttackableTargets: (targets) => set({ attackableTargets: targets }),
+
+  startRoadBuild: (unitId) => set({ isRoadBuildMode: true, roadBuildUnitId: unitId, isMovementMode: false, isAttackMode: false, attackableTargets: [] }),
+  cancelRoadBuild: () => set({ isRoadBuildMode: false, roadBuildUnitId: null }),
 }));

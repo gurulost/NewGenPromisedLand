@@ -14,6 +14,8 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { getUnitDefinition } from "@shared/data/units";
 import { getActionAvailability } from "../../lib/helpers/actionAvailabilityHelpers";
 import type { Unit } from "@shared/types/unit";
+import { IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
+import { hexDistance } from "@shared/utils/hex";
 
 interface UnitActionsPanelProps {
   unit: Unit;
@@ -38,7 +40,7 @@ interface ActionDefinition {
 
 export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProps) {
   const { gameState, dispatch } = useLocalGame();
-  const { setMovementMode, setAttackMode } = useGameState();
+  const { setMovementMode, setAttackMode, startRoadBuild } = useGameState();
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [actionToConfirm, setActionToConfirm] = useState<ActionDefinition | null>(null);
@@ -54,6 +56,41 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const isPlayerTurn = currentPlayer.id === unit.playerId;
   const actionAvailability = getActionAvailability(unit, gameState);
+
+  const currentTile = gameState.map.tiles.find(tile =>
+    tile.coordinate.q === unit.coordinate.q &&
+    tile.coordinate.r === unit.coordinate.r
+  );
+
+  const getClosestOwnedCityId = (): string | null => {
+    const ownedCities = (gameState.cities || []).filter(c => c.ownerId === currentPlayer.id);
+    if (ownedCities.length === 0) return null;
+
+    let best = ownedCities[0];
+    let bestDistance = hexDistance(best.coordinate, unit.coordinate);
+    for (const city of ownedCities) {
+      const distance = hexDistance(city.coordinate, unit.coordinate);
+      if (distance < bestDistance) {
+        best = city;
+        bestDistance = distance;
+      }
+    }
+    return best.id;
+  };
+
+  const getBestImprovementForCurrentTile = (): keyof typeof IMPROVEMENT_DEFINITIONS | null => {
+    if (!currentTile) return null;
+
+    const candidates = Object.values(IMPROVEMENT_DEFINITIONS)
+      .filter(def =>
+        def.validTerrain.includes(currentTile.terrain) &&
+        currentPlayer.researchedTechs.includes(def.requiredTech) &&
+        currentPlayer.stars >= def.cost
+      )
+      .sort((a, b) => (b.starProduction - a.starProduction) || (a.cost - b.cost));
+
+    return (candidates[0]?.id as keyof typeof IMPROVEMENT_DEFINITIONS | undefined) ?? null;
+  };
 
   // Generate available actions based on unit type and game state
   const getUnitActions = (): ActionDefinition[] => {
@@ -133,16 +170,22 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     // Unit-specific abilities based on type
     switch (unit.type) {
       case 'worker':
+        const bestImprovement = getBestImprovementForCurrentTile();
+        const closestCityId = getClosestOwnedCityId();
         actions.push(
           {
             id: 'build_improvement',
             name: 'Build Improvement',
-            description: actionAvailability.canBuild ?
-              'Construct terrain improvements (farms, mines, etc.)' :
-              'Cannot build on this tile',
+            description: !actionAvailability.canBuild
+              ? 'Cannot build on this tile'
+              : !closestCityId
+                ? 'No owned city available'
+                : !bestImprovement
+                  ? 'No valid improvement available (check tech/stars/terrain)'
+                  : `Build ${IMPROVEMENT_DEFINITIONS[bestImprovement].name} (${IMPROVEMENT_DEFINITIONS[bestImprovement].cost} stars)`,
             icon: <Hammer className="w-4 h-4" />,
             cost: 'Turn',
-            available: actionAvailability.canBuild
+            available: !!(actionAvailability.canBuild && closestCityId && bestImprovement)
           },
           {
             id: 'harvest_resource',
@@ -152,18 +195,20 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
               'No resources available',
             icon: <Coins className="w-4 h-4" />,
             cost: 'Turn',
-            available: actionAvailability.canHarvest
+            available: actionAvailability.canHarvest && !!currentTile?.resources?.length
           },
           {
             id: 'build_road',
             name: 'Build Road',
-            description: currentPlayer.stars >= 3 ?
-              'Create road infrastructure (3 stars)' :
-              'Insufficient stars (need 3)',
+            description: !currentPlayer.researchedTechs.includes('organization')
+              ? 'Requires Organization technology'
+              : currentPlayer.stars >= 3
+                ? 'Create road infrastructure (3 stars)'
+                : 'Insufficient stars (need 3)',
             icon: <Target className="w-4 h-4" />,
             cost: '3 Stars',
             starCost: 3,
-            available: currentPlayer.stars >= 3 && isPlayerTurn && unit.remainingMovement > 0
+            available: currentPlayer.researchedTechs.includes('organization') && currentPlayer.stars >= 3 && isPlayerTurn && unit.remainingMovement > 0 && !!currentTile && !unit.hasAttacked
           }
         );
         break;
@@ -191,7 +236,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             icon: <Star className="w-4 h-4" />,
             cost: '10 Faith',
             faithCost: 10,
-            available: currentPlayer.stats.faith >= 10,
+            available: currentPlayer.stats.faith >= 10 && !unit.hasAttacked,
             rangeType: 'attack',
             range: 1
           }
@@ -259,7 +304,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: 'Become invisible to enemies',
             icon: <Eye className="w-4 h-4" />,
             cost: 'Turn',
-            available: !unit.hasAttacked && unit.status !== 'stealthed'
+            available: isPlayerTurn && !unit.hasAttacked && unit.status !== 'stealthed'
           },
           {
             id: 'reconnaissance',
@@ -267,7 +312,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: 'Reveal large area around unit',
             icon: <Target className="w-4 h-4" />,
             cost: 'Turn',
-            available: !unit.hasAttacked
+            available: isPlayerTurn && !unit.hasAttacked
           }
         );
         break;
@@ -282,7 +327,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           icon: <Crown className="w-4 h-4" />,
           cost: '5 Pride',
           prideCost: 5,
-          available: currentPlayer.stats.pride >= 5,
+          available: isPlayerTurn && !unit.hasAttacked && currentPlayer.stats.pride >= 5,
           rangeType: 'ability',
           range: 3
         });
@@ -297,7 +342,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             'Must not have moved this turn',
           icon: <Bomb className="w-4 h-4" />,
           cost: 'Turn',
-          available: unit.remainingMovement === unit.movement && !unit.hasAttacked,
+          available: isPlayerTurn && unit.remainingMovement === unit.movement && !unit.hasAttacked,
           rangeType: 'attack',
           range: 3
         });
@@ -433,44 +478,67 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         break;
       case 'heal':
         dispatch({
-          type: 'USE_ABILITY',
-          payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'HEAL' }
+          type: 'HEAL_UNIT',
+          payload: { playerId: currentPlayer.id, unitId: unit.id }
         });
         break;
       case 'stealth':
         dispatch({
-          type: 'USE_ABILITY',
-          payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'STEALTH' }
+          type: 'APPLY_STEALTH',
+          payload: { playerId: currentPlayer.id, unitId: unit.id }
         });
         break;
       case 'reconnaissance':
         dispatch({
-          type: 'USE_ABILITY',
-          payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'RECONNAISSANCE' }
+          type: 'RECONNAISSANCE',
+          payload: { playerId: currentPlayer.id, unitId: unit.id }
         });
         break;
       case 'rally_troops':
         dispatch({
-          type: 'USE_ABILITY',
-          payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'RALLY_TROOPS' }
+          type: 'RALLY_TROOPS',
+          payload: { playerId: currentPlayer.id, unitId: unit.id }
         });
         break;
       case 'bombardment':
-        dispatch({ type: 'USE_ABILITY', unitId: unit.id, abilityType: 'bombardment' });
+        // Use standard attack targeting (catapult already has extended `attackRange`)
+        setAttackMode(true);
         break;
       case 'build_road':
-        dispatch({ type: 'BUILD_ROAD', unitId: unit.id });
+        startRoadBuild(unit.id);
         break;
       case 'build_improvement':
-        dispatch({ type: 'BUILD_IMPROVEMENT', unitId: unit.id });
+        if (currentTile) {
+          const bestImprovement = getBestImprovementForCurrentTile();
+          const closestCityId = getClosestOwnedCityId();
+          if (!bestImprovement || !closestCityId) break;
+          dispatch({
+            type: 'BUILD_IMPROVEMENT',
+            payload: {
+              playerId: currentPlayer.id,
+              coordinate: currentTile.coordinate,
+              improvementType: bestImprovement,
+              cityId: closestCityId,
+            }
+          });
+        }
         break;
       case 'harvest_resource':
-        dispatch({ type: 'HARVEST_RESOURCE', unitId: unit.id });
+        if (currentTile?.resources?.length) {
+          dispatch({
+            type: 'WORLD_ELEMENT_HARVEST',
+            payload: {
+              playerId: currentPlayer.id,
+              elementId: currentTile.resources[0],
+              coordinate: currentTile.coordinate
+            }
+          });
+        }
         break;
       case 'convert':
         dispatch({
-          type: 'USE_ABILITY',
-          payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'CONVERT' }
+          type: 'UNIT_ACTION',
+          payload: { playerId: currentPlayer.id, unitId: unit.id, actionType: 'convert' }
         });
         break;
 
