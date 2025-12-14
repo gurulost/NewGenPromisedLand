@@ -5,7 +5,7 @@ import { Badge } from "./badge";
 import { Separator } from "./separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./dialog";
 import { Alert, AlertDescription } from "./alert";
-import { 
+import {
   Star, Target, Heart, Swords, Eye,
   X, Hammer, Bomb, Crown, Move, Coins, Sparkles, AlertTriangle
 } from "lucide-react";
@@ -71,12 +71,57 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
       actions.push({
         id: 'attack',
         name: 'Attack',
-        description: actionAvailability.canAttack ? 
-          `Attack adjacent enemy units (${actionAvailability.attackTargetsCount} targets)` : 
+        description: actionAvailability.canAttack ?
+          `Attack adjacent enemy units (${actionAvailability.attackTargetsCount} targets)` :
           actionAvailability.attackReason,
         icon: <Swords className="w-4 h-4" />,
         cost: 'Turn',
         available: actionAvailability.canAttack
+      });
+    }
+
+    // City capture action - appears when adjacent to enemy city
+    const adjacentEnemyCity = gameState?.cities?.find(city => {
+      if (currentPlayer.citiesOwned.includes(city.id)) return false; // Skip own cities
+      const distance = Math.max(
+        Math.abs(unit.coordinate.q - city.coordinate.q),
+        Math.abs(unit.coordinate.r - city.coordinate.r),
+        Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (city.coordinate.s || -city.coordinate.q - city.coordinate.r))
+      );
+      return distance <= 1; // Adjacent or on the tile
+    });
+
+    if (adjacentEnemyCity && isPlayerTurn) {
+      actions.push({
+        id: 'capture_city',
+        name: 'Capture City',
+        description: `Capture ${adjacentEnemyCity.name} - requires defeating garrison first`,
+        icon: <Crown className="w-4 h-4" />,
+        cost: 'Combat Victory',
+        available: true // Available if adjacent
+      });
+    }
+
+    // Check for adjacent ruins
+    const adjacentRuins = gameState?.map?.tiles?.find(tile => {
+      const distance = Math.max(
+        Math.abs(unit.coordinate.q - tile.coordinate.q),
+        Math.abs(unit.coordinate.r - tile.coordinate.r),
+        Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (tile.coordinate.s || -tile.coordinate.q - tile.coordinate.r))
+      );
+      return distance <= 1 && tile.feature === 'ruin';
+    });
+
+    if (adjacentRuins && isPlayerTurn && unit.remainingMovement > 0) {
+      actions.push({
+        id: 'explore_ruins',
+        name: 'Explore Ruins',
+        description: 'Search the ancient ruins for rewards',
+        icon: <span className="text-lg">🏛️</span>,
+        cost: 'Free',
+        available: true,
+        rangeType: 'ability',
+        range: 1
       });
     }
 
@@ -87,8 +132,8 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           {
             id: 'build_improvement',
             name: 'Build Improvement',
-            description: actionAvailability.canBuild ? 
-              'Construct terrain improvements (farms, mines, etc.)' : 
+            description: actionAvailability.canBuild ?
+              'Construct terrain improvements (farms, mines, etc.)' :
               'Cannot build on this tile',
             icon: <Hammer className="w-4 h-4" />,
             cost: 'Turn',
@@ -97,8 +142,8 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           {
             id: 'harvest_resource',
             name: 'Harvest Resource',
-            description: actionAvailability.canHarvest ? 
-              'Extract resources from this tile' : 
+            description: actionAvailability.canHarvest ?
+              'Extract resources from this tile' :
               'No resources available',
             icon: <Coins className="w-4 h-4" />,
             cost: 'Turn',
@@ -107,8 +152,8 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           {
             id: 'build_road',
             name: 'Build Road',
-            description: currentPlayer.stars >= 3 ? 
-              'Create road infrastructure (3 stars)' : 
+            description: currentPlayer.stars >= 3 ?
+              'Create road infrastructure (3 stars)' :
               'Insufficient stars (need 3)',
             icon: <Target className="w-4 h-4" />,
             cost: '3 Stars',
@@ -124,8 +169,8 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           {
             id: 'heal',
             name: 'Heal Nearby Units',
-            description: hasHealingTech ? 
-              'Restore health to friendly units' : 
+            description: hasHealingTech ?
+              'Restore health to friendly units' :
               'Requires Spirituality technology',
             icon: <Heart className="w-4 h-4" />,
             cost: '5 Faith',
@@ -146,6 +191,59 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             range: 1
           }
         );
+
+        // City conversion actions - find adjacent enemy cities
+        const adjacentCities = gameState?.cities?.filter(city => {
+          if (currentPlayer.citiesOwned.includes(city.id)) return false;
+          const distance = Math.max(
+            Math.abs(unit.coordinate.q - city.coordinate.q),
+            Math.abs(unit.coordinate.r - city.coordinate.r),
+            Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (city.coordinate.s || -city.coordinate.q - city.coordinate.r))
+          );
+          return distance <= 1;
+        });
+
+        if (adjacentCities && adjacentCities.length > 0) {
+          const targetCity = adjacentCities[0]; // Get first adjacent city
+          const cityName = targetCity.name || 'City';
+          const multipleNote = adjacentCities.length > 1 ? ` (${adjacentCities.length} available)` : '';
+
+          actions.push(
+            {
+              id: 'convert_city_faith',
+              name: 'Convert City (Faith)',
+              description: `Convert ${cityName} through faith (20 Faith)${multipleNote}`,
+              icon: <Heart className="w-4 h-4" />,
+              cost: '20 Faith',
+              faithCost: 20,
+              available: currentPlayer.stats.faith >= 20,
+              rangeType: 'ability',
+              range: 1
+            },
+            {
+              id: 'convert_city_pride',
+              name: 'Convert City (Pride)',
+              description: `Convert ${cityName} through pride (15 Pride)${multipleNote}`,
+              icon: <Crown className="w-4 h-4" />,
+              cost: '15 Pride',
+              prideCost: 15,
+              available: currentPlayer.stats.pride >= 15,
+              rangeType: 'ability',
+              range: 1
+            },
+            {
+              id: 'convert_city_peace',
+              name: 'Convert City (Peace)',
+              description: `Peaceful conversion of ${cityName} (+5 Faith, -10 Dissent)${multipleNote}`,
+              icon: <Star className="w-4 h-4" />,
+              cost: '10 Faith',
+              faithCost: 10,
+              available: currentPlayer.stats.faith >= 10,
+              rangeType: 'ability',
+              range: 1
+            }
+          );
+        }
         break;
 
       case 'scout':
@@ -173,8 +271,8 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         actions.push({
           id: 'rally_troops',
           name: 'Rally Troops',
-          description: currentPlayer.stats.pride >= 5 ? 
-            'Boost nearby friendly units' : 
+          description: currentPlayer.stats.pride >= 5 ?
+            'Boost nearby friendly units' :
             'Insufficient pride (need 5)',
           icon: <Crown className="w-4 h-4" />,
           cost: '5 Pride',
@@ -189,8 +287,8 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         actions.push({
           id: 'bombardment',
           name: 'Artillery Bombardment',
-          description: unit.remainingMovement === unit.movement ? 
-            'Long-range area attack' : 
+          description: unit.remainingMovement === unit.movement ?
+            'Long-range area attack' :
             'Must not have moved this turn',
           icon: <Bomb className="w-4 h-4" />,
           cost: 'Turn',
@@ -201,19 +299,61 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         break;
     }
 
+    // Unit upgrades - available to all units
+    if (isPlayerTurn && currentPlayer.stars >= 15) {
+      actions.push(
+        {
+          id: 'upgrade_attack',
+          name: 'Upgrade Attack',
+          description: 'Increase attack power by +2 (15 Stars)',
+          icon: <Swords className="w-4 h-4" />,
+          cost: '15 Stars',
+          starCost: 15,
+          available: currentPlayer.stars >= 15
+        },
+        {
+          id: 'upgrade_defense',
+          name: 'Upgrade Defense',
+          description: 'Increase defense by +2 (15 Stars)',
+          icon: <Crown className="w-4 h-4" />,
+          cost: '15 Stars',
+          starCost: 15,
+          available: currentPlayer.stars >= 15
+        },
+        {
+          id: 'upgrade_movement',
+          name: 'Upgrade Movement',
+          description: 'Increase movement range by +1 (15 Stars)',
+          icon: <Move className="w-4 h-4" />,
+          cost: '15 Stars',
+          starCost: 15,
+          available: currentPlayer.stars >= 15
+        },
+        {
+          id: 'upgrade_vision',
+          name: 'Upgrade Vision',
+          description: 'Increase vision radius by +1 (15 Stars)',
+          icon: <Eye className="w-4 h-4" />,
+          cost: '15 Stars',
+          starCost: 15,
+          available: currentPlayer.stars >= 15
+        }
+      );
+    }
+
     return actions;
   };
 
   const needsConfirmation = (action: ActionDefinition): boolean => {
-    return !!action.irreversible || 
-           (!!action.starCost && action.starCost > 5) || 
-           (!!action.faithCost && action.faithCost > 10) || 
-           (!!action.prideCost && action.prideCost > 10);
+    return !!action.irreversible ||
+      (!!action.starCost && action.starCost > 5) ||
+      (!!action.faithCost && action.faithCost > 10) ||
+      (!!action.prideCost && action.prideCost > 10);
   };
 
   const handleActionSelect = (action: ActionDefinition) => {
     if (!action.available) return;
-    
+
     // Toggle selection for UI state
     if (selectedAction === action.id) {
       // If already selected, execute the action
@@ -231,7 +371,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
 
   const handleActionExecute = (action: ActionDefinition) => {
     if (!action.available) return;
-    
+
     // Handle different action types with proper game state updates
     switch (action.id) {
       case 'move':
@@ -240,27 +380,73 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
       case 'attack':
         setAttackMode(true);
         break;
+      case 'explore_ruins':
+        // Find adjacent ruins tile
+        const ruinsTile = gameState?.map?.tiles?.find(tile => {
+          const distance = Math.max(
+            Math.abs(unit.coordinate.q - tile.coordinate.q),
+            Math.abs(unit.coordinate.r - tile.coordinate.r),
+            Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (tile.coordinate.s || -tile.coordinate.q - tile.coordinate.r))
+          );
+          return distance <= 1 && tile.feature === 'ruin';
+        });
+
+        if (ruinsTile) {
+          dispatch({
+            type: 'EXPLORE_RUINS',
+            payload: {
+              playerId: currentPlayer.id,
+              unitId: unit.id,
+              coordinate: ruinsTile.coordinate,
+              randomSeed: Math.random() // Generate seed on client for determinism
+            }
+          });
+        }
+        break;
+
+      case 'capture_city':
+        // Find adjacent enemy city and dispatch capture action
+        const adjacentEnemyCity = gameState?.cities?.find(city => {
+          if (currentPlayer.citiesOwned.includes(city.id)) return false;
+          const distance = Math.max(
+            Math.abs(unit.coordinate.q - city.coordinate.q),
+            Math.abs(unit.coordinate.r - city.coordinate.r),
+            Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (city.coordinate.s || -city.coordinate.q - city.coordinate.r))
+          );
+          return distance <= 1;
+        });
+
+        if (adjacentEnemyCity) {
+          dispatch({
+            type: 'CAPTURE_CITY',
+            payload: {
+              playerId: currentPlayer.id,
+              cityId: adjacentEnemyCity.id
+            }
+          });
+        }
+        break;
       case 'heal':
-        dispatch({ 
-          type: 'USE_ABILITY', 
+        dispatch({
+          type: 'USE_ABILITY',
           payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'HEAL' }
         });
         break;
       case 'stealth':
-        dispatch({ 
-          type: 'USE_ABILITY', 
+        dispatch({
+          type: 'USE_ABILITY',
           payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'STEALTH' }
         });
         break;
       case 'reconnaissance':
-        dispatch({ 
-          type: 'USE_ABILITY', 
+        dispatch({
+          type: 'USE_ABILITY',
           payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'RECONNAISSANCE' }
         });
         break;
       case 'rally_troops':
-        dispatch({ 
-          type: 'USE_ABILITY', 
+        dispatch({
+          type: 'USE_ABILITY',
           payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'RALLY_TROOPS' }
         });
         break;
@@ -277,16 +463,87 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         dispatch({ type: 'HARVEST_RESOURCE', unitId: unit.id });
         break;
       case 'convert':
-        dispatch({ 
-          type: 'USE_ABILITY', 
+        dispatch({
+          type: 'USE_ABILITY',
           payload: { playerId: currentPlayer.id, unitId: unit.id, abilityId: 'CONVERT' }
         });
         break;
+
+      // City conversion actions
+      case 'convert_city_faith':
+      case 'convert_city_pride':
+      case 'convert_city_peace':
+        const adjacentCity = gameState?.cities?.find(city => {
+          if (currentPlayer.citiesOwned.includes(city.id)) return false;
+          const distance = Math.max(
+            Math.abs(unit.coordinate.q - city.coordinate.q),
+            Math.abs(unit.coordinate.r - city.coordinate.r),
+            Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (city.coordinate.s || -city.coordinate.q - city.coordinate.r))
+          );
+          return distance <= 1;
+        });
+
+        if (adjacentCity) {
+          const conversionType = action.id === 'convert_city_faith' ? 'faith' :
+            action.id === 'convert_city_pride' ? 'pride' : 'peace';
+          dispatch({
+            type: 'CONVERT_CITY',
+            payload: {
+              playerId: currentPlayer.id,
+              cityId: adjacentCity.id,
+              conversionType
+            }
+          });
+        }
+        break;
+
+      // Unit upgrades
+      case 'upgrade_attack':
+        dispatch({
+          type: 'UPGRADE_UNIT',
+          payload: {
+            playerId: currentPlayer.id,
+            unitId: unit.id,
+            upgradeType: 'attack'
+          }
+        });
+        break;
+      case 'upgrade_defense':
+        dispatch({
+          type: 'UPGRADE_UNIT',
+          payload: {
+            playerId: currentPlayer.id,
+            unitId: unit.id,
+            upgradeType: 'defense'
+          }
+        });
+        break;
+      case 'upgrade_movement':
+        dispatch({
+          type: 'UPGRADE_UNIT',
+          payload: {
+            playerId: currentPlayer.id,
+            unitId: unit.id,
+            upgradeType: 'movement'
+          }
+        });
+        break;
+      case 'upgrade_vision':
+        dispatch({
+          type: 'UPGRADE_UNIT',
+          payload: {
+            playerId: currentPlayer.id,
+            unitId: unit.id,
+            upgradeType: 'vision'
+          }
+        });
+        break;
+
       default:
         console.warn('Action not implemented:', action.id);
         return;
     }
-    
+
     onClose();
   };
 
@@ -302,7 +559,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
               {unitDef.name} Actions
             </CardTitle>
             <Button
-              variant="outline" 
+              variant="outline"
               size="icon"
               onClick={onClose}
               className="min-h-[44px] border-amber-600 text-amber-300 md:hover:bg-amber-800/50 active:bg-amber-900 touch-manipulation"
@@ -314,7 +571,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             — Choose Your Path in the Promised Land —
           </div>
         </CardHeader>
-        
+
         <CardContent className="space-y-4 bg-slate-900/40">
           {/* Unit Status */}
           <div className="grid grid-cols-2 gap-4 p-3 bg-amber-900/20 rounded-lg border border-amber-500/30">
@@ -358,7 +615,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           {/* Available Actions */}
           <div className="space-y-2">
             <h3 className="text-lg font-semibold text-amber-100 font-cinzel">Available Actions</h3>
-            
+
             {actions.length === 0 ? (
               <div className="text-center py-8">
                 <div className="text-amber-300 mb-2 text-lg">No actions available</div>
@@ -370,108 +627,100 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
               actions.map((action) => (
                 <div
                   key={action.id}
-                  className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 min-h-[80px] touch-manipulation ${
-                    selectedAction === action.id
-                      ? 'bg-amber-600/30 border-amber-500/70 ring-2 ring-amber-500/50'
-                      : action.available
+                  className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 min-h-[80px] touch-manipulation ${selectedAction === action.id
+                    ? 'bg-amber-600/30 border-amber-500/70 ring-2 ring-amber-500/50'
+                    : action.available
                       ? 'bg-amber-600/10 border-amber-600/50 md:hover:bg-amber-600/20 active:bg-amber-600/25 md:hover:border-amber-500/70 active:scale-[0.98]'
                       : 'bg-gray-800/20 border-gray-700/50 opacity-50 cursor-not-allowed grayscale'
-                  }`}
+                    }`}
                   onClick={() => action.available && handleActionSelect(action)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3 flex-1">
-                      <div className={`mt-1 transition-colors duration-200 ${
-                        action.available ? 'text-amber-400' : 'text-gray-500'
-                      }`}>
+                      <div className={`mt-1 transition-colors duration-200 ${action.available ? 'text-amber-400' : 'text-gray-500'
+                        }`}>
                         {action.icon}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <h4 className={`font-semibold text-base transition-colors duration-200 ${
-                            action.available ? 'text-amber-100' : 'text-gray-400'
-                          }`}>{action.name}</h4>
+                          <h4 className={`font-semibold text-base transition-colors duration-200 ${action.available ? 'text-amber-100' : 'text-gray-400'
+                            }`}>{action.name}</h4>
                           {action.irreversible && (
                             <AlertTriangle className="w-4 h-4 text-orange-400" />
                           )}
                         </div>
-                        <p className={`text-sm mt-1 leading-relaxed transition-colors duration-200 ${
-                          action.available ? 'text-amber-200/80' : 'text-gray-500'
-                        }`}>{action.description}</p>
-                        
+                        <p className={`text-sm mt-1 leading-relaxed transition-colors duration-200 ${action.available ? 'text-amber-200/80' : 'text-gray-500'
+                          }`}>{action.description}</p>
+
                         {/* Enhanced Cost Display with Availability Indicators */}
                         <div className="flex items-center gap-2 mt-3">
                           {/* Base cost badge with dynamic coloring */}
-                          <Badge 
+                          <Badge
                             variant="outline"
-                            className={`text-xs font-medium transition-colors duration-200 ${
-                              action.available 
-                                ? 'text-green-300 border-green-500/50 bg-green-500/10' 
-                                : 'text-red-300 border-red-500/50 bg-red-500/10'
-                            }`}
+                            className={`text-xs font-medium transition-colors duration-200 ${action.available
+                              ? 'text-green-300 border-green-500/50 bg-green-500/10'
+                              : 'text-red-300 border-red-500/50 bg-red-500/10'
+                              }`}
                           >
                             {action.cost} {action.available ? '✓' : '✗'}
                           </Badge>
-                          
+
                           {/* Star cost with clear affordability indicator */}
                           {action.starCost && (
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs flex items-center gap-1 transition-colors duration-200 ${
-                                currentPlayer.stars >= action.starCost
-                                  ? 'text-yellow-300 border-yellow-500/50 bg-yellow-500/10'
-                                  : 'text-red-300 border-red-500/50 bg-red-500/10'
-                              }`}
+                            <Badge
+                              variant="outline"
+                              className={`text-xs flex items-center gap-1 transition-colors duration-200 ${currentPlayer.stars >= action.starCost
+                                ? 'text-yellow-300 border-yellow-500/50 bg-yellow-500/10'
+                                : 'text-red-300 border-red-500/50 bg-red-500/10'
+                                }`}
                             >
                               <Star className="w-3 h-3" />
                               {action.starCost} {currentPlayer.stars >= action.starCost ? '✓' : '✗'}
                             </Badge>
                           )}
-                          
+
                           {/* Faith cost with clear affordability indicator */}
                           {action.faithCost && (
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs flex items-center gap-1 transition-colors duration-200 ${
-                                currentPlayer.stats.faith >= action.faithCost
-                                  ? 'text-blue-300 border-blue-500/50 bg-blue-500/10'
-                                  : 'text-red-300 border-red-500/50 bg-red-500/10'
-                              }`}
+                            <Badge
+                              variant="outline"
+                              className={`text-xs flex items-center gap-1 transition-colors duration-200 ${currentPlayer.stats.faith >= action.faithCost
+                                ? 'text-blue-300 border-blue-500/50 bg-blue-500/10'
+                                : 'text-red-300 border-red-500/50 bg-red-500/10'
+                                }`}
                             >
                               <Heart className="w-3 h-3" />
                               {action.faithCost} {currentPlayer.stats.faith >= action.faithCost ? '✓' : '✗'}
                             </Badge>
                           )}
-                          
+
                           {/* Pride cost with clear affordability indicator */}
                           {action.prideCost && (
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs flex items-center gap-1 transition-colors duration-200 ${
-                                currentPlayer.stats.pride >= action.prideCost
-                                  ? 'text-red-300 border-red-500/50 bg-red-500/10'
-                                  : 'text-gray-400 border-gray-600/50 bg-gray-600/10'
-                              }`}
+                            <Badge
+                              variant="outline"
+                              className={`text-xs flex items-center gap-1 transition-colors duration-200 ${currentPlayer.stats.pride >= action.prideCost
+                                ? 'text-red-300 border-red-500/50 bg-red-500/10'
+                                : 'text-gray-400 border-gray-600/50 bg-gray-600/10'
+                                }`}
                             >
                               <Crown className="w-3 h-3" />
                               {action.prideCost} {currentPlayer.stats.pride >= action.prideCost ? '✓' : '✗'}
                             </Badge>
                           )}
-                          
+
                           {/* Range indicator */}
                           {action.rangeType && action.range && (
                             <Badge variant="outline" className="text-xs text-purple-300 border-purple-500/50 bg-purple-500/10">
                               Range: {action.range}
                             </Badge>
                           )}
-                          
+
                           {!action.available && (
                             <Badge variant="outline" className="text-xs text-red-300 border-red-500/50 bg-red-500/10">
                               Unavailable
                             </Badge>
                           )}
                         </div>
-                        
+
                         {/* Consequences warning for irreversible actions */}
                         {action.consequences && selectedAction === action.id && (
                           <Alert className="mt-3 border-orange-500/50 bg-orange-900/20">
@@ -489,7 +738,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Execute Button for Selected Action */}
                   {selectedAction === action.id && action.available && (
                     <div className="mt-4 pt-3 border-t border-purple-700">
@@ -510,7 +759,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
 
         </CardContent>
       </Card>
-      
+
       {/* Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="bg-purple-950 border-purple-600 text-white max-w-md p-4">
@@ -523,12 +772,12 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
               {actionToConfirm?.name} - Are you sure you want to proceed?
             </DialogDescription>
           </DialogHeader>
-          
+
           {actionToConfirm && (
             <div className="space-y-3">
               <div className="p-3 bg-purple-900/50 rounded-lg">
                 <p className="text-sm text-purple-200 mb-2">{actionToConfirm.description}</p>
-                
+
                 {/* Cost Summary */}
                 <div className="flex flex-wrap gap-2 mb-2">
                   {actionToConfirm.starCost && (
@@ -547,13 +796,13 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                     </Badge>
                   )}
                 </div>
-                
+
                 {/* Player Resources Check */}
                 <div className="text-xs text-purple-300">
                   Current Resources: {currentPlayer.stars} Stars, {currentPlayer.stats.faith} Faith, {currentPlayer.stats.pride} Pride
                 </div>
               </div>
-              
+
               <DialogFooter className="gap-2">
                 <Button
                   variant="outline"

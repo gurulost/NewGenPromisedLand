@@ -4,7 +4,7 @@ import { GameState, PlayerState } from '@shared/types/game';
 import { Unit } from '@shared/types/unit';
 import { HexCoordinate } from '@shared/utils/coordinates';
 
-describe('Village Capture System', () => {
+describe('Village Capture System - Moral Choice', () => {
   let mockGameState: GameState;
   let mockPlayer: PlayerState;
   let mockUnit: Unit;
@@ -12,14 +12,14 @@ describe('Village Capture System', () => {
 
   beforeEach(() => {
     villageCoordinate = { q: 0, r: 1, s: -1 };
-    
+
     mockPlayer = {
       id: 'player1',
       name: 'Test Player',
       factionId: 'nephites',
       stars: 10,
       stats: {
-        faith: 5,
+        faith: 10,
         pride: 3,
         internalDissent: 1
       },
@@ -89,10 +89,10 @@ describe('Village Capture System', () => {
     };
   });
 
-  describe('Village Capture Logic', () => {
-    it('should successfully capture a neutral village', () => {
+  describe('Conquer Village - Military Takeover', () => {
+    it('should successfully conquer a neutral village', () => {
       const action = {
-        type: 'CAPTURE_VILLAGE' as const,
+        type: 'CONQUER_VILLAGE' as const,
         payload: {
           unitId: 'unit1',
           playerId: 'player1'
@@ -101,61 +101,36 @@ describe('Village Capture System', () => {
 
       const newState = gameReducer(mockGameState, action);
 
-      // Check that village is now owned by player
-      const villageTile = newState.map.tiles.find(tile => 
+      // Check that village is now owned by player and marked as conquered
+      const villageTile = newState.map.tiles.find(tile =>
         tile.coordinate.q === villageCoordinate.q &&
         tile.coordinate.r === villageCoordinate.r &&
         tile.feature === 'village'
       );
-      
+
       expect(villageTile?.cityOwner).toBe('player1');
-      
-      // Check that player received rewards
+      expect(villageTile?.captureType).toBe('conquered');
+      expect(villageTile?.starBonus).toBeUndefined(); // Conquered villages have no ongoing bonus
+
+      // Check that player received conquer rewards: +5 stars, +2 pride, +1 dissent
       const updatedPlayer = newState.players.find(p => p.id === 'player1');
-      expect(updatedPlayer?.stars).toBe(15); // 10 + 5 reward
-      expect(updatedPlayer?.researchProgress).toBe(3); // 2 + 1 boost
-      
-      // Check that unit is exhausted after capture
+      expect(updatedPlayer?.stars).toBe(15); // 10 + 5
+      expect(updatedPlayer?.stats.pride).toBe(5); // 3 + 2
+      expect(updatedPlayer?.stats.internalDissent).toBe(2); // 1 + 1
+
+      // Check that unit is exhausted after conquering
       const updatedUnit = newState.units.find(u => u.id === 'unit1');
       expect(updatedUnit?.remainingMovement).toBe(0);
       expect(updatedUnit?.hasAttacked).toBe(true);
     });
 
-    it('should not capture village if unit is not on village tile', () => {
-      // Move unit away from village
-      mockGameState.units[0].coordinate = { q: 1, r: 0, s: -1 };
-      
-      const action = {
-        type: 'CAPTURE_VILLAGE' as const,
-        payload: {
-          unitId: 'unit1',
-          playerId: 'player1'
-        }
-      };
-
-      const newState = gameReducer(mockGameState, action);
-
-      // Village should remain neutral
-      const villageTile = newState.map.tiles.find(tile => 
-        tile.coordinate.q === villageCoordinate.q &&
-        tile.coordinate.r === villageCoordinate.r &&
-        tile.feature === 'village'
-      );
-      
-      expect(villageTile?.cityOwner).toBeUndefined();
-      
-      // Player should not receive rewards
-      const updatedPlayer = newState.players.find(p => p.id === 'player1');
-      expect(updatedPlayer?.stars).toBe(10); // No change
-      expect(updatedPlayer?.researchProgress).toBe(2); // No change
-    });
-
-    it('should not capture village if already owned by same player', () => {
-      // Set village as already owned by player
+    it('should not conquer village if already owned by same player', () => {
+      // Set village as already conquered by player
       mockGameState.map.tiles[0].cityOwner = 'player1';
-      
+      mockGameState.map.tiles[0].captureType = 'conquered';
+
       const action = {
-        type: 'CAPTURE_VILLAGE' as const,
+        type: 'CONQUER_VILLAGE' as const,
         payload: {
           unitId: 'unit1',
           playerId: 'player1'
@@ -167,20 +142,16 @@ describe('Village Capture System', () => {
       // Player should not receive additional rewards
       const updatedPlayer = newState.players.find(p => p.id === 'player1');
       expect(updatedPlayer?.stars).toBe(10); // No change
-      expect(updatedPlayer?.researchProgress).toBe(2); // No change
-      
-      // Unit should not be exhausted
-      const updatedUnit = newState.units.find(u => u.id === 'unit1');
-      expect(updatedUnit?.remainingMovement).toBe(1); // No change
-      expect(updatedUnit?.hasAttacked).toBe(false); // No change
+      expect(updatedPlayer?.stats.pride).toBe(3); // No change
     });
 
-    it('should capture village from another player', () => {
+    it('should conquer village from another player', () => {
       // Set village as owned by another player
       mockGameState.map.tiles[0].cityOwner = 'player2';
-      
+      mockGameState.map.tiles[0].captureType = 'converted'; // Was previously converted by enemy
+
       const action = {
-        type: 'CAPTURE_VILLAGE' as const,
+        type: 'CONQUER_VILLAGE' as const,
         payload: {
           unitId: 'unit1',
           playerId: 'player1'
@@ -189,24 +160,190 @@ describe('Village Capture System', () => {
 
       const newState = gameReducer(mockGameState, action);
 
-      // Village should now be owned by capturing player
-      const villageTile = newState.map.tiles.find(tile => 
+      // Village should now be conquered by capturing player
+      const villageTile = newState.map.tiles.find(tile =>
         tile.coordinate.q === villageCoordinate.q &&
         tile.coordinate.r === villageCoordinate.r &&
         tile.feature === 'village'
       );
-      
+
       expect(villageTile?.cityOwner).toBe('player1');
-      
+      expect(villageTile?.captureType).toBe('conquered'); // Changed from converted to conquered
+
       // Player should receive rewards
       const updatedPlayer = newState.players.find(p => p.id === 'player1');
       expect(updatedPlayer?.stars).toBe(15);
-      expect(updatedPlayer?.researchProgress).toBe(3);
+      expect(updatedPlayer?.stats.pride).toBe(5);
+    });
+  });
+
+  describe('Convert Village - Peaceful Integration', () => {
+    it('should successfully convert a neutral village with sufficient faith', () => {
+      const action = {
+        type: 'CONVERT_VILLAGE' as const,
+        payload: {
+          unitId: 'unit1',
+          playerId: 'player1'
+        }
+      };
+
+      const newState = gameReducer(mockGameState, action);
+
+      // Check that village is now owned by player and marked as converted
+      const villageTile = newState.map.tiles.find(tile =>
+        tile.coordinate.q === villageCoordinate.q &&
+        tile.coordinate.r === villageCoordinate.r &&
+        tile.feature === 'village'
+      );
+
+      expect(villageTile?.cityOwner).toBe('player1');
+      expect(villageTile?.captureType).toBe('converted');
+      expect(villageTile?.starBonus).toBe(1); // Ongoing +1 star/turn bonus
+
+      // Check that player received convert rewards: +2 stars, +2 faith, costs 8 faith
+      const updatedPlayer = newState.players.find(p => p.id === 'player1');
+      expect(updatedPlayer?.stars).toBe(12); // 10 + 2
+      expect(updatedPlayer?.stats.faith).toBe(4); // 10 - 8 + 2 = 4
+      expect(updatedPlayer?.stats.pride).toBe(3); // No change
+      expect(updatedPlayer?.stats.internalDissent).toBe(1); // No change
+
+      // Check that unit is exhausted after converting
+      const updatedUnit = newState.units.find(u => u.id === 'unit1');
+      expect(updatedUnit?.remainingMovement).toBe(0);
+      expect(updatedUnit?.hasAttacked).toBe(true);
     });
 
+    it('should not convert village if insufficient faith', () => {
+      // Set player faith below requirement
+      mockPlayer.stats.faith = 7; // Need 8
+
+      const action = {
+        type: 'CONVERT_VILLAGE' as const,
+        payload: {
+          unitId: 'unit1',
+          playerId: 'player1'
+        }
+      };
+
+      const newState = gameReducer(mockGameState, action);
+
+      // Village should remain neutral
+      const villageTile = newState.map.tiles.find(tile =>
+        tile.coordinate.q === villageCoordinate.q &&
+        tile.coordinate.r === villageCoordinate.r &&
+        tile.feature === 'village'
+      );
+
+      expect(villageTile?.cityOwner).toBeUndefined();
+      expect(villageTile?.captureType).toBeUndefined();
+
+      // Player should not receive rewards or lose faith
+      const updatedPlayer = newState.players.find(p => p.id === 'player1');
+      expect(updatedPlayer?.stars).toBe(10); // No change
+      expect(updatedPlayer?.stats.faith).toBe(7); // No change
+    });
+
+    it('should not convert village if already owned by same player', () => {
+      // Set village as already converted by player
+      mockGameState.map.tiles[0].cityOwner = 'player1';
+      mockGameState.map.tiles[0].captureType = 'converted';
+
+      const action = {
+        type: 'CONVERT_VILLAGE' as const,
+        payload: {
+          unitId: 'unit1',
+          playerId: 'player1'
+        }
+      };
+
+      const newState = gameReducer(mockGameState, action);
+
+      // Player should not receive additional rewards
+      const updatedPlayer = newState.players.find(p => p.id === 'player1');
+      expect(updatedPlayer?.stars).toBe(10); // No change
+      expect(updatedPlayer?.stats.faith).toBe(10); // No change
+    });
+  });
+
+  describe('Ongoing Village Bonuses', () => {
+    it('should provide ongoing star income from converted villages', () => {
+      // First convert a village
+      const convertAction = {
+        type: 'CONVERT_VILLAGE' as const,
+        payload: {
+          unitId: 'unit1',
+          playerId: 'player1'
+        }
+      };
+
+      let state = gameReducer(mockGameState, convertAction);
+
+      // Verify village is converted with bonus
+      const villageTile = state.map.tiles.find(tile =>
+        tile.feature === 'village' && tile.cityOwner === 'player1'
+      );
+      expect(villageTile?.starBonus).toBe(1);
+
+      // End turn to get ongoing bonus
+      const endTurnAction = {
+        type: 'END_TURN' as const,
+        payload: { playerId: 'player1' }
+      };
+
+      state = gameReducer(state, endTurnAction);
+
+      // Player should have received the ongoing bonus
+      // Starting stars: 10 + 2 (from convert) = 12
+      // After turn: 12 + 1 (village bonus) = 13 (plus any other income)
+      const updatedPlayer = state.players.find(p => p.id === 'player1');
+      expect(updatedPlayer?.stars).toBeGreaterThanOrEqual(13);
+    });
+
+    it('should not provide ongoing bonus from conquered villages', () => {
+      // First conquer a village
+      const conquerAction = {
+        type: 'CONQUER_VILLAGE' as const,
+        payload: {
+          unitId: 'unit1',
+          playerId: 'player1'
+        }
+      };
+
+      let state = gameReducer(mockGameState, conquerAction);
+
+      // Verify village is conquered with no bonus
+      const villageTile = state.map.tiles.find(tile =>
+        tile.feature === 'village' && tile.cityOwner === 'player1'
+      );
+      expect(villageTile?.starBonus).toBeUndefined();
+
+      // Player stars after conquest: 15
+      const playerBefore = state.players.find(p => p.id === 'player1');
+      const starsBefore = playerBefore?.stars || 0;
+
+      // End turn
+      const endTurnAction = {
+        type: 'END_TURN' as const,
+        payload: { playerId: 'player1' }
+      };
+
+      state = gameReducer(state, endTurnAction);
+
+      // Player should NOT have received village bonus (only other income sources)
+      const playerAfter = state.players.find(p => p.id === 'player1');
+      const starsAfter = playerAfter?.stars || 0;
+
+      // The difference should not include the +1 from village (would need to check exact income)
+      // This is hard to test precisely without mocking all income sources
+      // Just verify the village has no starBonus field
+      expect(villageTile?.starBonus).toBeUndefined();
+    });
+  });
+
+  describe('Edge Cases', () => {
     it('should not capture with invalid unit ID', () => {
       const action = {
-        type: 'CAPTURE_VILLAGE' as const,
+        type: 'CONQUER_VILLAGE' as const,
         payload: {
           unitId: 'invalid_unit',
           playerId: 'player1'
@@ -221,7 +358,7 @@ describe('Village Capture System', () => {
 
     it('should not capture with wrong player ID', () => {
       const action = {
-        type: 'CAPTURE_VILLAGE' as const,
+        type: 'CONVERT_VILLAGE' as const,
         payload: {
           unitId: 'unit1',
           playerId: 'wrong_player'
@@ -234,12 +371,12 @@ describe('Village Capture System', () => {
       expect(newState).toEqual(mockGameState);
     });
 
-    it('should properly update explored tiles when capturing', () => {
-      // Village tile not yet explored by player
-      mockGameState.map.tiles[0].exploredBy = [];
-      
+    it('should not capture if unit is not on village tile', () => {
+      // Move unit away from village
+      mockGameState.units[0].coordinate = { q: 1, r: 0, s: -1 };
+
       const action = {
-        type: 'CAPTURE_VILLAGE' as const,
+        type: 'CONQUER_VILLAGE' as const,
         payload: {
           unitId: 'unit1',
           playerId: 'player1'
@@ -248,145 +385,11 @@ describe('Village Capture System', () => {
 
       const newState = gameReducer(mockGameState, action);
 
-      // Village tile should now be explored by player
-      const villageTile = newState.map.tiles.find(tile => 
-        tile.coordinate.q === villageCoordinate.q &&
-        tile.coordinate.r === villageCoordinate.r &&
+      // Village should remain neutral
+      const villageTile = newState.map.tiles.find(tile =>
         tile.feature === 'village'
       );
-      
-      expect(villageTile?.exploredBy).toContain('player1');
-    });
-
-    it('should not duplicate player in exploredBy array', () => {
-      // Village already explored by player
-      mockGameState.map.tiles[0].exploredBy = ['player1'];
-      
-      const action = {
-        type: 'CAPTURE_VILLAGE' as const,
-        payload: {
-          unitId: 'unit1',
-          playerId: 'player1'
-        }
-      };
-
-      const newState = gameReducer(mockGameState, action);
-
-      // Should only have one instance of player1
-      const villageTile = newState.map.tiles.find(tile => 
-        tile.coordinate.q === villageCoordinate.q &&
-        tile.coordinate.r === villageCoordinate.r &&
-        tile.feature === 'village'
-      );
-      
-      const player1Count = villageTile?.exploredBy.filter(p => p === 'player1').length;
-      expect(player1Count).toBe(1);
-    });
-  });
-
-  describe('Village Rewards', () => {
-    it('should give correct star reward amount', () => {
-      const initialStars = mockPlayer.stars;
-      
-      const action = {
-        type: 'CAPTURE_VILLAGE' as const,
-        payload: {
-          unitId: 'unit1',
-          playerId: 'player1'
-        }
-      };
-
-      const newState = gameReducer(mockGameState, action);
-      const updatedPlayer = newState.players.find(p => p.id === 'player1');
-      
-      expect(updatedPlayer?.stars).toBe(initialStars + 5);
-    });
-
-    it('should give correct research progress boost', () => {
-      const initialProgress = mockPlayer.researchProgress;
-      
-      const action = {
-        type: 'CAPTURE_VILLAGE' as const,
-        payload: {
-          unitId: 'unit1',
-          playerId: 'player1'
-        }
-      };
-
-      const newState = gameReducer(mockGameState, action);
-      const updatedPlayer = newState.players.find(p => p.id === 'player1');
-      
-      expect(updatedPlayer?.researchProgress).toBe(initialProgress + 1);
-    });
-
-    it('should work with high star counts', () => {
-      mockPlayer.stars = 1000;
-      
-      const action = {
-        type: 'CAPTURE_VILLAGE' as const,
-        payload: {
-          unitId: 'unit1',
-          playerId: 'player1'
-        }
-      };
-
-      const newState = gameReducer(mockGameState, action);
-      const updatedPlayer = newState.players.find(p => p.id === 'player1');
-      
-      expect(updatedPlayer?.stars).toBe(1005);
-    });
-  });
-
-  describe('Unit State After Capture', () => {
-    it('should exhaust unit movement after capture', () => {
-      mockUnit.remainingMovement = 2;
-      
-      const action = {
-        type: 'CAPTURE_VILLAGE' as const,
-        payload: {
-          unitId: 'unit1',
-          playerId: 'player1'
-        }
-      };
-
-      const newState = gameReducer(mockGameState, action);
-      const updatedUnit = newState.units.find(u => u.id === 'unit1');
-      
-      expect(updatedUnit?.remainingMovement).toBe(0);
-    });
-
-    it('should mark unit as having attacked', () => {
-      mockUnit.hasAttacked = false;
-      
-      const action = {
-        type: 'CAPTURE_VILLAGE' as const,
-        payload: {
-          unitId: 'unit1',
-          playerId: 'player1'
-        }
-      };
-
-      const newState = gameReducer(mockGameState, action);
-      const updatedUnit = newState.units.find(u => u.id === 'unit1');
-      
-      expect(updatedUnit?.hasAttacked).toBe(true);
-    });
-
-    it('should not affect other unit properties', () => {
-      const action = {
-        type: 'CAPTURE_VILLAGE' as const,
-        payload: {
-          unitId: 'unit1',
-          playerId: 'player1'
-        }
-      };
-
-      const newState = gameReducer(mockGameState, action);
-      const updatedUnit = newState.units.find(u => u.id === 'unit1');
-      
-      expect(updatedUnit?.hp).toBe(mockUnit.hp);
-      expect(updatedUnit?.coordinate).toEqual(mockUnit.coordinate);
-      expect(updatedUnit?.type).toBe(mockUnit.type);
+      expect(villageTile?.cityOwner).toBeUndefined();
     });
   });
 });

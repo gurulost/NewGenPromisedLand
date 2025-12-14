@@ -17,16 +17,17 @@ interface PlayerHUDProps {
   gameState: GameState;
   onShowTechPanel: () => void;
   onShowConstructionHall: () => void;
+  onShowDiplomacy: () => void;
   onEndTurn?: () => void;
 }
 
-export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructionHall, onEndTurn }: PlayerHUDProps) {
+export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructionHall, onShowDiplomacy, onEndTurn }: PlayerHUDProps) {
   const faction = getFaction(player.factionId as any);
-  const handleEndTurn = onEndTurn ?? (() => {});
-  
+  const handleEndTurn = onEndTurn ?? (() => { });
+
   // Moved expensive calculations to selector
-  const playerStats = useMemo(() => 
-    getPlayerStats(player, gameState), 
+  const playerStats = useMemo(() =>
+    getPlayerStats(player, gameState),
     [player, gameState]
   );
 
@@ -36,8 +37,8 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
                      border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20 backdrop-blur-sm">
         <CardHeader className="pb-3 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
           <CardTitle className="flex items-center gap-3 text-amber-100 font-cinzel text-lg font-semibold tracking-wide">
-            <AvatarBadge 
-              color={faction.color} 
+            <AvatarBadge
+              color={faction.color}
               size="md"
               aria-label={`${faction.name} faction`}
             >
@@ -51,10 +52,10 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
             — Leader of the Promised Land —
           </div>
         </CardHeader>
-        
+
         <CardContent className="space-y-4 bg-slate-900/40 p-4">
           {/* Star Resources */}
-          <StarResourcesSection 
+          <StarResourcesSection
             stars={player.stars}
             starProduction={playerStats.starProduction}
             breakdown={playerStats.starProductionBreakdown}
@@ -64,9 +65,10 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
           <ResourceProgressSection playerStats={playerStats} />
 
           {/* Action Buttons */}
-          <ActionButtonsSection 
+          <ActionButtonsSection
             onShowTechPanel={onShowTechPanel}
             onShowConstructionHall={onShowConstructionHall}
+            onShowDiplomacy={onShowDiplomacy}
             onEndTurn={handleEndTurn}
           />
         </CardContent>
@@ -95,7 +97,7 @@ const StarResourcesSection = React.memo(({ stars, starProduction, breakdown }: {
         <span>+{starProduction}/turn</span>
       </div>
     </div>
-    
+
     <details className="group">
       <summary className="text-xs text-amber-300/70 cursor-pointer hover:text-amber-300 flex items-center gap-1">
         <span>Production breakdown</span>
@@ -134,7 +136,7 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
       </div>
       <Progress value={playerStats.faithPercentage} className="h-2" />
     </div>
-    
+
     {/* Pride Progress */}
     <div>
       <div className="flex justify-between text-sm mb-1">
@@ -148,7 +150,7 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
       </div>
       <Progress value={playerStats.pridePercentage} className="h-2" />
     </div>
-    
+
     {/* Dissent Progress */}
     <div>
       <div className="flex justify-between text-sm mb-1">
@@ -160,9 +162,10 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
   </div>
 ));
 
-const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHall, onEndTurn }: {
+const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHall, onShowDiplomacy, onEndTurn }: {
   onShowTechPanel: () => void;
   onShowConstructionHall: () => void;
+  onShowDiplomacy: () => void;
   onEndTurn: () => void;
 }) => (
   <div className="space-y-2 pt-2">
@@ -180,7 +183,7 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
         <Book className="w-4 h-4 flex-shrink-0" />
         <span className="ml-2">Knowledge</span>
       </GlowingButton>
-      
+
       <GlowingButton
         variant="outline"
         size="sm"
@@ -195,6 +198,20 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
         <span className="ml-2">Build</span>
       </GlowingButton>
     </div>
+
+    <GlowingButton
+      variant="outline"
+      size="sm"
+      glowColor="purple"
+      intensity="medium"
+      className="w-full bg-gradient-to-r from-purple-600/20 to-purple-700/20 border-purple-400/60 
+                 text-purple-100 text-xs px-4 py-3 min-h-[48px] justify-center"
+      onClick={onShowDiplomacy}
+      soundEffect="cta-click"
+    >
+      <span className="text-base mr-2">🤝</span>
+      <span>Diplomacy</span>
+    </GlowingButton>
 
     <GlowingButton
       variant="default"
@@ -235,7 +252,7 @@ const FaithSystemTooltip = () => (
   <div className="space-y-2">
     <h4 className="font-semibold text-blue-300">Faith System</h4>
     <p className="text-xs text-blue-200">
-      Faith represents your covenant relationship with the Lord. Higher faith unlocks 
+      Faith represents your covenant relationship with the Lord. Higher faith unlocks
       powerful abilities and bonuses for righteous actions.
     </p>
   </div>
@@ -245,7 +262,7 @@ const PrideSystemTooltip = () => (
   <div className="space-y-2">
     <h4 className="font-semibold text-purple-300">Pride System</h4>
     <p className="text-xs text-purple-200">
-      Pride measures worldly power and ambition. Pride enables certain military and 
+      Pride measures worldly power and ambition. Pride enables certain military and
       economic actions but can lead to spiritual consequences.
     </p>
   </div>

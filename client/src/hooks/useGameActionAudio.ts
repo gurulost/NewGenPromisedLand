@@ -14,19 +14,19 @@ export function useGameActionAudio() {
       case 'MOVE_UNIT':
         gameAudio.onUnitMove();
         break;
-      
+
       case 'ATTACK_UNIT':
         gameAudio.onUnitAttack();
         break;
-      
+
       case 'USE_ABILITY':
         gameAudio.onUnitSelect(); // Ability activation
         break;
-      
+
       case 'BUILD_UNIT':
         gameAudio.onUnitBuilt();
         break;
-      
+
       case 'HEAL_UNIT':
         gameAudio.onNotification();
         break;
@@ -36,7 +36,7 @@ export function useGameActionAudio() {
       case 'BUILD_STRUCTURE':
         gameAudio.onBuildingBuilt();
         break;
-      
+
       case 'BUILD_IMPROVEMENT':
         gameAudio.onBuildingBuilt();
         break;
@@ -46,7 +46,7 @@ export function useGameActionAudio() {
       case 'RESEARCH_TECHNOLOGY':
         gameAudio.onTechResearch();
         break;
-      
+
       case 'END_TURN':
         gameAudio.onTurnEnd();
         break;
@@ -55,9 +55,25 @@ export function useGameActionAudio() {
       case 'CAPTURE_CITY':
         gameAudio.onCityCapture();
         break;
-      
-      case 'CAPTURE_VILLAGE':
+
+      case 'EXPLORE_RUINS':
+        gameAudio.onTechResearch();
+        break;
+
+      case 'CONQUER_VILLAGE':
         gameAudio.onVillageCapture();
+        break;
+
+      case 'CONVERT_VILLAGE':
+        gameAudio.onVillageCapture(); // Same sound for both types
+        break;
+
+      case 'CONVERT_CITY':
+        gameAudio.onCityCapture(); // City conversion
+        break;
+
+      case 'UPGRADE_UNIT':
+        gameAudio.onUnitBuilt(); // Unit enhancement
         break;
 
       // Resource Actions
@@ -70,7 +86,7 @@ export function useGameActionAudio() {
       case 'DECLARE_WAR':
         gameAudio.onCombatStart();
         break;
-      
+
       case 'FORM_ALLIANCE':
         gameAudio.onAchievement();
         break;
@@ -140,7 +156,7 @@ export function useGameActionAudio() {
     playTurnTransitionAudio,
     playCombatAudio,
     playNotificationAudio,
-    
+
     // Direct access to game audio functions
     gameAudio
   };
