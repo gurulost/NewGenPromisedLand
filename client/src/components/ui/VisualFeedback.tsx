@@ -161,3 +161,20 @@ export function useVisualFeedback() {
     }
     return context;
 }
+
+export function VisualFeedbackProvider({ children }: { children: React.ReactNode }) {
+    const { toasts, addToast, dismissToast } = useGameToasts();
+    const [flashType, setFlashType] = useState<'gold' | 'red' | 'blue' | 'green' | null>(null);
+
+    const triggerFlash = useCallback((type: 'gold' | 'red' | 'blue' | 'green') => {
+        setFlashType(type);
+    }, []);
+
+    return (
+        <VisualFeedbackContext.Provider value={{ showToast: addToast, triggerFlash }}>
+            {children}
+            <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+            <ScreenFlash type={flashType} onComplete={() => setFlashType(null)} />
+        </VisualFeedbackContext.Provider>
+    );
+}

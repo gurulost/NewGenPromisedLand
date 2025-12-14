@@ -20,16 +20,20 @@ import { WorldElementPanel } from "../ui/WorldElementPanel";
 import { VillageCapturePanel } from "../ui/VillageCapturePanel";
 import { DiplomacyPanel } from "../ui/DiplomacyPanel";
 import { RuinsRewardPanel } from "../ui/RuinsRewardPanel";
+import { ScreenFlash, useVisualFeedback } from "../ui/VisualFeedback";
+import { GameLogPanel } from "../ui/GameLogPanel";
 import MovementControls from "../game/MovementControls";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
 import { getWorldElement, WORLD_ELEMENTS } from "@shared/data/worldElements";
+import { useMapToastStore, hexToWorldPos } from "../../lib/stores/useMapToasts";
 import type { Unit } from "@shared/types/unit";
 
 export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
   const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
+  const { triggerFlash, showToast } = useVisualFeedback();
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [showConstructionHall, setShowConstructionHall] = useState(false);
@@ -52,6 +56,17 @@ export default function GameUI() {
 
   const [showDiplomacy, setShowDiplomacy] = useState(false);
   const [ruinsReward, setRuinsReward] = useState<any | null>(null);
+  const [showGameLog, setShowGameLog] = useState(false);
+  const [gameLogEntries, setGameLogEntries] = useState<Array<{
+    id: string;
+    turn: number;
+    playerId: string;
+    playerName: string;
+    type: string;
+    message: string;
+    timestamp: number;
+  }>>([]);
+  // Local screenFlash state removed in favor of VisualFeedbackProvider
 
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
@@ -132,6 +147,19 @@ export default function GameUI() {
       (pressed) => {
         if (pressed) {
           setShowSaveLoadMenu(true);
+        }
+      }
+    );
+    return unsubscribe;
+  }, [subscribeKeys]);
+
+  // Diplomacy keyboard shortcut
+  useEffect(() => {
+    const unsubscribe = subscribeKeys(
+      (state) => state.diplomacy,
+      (pressed) => {
+        if (pressed) {
+          setShowDiplomacy(prev => !prev);
         }
       }
     );
@@ -233,7 +261,6 @@ export default function GameUI() {
     };
   }, []);
 
-
   // Handle diplomacy actions
   useEffect(() => {
     const handleDiplomacyAction = (event: CustomEvent) => {
@@ -244,6 +271,42 @@ export default function GameUI() {
 
         // Dispatch the diplomacy action through the game reducer
         useLocalGame.getState().dispatch({ type, payload } as any);
+
+        // Visual feedback based on action type
+        if (type === 'DECLARE_WAR') {
+          triggerFlash('red');
+          showToast(`War Declared!`, 'combat');
+        } else if (type === 'FORM_ALLIANCE') {
+          triggerFlash('blue');
+          showToast(`Alliance Formed!`, 'info');
+        } else if (type === 'ESTABLISH_TRADE_ROUTE') {
+          triggerFlash('gold');
+          showToast(`Trade Route Established`, 'reward');
+        }
+
+        // Add to game log
+        if (currentPlayer && gameState) {
+          const targetPlayer = gameState.players.find(p => p.id === payload.targetPlayerId);
+          let message = '';
+          if (type === 'DECLARE_WAR') {
+            message = `Declared war on ${targetPlayer?.name || 'Unknown'}`;
+          } else if (type === 'FORM_ALLIANCE') {
+            message = `Formed alliance with ${targetPlayer?.name || 'Unknown'}`;
+          } else if (type === 'ESTABLISH_TRADE_ROUTE') {
+            message = 'Established a new trade route';
+          }
+
+          const newEntry = {
+            id: `log_${Date.now()}`,
+            turn: gameState.turn,
+            playerId: currentPlayer.id,
+            playerName: currentPlayer.name,
+            type: 'diplomacy',
+            message,
+            timestamp: Date.now(),
+          };
+          setGameLogEntries(prev => [...prev, newEntry]);
+        }
       }
     };
 
@@ -252,13 +315,65 @@ export default function GameUI() {
     return () => {
       window.removeEventListener('diplomacyAction', handleDiplomacyAction as EventListener);
     };
-  }, []);
+  }, [currentPlayer, gameState]);
 
   // Handle ruins rewards
   useEffect(() => {
     const handleRuinsReward = (event: CustomEvent) => {
       if (event.detail?.reward) {
         setRuinsReward(event.detail.reward);
+        // Trigger screen flash based on reward type
+        const reward = event.detail.reward;
+        const coordinate = event.detail.coordinate;
+
+        if (reward.type === 'curse') {
+          setScreenFlash('red');
+        } else if (reward.rarity === 'legendary') {
+          setScreenFlash('gold');
+        } else if (reward.type === 'faith') {
+          setScreenFlash('blue');
+        } else {
+          setScreenFlash('gold');
+        }
+
+        // Trigger floating map toasts with actual reward values
+        if (coordinate) {
+          const worldPos = hexToWorldPos(coordinate.q, coordinate.r);
+          const { addToast } = useMapToastStore.getState();
+
+          if (reward.stars) {
+            addToast(`+${reward.stars} Stars`, 'stars', worldPos);
+          }
+          if (reward.faith) {
+            addToast(`+${reward.faith} Faith`, 'faith', { ...worldPos, y: worldPos.y + 0.3 });
+          }
+          if (reward.techBoost) {
+            addToast(`+${reward.techBoost} Research`, 'tech', { ...worldPos, y: worldPos.y + 0.6 });
+          }
+          if (reward.healAmount) {
+            addToast(`+${reward.healAmount} HP`, 'heal', worldPos);
+          }
+          if (reward.unitType) {
+            addToast(`${reward.unitType} Recruited!`, 'unit', worldPos);
+          }
+          if (reward.dissent) {
+            addToast(`+${reward.dissent} Dissent`, 'dissent', worldPos);
+          }
+        }
+
+        // Add to game log
+        if (currentPlayer && gameState) {
+          const newEntry = {
+            id: `log_${Date.now()}`,
+            turn: gameState.turn,
+            playerId: currentPlayer.id,
+            playerName: currentPlayer.name,
+            type: 'resource',
+            message: `Explored ruins and found: ${reward.name}`,
+            timestamp: Date.now(),
+          };
+          setGameLogEntries(prev => [...prev, newEntry]);
+        }
       }
     };
 
@@ -267,7 +382,7 @@ export default function GameUI() {
     return () => {
       window.removeEventListener('ruinsReward', handleRuinsReward as EventListener);
     };
-  }, []);
+  }, [currentPlayer, gameState]);
 
   // Check for victory conditions
   useEffect(() => {
@@ -643,6 +758,20 @@ export default function GameUI() {
       <RuinsRewardPanel
         reward={ruinsReward}
         onClose={() => setRuinsReward(null)}
+      />
+
+      {/* Game Log Panel */}
+      <GameLogPanel
+        entries={gameLogEntries as any}
+        currentTurn={gameState?.turn || 1}
+        isOpen={showGameLog}
+        onToggle={() => setShowGameLog(!showGameLog)}
+      />
+
+      {/* Screen Flash Effect */}
+      <ScreenFlash
+        type={screenFlash}
+        onComplete={() => setScreenFlash(null)}
       />
 
       {/* Advanced Save System */}
