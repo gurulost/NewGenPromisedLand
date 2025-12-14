@@ -22,6 +22,7 @@ import { DiplomacyPanel } from "../ui/DiplomacyPanel";
 import { RuinsRewardPanel } from "../ui/RuinsRewardPanel";
 import { useVisualFeedback } from "../ui/VisualFeedback";
 import { GameLogPanel } from "../ui/GameLogPanel";
+import { SettingsMenu } from "../ui/SettingsMenu";
 import MovementControls from "../game/MovementControls";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
@@ -156,6 +157,7 @@ export default function GameUI() {
   const [showDiplomacy, setShowDiplomacy] = useState(false);
   const [ruinsReward, setRuinsReward] = useState<any | null>(null);
   const [showGameLog, setShowGameLog] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [gameLogEntries, setGameLogEntries] = useState<Array<{
     id: string;
     turn: number;
@@ -953,6 +955,18 @@ export default function GameUI() {
       {/* Touch-friendly Save/Load Buttons - Bottom Right */}
       <div className="pointer-events-auto fixed bottom-6 right-6 flex flex-col gap-2">
         <button
+          className="p-3 min-w-[48px] min-h-[48px] bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all shadow-lg flex items-center justify-center gap-2"
+          onClick={() => setShowSettings(true)}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            setShowSettings(true);
+          }}
+          title="Settings"
+        >
+          <span className="text-lg">⚙️</span>
+          <span className="text-sm font-medium">Settings</span>
+        </button>
+        <button
           className="p-3 min-w-[48px] min-h-[48px] bg-amber-700 hover:bg-amber-600 active:bg-amber-500 text-white rounded-lg border border-amber-500/60 transition-all shadow-lg flex items-center justify-center gap-2"
           onClick={() => setShowSaveLoadMenu(true)}
           onTouchEnd={(e) => {
@@ -973,10 +987,16 @@ export default function GameUI() {
           }}
           title="Advanced Save System"
         >
-          <span className="text-lg">⚙️</span>
+          <span className="text-lg">📁</span>
           <span className="text-sm font-medium">Advanced</span>
         </button>
       </div>
+
+      {/* Settings Menu */}
+      <SettingsMenu
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   );
 }

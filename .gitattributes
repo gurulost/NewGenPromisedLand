@@ -49,3 +49,6 @@
 /client/public/models/terrain_water.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/stripling_warrior.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/cavalry.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/sounds/jungle_echoes.mp3 filter=lfs diff=lfs merge=lfs -text
+/client/public/sounds/jungle_warcry.mp3 filter=lfs diff=lfs merge=lfs -text
+/client/public/sounds/jungle_whispers.mp3 filter=lfs diff=lfs merge=lfs -text

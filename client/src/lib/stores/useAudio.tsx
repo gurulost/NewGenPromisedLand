@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { Howl } from "howler";
 
-// SFX disabled by default - user can enable via settings if desired
 const SFX_ENABLED = (import.meta as any).env?.VITE_ENABLE_SFX === 'true';
 
 type SoundKey =
@@ -14,25 +13,29 @@ type SoundKey =
 
 interface AudioState {
   backgroundMusic: HTMLAudioElement | null;
+  musicTracks: string[];
+  currentTrackIndex: number;
   hitSound: Howl | null;
   successSound: Howl | null;
   isMuted: boolean;
   isInitialized: boolean;
   musicVolume: number;
   sfxVolume: number;
+  isMusicPlaying: boolean;
   
-  // Setter functions
   setBackgroundMusic: (music: HTMLAudioElement) => void;
+  setMusicTracks: (tracks: string[]) => void;
   setHitSound: (sound: Howl) => void;
   setSuccessSound: (sound: Howl) => void;
   setMusicVolume: (volume: number) => void;
   setSfxVolume: (volume: number) => void;
   
-  // Control functions
   toggleMute: () => void;
   initializeAudio: () => Promise<void>;
   startBackgroundMusic: () => void;
   stopBackgroundMusic: () => void;
+  playNextTrack: () => void;
+  shuffleTracks: () => void;
   playHit: () => void;
   playSuccess: () => void;
   playUnitMove: () => void;
@@ -41,32 +44,105 @@ interface AudioState {
   playAmbientSound: (type?: string) => void;
 }
 
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+function createAudioElement(src: string, volume: number, onEnded: () => void): HTMLAudioElement {
+  const audio = new Audio(src);
+  audio.volume = volume;
+  audio.loop = false;
+  audio.addEventListener('ended', onEnded);
+  return audio;
+}
+
 export const useAudio = create<AudioState>((set, get) => ({
   backgroundMusic: null,
+  musicTracks: [
+    '/sounds/jungle_whispers.mp3',
+    '/sounds/temple_shadows.mp3',
+    '/sounds/jungle_spirits_awaken.mp3',
+    '/sounds/echoes_of_jaguar.mp3',
+    '/sounds/jungle_warcry.mp3',
+    '/sounds/jungle_echoes.mp3',
+  ],
+  currentTrackIndex: 0,
   hitSound: null,
   successSound: null,
-  isMuted: true, // Start muted by default
+  isMuted: false,
   isInitialized: false,
   musicVolume: 0.5,
   sfxVolume: 0.6,
+  isMusicPlaying: false,
   
   setBackgroundMusic: (music) => set({ backgroundMusic: music }),
+  
+  setMusicTracks: (tracks) => {
+    const { backgroundMusic, musicVolume, isMusicPlaying, isMuted } = get();
+    
+    if (backgroundMusic) {
+      backgroundMusic.pause();
+      backgroundMusic.removeEventListener('ended', get().playNextTrack);
+    }
+    
+    if (tracks.length === 0) {
+      set({ musicTracks: [], currentTrackIndex: 0, backgroundMusic: null, isMusicPlaying: false });
+      return;
+    }
+    
+    const newAudio = createAudioElement(tracks[0], musicVolume, () => get().playNextTrack());
+    set({ musicTracks: tracks, currentTrackIndex: 0, backgroundMusic: newAudio });
+    
+    if (isMusicPlaying && !isMuted) {
+      newAudio.play().catch(() => {});
+    }
+  },
+  
   setHitSound: (sound) => set({ hitSound: sound }),
   setSuccessSound: (sound) => set({ successSound: sound }),
-  setMusicVolume: (volume) => set({ musicVolume: Math.max(0, Math.min(1, volume)) }),
+  
+  setMusicVolume: (volume) => {
+    const clampedVolume = Math.max(0, Math.min(1, volume));
+    const { backgroundMusic } = get();
+    if (backgroundMusic) {
+      backgroundMusic.volume = clampedVolume;
+    }
+    set({ musicVolume: clampedVolume });
+  },
+  
   setSfxVolume: (volume) => set({ sfxVolume: Math.max(0, Math.min(1, volume)) }),
   
   toggleMute: () => {
-    const { isMuted } = get();
+    const { isMuted, backgroundMusic, musicVolume, isMusicPlaying } = get();
     const newMutedState = !isMuted;
+    
+    if (backgroundMusic) {
+      if (newMutedState) {
+        backgroundMusic.pause();
+      } else if (isMusicPlaying) {
+        backgroundMusic.volume = musicVolume;
+        backgroundMusic.play().catch(() => {});
+      }
+    }
     
     set({ isMuted: newMutedState });
     console.log(`Sound ${newMutedState ? 'muted' : 'unmuted'}`);
   },
 
   initializeAudio: async () => {
+    const { musicTracks, musicVolume } = get();
+    
+    if (musicTracks.length > 0) {
+      const audio = createAudioElement(musicTracks[0], musicVolume, () => get().playNextTrack());
+      set({ backgroundMusic: audio });
+    }
+    
     if (SFX_ENABLED) {
-      // Preload tiny procedural sounds as fallback using base64-encoded beeps
       const loadBeep = (dataUri: string) => new Howl({ src: [dataUri], volume: 0.6 });
       const clickBeep = 'data:audio/wav;base64,UklGRhYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQwAAAAA//8AAP//AAD//wAA//8AAP//AAD//wAA';
       const successBeep = 'data:audio/wav;base64,UklGRhYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQwAAAAA////AP///wD///8A////AP///wD///8A////AP///wD///8A';
@@ -85,18 +161,72 @@ export const useAudio = create<AudioState>((set, get) => ({
     }
   },
 
-  startBackgroundMusic: () => {
-    const { backgroundMusic, isMuted, musicVolume } = get();
-    if (backgroundMusic && !isMuted) {
+  shuffleTracks: () => {
+    const { musicTracks, backgroundMusic, musicVolume, isMusicPlaying, isMuted } = get();
+    if (musicTracks.length <= 1) return;
+    
+    const shuffled = shuffleArray(musicTracks);
+    
+    if (backgroundMusic) {
+      backgroundMusic.pause();
+      backgroundMusic.src = shuffled[0];
       backgroundMusic.volume = musicVolume;
-      backgroundMusic.loop = true;
+    }
+    
+    set({ musicTracks: shuffled, currentTrackIndex: 0 });
+    
+    if (isMusicPlaying && !isMuted && backgroundMusic) {
       backgroundMusic.play().catch(() => {});
+    }
+  },
+
+  playNextTrack: () => {
+    const { musicTracks, currentTrackIndex, isMuted, musicVolume, backgroundMusic } = get();
+    
+    if (musicTracks.length === 0 || !backgroundMusic) return;
+    
+    let nextIndex = (currentTrackIndex + 1) % musicTracks.length;
+    
+    if (nextIndex === 0 && musicTracks.length > 1) {
+      const shuffled = shuffleArray(musicTracks);
+      set({ musicTracks: shuffled });
+      nextIndex = 0;
+    }
+    
+    const { musicTracks: currentTracks } = get();
+    backgroundMusic.src = currentTracks[nextIndex];
+    backgroundMusic.volume = musicVolume;
+    set({ currentTrackIndex: nextIndex });
+    
+    if (!isMuted) {
+      backgroundMusic.play().catch(() => {});
+    }
+  },
+
+  startBackgroundMusic: () => {
+    const { backgroundMusic, isMuted, musicVolume, musicTracks } = get();
+    
+    if (!backgroundMusic || musicTracks.length === 0) return;
+    
+    if (musicTracks.length > 1) {
+      const shuffled = shuffleArray(musicTracks);
+      backgroundMusic.src = shuffled[0];
+      set({ musicTracks: shuffled, currentTrackIndex: 0 });
+    }
+    
+    if (!isMuted) {
+      backgroundMusic.volume = musicVolume;
+      backgroundMusic.play().catch(() => {});
+      set({ isMusicPlaying: true });
     }
   },
 
   stopBackgroundMusic: () => {
     const { backgroundMusic } = get();
-    backgroundMusic?.pause();
+    if (backgroundMusic) {
+      backgroundMusic.pause();
+      set({ isMusicPlaying: false });
+    }
   },
   
   playHit: () => {
@@ -140,6 +270,5 @@ export const useAudio = create<AudioState>((set, get) => ({
   },
 
   playAmbientSound: () => {
-    // Placeholder for richer ambient system
   }
 }));

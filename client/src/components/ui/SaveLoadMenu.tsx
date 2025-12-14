@@ -6,36 +6,30 @@ import { Separator } from "./separator";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { 
   Save, FolderOpen, Trash2, Calendar, 
-  Users, Clock, X, Download, Upload 
+  Users, Clock, X, Download, Upload, Loader2 
 } from "lucide-react";
-import { compress, decompress } from "lz-string";
 import { PanelShell } from "../primitives/PanelShell";
 import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
 import { useHotkeys } from "../../hooks/useHotkeys";
+import { 
+  listSaves, createSave, deleteSave as apiDeleteSave,
+  type ServerSave, type SaveMetadata 
+} from "../../lib/saveApi";
 
 interface SaveLoadMenuProps {
   onClose: () => void;
+  onLoadFromMenu?: boolean;
 }
 
-interface SavedGame {
-  id: string;
-  name: string;
-  timestamp: number;
-  gameState: any;
-  metadata: {
-    currentPlayer: string;
-    turn: number;
-    playerCount: number;
-    mapSize: string;
-  };
-}
-
-export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
-  const { gameState, setGameState } = useLocalGame();
-  const [savedGames, setSavedGames] = useState<SavedGame[]>([]);
+export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuProps) {
+  const { gameState, setGameState, setGamePhase } = useLocalGame();
+  const [savedGames, setSavedGames] = useState<ServerSave[]>([]);
   const [saveName, setSaveName] = useState("");
-  const [selectedSave, setSelectedSave] = useState<string | null>(null);
+  const [selectedSave, setSelectedSave] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useHotkeys('Escape', onClose);
   useHotkeys('KeyB', onClose);
@@ -44,93 +38,89 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
     loadSavedGamesList();
   }, []);
 
-  const loadSavedGamesList = () => {
+  const loadSavedGamesList = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      const saves: SavedGame[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith('chronicles_save_')) {
-          const compressed = localStorage.getItem(key);
-          if (compressed) {
-            try {
-              const decompressed = decompress(compressed);
-              if (decompressed) {
-                const saveData = JSON.parse(decompressed);
-                saves.push(saveData);
-              }
-            } catch (e) {
-              console.warn('Failed to load save:', key, e);
-            }
-          }
-        }
-      }
-      saves.sort((a, b) => b.timestamp - a.timestamp);
+      const saves = await listSaves();
       setSavedGames(saves);
-    } catch (error) {
-      console.error('Error loading saves:', error);
+    } catch (err) {
+      console.error('Error loading saves:', err);
+      setError('Failed to load saved games');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const saveGame = () => {
+  const saveGame = async () => {
     if (!gameState || !saveName.trim()) return;
 
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    const save: SavedGame = {
-      id: `save_${Date.now()}`,
-      name: saveName.trim(),
-      timestamp: Date.now(),
-      gameState: gameState,
-      metadata: {
+    setIsSaving(true);
+    setError(null);
+    try {
+      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+      const metadata: SaveMetadata = {
         currentPlayer: currentPlayer.name,
         turn: gameState.turn || 1,
         playerCount: gameState.players.length,
-        mapSize: `${gameState.map.width}x${gameState.map.height}`
-      }
-    };
+        mapSize: `${gameState.map.width}x${gameState.map.height}`,
+        factions: gameState.players.map(p => p.factionId)
+      };
 
-    try {
-      const compressed = compress(JSON.stringify(save));
-      localStorage.setItem(`chronicles_save_${save.id}`, compressed);
+      await createSave(saveName.trim(), gameState, metadata);
       setSaveName("");
-      loadSavedGamesList();
-      
-      console.log('Game saved successfully:', save.name);
-    } catch (error) {
-      console.error('Failed to save game:', error);
+      await loadSavedGamesList();
+      console.log('Game saved successfully:', saveName);
+    } catch (err) {
+      console.error('Failed to save game:', err);
+      setError('Failed to save game');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const loadGame = (saveId: string) => {
+  const loadGame = (saveId: number) => {
     const save = savedGames.find(s => s.id === saveId);
     if (!save) return;
 
     try {
       setGameState(save.gameState);
+      if (onLoadFromMenu) {
+        setGamePhase('playing');
+      }
       onClose();
       console.log('Game loaded successfully:', save.name);
-    } catch (error) {
-      console.error('Failed to load game:', error);
+    } catch (err) {
+      console.error('Failed to load game:', err);
+      setError('Failed to load game');
     }
   };
 
-  const deleteSave = (saveId: string) => {
+  const deleteSave = async (saveId: number) => {
     try {
-      localStorage.removeItem(`chronicles_save_${saveId}`);
-      loadSavedGamesList();
+      await apiDeleteSave(saveId);
+      await loadSavedGamesList();
       if (selectedSave === saveId) {
         setSelectedSave(null);
       }
-    } catch (error) {
-      console.error('Failed to delete save:', error);
+    } catch (err) {
+      console.error('Failed to delete save:', err);
+      setError('Failed to delete save');
     }
   };
 
-  const exportSave = (saveId: string) => {
+  const exportSave = (saveId: number) => {
     const save = savedGames.find(s => s.id === saveId);
     if (!save) return;
 
     try {
-      const dataStr = JSON.stringify(save, null, 2);
+      const exportData = {
+        name: save.name,
+        gameState: save.gameState,
+        metadata: save.metadata,
+        exportedAt: new Date().toISOString()
+      };
+      const dataStr = JSON.stringify(exportData, null, 2);
       const dataBlob = new Blob([dataStr], { type: 'application/json' });
       const url = URL.createObjectURL(dataBlob);
       
@@ -140,40 +130,40 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
       link.click();
       
       URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to export save:', error);
+    } catch (err) {
+      console.error('Failed to export save:', err);
     }
   };
 
-  const importSave = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const importSave = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const imported = JSON.parse(e.target?.result as string);
         if (imported && imported.gameState && imported.metadata) {
-          imported.id = `save_${Date.now()}`;
-          imported.timestamp = Date.now();
-          
-          const compressed = compress(JSON.stringify(imported));
-          localStorage.setItem(`chronicles_save_${imported.id}`, compressed);
-          loadSavedGamesList();
+          await createSave(
+            imported.name || `Imported ${new Date().toLocaleDateString()}`,
+            imported.gameState,
+            imported.metadata
+          );
+          await loadSavedGamesList();
           console.log('Save imported successfully:', imported.name);
         }
-      } catch (error) {
-        console.error('Failed to import save:', error);
+      } catch (err) {
+        console.error('Failed to import save:', err);
+        setError('Failed to import save file');
       }
     };
     reader.readAsText(file);
     
-    // Reset input
     event.target.value = '';
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString();
   };
 
   return (
@@ -187,8 +177,14 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
         />
         
         <div className="max-h-[calc(90vh-200px)] overflow-y-auto space-y-6">
+          {error && (
+            <div className="p-3 bg-red-900/50 border border-red-500/50 rounded-lg text-red-200 text-sm">
+              {error}
+            </div>
+          )}
+
           {/* Save Current Game */}
-          {gameState && (
+          {gameState && !onLoadFromMenu && (
             <div>
               <h3 className="text-lg font-semibold text-amber-100 mb-3 font-cinzel">Save Current Game</h3>
               <div className="flex gap-2">
@@ -198,14 +194,15 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                   onChange={(e) => setSaveName(e.target.value)}
                   className="flex-1 bg-slate-800 border-slate-600 text-white"
                   onKeyPress={(e) => e.key === 'Enter' && saveName.trim() && saveGame()}
+                  disabled={isSaving}
                 />
                 <GlowingButton
                   onClick={saveGame}
-                  disabled={!saveName.trim()}
+                  disabled={!saveName.trim() || isSaving}
                 >
                   <span className="flex items-center justify-center gap-2">
-                    <Save />
-                    Save
+                    {isSaving ? <Loader2 className="animate-spin" /> : <Save />}
+                    {isSaving ? "Saving..." : "Save"}
                   </span>
                 </GlowingButton>
               </div>
@@ -255,7 +252,12 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
           <div>
             <h3 className="text-lg font-semibold text-amber-100 mb-3 font-cinzel">Saved Games</h3>
             
-            {savedGames.length === 0 ? (
+            {isLoading ? (
+              <div className="text-center py-8">
+                <Loader2 className="w-12 h-12 text-amber-500 mx-auto mb-2 animate-spin" />
+                <p className="text-slate-400">Loading saved games...</p>
+              </div>
+            ) : savedGames.length === 0 ? (
               <div className="text-center py-8">
                 <FolderOpen className="w-12 h-12 text-slate-600 mx-auto mb-2" />
                 <p className="text-slate-400">No saved games found</p>
@@ -282,7 +284,7 @@ export default function SaveLoadMenu({ onClose }: SaveLoadMenuProps) {
                         <div className="flex items-center gap-4 mt-2 text-sm text-slate-400">
                           <div className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            {formatDate(save.timestamp)}
+                            {formatDate(save.updatedAt)}
                           </div>
                           <div className="flex items-center gap-1">
                             <Users className="w-3 h-3" />
