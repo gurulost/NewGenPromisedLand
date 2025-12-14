@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 // Toast types - duplicated here to avoid circular imports
-export type MapToastType = 'stars' | 'faith' | 'pride' | 'dissent' | 'tech' | 'unit' | 'damage' | 'heal';
+export type MapToastType = 'stars' | 'faith' | 'pride' | 'dissent' | 'tech' | 'unit' | 'damage' | 'heal' | 'combat' | 'reward';
 
 export interface MapToast {
     id: string;

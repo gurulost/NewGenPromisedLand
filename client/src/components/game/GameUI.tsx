@@ -20,14 +20,22 @@ import { WorldElementPanel } from "../ui/WorldElementPanel";
 import { VillageCapturePanel } from "../ui/VillageCapturePanel";
 import { DiplomacyPanel } from "../ui/DiplomacyPanel";
 import { RuinsRewardPanel } from "../ui/RuinsRewardPanel";
-import { ScreenFlash, useVisualFeedback } from "../ui/VisualFeedback";
+import { useVisualFeedback } from "../ui/VisualFeedback";
 import { GameLogPanel } from "../ui/GameLogPanel";
 import MovementControls from "../game/MovementControls";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
 import { getWorldElement, WORLD_ELEMENTS } from "@shared/data/worldElements";
 import { useMapToastStore, hexToWorldPos } from "../../lib/stores/useMapToasts";
+import { useParticleStore } from "../effects/ParticleEffects";
 import type { Unit } from "@shared/types/unit";
+
+interface ActiveNotification {
+  id: string;
+  type: string;
+  message: string;
+  timestamp: number;
+}
 
 export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
@@ -37,6 +45,59 @@ export default function GameUI() {
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [showConstructionHall, setShowConstructionHall] = useState(false);
+  const { toasts: mapToasts } = useMapToastStore();
+  const addToast = useMapToastStore(state => state.addToast);
+  const [activeNotification, setActiveNotification] = useState<ActiveNotification | null>(null);
+
+  // Global Event Particle Triggers (Captures, Conversions)
+  // Watches gameState.lastAction to trigger effects for both Player and AI
+  useEffect(() => {
+    if (!gameState?.lastAction) return;
+
+    // Explicitly type the action to avoid 'unknown' errors
+    const action: any = gameState.lastAction;
+    const { addEvent: addParticle } = useParticleStore.getState();
+
+    if (action.type === 'CAPTURE_CITY') {
+      const city = gameState.cities.find(c => c.id === action.payload.cityId);
+      if (city) {
+        addParticle('combat', city.coordinate);
+        // Also show toast if it was the current player
+        if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+          addToast('City Captured!', 'combat', hexToWorldPos(city.coordinate.q, city.coordinate.r));
+          triggerFlash('red');
+        }
+      }
+    } else if (action.type === 'CONVERT_CITY') {
+      const city = gameState.cities.find(c => c.id === action.payload.cityId);
+      if (city) {
+        addParticle('faith', city.coordinate);
+        if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+          addToast('City Converted!', 'faith', hexToWorldPos(city.coordinate.q, city.coordinate.r));
+          triggerFlash('blue');
+        }
+      }
+    } else if (action.type === 'CONQUER_VILLAGE') {
+      // Find unit to get location
+      const unit = gameState.units.find(u => u.id === action.payload.unitId);
+      if (unit) {
+        addParticle('capture', unit.coordinate);
+        if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+          addToast('Village Conquered', 'reward', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
+          triggerFlash('gold');
+        }
+      }
+    } else if (action.type === 'CONVERT_VILLAGE') {
+      const unit = gameState.units.find(u => u.id === action.payload.unitId);
+      if (unit) {
+        addParticle('faith', unit.coordinate);
+        if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+          addToast('Village Converted', 'faith', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
+          triggerFlash('blue');
+        }
+      }
+    }
+  }, [gameState?.lastAction, gameState?.cities, gameState?.units, addToast, triggerFlash, gameState?.players, gameState?.currentPlayerIndex]);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
   const [showAdvancedSaveSystem, setShowAdvancedSaveSystem] = useState(false);
@@ -327,19 +388,30 @@ export default function GameUI() {
         const coordinate = event.detail.coordinate;
 
         if (reward.type === 'curse') {
-          setScreenFlash('red');
+          triggerFlash('red');
+          showToast('Cursed!', 'combat');
         } else if (reward.rarity === 'legendary') {
-          setScreenFlash('gold');
+          triggerFlash('gold');
+          showToast('Legendary Find!', 'reward');
         } else if (reward.type === 'faith') {
-          setScreenFlash('blue');
+          triggerFlash('blue');
+          showToast('Divine Inspiration', 'info');
         } else {
-          setScreenFlash('gold');
+          triggerFlash('gold');
+          showToast('Ruins Explored', 'reward');
         }
 
         // Trigger floating map toasts with actual reward values
         if (coordinate) {
           const worldPos = hexToWorldPos(coordinate.q, coordinate.r);
           const { addToast } = useMapToastStore.getState();
+          const { addEvent: addParticle } = useParticleStore.getState();
+
+          // Trigger particle burst
+          const particleType = reward.type === 'curse' ? 'combat' :
+            reward.type === 'faith' ? 'faith' :
+              reward.rarity === 'legendary' ? 'discovery' : 'reward';
+          addParticle(particleType, coordinate);
 
           if (reward.stars) {
             addToast(`+${reward.stars} Stars`, 'stars', worldPos);
@@ -382,7 +454,9 @@ export default function GameUI() {
     return () => {
       window.removeEventListener('ruinsReward', handleRuinsReward as EventListener);
     };
-  }, [currentPlayer, gameState]);
+  }, [currentPlayer, gameState, addToast]); // Added addToast to dependency array
+
+
 
   // Check for victory conditions
   useEffect(() => {
@@ -769,10 +843,7 @@ export default function GameUI() {
       />
 
       {/* Screen Flash Effect */}
-      <ScreenFlash
-        type={screenFlash}
-        onComplete={() => setScreenFlash(null)}
-      />
+      {/* Screen Flash Effect handled by Provider */}
 
       {/* Advanced Save System */}
       {showAdvancedSaveSystem && (

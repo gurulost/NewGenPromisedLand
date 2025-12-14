@@ -108,6 +108,13 @@ export const PlayerStateSchema = z.object({
     toCityId: z.string(),
     starsPerTurn: z.number(),
   })).default([]),
+  // Cooldowns for diplomacy actions (turns remaining)
+  diplomaticCooldowns: z.object({
+    declareWar: z.number().default(0), // Turns until can declare war again
+    formAlliance: z.number().default(0), // Turns until can form alliance again
+    breakAlliance: z.number().default(0), // Turns until can break alliance
+    requestTrade: z.number().default(0), // Turns until can request trade
+  }).default({ declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 }),
 });
 
 export type PlayerState = z.infer<typeof PlayerStateSchema>;

@@ -18,7 +18,9 @@ const typeStyles: Record<MapToast['type'], { color: string; icon: string; bgColo
     tech: { color: '#34D399', icon: '📜', bgColor: 'rgba(52, 211, 153, 0.2)' },
     unit: { color: '#FB923C', icon: '⚔️', bgColor: 'rgba(251, 146, 60, 0.2)' },
     damage: { color: '#EF4444', icon: '💥', bgColor: 'rgba(239, 68, 68, 0.2)' },
-    heal: { color: '#22C55E', icon: '💚', bgColor: 'rgba(34, 197, 94, 0.2)' },
+    heal: { color: 'text-green-400', icon: '❤️', bgColor: 'bg-green-900/80' },
+    combat: { color: 'text-red-400', icon: '⚔️', bgColor: 'bg-red-900/80' },
+    reward: { color: 'text-yellow-400', icon: '🎁', bgColor: 'bg-yellow-900/80' },
 };
 
 // Individual floating toast in 3D space
