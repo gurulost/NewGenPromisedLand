@@ -128,6 +128,7 @@ export class AISandbox {
       atWarWith: [],
       alliedWith: [],
       tradeRoutes: [],
+      diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 },
     }));
 
     return createInitialGameState(players, this.config.mapSize);

@@ -328,7 +328,14 @@ function WarTab({ otherPlayers, currentPlayer, confirmWarTarget, onConfirmWar, o
                 {!confirmWarTarget && (
                     <>
                         <div className="bg-red-900/20 border border-red-600/40 rounded-lg p-4">
-                            <h3 className="font-cinzel text-lg font-semibold text-red-200 mb-2">Declare War</h3>
+                            <h3 className="font-cinzel text-lg font-semibold text-red-200 mb-2 flex items-center gap-2">
+                                Declare War
+                                {currentPlayer.diplomaticCooldowns?.declareWar > 0 && (
+                                    <span className="text-xs bg-orange-800/60 text-orange-200 px-2 py-0.5 rounded">
+                                        {currentPlayer.diplomaticCooldowns.declareWar} turns cooldown
+                                    </span>
+                                )}
+                            </h3>
                             <p className="text-sm text-amber-100/80 mb-4">
                                 Choose a civilization to declare war upon. This will increase your Pride but also cause Internal Dissent.
                             </p>
@@ -341,17 +348,19 @@ function WarTab({ otherPlayers, currentPlayer, confirmWarTarget, onConfirmWar, o
                         <div className="space-y-2">
                             {otherPlayers.map((player: any) => {
                                 const alreadyAtWar = currentPlayer.atWarWith?.includes(player.id);
+                                const onCooldown = (currentPlayer.diplomaticCooldowns?.declareWar || 0) > 0;
+                                const isDisabled = alreadyAtWar || onCooldown;
                                 return (
                                     <motion.div
                                         key={player.id}
-                                        whileHover={{ scale: alreadyAtWar ? 1 : 1.02 }}
+                                        whileHover={{ scale: isDisabled ? 1 : 1.02 }}
                                         className={clsx(
                                             "p-4 bg-stone-900/40 border rounded-lg transition-all",
-                                            alreadyAtWar
+                                            isDisabled
                                                 ? "border-red-800/50 opacity-60 cursor-not-allowed"
                                                 : "border-red-600/30 hover:border-red-600/60 cursor-pointer"
                                         )}
-                                        onClick={() => !alreadyAtWar && onConfirmWar(player.id)}
+                                        onClick={() => !isDisabled && onConfirmWar(player.id)}
                                     >
                                         <div className="flex items-center justify-between">
                                             <div>
@@ -368,10 +377,10 @@ function WarTab({ otherPlayers, currentPlayer, confirmWarTarget, onConfirmWar, o
                                             <Button
                                                 size="sm"
                                                 className="bg-red-700 hover:bg-red-600"
-                                                disabled={alreadyAtWar}
+                                                disabled={isDisabled}
                                             >
                                                 <Swords className="w-4 h-4 mr-2" />
-                                                {alreadyAtWar ? 'At War' : 'Declare War'}
+                                                {alreadyAtWar ? 'At War' : onCooldown ? 'Cooldown' : 'Declare War'}
                                             </Button>
                                         </div>
                                     </motion.div>
@@ -387,11 +396,20 @@ function WarTab({ otherPlayers, currentPlayer, confirmWarTarget, onConfirmWar, o
 
 // Alliance Formation Tab
 function AllianceTab({ otherPlayers, currentPlayer, onFormAlliance }: any) {
+    const allianceCooldown = currentPlayer.diplomaticCooldowns?.formAlliance || 0;
+
     return (
         <StaggeredContent>
             <div className="space-y-4">
                 <div className="bg-blue-900/20 border border-blue-600/40 rounded-lg p-4">
-                    <h3 className="font-cinzel text-lg font-semibold text-blue-200 mb-2">Form Alliance</h3>
+                    <h3 className="font-cinzel text-lg font-semibold text-blue-200 mb-2 flex items-center gap-2">
+                        Form Alliance
+                        {allianceCooldown > 0 && (
+                            <span className="text-xs bg-cyan-800/60 text-cyan-200 px-2 py-0.5 rounded">
+                                {allianceCooldown} turns cooldown
+                            </span>
+                        )}
+                    </h3>
                     <p className="text-sm text-amber-100/80 mb-4">
                         Establish peaceful relations with another civilization. Boosts Faith and reduces dissent.
                     </p>
@@ -405,7 +423,8 @@ function AllianceTab({ otherPlayers, currentPlayer, onFormAlliance }: any) {
                     {otherPlayers.map((player: any) => {
                         const alreadyAllied = currentPlayer.alliedWith?.includes(player.id);
                         const atWar = currentPlayer.atWarWith?.includes(player.id);
-                        const canAlly = !alreadyAllied && !atWar;
+                        const onCooldown = allianceCooldown > 0;
+                        const canAlly = !alreadyAllied && !atWar && !onCooldown;
 
                         return (
                             <motion.div

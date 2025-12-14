@@ -43,6 +43,11 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [actionToConfirm, setActionToConfirm] = useState<ActionDefinition | null>(null);
 
+  // Multi-city selection state for missionaries
+  const [showCitySelector, setShowCitySelector] = useState(false);
+  const [pendingConversionType, setPendingConversionType] = useState<'faith' | 'pride' | 'peace' | null>(null);
+  const [adjacentCitiesForConversion, setAdjacentCitiesForConversion] = useState<Array<{ id: string; name: string }>>([]);
+
   if (!gameState) return null;
 
   const unitDef = getUnitDefinition(unit.type);
@@ -472,8 +477,9 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
       // City conversion actions
       case 'convert_city_faith':
       case 'convert_city_pride':
-      case 'convert_city_peace':
-        const adjacentCity = gameState?.cities?.find(city => {
+      case 'convert_city_peace': {
+        // Find ALL adjacent enemy cities
+        const allAdjacentCities = gameState?.cities?.filter(city => {
           if (currentPlayer.citiesOwned.includes(city.id)) return false;
           const distance = Math.max(
             Math.abs(unit.coordinate.q - city.coordinate.q),
@@ -481,21 +487,30 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (city.coordinate.s || -city.coordinate.q - city.coordinate.r))
           );
           return distance <= 1;
-        });
+        }) || [];
 
-        if (adjacentCity) {
-          const conversionType = action.id === 'convert_city_faith' ? 'faith' :
-            action.id === 'convert_city_pride' ? 'pride' : 'peace';
+        const conversionType = action.id === 'convert_city_faith' ? 'faith' :
+          action.id === 'convert_city_pride' ? 'pride' : 'peace';
+
+        if (allAdjacentCities.length === 1) {
+          // Only one city - convert directly
           dispatch({
             type: 'CONVERT_CITY',
             payload: {
               playerId: currentPlayer.id,
-              cityId: adjacentCity.id,
+              cityId: allAdjacentCities[0].id,
               conversionType
             }
           });
+        } else if (allAdjacentCities.length > 1) {
+          // Multiple cities - show selection modal
+          setAdjacentCitiesForConversion(allAdjacentCities.map(c => ({ id: c.id, name: c.name })));
+          setPendingConversionType(conversionType);
+          setShowCitySelector(true);
+          return; // Don't close panel yet
         }
         break;
+      }
 
       // Unit upgrades
       case 'upgrade_attack':
@@ -823,6 +838,67 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* City Selection Modal for Missionaries */}
+      <Dialog open={showCitySelector} onOpenChange={setShowCitySelector}>
+        <DialogContent className="bg-amber-950 border-amber-600 text-white max-w-md p-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-400">
+              <Crown className="w-5 h-5" />
+              Select City to Convert
+            </DialogTitle>
+            <DialogDescription className="text-amber-200">
+              Choose which city to convert using {pendingConversionType}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {adjacentCitiesForConversion.map(city => (
+              <button
+                key={city.id}
+                onClick={() => {
+                  if (pendingConversionType) {
+                    dispatch({
+                      type: 'CONVERT_CITY',
+                      payload: {
+                        playerId: currentPlayer.id,
+                        cityId: city.id,
+                        conversionType: pendingConversionType
+                      }
+                    });
+                  }
+                  setShowCitySelector(false);
+                  setPendingConversionType(null);
+                  setAdjacentCitiesForConversion([]);
+                  onClose();
+                }}
+                className="w-full p-3 bg-amber-900/40 hover:bg-amber-700/50 border border-amber-500/40 hover:border-amber-400 rounded-lg transition-all text-left"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold text-amber-100">{city.name}</div>
+                  <Badge className="bg-amber-800/50 text-amber-200 border-amber-500/50">
+                    Convert
+                  </Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCitySelector(false);
+                setPendingConversionType(null);
+                setAdjacentCitiesForConversion([]);
+              }}
+              className="border-amber-600 text-amber-300 md:hover:bg-amber-800/50"
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

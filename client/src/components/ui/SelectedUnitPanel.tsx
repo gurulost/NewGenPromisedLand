@@ -9,8 +9,8 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { getUnitDefinition } from "@shared/data/units";
 import { getActionAvailability, getDetailedActionFeedback } from "../../lib/helpers/actionAvailabilityHelpers";
 import type { Unit } from "@shared/types/unit";
-import { 
-  Sparkles, Move, Settings, Swords 
+import {
+  Sparkles, Move, Settings, Swords
 } from "lucide-react";
 import UnitActionsPanel from "./AbilitiesPanel";
 
@@ -21,7 +21,7 @@ interface SelectedUnitPanelProps {
 export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
   const { gameState } = useLocalGame();
   const [showActionsPanel, setShowActionsPanel] = useState(false);
-  
+
   // Memoize unit definition lookup and calculated stats
   const unitStats = useMemo(() => {
     const unitDef = getUnitDefinition(unit.type);
@@ -36,8 +36,8 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
 
   // Memoize action availability to determine button states
   const actionAvailability = useMemo(() => {
-    if (!gameState) return { 
-      canMove: false, canAttack: false, hasAbilities: false, 
+    if (!gameState) return {
+      canMove: false, canAttack: false, hasAbilities: false,
       reachableTilesCount: 0, attackTargetsCount: 0, isPlayerTurn: false,
       movementReason: "", attackReason: "", abilityReason: ""
     };
@@ -56,19 +56,19 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
           <div className="text-sm text-amber-200/90 font-body bg-amber-900/10 rounded p-2 border border-amber-500/20">
             {unitStats.definition.description}
           </div>
-          
+
           {/* Unit HP */}
           <div>
             <div className="flex justify-between text-sm mb-1">
               <span className="text-red-300 font-cinzel font-medium">Health</span>
               <span className="text-amber-100 font-body font-medium">{unit.hp}/{unitStats.definition.baseStats.hp}</span>
             </div>
-            <Progress 
-              value={unitStats.hpPercentage} 
+            <Progress
+              value={unitStats.hpPercentage}
               className="h-2"
             />
           </div>
-          
+
           {/* Unit Stats - Clean grid layout */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm font-body">
             <div className="flex justify-between items-center">
@@ -88,11 +88,51 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
               <span className="text-amber-100 font-medium">{unitStats.definition.baseStats.visionRadius || 2}</span>
             </div>
           </div>
-          
+
           {/* Unit Position */}
           <div className="text-xs text-amber-300/50 font-body">
             Position: ({unit.coordinate.q}, {unit.coordinate.r})
           </div>
+
+          {/* Unit Upgrades - Show if any upgrades exist */}
+          {unit.upgrades && (unit.upgrades.attack || unit.upgrades.defense || unit.upgrades.movement || unit.upgrades.vision) ? (
+            <div className="bg-gradient-to-r from-cyan-900/30 to-blue-900/30 rounded-lg p-2 border border-cyan-500/30">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-cinzel text-cyan-300 font-medium flex items-center gap-1">
+                  ⭐ Upgrades
+                </span>
+                <span className="text-xs text-cyan-200 font-bold">
+                  +{(unit.upgrades.attack || 0) + (unit.upgrades.defense || 0) + (unit.upgrades.movement || 0) + (unit.upgrades.vision || 0)} total
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+                {unit.upgrades.attack ? (
+                  <div className="flex justify-between">
+                    <span className="text-red-300/70">Attack:</span>
+                    <span className="text-red-200">+{unit.upgrades.attack}</span>
+                  </div>
+                ) : null}
+                {unit.upgrades.defense ? (
+                  <div className="flex justify-between">
+                    <span className="text-blue-300/70">Defense:</span>
+                    <span className="text-blue-200">+{unit.upgrades.defense}</span>
+                  </div>
+                ) : null}
+                {unit.upgrades.movement ? (
+                  <div className="flex justify-between">
+                    <span className="text-green-300/70">Movement:</span>
+                    <span className="text-green-200">+{unit.upgrades.movement}</span>
+                  </div>
+                ) : null}
+                {unit.upgrades.vision ? (
+                  <div className="flex justify-between">
+                    <span className="text-yellow-300/70">Vision:</span>
+                    <span className="text-yellow-200">+{unit.upgrades.vision}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           <Separator className="bg-amber-500/30" />
 
@@ -120,30 +160,27 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
               <Sparkles className="w-5 h-5 mr-2" />
               View All Actions
             </Button>
-            
+
             {/* Quick Status Summary - Vertical layout for better readability */}
             <div className="grid grid-cols-3 gap-2 text-xs bg-amber-900/20 rounded-lg p-3 border border-amber-500/20">
-              <div className={`flex flex-col items-center gap-1 ${
-                actionAvailability.canMove ? 'text-green-400' : 'text-slate-500'
-              }`}>
+              <div className={`flex flex-col items-center gap-1 ${actionAvailability.canMove ? 'text-green-400' : 'text-slate-500'
+                }`}>
                 <Move className="w-4 h-4" />
                 <span className="font-medium">Move</span>
                 <span className="text-[10px]">
                   {actionAvailability.canMove ? `${actionAvailability.reachableTilesCount} tiles` : 'None'}
                 </span>
               </div>
-              <div className={`flex flex-col items-center gap-1 ${
-                actionAvailability.canAttack ? 'text-red-400' : 'text-slate-500'
-              }`}>
+              <div className={`flex flex-col items-center gap-1 ${actionAvailability.canAttack ? 'text-red-400' : 'text-slate-500'
+                }`}>
                 <Swords className="w-4 h-4" />
                 <span className="font-medium">Attack</span>
                 <span className="text-[10px]">
                   {actionAvailability.canAttack ? `${actionAvailability.attackTargetsCount} targets` : 'None'}
                 </span>
               </div>
-              <div className={`flex flex-col items-center gap-1 ${
-                actionAvailability.hasAbilities ? 'text-purple-400' : 'text-slate-500'
-              }`}>
+              <div className={`flex flex-col items-center gap-1 ${actionAvailability.hasAbilities ? 'text-purple-400' : 'text-slate-500'
+                }`}>
                 <Settings className="w-4 h-4" />
                 <span className="font-medium">Abilities</span>
                 <span className="text-[10px]">

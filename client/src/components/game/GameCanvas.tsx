@@ -18,6 +18,7 @@ import { UnitSelectionEffects, useUnitSelection } from "../effects/UnitSelection
 import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import MovementOverlay from "./MovementOverlay";
 import { getReachableTiles } from "@shared/logic/pathfinding";
+import { ParticleEffectsContainer } from "../effects/ParticleEffects";
 
 export default function GameCanvas() {
   const { gameState, dispatch } = useLocalGame();
@@ -295,6 +296,9 @@ export default function GameCanvas() {
 
       {/* Floating Map Toasts for rewards/combat feedback */}
       <MapToastContainer />
+
+      {/* Particle Effects for captures and rewards */}
+      <ParticleEffectsContainer />
 
       {/* Combat Effects - Note: Moved to GameUI to avoid HTML in R3F */}
 

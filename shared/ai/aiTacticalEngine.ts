@@ -74,11 +74,15 @@ export class TacticalEngine {
 
         if (distance <= range) {
           const influence = this.calculateUnitInfluence(unit, distance);
-          if (unit.playerId === this.aiPlayer.id) {
+
+          if (unit.playerId === this.aiPlayer.id || (this.aiPlayer.alliedWith || []).includes(unit.playerId)) {
+            // Friendly or Allied influence
             totalInfluence += influence;
-          } else {
+          } else if ((this.aiPlayer.atWarWith || []).includes(unit.playerId)) {
+            // Enemy influence
             totalInfluence -= influence;
           }
+          // Neutral influence is ignored (0)
         }
       }
 
@@ -111,8 +115,10 @@ export class TacticalEngine {
     let totalThreat = 0;
     let maxDamage = 0;
 
-    // Check enemy units that can attack this position
-    const enemyUnits = this.gameState.units.filter(u => u.playerId !== this.aiPlayer.id);
+    // Check enemy units that can attack this position (only those we are at war with)
+    const enemyUnits = this.gameState.units.filter(u =>
+      (this.aiPlayer.atWarWith || []).includes(u.playerId)
+    );
 
     for (const enemy of enemyUnits) {
       const distance = hexDistance(coordinate, enemy.coordinate);
@@ -158,9 +164,9 @@ export class TacticalEngine {
     const attackRange = unitDef.baseStats.attackRange || 1;
     const maxRange = unit.remainingMovement + attackRange;
 
-    // 1. Enemy units within range
+    // 1. Enemy units within range (only those we are at war with)
     const enemyUnits = this.gameState.units.filter(u =>
-      u.playerId !== this.aiPlayer.id &&
+      (this.aiPlayer.atWarWith || []).includes(u.playerId) &&
       hexDistance(unit.coordinate, u.coordinate) <= maxRange
     );
 
@@ -177,9 +183,9 @@ export class TacticalEngine {
       });
     }
 
-    // 2. Enemy cities within range
+    // 2. Enemy cities within range (only those we are at war with)
     const enemyCities = this.gameState.cities.filter(c =>
-      c.ownerId !== this.aiPlayer.id &&
+      c.ownerId && (this.aiPlayer.atWarWith || []).includes(c.ownerId) &&
       hexDistance(unit.coordinate, c.coordinate) <= maxRange
     );
 
@@ -403,7 +409,7 @@ export class TacticalEngine {
 
     // 3. Avoid adjacent to visible enemies (don't retreat into danger)
     const neighbors = hexNeighbors(coord);
-    const enemyUnits = this.gameState.units.filter(u => u.playerId !== this.aiPlayer.id);
+    const enemyUnits = this.gameState.units.filter(u => (this.aiPlayer.atWarWith || []).includes(u.playerId));
     for (const neighbor of neighbors) {
       const adjacentEnemy = enemyUnits.some(e =>
         e.coordinate.q === neighbor.q && e.coordinate.r === neighbor.r

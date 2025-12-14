@@ -97,6 +97,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       atWarWith: [],
       alliedWith: [],
       tradeRoutes: [],
+      diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 },
     }));
 
     // Extract faction IDs for terrain generation

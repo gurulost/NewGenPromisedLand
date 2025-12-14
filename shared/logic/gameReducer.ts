@@ -1295,12 +1295,22 @@ function handleEndTurn(
       const completedConstructions = updatedConstructionQueue.filter(item => item.turnsRemaining <= 0);
       const ongoingConstructions = updatedConstructionQueue.filter(item => item.turnsRemaining > 0);
 
+      // Decrement diplomatic cooldowns
+      const currentCooldowns = player.diplomaticCooldowns || { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 };
+      const updatedCooldowns = {
+        declareWar: Math.max(0, currentCooldowns.declareWar - 1),
+        formAlliance: Math.max(0, currentCooldowns.formAlliance - 1),
+        breakAlliance: Math.max(0, currentCooldowns.breakAlliance - 1),
+        requestTrade: Math.max(0, currentCooldowns.requestTrade - 1),
+      };
+
       return {
         ...player,
         stats: updatedStats,
         stars: player.stars + starIncome,
         constructionQueue: ongoingConstructions,
-        completedConstructions // We'll handle this below
+        completedConstructions, // We'll handle this below
+        diplomaticCooldowns: updatedCooldowns
       };
     }
     return player;
@@ -2389,6 +2399,11 @@ function handleDeclareWar(
             ...p.stats,
             pride: Math.min(100, p.stats.pride + 15),
             internalDissent: Math.min(100, p.stats.internalDissent + 5)
+          },
+          // Set cooldown - can't declare war again for 5 turns
+          diplomaticCooldowns: {
+            ...(p.diplomaticCooldowns || { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 }),
+            declareWar: 5
           }
         };
       }
@@ -2440,6 +2455,11 @@ function handleFormAlliance(
             ...p.stats,
             faith: Math.min(100, p.stats.faith + 10),
             internalDissent: Math.max(0, p.stats.internalDissent - 10)
+          },
+          // Set cooldown - can't form another alliance for 3 turns
+          diplomaticCooldowns: {
+            ...(p.diplomaticCooldowns || { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 }),
+            formAlliance: 3
           }
         };
       }
