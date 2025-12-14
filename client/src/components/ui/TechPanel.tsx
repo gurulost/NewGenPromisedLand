@@ -29,10 +29,12 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   // Drag to scroll state - must be before any early returns
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isMouseDown, setIsMouseDown] = useState(false);
   const [startX, setStartX] = useState(0);
   const [startY, setStartY] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
+  const DRAG_THRESHOLD = 5; // Pixels moved before drag starts
 
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
   const availableTechs = currentPlayer ? getAvailableTechnologies(currentPlayer.researchedTechs) : [];
@@ -298,7 +300,9 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   // Drag to scroll handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
-    setIsDragging(true);
+    // Don't start dragging yet, just record the starting position
+    setIsMouseDown(true);
+    setIsDragging(false);
     setStartX(e.pageX - containerRef.current.offsetLeft);
     setStartY(e.pageY - containerRef.current.offsetTop);
     setScrollLeft(containerRef.current.scrollLeft);
@@ -307,27 +311,42 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
 
   const handleMouseLeave = () => {
     setIsDragging(false);
+    setIsMouseDown(false);
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
+    setIsMouseDown(false);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !containerRef.current) return;
-    e.preventDefault();
+    if (!isMouseDown || !containerRef.current) return;
+    
     const x = e.pageX - containerRef.current.offsetLeft;
     const y = e.pageY - containerRef.current.offsetTop;
-    const walkX = (x - startX) * 1.5; // Scroll speed multiplier
-    const walkY = (y - startY) * 1.5;
-    containerRef.current.scrollLeft = scrollLeft - walkX;
-    containerRef.current.scrollTop = scrollTop - walkY;
+    const moveX = Math.abs(x - startX);
+    const moveY = Math.abs(y - startY);
+    
+    // Only start dragging if moved past threshold
+    if (!isDragging && (moveX > DRAG_THRESHOLD || moveY > DRAG_THRESHOLD)) {
+      setIsDragging(true);
+    }
+    
+    if (isDragging) {
+      e.preventDefault();
+      const walkX = (x - startX) * 1.5; // Scroll speed multiplier
+      const walkY = (y - startY) * 1.5;
+      containerRef.current.scrollLeft = scrollLeft - walkX;
+      containerRef.current.scrollTop = scrollTop - walkY;
+    }
   };
 
   // Touch support for iPad/Mobile
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!containerRef.current) return;
-    setIsDragging(true);
+    // Don't start dragging yet, just record the starting position
+    setIsMouseDown(true);
+    setIsDragging(false);
     setStartX(e.touches[0].pageX - containerRef.current.offsetLeft);
     setStartY(e.touches[0].pageY - containerRef.current.offsetTop);
     setScrollLeft(containerRef.current.scrollLeft);
@@ -335,22 +354,31 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging || !containerRef.current) return;
-    // Prevent default to stop page swipe-back or scaling behavior
-    e.preventDefault();
-
-    // but be careful not to block UI interactions if overlapping
-    // In this case, dragging the map is the primary action.
+    if (!isMouseDown || !containerRef.current) return;
+    
     const x = e.touches[0].pageX - containerRef.current.offsetLeft;
     const y = e.touches[0].pageY - containerRef.current.offsetTop;
-    const walkX = (x - startX) * 1.5;
-    const walkY = (y - startY) * 1.5;
-    containerRef.current.scrollLeft = scrollLeft - walkX;
-    containerRef.current.scrollTop = scrollTop - walkY;
+    const moveX = Math.abs(x - startX);
+    const moveY = Math.abs(y - startY);
+    
+    // Only start dragging if moved past threshold
+    if (!isDragging && (moveX > DRAG_THRESHOLD || moveY > DRAG_THRESHOLD)) {
+      setIsDragging(true);
+    }
+    
+    if (isDragging) {
+      // Prevent default to stop page swipe-back or scaling behavior
+      e.preventDefault();
+      const walkX = (x - startX) * 1.5;
+      const walkY = (y - startY) * 1.5;
+      containerRef.current.scrollLeft = scrollLeft - walkX;
+      containerRef.current.scrollTop = scrollTop - walkY;
+    }
   };
 
   const handleTouchEnd = () => {
     setIsDragging(false);
+    setIsMouseDown(false);
   };
 
   return (
