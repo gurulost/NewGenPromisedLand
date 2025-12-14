@@ -97,13 +97,14 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
   const canAffordUnit = (unitType: UnitType) => {
     const unitDef = getUnitDefinition(unitType);
     const hasSpace = cityUnits.length < 4; // Max 4 units per city
+    const hasRequiredTech = !unitDef.requiredTechnology || currentPlayer.researchedTechs.includes(unitDef.requiredTechnology);
     const meetsRequirements = !unitDef.requirements || 
       ((!unitDef.requirements.faith || currentPlayer.stats.faith >= unitDef.requirements.faith) &&
        (!unitDef.requirements.pride || currentPlayer.stats.pride >= unitDef.requirements.pride));
     const factionMatch = unitDef.factionSpecific.length === 0 || 
       unitDef.factionSpecific.includes(currentPlayer.factionId);
     
-    return currentPlayer.stars >= unitDef.cost && hasSpace && meetsRequirements && factionMatch;
+    return currentPlayer.stars >= unitDef.cost && hasSpace && hasRequiredTech && meetsRequirements && factionMatch;
   };
 
   const getUnitRecruitMessage = (unitType: UnitType) => {
@@ -120,6 +121,11 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
     
     if (!factionMatch) {
       return "Wrong Faction";
+    }
+
+    if (unitDef.requiredTechnology && !currentPlayer.researchedTechs.includes(unitDef.requiredTechnology)) {
+      const techName = unitDef.requiredTechnology.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+      return `Requires ${techName}`;
     }
     
     if (unitDef.requirements) {

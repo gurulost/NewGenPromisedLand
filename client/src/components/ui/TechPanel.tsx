@@ -170,8 +170,8 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     if (!tech || !pos) return null;
 
     const status = techStatuses[techId] || "locked";
-    const x = pos.x * (CELL_WIDTH + COL_GAP) + CANVAS_PADDING;
-    const y = pos.y * (CELL_HEIGHT + ROW_GAP) + CANVAS_PADDING;
+    const x = pos.column * (CELL_WIDTH + COL_GAP) + CANVAS_PADDING;
+    const y = pos.row * (CELL_HEIGHT + ROW_GAP) + CANVAS_PADDING;
 
     const isMatch = matchesFilter(techId);
     if (!isMatch) return null;
@@ -255,10 +255,10 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             if (!startPos) return null;
 
             // Coordinates
-            const startX = startPos.x * (CELL_WIDTH + COL_GAP) + CANVAS_PADDING + CELL_WIDTH;
-            const startY = startPos.y * (CELL_HEIGHT + ROW_GAP) + CANVAS_PADDING + (CELL_HEIGHT / 2);
-            const endX = endPos.x * (CELL_WIDTH + COL_GAP) + CANVAS_PADDING;
-            const endY = endPos.y * (CELL_HEIGHT + ROW_GAP) + CANVAS_PADDING + (CELL_HEIGHT / 2);
+            const startX = startPos.column * (CELL_WIDTH + COL_GAP) + CANVAS_PADDING + CELL_WIDTH;
+            const startY = startPos.row * (CELL_HEIGHT + ROW_GAP) + CANVAS_PADDING + (CELL_HEIGHT / 2);
+            const endX = endPos.column * (CELL_WIDTH + COL_GAP) + CANVAS_PADDING;
+            const endY = endPos.row * (CELL_HEIGHT + ROW_GAP) + CANVAS_PADDING + (CELL_HEIGHT / 2);
 
             // Tech Status
             const isPrereqMet = currentPlayer.researchedTechs.includes(prereqId);

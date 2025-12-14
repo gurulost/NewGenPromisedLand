@@ -118,6 +118,9 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       description: unit.description,
       category: 'units' as const,
       cost: { stars: unit.cost, ...(unit.requirements || {}) },
+      requirements: [
+        ...(unit.requiredTechnology ? [unit.requiredTechnology] : []),
+      ],
       effects: [
         { description: 'Attack', icon: <Swords className="w-4 h-4" />, value: `${unit.baseStats.attack}` },
         { description: 'Defense', icon: <Shield className="w-4 h-4" />, value: `${unit.baseStats.defense}` },
@@ -127,7 +130,9 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       buildTime: 1,
       icon: <Users className="w-6 h-6" />,
       rarity: unit.factionSpecific.length > 0 ? 'rare' : 'common' as const,
-      unlocked: unit.factionSpecific.length === 0 || unit.factionSpecific.includes(player.factionId)
+      unlocked:
+        (unit.factionSpecific.length === 0 || unit.factionSpecific.includes(player.factionId)) &&
+        (!unit.requiredTechnology || player.researchedTechs.includes(unit.requiredTechnology))
     })),
     
     // Structures from game data

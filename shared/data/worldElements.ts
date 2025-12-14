@@ -246,7 +246,7 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
         }
       }
     },
-    techPrerequisite: 'seafaring',
+    techPrerequisite: 'fishing',
     assetTileset: 'tiles/feature_fish.png',
     assetStructure: 'structures/fishing_jetty.png',
     assetStructureUpgrade: 'structures/harbor.png',

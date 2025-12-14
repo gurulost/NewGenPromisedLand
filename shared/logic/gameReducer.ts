@@ -13,6 +13,145 @@ import { executeAbility } from "./abilitySystem";
 import { executeElementHarvest, executeElementBuild } from "./worldElementActions";
 import { HexCoordinate } from "../types/coordinates";
 
+function areCitiesConnectedByRoad(state: GameState, playerId: string, fromCityId: string, toCityId: string): boolean {
+  if (fromCityId === toCityId) return false;
+
+  const fromCity = (state.cities || []).find(c => c.id === fromCityId && c.ownerId === playerId);
+  const toCity = (state.cities || []).find(c => c.id === toCityId && c.ownerId === playerId);
+  if (!fromCity || !toCity) return false;
+
+  const roadKeys = new Set(
+    (state.improvements || [])
+      .filter(imp => imp.ownerId === playerId)
+      .filter(imp => imp.type === 'road')
+      .filter(imp => imp.constructionTurns === 0)
+      .map(imp => `${imp.coordinate.q},${imp.coordinate.r}`)
+  );
+  if (roadKeys.size === 0) return false;
+
+  const fromKey = `${fromCity.coordinate.q},${fromCity.coordinate.r}`;
+  const toKey = `${toCity.coordinate.q},${toCity.coordinate.r}`;
+  const cityKeys = new Set([fromKey, toKey]);
+
+  // Both endpoints must touch the road network.
+  const fromHasAdjacentRoad = hexNeighbors(fromCity.coordinate).some(n => roadKeys.has(`${n.q},${n.r}`));
+  const toHasAdjacentRoad = hexNeighbors(toCity.coordinate).some(n => roadKeys.has(`${n.q},${n.r}`));
+  if (!fromHasAdjacentRoad || !toHasAdjacentRoad) return false;
+
+  const visited = new Set<string>();
+  const queue: HexCoordinate[] = [fromCity.coordinate];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const currentKey = `${current.q},${current.r}`;
+    if (visited.has(currentKey)) continue;
+    visited.add(currentKey);
+
+    if (currentKey === toKey) return true;
+
+    const isCity = cityKeys.has(currentKey);
+    const isRoad = roadKeys.has(currentKey);
+
+    for (const neighbor of hexNeighbors(current)) {
+      const neighborKey = `${neighbor.q},${neighbor.r}`;
+      const canTraverse =
+        (isCity && roadKeys.has(neighborKey)) ||
+        (isRoad && (roadKeys.has(neighborKey) || cityKeys.has(neighborKey)));
+      if (canTraverse && !visited.has(neighborKey)) queue.push(neighbor);
+    }
+  }
+
+  return false;
+}
+
+function calculateTradeRouteStarsPerTurn(state: GameState, playerId: string, fromCityId: string, toCityId: string): number {
+  const fromCity = (state.cities || []).find(c => c.id === fromCityId);
+  const toCity = (state.cities || []).find(c => c.id === toCityId);
+  if (!fromCity || !toCity) return 0;
+
+  const base = 1 + Math.floor((fromCity.level + toCity.level) / 2); // lvl1+lvl1 => 2
+  const distance = hexDistance(fromCity.coordinate, toCity.coordinate);
+  const proximity = Math.max(0, 2 - Math.floor(distance / 4)); // 0..2 small bump for shorter routes
+  const connected = areCitiesConnectedByRoad(state, playerId, fromCityId, toCityId);
+  const connectivityBonus = connected ? 1 : 0;
+  return Math.max(1, Math.min(6, base + proximity + connectivityBonus));
+}
+
+function calculateTradeRouteEstablishCostStars(starsPerTurn: number): number {
+  return Math.max(8, starsPerTurn * 5);
+}
+
+function calculateRoadConnectedCityStarBonus(state: GameState, playerId: string): number {
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return 0;
+
+  const ownedCities = (state.cities || []).filter(city => city.ownerId === playerId);
+  if (ownedCities.length < 2) return 0;
+
+  const roadKeys = new Set(
+    (state.improvements || [])
+      .filter(imp => imp.ownerId === playerId)
+      .filter(imp => imp.type === 'road')
+      .filter(imp => imp.constructionTurns === 0)
+      .map(imp => `${imp.coordinate.q},${imp.coordinate.r}`)
+  );
+
+  if (roadKeys.size === 0) return 0;
+
+  const cityKeys = new Set(ownedCities.map(city => `${city.coordinate.q},${city.coordinate.r}`));
+  const visited = new Set<string>();
+  let bonus = 0;
+
+  for (const city of ownedCities) {
+    const startKey = `${city.coordinate.q},${city.coordinate.r}`;
+    if (visited.has(startKey)) continue;
+
+    // Cities only connect if they have at least one adjacent road
+    const hasAdjacentRoad = hexNeighbors(city.coordinate).some(n => roadKeys.has(`${n.q},${n.r}`));
+    if (!hasAdjacentRoad) {
+      visited.add(startKey);
+      continue;
+    }
+
+    const queue: HexCoordinate[] = [city.coordinate];
+    const componentCities = new Set<string>();
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const currentKey = `${current.q},${current.r}`;
+      if (visited.has(currentKey)) continue;
+      visited.add(currentKey);
+
+      const isCity = cityKeys.has(currentKey);
+      const isRoad = roadKeys.has(currentKey);
+
+      if (isCity) componentCities.add(currentKey);
+
+      for (const neighbor of hexNeighbors(current)) {
+        const neighborKey = `${neighbor.q},${neighbor.r}`;
+
+        // Travel rules:
+        // - From city: can only step onto adjacent road tiles
+        // - From road: can step onto road tiles and city tiles
+        const canTraverse =
+          (isCity && roadKeys.has(neighborKey)) ||
+          (isRoad && (roadKeys.has(neighborKey) || cityKeys.has(neighborKey)));
+
+        if (canTraverse && !visited.has(neighborKey)) {
+          queue.push(neighbor);
+        }
+      }
+    }
+
+    // Each connected component grants +1★/turn per additional city beyond the first.
+    bonus += Math.max(0, componentCities.size - 1);
+  }
+
+  // Trade amplifies connected-city commerce.
+  const multiplier = player.researchedTechs?.includes('trade') ? 2 : 1;
+  return bonus * multiplier;
+}
+
 // Tech Research Handler
 function handleResearchTech(
   state: GameState,
@@ -63,6 +202,9 @@ function handleStartConstruction(
   const player = state.players.find(p => p.id === playerId);
   if (!player) return state;
 
+  // Player must own the city that is producing the item
+  if (!player.citiesOwned.includes(cityId)) return state;
+
   // Get building cost and time based on category
   let cost = { stars: 0, faith: 0, pride: 0 };
   let buildTime = 1;
@@ -70,11 +212,22 @@ function handleStartConstruction(
   if (category === 'improvements') {
     const improvement = IMPROVEMENT_DEFINITIONS[buildingType as keyof typeof IMPROVEMENT_DEFINITIONS];
     if (!improvement) return state;
+    if (!player.researchedTechs.includes(improvement.requiredTech)) return state;
     cost.stars = improvement.cost;
     buildTime = improvement.constructionTime;
+
+    // Validate tile placement
+    if (!coordinate) return state;
+    const tile = state.map.tiles.find(t => t.coordinate.q === coordinate.q && t.coordinate.r === coordinate.r);
+    if (!tile) return state;
+    if (!improvement.validTerrain.includes(tile.terrain)) return state;
+
+    const hasImprovement = (state.improvements || []).some(i => i.coordinate.q === coordinate.q && i.coordinate.r === coordinate.r);
+    if (hasImprovement) return state;
   } else if (category === 'structures') {
     const structure = STRUCTURE_DEFINITIONS[buildingType as keyof typeof STRUCTURE_DEFINITIONS];
     if (!structure) return state;
+    if (!player.researchedTechs.includes(structure.requiredTech)) return state;
     cost.stars = structure.cost;
     buildTime = 1; // Default build time for structures
   } else if (category === 'units') {
@@ -83,6 +236,8 @@ function handleStartConstruction(
       console.log(`Unit definition not found for ${buildingType}`);
       return state;
     }
+    if (unitDef.requiredTechnology && !player.researchedTechs.includes(unitDef.requiredTechnology)) return state;
+    if (unitDef.factionSpecific.length > 0 && !unitDef.factionSpecific.includes(player.factionId)) return state;
     cost.stars = unitDef.cost; // Units have direct cost number
     cost.faith = unitDef.requirements?.faith || 0;
     cost.pride = unitDef.requirements?.pride || 0;
@@ -715,6 +870,9 @@ function handleRecruitUnit(
   const unitDef = getUnitDefinition(unitType as any);
   if (!unitDef) return state;
 
+  // Enforce technology gate for units
+  if (unitDef.requiredTechnology && !player.researchedTechs.includes(unitDef.requiredTechnology)) return state;
+
   // Check if player can afford the unit
   if (player.stars < unitDef.cost) return state;
 
@@ -1283,6 +1441,10 @@ function handleEndTurn(
       const villageBonus = convertedVillages.reduce((sum, tile) => sum + (tile.starBonus || 0), 0);
       starIncome += villageBonus;
 
+      // Road trade bonus: cities connected by road grant extra stars
+      const roadBonus = calculateRoadConnectedCityStarBonus(state, player.id);
+      starIncome += roadBonus;
+
       updatedStats.faith = Math.min(100, updatedStats.faith + faithGeneration);
 
       // Process construction queue
@@ -1368,7 +1530,6 @@ function handleEndTurn(
           const newStructure = {
             id: construction.id,
             type: construction.type,
-            coordinate: construction.coordinate,
             ownerId: construction.playerId,
             effects: structureDef?.effects || { starProduction: 0, defenseBonus: 0, unitProduction: 0 },
             cityId: construction.cityId,
@@ -1589,6 +1750,8 @@ function handleBuildRoad(
 
   const player = state.players.find(p => p.id === playerId);
   if (!player || player.stars < 3) return state;
+  if (!player.researchedTechs.includes('organization')) return state;
+  if (unit.remainingMovement <= 0 || unit.hasAttacked) return state;
 
   // Find the target tile
   const targetTile = state.map.tiles.find(tile =>
@@ -1797,7 +1960,7 @@ function handleSiegeMode(
   if (!unit || unit.playerId !== playerId) return state;
 
   // Check if unit has siege ability and is stationary
-  if (!unit.abilities.includes('siege') || unit.remainingMovement > 0) return state;
+  if (!unit.abilities.includes('siege') || unit.remainingMovement !== unit.movement) return state;
 
   const updatedUnits = state.units.map(u =>
     u.id === unitId
@@ -1821,7 +1984,7 @@ function handleRallyTroops(
   if (!unit || unit.playerId !== playerId) return state;
 
   // Check if unit has rally ability and pride cost
-  if (!unit.abilities.includes('rally') || unit.hasAttacked) return state;
+  if (!(unit.abilities.includes('rally') || unit.abilities.includes('rally_troops')) || unit.hasAttacked) return state;
 
   const player = state.players.find(p => p.id === playerId);
   if (!player || player.stats.pride < 5) return state;
@@ -1945,9 +2108,63 @@ function handleBuildUnit(
   state: GameState,
   payload: { unitType: string; coordinate: any; playerId: string }
 ): GameState {
-  // Implementation for building new units
-  // This would check resources, valid placement, etc.
-  return state;
+  const { unitType, coordinate, playerId } = payload;
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+
+  const unitDef = getUnitDefinition(unitType as any);
+  if (!unitDef) return state;
+  if (unitDef.requiredTechnology && !player.researchedTechs.includes(unitDef.requiredTechnology)) return state;
+  if (unitDef.factionSpecific.length > 0 && !unitDef.factionSpecific.includes(player.factionId)) return state;
+
+  // For now, BUILD_UNIT is treated as "recruit at owned city coordinate"
+  const targetCity = (state.cities || []).find(c =>
+    c.ownerId === playerId &&
+    c.coordinate.q === coordinate.q &&
+    c.coordinate.r === coordinate.r
+  );
+  if (!targetCity) return state;
+
+  if (player.stars < unitDef.cost) return state;
+  if (unitDef.requirements) {
+    if (unitDef.requirements.faith && player.stats.faith < unitDef.requirements.faith) return state;
+    if (unitDef.requirements.pride && player.stats.pride < unitDef.requirements.pride) return state;
+    if (unitDef.requirements.dissent && player.stats.internalDissent < unitDef.requirements.dissent) return state;
+  }
+
+  const existingCityUnits = state.units.filter(u =>
+    u.coordinate.q === targetCity.coordinate.q &&
+    u.coordinate.r === targetCity.coordinate.r
+  );
+  if (existingCityUnits.length >= GAME_RULES.units.maxUnitsPerCity) return state;
+
+  const newUnit = {
+    id: `${unitType}_${playerId}_${Date.now()}`,
+    type: unitType as UnitType,
+    playerId,
+    coordinate: targetCity.coordinate,
+    hp: unitDef.baseStats.hp,
+    maxHp: unitDef.baseStats.hp,
+    attack: unitDef.baseStats.attack,
+    defense: unitDef.baseStats.defense,
+    movement: unitDef.baseStats.movement,
+    remainingMovement: unitDef.baseStats.movement,
+    status: 'active' as const,
+    abilities: unitDef.abilities,
+    level: 1,
+    experience: 0,
+    visionRadius: unitDef.baseStats.visionRadius,
+    attackRange: unitDef.baseStats.attackRange,
+    hasAttacked: false
+  };
+
+  return {
+    ...state,
+    players: state.players.map(p =>
+      p.id === playerId ? { ...p, stars: p.stars - unitDef.cost } : p
+    ),
+    units: [...state.units, newUnit]
+  };
 }
 
 // Helper functions for specific abilities
@@ -2344,21 +2561,52 @@ function handleEstablishTradeRoute(
   const player = state.players.find(p => p.id === playerId);
   if (!player) return state;
 
+  // Must have Trade tech.
+  if (!player.researchedTechs?.includes('trade')) return state;
+
+  // Cooldown to prevent spam-clicking.
+  const cooldowns = player.diplomaticCooldowns || { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 };
+  if ((cooldowns.requestTrade || 0) > 0) return state;
+
   const fromCity = state.cities?.find(city => city.id === fromCityId);
   const toCity = state.cities?.find(city => city.id === toCityId);
 
   if (!fromCity || !toCity) return state;
   if (!player.citiesOwned.includes(fromCityId)) return state;
+  if (!player.citiesOwned.includes(toCityId)) return state;
+  if (fromCityId === toCityId) return state;
 
-  // Establish trade route between cities
-  const distance = hexDistance(fromCity.coordinate, toCity.coordinate);
-  const tradeValue = Math.max(1, Math.floor(10 - distance / 2));
+  const existingRoutes = player.tradeRoutes || [];
+  const isDuplicatePair = existingRoutes.some(r =>
+    (r.fromCityId === fromCityId && r.toCityId === toCityId) ||
+    (r.fromCityId === toCityId && r.toCityId === fromCityId)
+  );
+  if (isDuplicatePair) return state;
+
+  // Limit routes to avoid runaway economy and force strategic choices.
+  const maxRoutes = Math.max(1, player.citiesOwned.length);
+  if (existingRoutes.length >= maxRoutes) return state;
+
+  // Each city can support one outgoing route.
+  if (existingRoutes.some(r => r.fromCityId === fromCityId)) return state;
+
+  // Require a road connection: trade routes are about infrastructure.
+  if (!areCitiesConnectedByRoad(state, playerId, fromCityId, toCityId)) return state;
+
+  const starsPerTurn = calculateTradeRouteStarsPerTurn(state, playerId, fromCityId, toCityId);
+  const costStars = calculateTradeRouteEstablishCostStars(starsPerTurn);
+  if (player.stars < costStars) return state;
 
   return {
     ...state,
     players: state.players.map(p =>
       p.id === playerId
-        ? { ...p, stars: p.stars + tradeValue }
+        ? {
+          ...p,
+          stars: p.stars - costStars,
+          tradeRoutes: [...(p.tradeRoutes || []), { fromCityId, toCityId, starsPerTurn }],
+          diplomaticCooldowns: { ...(p.diplomaticCooldowns || cooldowns), requestTrade: 3 },
+        }
         : p
     )
   };
@@ -2559,6 +2807,47 @@ function handleUnitAction(
   if (!player) return state;
 
   switch (actionType) {
+    case 'convert': {
+      // Missionary conversion: convert an adjacent enemy unit (auto-targets if none provided)
+      if (!unit.abilities.includes('convert') || unit.hasAttacked) return state;
+      if (player.stats.faith < 10) return state;
+
+      const requestedTargetUnitId =
+        typeof target === 'string'
+          ? target
+          : typeof target === 'object' && typeof target?.unitId === 'string'
+            ? target.unitId
+            : undefined;
+
+      const candidates = state.units
+        .filter(u => u.playerId !== playerId)
+        .filter(u => hexDistance(u.coordinate, unit.coordinate) <= 1)
+        .filter(u => (requestedTargetUnitId ? u.id === requestedTargetUnitId : true));
+
+      if (candidates.length === 0) return state;
+
+      // Prefer the weakest adjacent unit if no specific target was supplied
+      const targetUnit = candidates.sort((a, b) => a.hp - b.hp)[0];
+
+      return {
+        ...state,
+        players: state.players.map(p =>
+          p.id === playerId
+            ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - 10) } }
+            : p
+        ),
+        units: state.units.map(u => {
+          if (u.id === unitId) {
+            return { ...u, hasAttacked: true, remainingMovement: 0 };
+          }
+          if (u.id === targetUnit.id) {
+            return { ...u, playerId };
+          }
+          return u;
+        })
+      };
+    }
+
     case 'stealth':
       // Implement stealth mode for scouts
       if (unit.type === 'scout' && unit.remainingMovement >= 2) {
@@ -2566,7 +2855,7 @@ function handleUnitAction(
           ...state,
           units: state.units.map(u =>
             u.id === unitId
-              ? { ...u, remainingMovement: u.remainingMovement - 2, status: 'stealth' as any }
+              ? { ...u, remainingMovement: u.remainingMovement - 2, status: 'stealthed' as const, hasAttacked: true }
               : u
           )
         };

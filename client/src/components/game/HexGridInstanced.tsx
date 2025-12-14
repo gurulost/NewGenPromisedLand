@@ -3,7 +3,7 @@ import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { TextureLoader } from "three";
 import * as THREE from "three";
 import { Tile, GameMap } from "@shared/types/game";
-import { hexToPixel, pixelToHex } from "@shared/utils/hex";
+import { hexDistance, hexToPixel, pixelToHex } from "@shared/utils/hex";
 import { getUnitDefinition } from "@shared/data/units";
 import { getVisibleTilesInRange, calculateFogOfWarState } from "@shared/utils/lineOfSight";
 import { calculateReachableTiles } from "@shared/logic/unitLogic";
@@ -42,6 +42,24 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
   const city = gameState.cities?.find((c: any) => c.id === cityId);
   
   if (!city || !currentPlayer) return false;
+
+  // Tech gating for constructions
+  if (category === 'units') {
+    const unitDef = getUnitDefinition(buildingType as any);
+    if (unitDef?.requiredTechnology && !currentPlayer.researchedTechs?.includes(unitDef.requiredTechnology)) {
+      return false;
+    }
+  } else if (category === 'improvements') {
+    const improvementDef = IMPROVEMENT_DEFINITIONS[buildingType as keyof typeof IMPROVEMENT_DEFINITIONS];
+    if (improvementDef?.requiredTech && !currentPlayer.researchedTechs?.includes(improvementDef.requiredTech)) {
+      return false;
+    }
+  } else if (category === 'structures') {
+    const structureDef = STRUCTURE_DEFINITIONS[buildingType as keyof typeof STRUCTURE_DEFINITIONS];
+    if (structureDef?.requiredTech && !currentPlayer.researchedTechs?.includes(structureDef.requiredTech)) {
+      return false;
+    }
+  }
   
   // Check if tile is explored/visible to current player
   const tileKey = `${coordinate.q},${coordinate.r}`;
@@ -60,8 +78,8 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
   const hasImprovement = gameState.improvements?.some((i: any) => 
     i.coordinate.q === coordinate.q && i.coordinate.r === coordinate.r
   );
-  const hasStructure = gameState.structures?.some((s: any) => 
-    s.coordinate.q === coordinate.q && s.coordinate.r === coordinate.r
+  const hasStructureInCity = gameState.structures?.some((s: any) =>
+    s.cityId === cityId && s.type === buildingType
   );
   
   if (category === 'units') {
@@ -72,22 +90,22 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
              (tile.coordinate.q === city.coordinate.q && tile.coordinate.r === city.coordinate.r);
     } else {
       // Other units need land tiles without obstacles
-      return tile.terrain !== 'water' && !hasUnit && !hasImprovement && !hasStructure;
+      return tile.terrain !== 'water' && !hasUnit && !hasImprovement;
     }
   } else if (category === 'improvements') {
     // Improvements have terrain requirements
     if (buildingType === 'forest_camp') {
-      return tile.terrain === 'forest' && !hasImprovement && !hasStructure;
+      return tile.terrain === 'forest' && !hasImprovement;
     } else if (buildingType === 'mine') {
-      return tile.terrain === 'mountain' && !hasImprovement && !hasStructure;
+      return tile.terrain === 'mountain' && !hasImprovement;
     } else if (buildingType === 'farm') {
-      return tile.terrain === 'plains' && !hasImprovement && !hasStructure;
+      return tile.terrain === 'plains' && !hasImprovement;
     }
     // Default: any land tile without obstacles
-    return tile.terrain !== 'water' && !hasImprovement && !hasStructure;
+    return tile.terrain !== 'water' && !hasImprovement;
   } else if (category === 'structures') {
     // Structures can be built on most land tiles
-    return tile.terrain !== 'water' && !hasImprovement && !hasStructure;
+    return tile.terrain !== 'water' && !hasImprovement && !hasStructureInCity;
   }
   
   return false;
@@ -95,7 +113,7 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
 
 export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const { gameState, moveUnit, attackUnit } = useLocalGame();
-  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction, isMovementMode, setMovementMode, isAttackMode, setAttackMode, attackableTargets } = useGameState();
+  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction, isMovementMode, setMovementMode, isAttackMode, setAttackMode, attackableTargets, isRoadBuildMode, roadBuildUnitId, cancelRoadBuild } = useGameState();
   const { camera, raycaster, gl } = useThree();
   
   // Calculate valid construction tiles when in construction mode
@@ -430,12 +448,38 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             cancelConstruction();
           }
           
-          return; // Exit early, don't handle unit clicks in construction mode
-        }
-        
-        if (unitOnTile && currentPlayer) {
-          // If clicking on a unit
-          if (unitOnTile.playerId === currentPlayer.id) {
+	          return; // Exit early, don't handle unit clicks in construction mode
+	        }
+
+	        // Handle road building mode (worker places a road on a clicked tile)
+	        if (isRoadBuildMode && currentPlayer) {
+	          const builder = gameState?.units.find(u => u.id === roadBuildUnitId && u.playerId === currentPlayer.id);
+	          if (!builder) {
+	            cancelRoadBuild();
+	            return;
+	          }
+
+	          const isValidDistance = hexDistance(builder.coordinate, clickedTile.coordinate) <= 1;
+	          const isValidTerrain = clickedTile.terrain !== 'water' && clickedTile.terrain !== 'mountain';
+
+	          if (!isValidDistance || !isValidTerrain) {
+	            console.log('Invalid road tile selected');
+	            return;
+	          }
+
+	          const { dispatch } = useLocalGame.getState();
+	          dispatch({
+	            type: 'BUILD_ROAD',
+	            payload: { unitId: builder.id, targetCoordinate: clickedTile.coordinate, playerId: currentPlayer.id },
+	          });
+
+	          cancelRoadBuild();
+	          return;
+	        }
+	        
+	        if (unitOnTile && currentPlayer) {
+	          // If clicking on a unit
+	          if (unitOnTile.playerId === currentPlayer.id) {
             // Select own unit (but don't show movement tiles yet)
             console.log('Unit clicked:', unitOnTile.id, 'Current player:', currentPlayer.id, 'Unit player:', unitOnTile.playerId);
             setSelectedUnit(unitOnTile);
@@ -577,4 +621,3 @@ function getTextureId(terrain: string): number {
     default: return 0; // no texture
   }
 }
-

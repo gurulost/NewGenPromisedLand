@@ -22,7 +22,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 5,
     prerequisites: [],
     unlocks: {
-      improvements: ['farm', 'mine'],
+      improvements: ['farm'],
       units: ['worker']
     },
     category: 'economic'
@@ -35,7 +35,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 5,
     prerequisites: [],
     unlocks: {
-      improvements: ['lumber_hut', 'sawmill'],
+      improvements: ['lumber_hut'],
       abilities: ['clear_forest']
     },
     category: 'economic'
@@ -51,6 +51,16 @@ export const TECHNOLOGIES: Record<string, Technology> = {
       units: ['scout']
     },
     category: 'military'
+  },
+
+  husbandry: {
+    id: 'husbandry',
+    name: 'Husbandry',
+    description: 'Learn to domesticate and care for wild herds, turning animals into sustainable blessings for your people.',
+    cost: 8,
+    prerequisites: ['hunting'],
+    unlocks: {},
+    category: 'economic'
   },
 
   spirituality: {
@@ -74,8 +84,54 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 10,
     prerequisites: ['organization'],
     unlocks: {
-      improvements: ['irrigation', 'plantation'],
+      improvements: ['plantation'],
       structures: ['granary']
+    },
+    category: 'economic'
+  },
+
+  irrigation: {
+    id: 'irrigation',
+    name: 'Irrigation',
+    description: 'Channel water to nourish crops and fields, multiplying harvests through careful stewardship.',
+    cost: 12,
+    prerequisites: ['agriculture'],
+    unlocks: {
+      improvements: ['irrigation']
+    },
+    category: 'economic'
+  },
+
+  mining: {
+    id: 'mining',
+    name: 'Mining',
+    description: 'Develop mining techniques to extract ore and wealth from the mountains.',
+    cost: 10,
+    prerequisites: ['organization'],
+    unlocks: {
+      improvements: ['mine']
+    },
+    category: 'economic'
+  },
+
+  woodcraft: {
+    id: 'woodcraft',
+    name: 'Woodcraft',
+    description: 'Advanced timbercraft and stewardship of forests, unlocking deeper yields from sacred groves.',
+    cost: 10,
+    prerequisites: ['forestry'],
+    unlocks: {},
+    category: 'economic'
+  },
+
+  construction: {
+    id: 'construction',
+    name: 'Construction',
+    description: 'Master advanced building methods to raise stronger works and improve resource processing.',
+    cost: 15,
+    prerequisites: ['organization', 'forestry'],
+    unlocks: {
+      improvements: ['sawmill'],
     },
     category: 'economic'
   },
@@ -105,6 +161,36 @@ export const TECHNOLOGIES: Record<string, Technology> = {
       structures: ['lighthouse']
     },
     category: 'exploration'
+  },
+
+  seafaring: {
+    id: 'seafaring',
+    name: 'Seafaring',
+    description: 'Navigate coasts and waters with confidence, expanding maritime reach and enabling fishing and trade.',
+    cost: 12,
+    prerequisites: ['sailing'],
+    unlocks: {},
+    category: 'exploration'
+  },
+
+  fishing: {
+    id: 'fishing',
+    name: 'Fishing',
+    description: 'Harvest the bounty of the sea through organized fishing practices and coastal infrastructure.',
+    cost: 10,
+    prerequisites: ['seafaring'],
+    unlocks: {},
+    category: 'economic'
+  },
+
+  trade: {
+    id: 'trade',
+    name: 'Trade',
+    description: 'Connect settlements through commerce, increasing prosperity through linked city networks.',
+    cost: 15,
+    prerequisites: ['organization', 'seafaring'],
+    unlocks: {},
+    category: 'economic'
   },
 
   priesthood: {
@@ -147,6 +233,16 @@ export const TECHNOLOGIES: Record<string, Technology> = {
       structures: ['fortress']
     },
     category: 'military'
+  },
+
+  navigation: {
+    id: 'navigation',
+    name: 'Navigation',
+    description: 'Master deeper waters and distant voyages, opening the way to the great creatures and riches of the sea.',
+    cost: 25,
+    prerequisites: ['seafaring', 'trade'],
+    unlocks: {},
+    category: 'exploration'
   },
 
   leadership: {

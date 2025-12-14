@@ -114,7 +114,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     cost: 8,
     starProduction: 3,
     validTerrain: ['mountain'],
-    requiredTech: 'organization',
+    requiredTech: 'mining',
     constructionTime: 1
   },
 
@@ -174,7 +174,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     cost: 10,
     starProduction: 3,
     validTerrain: ['plains', 'desert'],
-    requiredTech: 'agriculture',
+    requiredTech: 'irrigation',
     constructionTime: 1
   },
   
