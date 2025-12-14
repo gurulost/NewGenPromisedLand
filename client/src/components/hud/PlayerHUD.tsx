@@ -107,7 +107,9 @@ const StarResourcesSection = React.memo(({ stars, starProduction, breakdown }: {
         {breakdown.map((item, index) => (
           <div key={index} className="flex justify-between text-amber-200">
             <span>{item.source}:</span>
-            <span className="text-amber-300">+{item.amount}</span>
+            <span className="text-amber-300">
+              {item.amount >= 0 ? `+${item.amount}` : `${item.amount}`}
+            </span>
           </div>
         ))}
         <div className="flex justify-between font-semibold text-amber-100 border-t border-amber-600/50 pt-1 mt-2">

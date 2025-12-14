@@ -25,11 +25,21 @@ export function isPassableForUnit(
   
   if (!tile) return false;
   
+  const unitDef = unit ? getUnitDefinition(unit.type as any) : undefined;
+  const isNavalUnit = !!unitDef?.abilities?.includes('NAVAL_TRANSPORT') || unit?.type === 'boat';
+
+  // Special-case naval movement: boats (and other NAVAL_TRANSPORT units) can move on water.
+  if (tile.terrain === 'water') {
+    return isNavalUnit;
+  }
+
   // Check basic terrain passability using game rules
   const movementCost = GAME_RULES.terrain.movementCosts[tile.terrain];
   const isImpassable = GAME_RULES.terrain.impassableTypes.includes(tile.terrain);
-  
   if (isImpassable || movementCost === undefined) return false;
+
+  // Naval units remain on water (no disembark system yet).
+  if (isNavalUnit) return false;
   
   // Allow movement to unexplored tiles (units can explore new areas)
   // Units should be able to move to and explore adjacent unexplored tiles
@@ -82,7 +92,8 @@ export function calculateReachableTiles(
   }
   
   const isPassable = (coord: HexCoordinate): boolean => {
-    return isPassableForUnit(coord, gameState);
+    const unit = 'units' in unitOrGameState ? undefined : (unitOrGameState as Unit);
+    return isPassableForUnit(coord, gameState, unit);
   };
   
   return getReachableTiles(

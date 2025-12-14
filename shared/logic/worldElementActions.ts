@@ -3,10 +3,61 @@ import { GameState } from '../types/game';
 import { HexCoordinate } from '../types/coordinates';
 import { Unit } from '../types/unit';
 import { City } from '../types/city';
-import { getWorldElement, RUIN_REWARDS, RuinReward } from '../data/worldElements';
+import { getWorldElement, RuinReward } from '../data/worldElements';
 import { getUnitDefinition, UNIT_DEFINITIONS } from '../data/units';
 import { getAvailableTechnologies, TECHNOLOGIES } from '../data/technologies';
 import type { UnitType } from '../types/unit';
+
+type WeightedRuinReward = RuinReward & { weight: number };
+
+function pickWeightedRuinReward(rewards: WeightedRuinReward[], roll: number): RuinReward {
+  if (rewards.length === 0) {
+    return { type: 'stars', value: 10, description: '10 Star cache discovered' };
+  }
+
+  const totalWeight = rewards.reduce((sum, r) => sum + r.weight, 0);
+  if (totalWeight <= 0) {
+    const { weight: _w, ...fallback } = rewards[0];
+    return fallback;
+  }
+
+  let selector = Math.max(0, Math.min(0.999999, roll)) * totalWeight;
+  for (const reward of rewards) {
+    selector -= reward.weight;
+    if (selector <= 0) {
+      const { weight: _w, ...picked } = reward;
+      return picked;
+    }
+  }
+
+  const { weight: _w, ...last } = rewards[rewards.length - 1];
+  return last;
+}
+
+function getRuinRewardPool(gameState: GameState, playerId: string): WeightedRuinReward[] {
+  const hasGiantAlready = gameState.units.some(u => u.playerId === playerId && u.type === 'ancient_giant');
+  const canSpawnGiant = gameState.turn >= 20 && !hasGiantAlready;
+
+  // Units from ruins are intentionally rare; Ancient Giants are legendary and gated out of early-game snowball.
+  const giantWeight = canSpawnGiant ? (gameState.turn >= 70 ? 3 : gameState.turn >= 40 ? 2 : 1) : 0;
+  const warriorWeight = Math.max(0, 5 - giantWeight); // keep total unit chance ~5% but shift to giants later
+
+  const pool: WeightedRuinReward[] = [
+    { type: 'tech', description: 'Free Technology Scroll', techId: 'random', weight: 35 },
+    { type: 'population', value: 3, description: '+3 Population to nearest city', weight: 24 },
+    { type: 'stars', value: 15, description: '15 Star cache discovered', weight: 24 },
+    { type: 'reveal', description: 'Nearest enemy capital revealed', weight: 12 },
+  ];
+
+  if (warriorWeight > 0) {
+    pool.push({ type: 'unit', unitType: 'warrior', description: 'Ancient Ally joins your cause', weight: warriorWeight });
+  }
+  if (giantWeight > 0) {
+    pool.push({ type: 'unit', unitType: 'ancient_giant', description: 'Ancient Giant awakens', weight: giantWeight });
+  }
+
+  return pool;
+}
 
 export interface WorldElementActionResult {
   success: boolean;
@@ -290,8 +341,7 @@ function executeRuinExploration(
 
   // Always grant +1 Faith for exploring sacred history
   const faithGain = 1;
-  const rewardIndex = Math.floor(Math.random() * RUIN_REWARDS.length);
-  const reward = { ...RUIN_REWARDS[rewardIndex] }; // Clone to avoid mutating constant
+  const reward = pickWeightedRuinReward(getRuinRewardPool(gameState, playerId), Math.random());
 
   let starGain = 0;
   let popGain = 0;
@@ -338,30 +388,33 @@ function executeRuinExploration(
     }
 
     case 'unit': {
-      message += ` and awakened a Title of Liberty Giant!`;
-      const giantDef = UNIT_DEFINITIONS['ancient_giant'];
-      if (giantDef) {
-        const newUnit: Unit = {
-          id: nanoid(),
-          type: 'ancient_giant',
-          playerId,
-          coordinate: { ...coordinate },
-          hp: giantDef.baseStats.hp,
-          maxHp: giantDef.baseStats.hp,
-          attack: giantDef.baseStats.attack,
-          defense: giantDef.baseStats.defense,
-          movement: giantDef.baseStats.movement,
-          remainingMovement: 0, // Summoned units delay
-          status: 'active',
-          abilities: [...giantDef.abilities],
-          level: 1,
-          experience: 0,
-          visionRadius: giantDef.baseStats.visionRadius,
-          attackRange: giantDef.baseStats.attackRange,
-          hasAttacked: false
-        };
-        newUnits.push(newUnit);
-      }
+      const unitType = (reward.unitType || 'warrior') as UnitType;
+      const unitDef = UNIT_DEFINITIONS[unitType];
+      if (!unitDef) break;
+
+      const label = unitType === 'ancient_giant' ? 'an Ancient Giant' : 'an Ancient Ally';
+      message += ` and awakened ${label}!`;
+
+      const newUnit: Unit = {
+        id: nanoid(),
+        type: unitType,
+        playerId,
+        coordinate: { ...coordinate },
+        hp: unitDef.baseStats.hp,
+        maxHp: unitDef.baseStats.hp,
+        attack: unitDef.baseStats.attack,
+        defense: unitDef.baseStats.defense,
+        movement: unitDef.baseStats.movement,
+        remainingMovement: 0, // Summoned units delay
+        status: 'active',
+        abilities: [...(unitDef.abilities || [])],
+        level: 1,
+        experience: 0,
+        visionRadius: unitDef.baseStats.visionRadius,
+        attackRange: unitDef.baseStats.attackRange,
+        hasAttacked: false
+      };
+      newUnits.push(newUnit);
       break;
     }
 

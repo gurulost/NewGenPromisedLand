@@ -324,14 +324,6 @@ export interface RuinReward {
   description: string;
 }
 
-export const RUIN_REWARDS: RuinReward[] = [
-  { type: 'tech', description: 'Free Technology Scroll', techId: 'random' },
-  { type: 'population', value: 3, description: '+3 Population to nearest city' },
-  { type: 'stars', value: 15, description: '15 Star cache discovered' },
-  { type: 'unit', unitType: 'ancient_giant', description: 'Title of Liberty Giant awakens' },
-  { type: 'reveal', description: 'Nearest enemy capital revealed' }
-];
-
 /**
  * Get world element by ID
  */
