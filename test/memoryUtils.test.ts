@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   pushCapped,
   pushMultipleCapped,
   filterByTTL,
   enforceCapAndTTL,
   MEMORY_LIMITS,
-} from '../memoryUtils';
+} from '../client/src/lib/memoryUtils';
 
 describe('memoryUtils', () => {
   describe('pushCapped', () => {
@@ -59,15 +59,6 @@ describe('memoryUtils', () => {
   });
 
   describe('filterByTTL', () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date('2024-01-01T12:00:00Z'));
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
     it('should keep items within TTL', () => {
       const now = Date.now();
       const items = [
@@ -93,15 +84,6 @@ describe('memoryUtils', () => {
   });
 
   describe('enforceCapAndTTL', () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date('2024-01-01T12:00:00Z'));
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
     it('should remove stale items and enforce cap', () => {
       const now = Date.now();
       const items = [
