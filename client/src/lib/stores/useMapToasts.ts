@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { pushCapped, enforceCapAndTTL, MEMORY_LIMITS } from '../memoryUtils';
 
 // Toast types - duplicated here to avoid circular imports
 export type MapToastType = 'stars' | 'faith' | 'pride' | 'dissent' | 'tech' | 'unit' | 'damage' | 'heal' | 'combat' | 'reward';
@@ -9,6 +10,7 @@ export interface MapToast {
     type: MapToastType;
     position: { x: number; y: number; z: number };
     duration?: number;
+    createdAt: number;
 }
 
 interface MapToastState {
@@ -16,6 +18,7 @@ interface MapToastState {
     addToast: (message: string, type: MapToastType, worldPosition: { x: number; y: number; z: number }, duration?: number) => string;
     removeToast: (id: string) => void;
     clearAll: () => void;
+    cleanupStale: () => void;
 }
 
 export const useMapToastStore = create<MapToastState>((set) => ({
@@ -29,8 +32,9 @@ export const useMapToastStore = create<MapToastState>((set) => ({
             type,
             position: worldPosition,
             duration,
+            createdAt: Date.now(),
         };
-        set(state => ({ toasts: [...state.toasts, newToast] }));
+        set(state => ({ toasts: pushCapped(state.toasts, newToast, MEMORY_LIMITS.MAP_TOAST_MAX_ITEMS) }));
         return id;
     },
 
@@ -40,6 +44,17 @@ export const useMapToastStore = create<MapToastState>((set) => ({
 
     clearAll: () => {
         set({ toasts: [] });
+    },
+
+    cleanupStale: () => {
+        set(state => ({
+            toasts: enforceCapAndTTL(
+                state.toasts,
+                (t) => t.createdAt,
+                MEMORY_LIMITS.MAP_TOAST_TTL_MS,
+                MEMORY_LIMITS.MAP_TOAST_MAX_ITEMS
+            )
+        }));
     },
 }));
 

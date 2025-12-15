@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
+import { pushCapped, MEMORY_LIMITS } from '../../lib/memoryUtils';
 
 export type FloatingTextType = 'damage' | 'heal' | 'ability' | 'resource' | 'faith' | 'critical';
 
@@ -11,6 +12,7 @@ export interface FloatingTextData {
     x: number;
     y: number;
     icon?: string;
+    createdAt: number;
 }
 
 interface FloatingTextProps {
@@ -99,7 +101,7 @@ function FloatingTextItem({ data, onComplete }: FloatingTextProps) {
 }
 
 /**
- * Manager component that handles multiple floating texts
+ * Manager component that handles multiple floating texts with bounded memory
  */
 export function FloatingTextManager() {
     const [texts, setTexts] = useState<FloatingTextData[]>([]);
@@ -108,12 +110,22 @@ export function FloatingTextManager() {
     useEffect(() => {
         (window as any).spawnFloatingText = (text: string, type: FloatingTextType, x: number, y: number, icon?: string) => {
             const id = `float-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-            setTexts(prev => [...prev, { id, text, type, x, y, icon }]);
+            const newText: FloatingTextData = { id, text, type, x, y, icon, createdAt: Date.now() };
+            setTexts(prev => pushCapped(prev, newText, MEMORY_LIMITS.FLOATING_TEXT_MAX_ITEMS));
         };
 
         return () => {
             delete (window as any).spawnFloatingText;
         };
+    }, []);
+
+    // TTL cleanup for stale floating texts (in case animation callbacks fail)
+    useEffect(() => {
+        const cleanupInterval = setInterval(() => {
+            const now = Date.now();
+            setTexts(prev => prev.filter(t => now - t.createdAt < MEMORY_LIMITS.FLOATING_TEXT_TTL_MS));
+        }, 2000);
+        return () => clearInterval(cleanupInterval);
     }, []);
 
     const handleComplete = (id: string) => {

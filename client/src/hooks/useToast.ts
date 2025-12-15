@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { pushCapped, MEMORY_LIMITS } from '../lib/memoryUtils';
 
 // Extended toast types including game-themed variants
 export type ToastDataType = 'success' | 'error' | 'warning' | 'info' | 'combat' | 'discovery' | 'faith' | 'pride';
@@ -18,7 +19,7 @@ export function useToast() {
     const id = Math.random().toString(36).substring(2, 9);
     const newToast = { ...toast, id };
 
-    setToasts(prev => [...prev, newToast]);
+    setToasts(prev => pushCapped(prev, newToast, MEMORY_LIMITS.TOAST_MAX_ITEMS));
 
     // Auto-remove after duration
     if (toast.duration !== 0) {
