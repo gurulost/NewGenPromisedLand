@@ -59,7 +59,9 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     description: 'Learn to domesticate and care for wild herds, turning animals into sustainable blessings for your people.',
     cost: 8,
     prerequisites: ['hunting'],
-    unlocks: {},
+    unlocks: {
+      abilities: ['Corral (Wild Goats)']
+    },
     category: 'economic'
   },
 
@@ -169,7 +171,9 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     description: 'Navigate coasts and waters with confidence, expanding maritime reach and enabling fishing and trade.',
     cost: 12,
     prerequisites: ['sailing'],
-    unlocks: {},
+    unlocks: {
+      abilities: ['Ports +1★/turn']
+    },
     category: 'exploration'
   },
 
@@ -179,7 +183,9 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     description: 'Harvest the bounty of the sea through organized fishing practices and coastal infrastructure.',
     cost: 10,
     prerequisites: ['seafaring'],
-    unlocks: {},
+    unlocks: {
+      abilities: ['Fishing Jetty (Fishing Shoal)']
+    },
     category: 'economic'
   },
 
@@ -189,7 +195,9 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     description: 'Connect settlements through commerce, increasing prosperity through linked city networks.',
     cost: 15,
     prerequisites: ['organization', 'seafaring'],
-    unlocks: {},
+    unlocks: {
+      abilities: ['Trade Routes', 'Harbor Upgrade (Fishing Jetty)', 'Road Network bonus increased']
+    },
     category: 'economic'
   },
 
@@ -241,7 +249,9 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     description: 'Master deeper waters and distant voyages, opening the way to the great creatures and riches of the sea.',
     cost: 25,
     prerequisites: ['seafaring', 'trade'],
-    unlocks: {},
+    unlocks: {
+      abilities: ['Deep Sea Expeditions']
+    },
     category: 'exploration'
   },
 

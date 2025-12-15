@@ -28,6 +28,14 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
     requirements: { faith: 70 },
   },
 
+  RIGHTEOUS_DEFENSE: {
+    id: 'RIGHTEOUS_DEFENSE',
+    name: 'Righteous Defense',
+    description: 'Defensive structures cost less and provide additional protection.',
+    type: 'faction',
+    effect: 'DEFENSIVE_ECONOMY',
+  },
+
   BLOOD_FEUD: {
     id: 'BLOOD_FEUD',
     name: 'Blood Feud',
@@ -36,14 +44,53 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
     effect: 'VENGEANCE_BUFF',
   },
 
+  WARRIOR_RAGE: {
+    id: 'WARRIOR_RAGE',
+    name: 'Warrior Rage',
+    description: 'All units gain +3 attack but -1 defense for 4 turns.',
+    type: 'faction',
+    effect: 'RAGE_BUFF',
+    duration: 4,
+    cooldown: 6,
+    requirements: { pride: 60 },
+  },
+
   COVENANT_OF_PEACE: {
     id: 'COVENANT_OF_PEACE',
     name: 'Covenant of Peace',
-    description: 'Target an enemy unit within 2 tiles to attempt conversion. Success chance: 50% + (Your Faith - Their Faith). Costs 15 Faith.',
+    description: 'Target an enemy unit within 2 tiles to attempt conversion. Success requires significant faith advantage. Costs 15 Faith.',
     type: 'faction',
     effect: 'CONVERT_TARGET',
     cooldown: 6,
     requirements: { faith: 15 },
+  },
+
+  MISSIONARY_ZEAL: {
+    id: 'MISSIONARY_ZEAL',
+    name: 'Missionary Zeal',
+    description: 'Spread faith to nearby tiles, pressuring neutral villages and weakening enemy resolve.',
+    type: 'faction',
+    effect: 'SPREAD_FAITH',
+    cooldown: 7,
+    requirements: { faith: 80 },
+  },
+
+  ANCIENT_KNOWLEDGE: {
+    id: 'ANCIENT_KNOWLEDGE',
+    name: 'Ancient Knowledge',
+    description: 'Gain bonus resources when exploring ruins or ancient sites.',
+    type: 'faction',
+    effect: 'RUIN_BONUS',
+  },
+
+  CULTURAL_RECLAMATION: {
+    id: 'CULTURAL_RECLAMATION',
+    name: 'Cultural Reclamation',
+    description: 'Convert enemy units within 2 tiles through cultural influence.',
+    type: 'faction',
+    effect: 'CONVERT_AREA',
+    cooldown: 10,
+    requirements: { faith: 40 },
   },
 
   RAMEUMPTOM: {
@@ -55,6 +102,41 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
     duration: 5,
     cooldown: 12,
     requirements: { pride: 70 },
+  },
+
+  WEALTH_ACCUMULATION: {
+    id: 'WEALTH_ACCUMULATION',
+    name: 'Wealth Accumulation',
+    description: 'Generate extra resources from all sources but lose faith over time.',
+    type: 'faction',
+    effect: 'WEALTH_TRADEOFF',
+  },
+
+  PROPHETIC_COLLAPSE: {
+    id: 'PROPHETIC_COLLAPSE',
+    name: 'Prophetic Collapse',
+    description: 'When pride reaches extreme levels, instability erupts across the civilization.',
+    type: 'faction',
+    effect: 'CIVIL_COLLAPSE',
+  },
+
+  ANCIENT_MIGHT: {
+    id: 'ANCIENT_MIGHT',
+    name: 'Ancient Might',
+    description: 'All units gain +2 to all stats for a time, but pride rises rapidly.',
+    type: 'faction',
+    effect: 'ANCIENT_MIGHT_BUFF',
+    cooldown: 15,
+  },
+
+  // Legacy ability ids (kept for compatibility with existing UI/tests)
+  lamanite_guerrilla_tactics: {
+    id: 'lamanite_guerrilla_tactics',
+    name: 'Guerrilla Tactics',
+    description: 'Units positioned in forests gain a defense bonus until they leave the forest.',
+    type: 'faction',
+    effect: 'FOREST_DEFENSE',
+    cooldown: 0,
   },
 
   // Unit Abilities
@@ -205,15 +287,20 @@ export const getAbility = (id: string): AbilityDefinition | undefined => {
 };
 
 export const getFactionAbilities = (factionId: string): AbilityDefinition[] => {
-  // Return the abilities directly from the faction data structure
   const faction = Object.values(FACTIONS).find(f => f.id === factionId);
-  return faction?.abilities.map(ability => ({
-    id: ability.id,
-    name: ability.name,
-    description: ability.description,
-    effect: ability.description, // Use description as effect for compatibility
-    type: 'faction' as const,
-    cooldown: ability.cooldown,
-    requirements: ability.requirements
-  })) || [];
+  if (!faction) return [];
+
+  return faction.abilities.map(ability => {
+    const canonical = ABILITIES[ability.id];
+    return {
+      id: ability.id,
+      name: ability.name ?? canonical?.name ?? ability.id,
+      description: ability.description ?? canonical?.description ?? '',
+      type: canonical?.type ?? ('faction' as const),
+      effect: canonical?.effect ?? ability.description,
+      duration: canonical?.duration,
+      cooldown: canonical?.cooldown ?? ability.cooldown,
+      requirements: canonical?.requirements ?? ability.requirements
+    };
+  });
 };

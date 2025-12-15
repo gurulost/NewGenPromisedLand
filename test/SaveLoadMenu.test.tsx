@@ -105,7 +105,7 @@ describe('SaveLoadMenu', () => {
   it('enables save button only when save name is entered', () => {
     render(<SaveLoadMenu {...mockProps} />);
     
-    const saveButton = screen.getByText('Save');
+    const saveButton = screen.getByRole('button', { name: /^save$/i });
     const nameInput = screen.getByPlaceholderText('Enter save name...');
     
     expect(saveButton).toBeDisabled();
@@ -118,7 +118,7 @@ describe('SaveLoadMenu', () => {
     render(<SaveLoadMenu {...mockProps} />);
     
     const nameInput = screen.getByPlaceholderText('Enter save name...');
-    const saveButton = screen.getByText('Save');
+    const saveButton = screen.getByRole('button', { name: /^save$/i });
     
     fireEvent.change(nameInput, { target: { value: 'Test Save' } });
     fireEvent.click(saveButton);
@@ -224,10 +224,7 @@ describe('SaveLoadMenu', () => {
     render(<SaveLoadMenu {...mockProps} />);
     
     // Find the delete button by looking for the trash icon
-    const deleteButton = screen.getByRole('button', { name: /delete/i }) || 
-                        screen.getAllByRole('button').find(btn => 
-                          btn.querySelector('svg')?.classList.contains('lucide-trash2')
-                        );
+    const deleteButton = screen.getByRole('button', { name: /delete/i });
     
     if (!deleteButton) {
       throw new Error('Delete button not found');

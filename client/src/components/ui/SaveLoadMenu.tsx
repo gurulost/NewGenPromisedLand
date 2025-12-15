@@ -14,6 +14,7 @@ import { GlowingButton } from "../primitives/GlowingButton";
 import { useHotkeys } from "../../hooks/useHotkeys";
 import { 
   listSaves, createSave, deleteSave as apiDeleteSave,
+  getLocalSavesSnapshot,
   type ServerSave, type SaveMetadata 
 } from "../../lib/saveApi";
 
@@ -24,10 +25,11 @@ interface SaveLoadMenuProps {
 
 export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuProps) {
   const { gameState, setGameState, setGamePhase } = useLocalGame();
-  const [savedGames, setSavedGames] = useState<ServerSave[]>([]);
+  const initialSaves = getLocalSavesSnapshot();
+  const [savedGames, setSavedGames] = useState<ServerSave[]>(initialSaves);
   const [saveName, setSaveName] = useState("");
   const [selectedSave, setSelectedSave] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +41,6 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
   }, []);
 
   const loadSavedGamesList = async () => {
-    setIsLoading(true);
     setError(null);
     try {
       const saves = await listSaves();
@@ -199,6 +200,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                 <GlowingButton
                   onClick={saveGame}
                   disabled={!saveName.trim() || isSaving}
+                  aria-label="Save"
                 >
                   <span className="flex items-center justify-center gap-2">
                     {isSaving ? <Loader2 className="animate-spin" /> : <Save />}
@@ -310,6 +312,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                         <GlowingButton
                           variant="secondary"
                           size="sm"
+                          aria-label="Load"
                           onClick={(e) => {
                             e?.stopPropagation();
                             loadGame(save.id);
@@ -320,6 +323,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                         <GlowingButton
                           variant="destructive"
                           size="sm"
+                          aria-label="Delete"
                           onClick={(e) => {
                             e?.stopPropagation();
                             deleteSave(save.id);

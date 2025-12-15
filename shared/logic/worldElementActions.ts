@@ -7,6 +7,7 @@ import { getWorldElement, RuinReward } from '../data/worldElements';
 import { getUnitDefinition, UNIT_DEFINITIONS } from '../data/units';
 import { getAvailableTechnologies, TECHNOLOGIES } from '../data/technologies';
 import type { UnitType } from '../types/unit';
+import { emitTelemetry } from './telemetry';
 
 type WeightedRuinReward = RuinReward & { weight: number };
 
@@ -98,13 +99,28 @@ export function executeElementHarvest(
   gameState: GameState,
   playerId: string,
   elementId: string,
-  coordinate: HexCoordinate
+  coordinate: HexCoordinate,
+  rng: () => number = Math.random
 ): WorldElementActionResult {
   const element = getWorldElement(elementId);
   if (!element || !element.immediateAction) {
     return {
       success: false,
       message: 'Cannot harvest this element',
+      resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
+    };
+  }
+
+  const tileAt = gameState.map.tiles.find(tile =>
+    tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
+  );
+  const hasElementAtTile =
+    !!tileAt &&
+    (tileAt.feature === (elementId as any) || (tileAt.resources || []).includes(elementId));
+  if (!hasElementAtTile) {
+    return {
+      success: false,
+      message: 'No such element at this location',
       resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
     };
   }
@@ -149,7 +165,7 @@ export function executeElementHarvest(
 
   // Special handling for Jaredite Ruins
   if (elementId === 'jaredite_ruins') {
-    return executeRuinExploration(gameState, playerId, coordinate);
+    return executeRuinExploration(gameState, playerId, coordinate, rng);
   }
 
   // Find nearest city to receive population bonus
@@ -262,6 +278,27 @@ export function executeElementBuild(
 
   const build = element.longTermBuild;
 
+  const targetTile = gameState.map.tiles.find(tile =>
+    tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
+  );
+  if (!targetTile) {
+    return {
+      success: false,
+      message: 'Tile not found',
+      resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
+    };
+  }
+
+  const hasElementAtTile =
+    targetTile.feature === (elementId as any) || (targetTile.resources || []).includes(elementId);
+  if (!hasElementAtTile) {
+    return {
+      success: false,
+      message: 'No such element at this location',
+      resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
+    };
+  }
+
   // Check tech prerequisite
   if (element.techPrerequisite && !player.researchedTechs.includes(element.techPrerequisite)) {
     return {
@@ -271,7 +308,110 @@ export function executeElementBuild(
     };
   }
 
-  // Check if player has enough stars
+  const playerCities = gameState.cities?.filter(city => player.citiesOwned.includes(city.id)) || [];
+  if (playerCities.length === 0) {
+    return {
+      success: false,
+      message: 'You need a city to benefit from world improvements',
+      resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
+    };
+  }
+
+  const findClosestCity = (): City => {
+    let closestCity = playerCities[0];
+    let closestDistance = Infinity;
+    for (const city of playerCities) {
+      const dist = Math.sqrt(
+        Math.pow(coordinate.q - city.coordinate.q, 2) +
+        Math.pow(coordinate.r - city.coordinate.r, 2)
+      );
+      if (dist < closestDistance) {
+        closestDistance = dist;
+        closestCity = city;
+      }
+    }
+    return closestCity;
+  };
+
+  const markerPrefix = `we:${elementId}:`;
+  const existingMarker = (targetTile.resources || []).find(r => String(r).startsWith(markerPrefix));
+  const baseMarker = `${markerPrefix}${build.name}`;
+
+  const closestCity = findClosestCity();
+  const baseStarsPerTurn = build.effectPermanent?.starsPerTurn || 0;
+  const basePopDelta = build.effectPermanent?.popDelta || 0;
+
+  const applyCityDeltas = (state: GameState, popDelta: number, starsPerTurnDelta: number): GameState => ({
+    ...state,
+    cities: (state.cities || []).map(city => {
+      if (city.id !== closestCity.id) return city;
+      return {
+        ...city,
+        population: Math.min(20, (city.population || 0) + popDelta),
+        starProduction: Math.max(0, (city.starProduction || 0) + starsPerTurnDelta)
+      };
+    })
+  });
+
+  // Upgrade path: convert marker -> upgraded marker, apply delta to city production.
+  if (existingMarker) {
+    const upgrade = build.upgrade;
+    if (
+      upgrade &&
+      player.researchedTechs.includes(upgrade.techRequired) &&
+      existingMarker === baseMarker
+    ) {
+      const upgradeCost = upgrade.costStars || 0;
+      if (player.stars < upgradeCost) {
+        return {
+          success: false,
+          message: `Need ${upgradeCost} stars to upgrade to ${upgrade.structure}`,
+          resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
+        };
+      }
+
+      const upgradedStarsPerTurn = upgrade.effectPermanent?.starsPerTurn || 0;
+      const upgradedPopDelta = upgrade.effectPermanent?.popDelta || 0;
+      const starsDelta = upgradedStarsPerTurn - baseStarsPerTurn;
+      const popDelta = upgradedPopDelta - basePopDelta;
+
+      let stateWithCity: GameState = applyCityDeltas(gameState, popDelta, starsDelta);
+      if (upgradeCost > 0) {
+        stateWithCity = {
+          ...stateWithCity,
+          players: stateWithCity.players.map(p =>
+            p.id === playerId ? { ...p, stars: Math.max(0, p.stars - upgradeCost) } : p
+          )
+        };
+      }
+      stateWithCity.map.tiles = stateWithCity.map.tiles.map(tile =>
+        tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
+          ? {
+            ...tile,
+            resources: [
+              ...(tile.resources || []).filter(r => !String(r).startsWith(markerPrefix)),
+              `${markerPrefix}${upgrade.structure}`
+            ]
+          }
+          : tile
+      );
+
+      return {
+        success: true,
+        message: `${upgrade.structure} upgraded - prosperity increases`,
+        newState: stateWithCity,
+        resourceDeltas: { stars: -upgradeCost, faith: 0, pride: 0, dissent: 0, population: popDelta }
+      };
+    }
+
+    return {
+      success: false,
+      message: `${build.name} already constructed here`,
+      resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
+    };
+  }
+
+  // Check if player has enough stars (base build)
   if (player.stars < build.costStars) {
     return {
       success: false,
@@ -281,7 +421,7 @@ export function executeElementBuild(
   }
 
   // Apply costs and benefits
-  const newState = {
+  let newState: GameState = {
     ...gameState,
     players: gameState.players.map(p =>
       p.id === playerId
@@ -299,27 +439,28 @@ export function executeElementBuild(
     )
   };
 
-  // Add improvement to map (this will need to integrate with existing improvement system)
-  // For now, we'll transform the tile to indicate the improvement was built
+  newState = applyCityDeltas(newState, basePopDelta, baseStarsPerTurn);
+
+  // Mark the tile as improved (used to gate upgrades and prevent rebuild spam)
   newState.map.tiles = newState.map.tiles.map(tile =>
     tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
       ? {
         ...tile,
-        resources: [`${elementId}_improved`] // Mark as improved
+        resources: [...(tile.resources || []), baseMarker]
       }
       : tile
   );
 
   return {
     success: true,
-    message: `${build.name} constructed - ${getImpactMessage(build.prideDelta, build.faithDelta)}`,
+    message: `${build.name} constructed - ${getImpactMessage(build.prideDelta, build.faithDelta)}${basePopDelta > 0 ? ` (+${basePopDelta} population to ${closestCity.name})` : ''}`,
     newState,
     resourceDeltas: {
       stars: -build.costStars,
       faith: build.faithDelta,
       pride: build.prideDelta,
       dissent: build.dissentDelta,
-      population: build.effectPermanent.popDelta
+      population: basePopDelta
     }
   };
 }
@@ -330,7 +471,8 @@ export function executeElementBuild(
 function executeRuinExploration(
   gameState: GameState,
   playerId: string,
-  coordinate: HexCoordinate
+  coordinate: HexCoordinate,
+  rng: () => number
 ): WorldElementActionResult {
   const player = gameState.players.find(p => p.id === playerId);
   if (!player) return {
@@ -341,7 +483,7 @@ function executeRuinExploration(
 
   // Always grant +1 Faith for exploring sacred history
   const faithGain = 1;
-  const reward = pickWeightedRuinReward(getRuinRewardPool(gameState, playerId), Math.random());
+  const reward = pickWeightedRuinReward(getRuinRewardPool(gameState, playerId), rng());
 
   let starGain = 0;
   let popGain = 0;
@@ -367,7 +509,7 @@ function executeRuinExploration(
     case 'tech': {
       const availableTechs = getAvailableTechnologies(player.researchedTechs);
       if (availableTechs.length > 0) {
-        const randomTech = availableTechs[Math.floor(Math.random() * availableTechs.length)];
+        const randomTech = availableTechs[Math.floor(rng() * availableTechs.length)];
         message += ` and discovered ${randomTech.name} technology scroll!`;
         reward.techId = randomTech.id;
 
@@ -377,12 +519,29 @@ function executeRuinExploration(
             ? { ...p, researchedTechs: [...p.researchedTechs, randomTech.id] }
             : p
         );
+
+        emitTelemetry({
+          channel: 'technology',
+          status: 'success',
+          playerId,
+          technologyId: randomTech.id,
+          reason: 'ruin_reward',
+          metadata: { source: 'jaredite_ruins' }
+        });
       } else {
         // Fallback to stars if no tech available
         starGain = 20;
         reward.type = 'stars';
         reward.value = 20;
         message += ` and found 20 stars (all tech researched)!`;
+
+        emitTelemetry({
+          channel: 'technology',
+          status: 'info',
+          playerId,
+          reason: 'ruin_reward_unavailable',
+          metadata: { source: 'jaredite_ruins' }
+        });
       }
       break;
     }
@@ -545,7 +704,8 @@ export function canExecuteElementAction(
   gameState: GameState,
   playerId: string,
   elementId: string,
-  actionType: 'harvest' | 'build'
+  actionType: 'harvest' | 'build',
+  coordinate?: HexCoordinate
 ): { canExecute: boolean; reason?: string } {
   const element = getWorldElement(elementId);
   if (!element) {
@@ -572,7 +732,32 @@ export function canExecuteElementAction(
       return { canExecute: false, reason: 'No build action available' };
     }
 
-    // Check if player has enough stars
+    const playerCities = gameState.cities?.filter(city => player.citiesOwned.includes(city.id)) || [];
+    if (playerCities.length === 0) {
+      return { canExecute: false, reason: 'Requires an owned city' };
+    }
+
+    // If we can see the tile, gate on whether it is already improved/upgradeable.
+    if (coordinate) {
+      const tile = gameState.map.tiles.find(t => t.coordinate.q === coordinate.q && t.coordinate.r === coordinate.r);
+      if (tile) {
+        const markerPrefix = `we:${elementId}:`;
+        const existingMarker = (tile.resources || []).find(r => String(r).startsWith(markerPrefix));
+        const baseMarker = `${markerPrefix}${element.longTermBuild.name}`;
+
+        if (existingMarker) {
+          const upgrade = element.longTermBuild.upgrade;
+          if (upgrade && existingMarker === baseMarker && player.researchedTechs.includes(upgrade.techRequired)) {
+            const upgradeCost = upgrade.costStars || 0;
+            if (player.stars < upgradeCost) return { canExecute: false, reason: `Need ${upgradeCost} stars` };
+            return { canExecute: true };
+          }
+          return { canExecute: false, reason: 'Already constructed' };
+        }
+      }
+    }
+
+    // Base build: check stars
     if (player.stars < element.longTermBuild.costStars) {
       return { canExecute: false, reason: `Need ${element.longTermBuild.costStars} stars` };
     }
