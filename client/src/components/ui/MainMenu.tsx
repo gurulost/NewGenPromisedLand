@@ -7,6 +7,7 @@ import { GlowingButton } from "../primitives/GlowingButton";
 import { Users, Crown, Globe, FolderOpen, Loader2 } from "lucide-react";
 import { listSaves, type ServerSave } from "../../lib/saveApi";
 import SaveLoadMenu from "./SaveLoadMenu";
+import { loadAutosave } from "../../lib/autosaveStorage";
 
 function HeroBackground() {
   const [videoEnded, setVideoEnded] = useState(false);
@@ -68,6 +69,8 @@ export default function MainMenu() {
   const [savedGames, setSavedGames] = useState<ServerSave[]>([]);
   const [isLoadingSaves, setIsLoadingSaves] = useState(true);
   const [showLoadMenu, setShowLoadMenu] = useState(false);
+  const [autosaveInfo, setAutosaveInfo] = useState<{ timestamp: number; turn: number; playerCount: number } | null>(null);
+  const [isLoadingAutosave, setIsLoadingAutosave] = useState(true);
 
   useEffect(() => {
     const loadSaves = async () => {
@@ -83,12 +86,44 @@ export default function MainMenu() {
     loadSaves();
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const checkAutosave = async () => {
+      try {
+        const autosave = await loadAutosave();
+        if (cancelled) return;
+        if (autosave?.gameState) {
+          setAutosaveInfo({
+            timestamp: autosave.timestamp,
+            turn: autosave.gameState.turn || 1,
+            playerCount: autosave.gameState.players.length,
+          });
+        } else {
+          setAutosaveInfo(null);
+        }
+      } finally {
+        if (!cancelled) setIsLoadingAutosave(false);
+      }
+    };
+    checkAutosave();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const continueGame = () => {
     if (savedGames.length > 0) {
       const mostRecent = savedGames[0];
       setGameState(mostRecent.gameState);
       setGamePhase('playing');
     }
+  };
+
+  const resumeAutosave = async () => {
+    const autosave = await loadAutosave();
+    if (!autosave?.gameState) return;
+    setGameState(autosave.gameState);
+    setGamePhase('playing');
   };
 
   return (
@@ -105,6 +140,22 @@ export default function MainMenu() {
             />
 
             <div className="space-y-4">
+              {!isLoadingAutosave && autosaveInfo && (
+                <>
+                  <GlowingButton
+                    onClick={resumeAutosave}
+                    className="w-full"
+                    size="lg"
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <FolderOpen />
+                      Resume Last Session (Turn {autosaveInfo.turn})
+                    </span>
+                  </GlowingButton>
+
+                  <div className="border-t border-amber-500/20 my-2" />
+                </>
+              )}
               {!isLoadingSaves && savedGames.length > 0 && (
                 <>
                   <GlowingButton
