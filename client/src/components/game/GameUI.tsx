@@ -31,6 +31,7 @@ import { useMapToastStore, hexToWorldPos } from "../../lib/stores/useMapToasts";
 import { useParticleStore } from "../effects/ParticleEffects";
 import { pushCapped, MEMORY_LIMITS } from "../../lib/memoryUtils";
 import { useMemoryCleanup, useTurnEndCleanup } from "../../hooks/useMemoryCleanup";
+import { useAutosave } from "../../hooks/useAutosave";
 import type { Unit } from "@shared/types/unit";
 
 interface ActiveNotification {
@@ -56,6 +57,9 @@ export default function GameUI() {
   // Safety-net cleanup for long sessions (stale particles/map-toasts can linger when tab is backgrounded).
   useMemoryCleanup();
   useTurnEndCleanup(gameState?.turn || 0);
+  
+  // Persistent autosave during gameplay
+  useAutosave();
 
   // Keep latest visual-feedback functions for stable event listeners.
   const visualRef = useRef({ triggerFlash, showToast });

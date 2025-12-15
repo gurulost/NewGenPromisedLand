@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Save, Trash2, Download, Upload, Calendar, Clock, Users } from 'lucide-react';
 import { GameState } from '@shared/types/game';
 import { compress, decompress } from 'lz-string';
-import { saveAutosave } from '../../lib/autosaveStorage';
 
 interface SaveSlot {
   id: string;
@@ -32,26 +31,6 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
   useEffect(() => {
     loadSaveSlots();
   }, []);
-
-  // Auto-save every 2 minutes during gameplay for better session recovery
-  useEffect(() => {
-    const autoSaveInterval = setInterval(() => {
-      if (currentGameState.phase === 'playing') {
-        createAutoSave();
-      }
-    }, 2 * 60 * 1000); // 2 minutes (reduced from 5 for better recovery)
-
-    return () => clearInterval(autoSaveInterval);
-  }, [currentGameState]);
-
-  // Auto-save on turn change for critical game state preservation
-  const prevTurnRef = React.useRef(currentGameState.turn);
-  useEffect(() => {
-    if (currentGameState.phase === 'playing' && currentGameState.turn !== prevTurnRef.current) {
-      prevTurnRef.current = currentGameState.turn;
-      createAutoSave();
-    }
-  }, [currentGameState.turn, currentGameState.phase]);
 
   const loadSaveSlots = () => {
     try {
@@ -117,23 +96,6 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
     } catch (error) {
       console.error('Failed to save game:', error);
       alert('Failed to save game. Storage might be full.');
-    }
-  };
-
-  const createAutoSave = async () => {
-    // Remove old auto-saves (keep only 3)
-    const autoSaves = saves.filter(save => save.autoSave);
-    if (autoSaves.length >= 3) {
-      deleteSave(autoSaves[autoSaves.length - 1].id);
-    }
-    
-    createSave('', true);
-    
-    // Also save to IndexedDB for "Resume Last Session" feature
-    try {
-      await saveAutosave(currentGameState);
-    } catch (error) {
-      console.warn('Failed to save autosave to IndexedDB:', error);
     }
   };
 
