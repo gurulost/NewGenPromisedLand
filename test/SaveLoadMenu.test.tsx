@@ -1,32 +1,51 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { useLocalGame } from '../client/src/lib/stores/useLocalGame';
 import SaveLoadMenu from '../client/src/components/ui/SaveLoadMenu';
-import { GameState } from '@shared/types/game';
+import type { GameState } from '@shared/types/game';
 
-// Mock the useLocalGame hook
 vi.mock('../client/src/lib/stores/useLocalGame');
-// Mock lz-string
-vi.mock('lz-string', () => ({
-  compress: vi.fn((data) => `compressed_${data}`),
-  decompress: vi.fn((data) => data.replace('compressed_', ''))
+
+vi.mock('../client/src/components/primitives/PanelShell', () => ({
+  PanelShell: ({ children }: any) => <div>{children}</div>,
+}));
+
+vi.mock('../client/src/components/primitives/PanelHeader', () => ({
+  PanelHeader: ({ title, description, onClose }: any) => (
+    <div>
+      <h2>{title}</h2>
+      {description ? <p>{description}</p> : null}
+      {onClose ? (
+        <button type="button" aria-label="Close panel" onClick={onClose}>
+          Close
+        </button>
+      ) : null}
+    </div>
+  ),
+}));
+
+vi.mock('../client/src/components/primitives/GlowingButton', () => ({
+  GlowingButton: ({ children, ...props }: any) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+}));
+
+const mockListSaves = vi.fn();
+const mockCreateSave = vi.fn();
+const mockDeleteSave = vi.fn();
+const mockGetLocalSavesSnapshot = vi.fn();
+
+vi.mock('../client/src/lib/saveApi', () => ({
+  listSaves: (...args: any[]) => mockListSaves(...args),
+  createSave: (...args: any[]) => mockCreateSave(...args),
+  deleteSave: (...args: any[]) => mockDeleteSave(...args),
+  getLocalSavesSnapshot: (...args: any[]) => mockGetLocalSavesSnapshot(...args),
 }));
 
 const mockUseLocalGame = useLocalGame as any;
-
-// Mock localStorage
-const localStorageMock = {
-  getItem: vi.fn(),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  key: vi.fn(),
-  length: 0,
-  clear: vi.fn()
-};
-
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock
-});
 
 describe('SaveLoadMenu', () => {
   const mockGameState: GameState = {
@@ -44,8 +63,8 @@ describe('SaveLoadMenu', () => {
         stars: 20,
         researchedTechs: [],
         researchProgress: 0,
-        citiesOwned: ['city1']
-      }
+        citiesOwned: ['city1'],
+      },
     ],
     currentPlayerIndex: 0,
     turn: 5,
@@ -54,253 +73,214 @@ describe('SaveLoadMenu', () => {
     units: [],
     cities: [],
     improvements: [],
-    structures: []
+    structures: [],
   };
 
-  const mockProps = {
-    onClose: vi.fn()
-  };
+  const mockProps = { onClose: vi.fn() };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorageMock.length = 0;
-    localStorageMock.getItem.mockReturnValue(null);
-    localStorageMock.key.mockReturnValue(null);
-    
+
+    mockGetLocalSavesSnapshot.mockReturnValue([]);
+    mockListSaves.mockResolvedValue([]);
+    mockCreateSave.mockResolvedValue(undefined);
+    mockDeleteSave.mockResolvedValue(undefined);
+
     mockUseLocalGame.mockReturnValue({
       gameState: mockGameState,
-      setGameState: vi.fn()
+      setGameState: vi.fn(),
+      setGamePhase: vi.fn(),
     });
   });
 
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('renders save/load menu with title', () => {
+  it('renders save/load menu with title', async () => {
     render(<SaveLoadMenu {...mockProps} />);
-    
     expect(screen.getByText('Save & Load Game')).toBeInTheDocument();
+    await waitFor(() => expect(mockListSaves).toHaveBeenCalled());
   });
 
   it('displays save current game section when gameState exists', () => {
     render(<SaveLoadMenu {...mockProps} />);
-    
     expect(screen.getByText('Save Current Game')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Enter save name...')).toBeInTheDocument();
-    expect(screen.getByText('Save')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
   });
 
   it('does not display save section when gameState is null', () => {
     mockUseLocalGame.mockReturnValue({
       gameState: null,
-      setGameState: vi.fn()
+      setGameState: vi.fn(),
+      setGamePhase: vi.fn(),
     });
-    
+
     render(<SaveLoadMenu {...mockProps} />);
-    
     expect(screen.queryByText('Save Current Game')).not.toBeInTheDocument();
   });
 
-  it('enables save button only when save name is entered', () => {
+  it('enables save button only when save name is entered', async () => {
+    const user = userEvent.setup();
     render(<SaveLoadMenu {...mockProps} />);
-    
-    const saveButton = screen.getByRole('button', { name: /^save$/i });
+
+    const saveButton = screen.getByRole('button', { name: 'Save' });
     const nameInput = screen.getByPlaceholderText('Enter save name...');
-    
+
     expect(saveButton).toBeDisabled();
-    
-    fireEvent.change(nameInput, { target: { value: 'Test Save' } });
-    expect(saveButton).not.toBeDisabled();
+    await user.click(nameInput);
+    await user.type(nameInput, 'Test Save');
+
+    expect(nameInput).toHaveValue('Test Save');
+    await waitFor(() => expect(saveButton).toBeEnabled());
   });
 
-  it('saves game to localStorage when save button is clicked', async () => {
+  it('creates a save when save button is clicked', async () => {
+    const user = userEvent.setup();
     render(<SaveLoadMenu {...mockProps} />);
-    
+
     const nameInput = screen.getByPlaceholderText('Enter save name...');
-    const saveButton = screen.getByRole('button', { name: /^save$/i });
-    
-    fireEvent.change(nameInput, { target: { value: 'Test Save' } });
-    fireEvent.click(saveButton);
-    
+    const saveButton = screen.getByRole('button', { name: 'Save' });
+
+    await user.click(nameInput);
+    await user.type(nameInput, 'Test Save');
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
+
     await waitFor(() => {
-      expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        expect.stringMatching(/^chronicles_save_/),
-        expect.stringContaining('compressed_')
+      expect(mockCreateSave).toHaveBeenCalledWith(
+        'Test Save',
+        mockGameState,
+        expect.objectContaining({
+          currentPlayer: 'Alice',
+          turn: 5,
+          playerCount: 1,
+          mapSize: '8x8',
+          factions: ['NEPHITES'],
+        }),
       );
     });
   });
 
-  it('displays "No saved games found" when localStorage is empty', () => {
+  it('displays "No saved games found" when there are no saves', async () => {
     render(<SaveLoadMenu {...mockProps} />);
-    
+    await waitFor(() => expect(mockListSaves).toHaveBeenCalled());
     expect(screen.getByText('No saved games found')).toBeInTheDocument();
   });
 
-  it('loads saved games from localStorage', () => {
-    const mockSaveData = {
-      id: 'save_123',
+  it('renders saves returned by the API', async () => {
+    const mockSave = {
+      id: 101,
       name: 'Test Save',
-      timestamp: Date.now(),
+      updatedAt: new Date().toISOString(),
       gameState: mockGameState,
       metadata: {
         currentPlayer: 'Alice',
         turn: 5,
         playerCount: 1,
-        mapSize: '8x8'
-      }
+        mapSize: '8x8',
+      },
     };
 
-    localStorageMock.length = 1;
-    localStorageMock.key.mockReturnValue('chronicles_save_save_123');
-    localStorageMock.getItem.mockReturnValue(JSON.stringify(mockSaveData));
-
+    mockListSaves.mockResolvedValueOnce([mockSave]);
     render(<SaveLoadMenu {...mockProps} />);
-    
-    expect(screen.getByText('Test Save')).toBeInTheDocument();
+
+    await waitFor(() => expect(screen.getByText('Test Save')).toBeInTheDocument());
     expect(screen.getByText('1 players')).toBeInTheDocument();
     expect(screen.getByText('Turn 5')).toBeInTheDocument();
     expect(screen.getByText('8x8')).toBeInTheDocument();
   });
 
   it('loads selected game when load button is clicked', async () => {
+    const user = userEvent.setup();
     const mockSetGameState = vi.fn();
-    mockUseLocalGame.mockReturnValue({
-      gameState: mockGameState,
-      setGameState: mockSetGameState
-    });
 
-    const mockSaveData = {
-      id: 'save_123',
+    const mockSave = {
+      id: 101,
       name: 'Test Save',
-      timestamp: Date.now(),
+      updatedAt: new Date().toISOString(),
       gameState: mockGameState,
       metadata: {
         currentPlayer: 'Alice',
         turn: 5,
         playerCount: 1,
-        mapSize: '8x8'
-      }
+        mapSize: '8x8',
+      },
     };
 
-    localStorageMock.length = 1;
-    localStorageMock.key.mockReturnValue('chronicles_save_save_123');
-    localStorageMock.getItem.mockReturnValue(JSON.stringify(mockSaveData));
+    mockUseLocalGame.mockReturnValue({
+      gameState: mockGameState,
+      setGameState: mockSetGameState,
+      setGamePhase: vi.fn(),
+    });
+    mockListSaves.mockResolvedValueOnce([mockSave]);
 
     render(<SaveLoadMenu {...mockProps} />);
-    
-    // Click on the save to select it
-    const saveItem = screen.getByText('Test Save').closest('div');
-    fireEvent.click(saveItem!);
-    
-    // Click load button
-    const loadButton = screen.getByText('Load Selected Game');
-    fireEvent.click(loadButton);
-    
+    await waitFor(() => expect(screen.getByText('Test Save')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Test Save'));
+    await user.click(screen.getByText('Load Selected Game'));
+
     await waitFor(() => {
       expect(mockSetGameState).toHaveBeenCalledWith(mockGameState);
       expect(mockProps.onClose).toHaveBeenCalled();
     });
   });
 
-  it('deletes save when delete button is clicked', async () => {
-    const mockSaveData = {
-      id: 'save_123',
+  it('deletes a save when delete button is clicked', async () => {
+    const mockSave = {
+      id: 101,
       name: 'Test Save',
-      timestamp: Date.now(),
+      updatedAt: new Date().toISOString(),
       gameState: mockGameState,
       metadata: {
         currentPlayer: 'Alice',
         turn: 5,
         playerCount: 1,
-        mapSize: '8x8'
-      }
+        mapSize: '8x8',
+      },
     };
 
-    localStorageMock.length = 1;
-    localStorageMock.key.mockReturnValue('chronicles_save_save_123');
-    localStorageMock.getItem.mockReturnValue(JSON.stringify(mockSaveData));
+    mockListSaves
+      .mockResolvedValueOnce([mockSave]) // initial load
+      .mockResolvedValueOnce([]); // after delete refresh
 
     render(<SaveLoadMenu {...mockProps} />);
-    
-    // Find the delete button by looking for the trash icon
-    const deleteButton = screen.getByRole('button', { name: /delete/i });
-    
-    if (!deleteButton) {
-      throw new Error('Delete button not found');
-    }
-    
-    fireEvent.click(deleteButton);
-    
-    await waitFor(() => {
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith('chronicles_save_save_123');
-    });
+    await waitFor(() => expect(screen.getByText('Test Save')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(mockDeleteSave).toHaveBeenCalledWith(101));
   });
 
-  it('closes menu when close button is clicked', () => {
+  it('closes menu when close button is clicked', async () => {
+    const user = userEvent.setup();
     render(<SaveLoadMenu {...mockProps} />);
-    
-    // Find the close button by looking for the X icon
-    const closeButton = screen.getByRole('button', { name: /close/i }) || 
-                       screen.getAllByRole('button').find(btn => 
-                         btn.querySelector('svg')?.classList.contains('lucide-x')
-                       );
-    
-    if (!closeButton) {
-      throw new Error('Close button not found');
-    }
-    
-    fireEvent.click(closeButton);
-    
+
+    await user.click(screen.getByRole('button', { name: 'Close panel' }));
     expect(mockProps.onClose).toHaveBeenCalled();
   });
 
-  it('allows saving game with Enter key', async () => {
-    render(<SaveLoadMenu {...mockProps} />);
-    
-    const nameInput = screen.getByPlaceholderText('Enter save name...');
-    
-    fireEvent.change(nameInput, { target: { value: 'Test Save' } });
-    fireEvent.keyPress(nameInput, { key: 'Enter', code: 'Enter' });
-    
-    await waitFor(() => {
-      expect(localStorageMock.setItem).toHaveBeenCalled();
-    });
-  });
-
-  it('shows import/export section', () => {
-    render(<SaveLoadMenu {...mockProps} />);
-    
-    expect(screen.getByText('Import/Export')).toBeInTheDocument();
-    expect(screen.getByText('Import Save')).toBeInTheDocument();
-  });
-
-  it('shows export button only when save is selected', () => {
-    const mockSaveData = {
-      id: 'save_123',
+  it('shows import/export section and hides export until a save is selected', async () => {
+    const mockSave = {
+      id: 101,
       name: 'Test Save',
-      timestamp: Date.now(),
+      updatedAt: new Date().toISOString(),
       gameState: mockGameState,
       metadata: {
         currentPlayer: 'Alice',
         turn: 5,
         playerCount: 1,
-        mapSize: '8x8'
-      }
+        mapSize: '8x8',
+      },
     };
 
-    localStorageMock.length = 1;
-    localStorageMock.key.mockReturnValue('chronicles_save_save_123');
-    localStorageMock.getItem.mockReturnValue(JSON.stringify(mockSaveData));
-
+    mockListSaves.mockResolvedValueOnce([mockSave]);
     render(<SaveLoadMenu {...mockProps} />);
-    
+
+    expect(screen.getByText('Import/Export')).toBeInTheDocument();
+    expect(screen.getByText('Import Save')).toBeInTheDocument();
     expect(screen.queryByText('Export Selected')).not.toBeInTheDocument();
-    
-    // Select a save
-    const saveItem = screen.getByText('Test Save').closest('div');
-    fireEvent.click(saveItem!);
-    
+
+    await waitFor(() => expect(screen.getByText('Test Save')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Test Save'));
     expect(screen.getByText('Export Selected')).toBeInTheDocument();
   });
 });

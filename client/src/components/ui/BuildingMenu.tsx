@@ -74,7 +74,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
   const breakdown: Array<{source: string, amount: number}> = [];
   
   // Cities
-  const cityStarProduction = playerCityObjects.reduce((sum, city) => sum + city.starProduction, 0);
+  const cityStarProduction = playerCityObjects.reduce((sum, city) => sum + (city.starProduction || 0), 0);
   totalStarProduction += cityStarProduction;
   if (playerCityObjects.length > 0) {
     breakdown.push({ source: `Cities (${playerCityObjects.length})`, amount: cityStarProduction });
@@ -273,22 +273,22 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-500/30 px-3 py-2 rounded-lg">
                 <Star className="w-5 h-5 text-amber-400" />
-                <span className="text-amber-100 font-semibold">{player.stars}</span>
+                <span aria-label="Stars" className="text-amber-100 font-semibold">{player.stars}</span>
                 <InfoTooltip content={<StarProductionTooltip totalIncome={totalStarProduction} breakdown={breakdown} />} />
               </div>
               <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-500/30 px-3 py-2 rounded-lg">
                 <Crown className="w-5 h-5 text-blue-400" />
-                <span className="text-amber-100 font-semibold">{player.stats.faith}</span>
+                <span aria-label="Faith" className="text-amber-100 font-semibold">{player.stats.faith}</span>
                 <InfoTooltip content={<FaithSystemTooltip />} />
               </div>
               <div className="flex items-center gap-2">
                 <Swords className="w-5 h-5 text-red-400" />
-                <span className="text-white font-semibold">{player.stats.pride}</span>
+                <span aria-label="Pride" className="text-white font-semibold">{player.stats.pride}</span>
                 <InfoTooltip content={<PrideSystemTooltip />} />
               </div>
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-orange-400" />
-                <span className="text-white font-semibold">{player.stats.internalDissent}</span>
+                <span aria-label="Dissent" className="text-white font-semibold">{player.stats.internalDissent}</span>
                 <InfoTooltip content={<DissentTooltip />} />
               </div>
               
@@ -507,7 +507,10 @@ function BuildingCard({
           {option.cost.stars && (
             <div className="flex items-center gap-1">
               <Star className="w-4 h-4 text-yellow-400" />
-              <span className={`text-sm font-semibold ${canAfford ? 'text-white' : 'text-red-400'}`}>
+              <span
+                aria-label="Stars cost"
+                className={`text-sm font-semibold ${canAfford ? 'text-white' : 'text-red-400'}`}
+              >
                 {option.cost.stars}
               </span>
             </div>
@@ -515,14 +518,17 @@ function BuildingCard({
           {option.cost.faith && (
             <div className="flex items-center gap-1">
               <Crown className="w-4 h-4 text-purple-400" />
-              <span className={`text-sm font-semibold ${canAfford ? 'text-white' : 'text-red-400'}`}>
+              <span
+                aria-label="Faith cost"
+                className={`text-sm font-semibold ${canAfford ? 'text-white' : 'text-red-400'}`}
+              >
                 {option.cost.faith}
               </span>
             </div>
           )}
           <div className="flex items-center gap-1">
             <Clock className="w-4 h-4 text-slate-400" />
-            <span className="text-sm text-slate-400">{option.buildTime}T</span>
+            <span aria-label="Build time" className="text-sm text-slate-400">{option.buildTime}T</span>
           </div>
         </div>
 

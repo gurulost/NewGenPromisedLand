@@ -8,80 +8,19 @@ import { GAME_RULES, GameRuleHelpers } from "../data/gameRules";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "../types/city";
 import { ABILITIES, AbilityDefinition } from "../data/abilities";
 import { getFaction } from "../data/factions";
+import { getWorldElement } from "../data/worldElements";
 import { executeUnitAction } from "./unitActions";
 import { executeAbility } from "./abilitySystem";
 import { executeElementHarvest, executeElementBuild } from "./worldElementActions";
 import { HexCoordinate } from "../types/coordinates";
 import { isPassableForUnit } from "./unitLogic";
 import { emitTelemetry } from "./telemetry";
-
-function areCitiesConnectedByRoad(state: GameState, playerId: string, fromCityId: string, toCityId: string): boolean {
-  if (fromCityId === toCityId) return false;
-
-  const fromCity = (state.cities || []).find(c => c.id === fromCityId && c.ownerId === playerId);
-  const toCity = (state.cities || []).find(c => c.id === toCityId && c.ownerId === playerId);
-  if (!fromCity || !toCity) return false;
-
-  const roadKeys = new Set(
-    (state.improvements || [])
-      .filter(imp => imp.ownerId === playerId)
-      .filter(imp => imp.type === 'road')
-      .filter(imp => imp.constructionTurns === 0)
-      .map(imp => `${imp.coordinate.q},${imp.coordinate.r}`)
-  );
-  if (roadKeys.size === 0) return false;
-
-  const fromKey = `${fromCity.coordinate.q},${fromCity.coordinate.r}`;
-  const toKey = `${toCity.coordinate.q},${toCity.coordinate.r}`;
-  const cityKeys = new Set([fromKey, toKey]);
-
-  // Both endpoints must touch the road network.
-  const fromHasAdjacentRoad = hexNeighbors(fromCity.coordinate).some(n => roadKeys.has(`${n.q},${n.r}`));
-  const toHasAdjacentRoad = hexNeighbors(toCity.coordinate).some(n => roadKeys.has(`${n.q},${n.r}`));
-  if (!fromHasAdjacentRoad || !toHasAdjacentRoad) return false;
-
-  const visited = new Set<string>();
-  const queue: HexCoordinate[] = [fromCity.coordinate];
-
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    const currentKey = `${current.q},${current.r}`;
-    if (visited.has(currentKey)) continue;
-    visited.add(currentKey);
-
-    if (currentKey === toKey) return true;
-
-    const isCity = cityKeys.has(currentKey);
-    const isRoad = roadKeys.has(currentKey);
-
-    for (const neighbor of hexNeighbors(current)) {
-      const neighborKey = `${neighbor.q},${neighbor.r}`;
-      const canTraverse =
-        (isCity && roadKeys.has(neighborKey)) ||
-        (isRoad && (roadKeys.has(neighborKey) || cityKeys.has(neighborKey)));
-      if (canTraverse && !visited.has(neighborKey)) queue.push(neighbor);
-    }
-  }
-
-  return false;
-}
-
-function calculateTradeRouteStarsPerTurn(state: GameState, playerId: string, fromCityId: string, toCityId: string): number {
-  const fromCity = (state.cities || []).find(c => c.id === fromCityId);
-  const toCity = (state.cities || []).find(c => c.id === toCityId);
-  if (!fromCity || !toCity) return 0;
-
-  const base = 1 + Math.floor((fromCity.level + toCity.level) / 2); // lvl1+lvl1 => 2
-  const distance = hexDistance(fromCity.coordinate, toCity.coordinate);
-  const proximity = Math.max(0, 2 - Math.floor(distance / 4)); // 0..2 small bump for shorter routes
-  const connected = areCitiesConnectedByRoad(state, playerId, fromCityId, toCityId);
-  const connectivityBonus = connected ? 1 : 0;
-  return Math.max(1, Math.min(6, base + proximity + connectivityBonus));
-}
-
-function calculateTradeRouteEstablishCostStars(starsPerTurn: number): number {
-  return Math.max(8, starsPerTurn * 5);
-}
+import {
+  areCitiesConnectedByRoad,
+  calculateTradeRouteEstablishCostStars,
+  calculateTradeRouteStarsPerTurn
+} from "./tradeRoutes";
+import { applyPopulationGain } from "./cityGrowth";
 
 function getUnitSpawnCoordinate(state: GameState, unitType: UnitType, cityCoordinate: HexCoordinate): HexCoordinate | null {
   if (unitType !== 'boat') return cityCoordinate;
@@ -668,6 +607,22 @@ function handleConquerVillage(
       : u
   );
 
+  // Population reward: grows the nearest owned city (if any)
+  const playerCities = (state.cities || []).filter(c => c.ownerId === playerId);
+  const closestCityId = (() => {
+    if (playerCities.length === 0) return null;
+    let best = playerCities[0];
+    let bestDist = hexDistance(best.coordinate, unit.coordinate);
+    for (const city of playerCities) {
+      const d = hexDistance(city.coordinate, unit.coordinate);
+      if (d < bestDist) {
+        best = city;
+        bestDist = d;
+      }
+    }
+    return best.id;
+  })();
+
   return {
     ...state,
     map: {
@@ -675,7 +630,11 @@ function handleConquerVillage(
       tiles: updatedMapTiles
     },
     players: updatedPlayers,
-    units: updatedUnits
+    units: updatedUnits,
+    cities:
+      closestCityId
+        ? (state.cities || []).map(c => (c.id === closestCityId ? applyPopulationGain(c, 1) : c))
+        : state.cities
   };
 }
 
@@ -752,6 +711,22 @@ function handleConvertVillage(
       : u
   );
 
+  // Population reward: grows the nearest owned city (if any)
+  const playerCities = (state.cities || []).filter(c => c.ownerId === playerId);
+  const closestCityId = (() => {
+    if (playerCities.length === 0) return null;
+    let best = playerCities[0];
+    let bestDist = hexDistance(best.coordinate, unit.coordinate);
+    for (const city of playerCities) {
+      const d = hexDistance(city.coordinate, unit.coordinate);
+      if (d < bestDist) {
+        best = city;
+        bestDist = d;
+      }
+    }
+    return best.id;
+  })();
+
   return {
     ...state,
     map: {
@@ -759,7 +734,11 @@ function handleConvertVillage(
       tiles: updatedMapTiles
     },
     players: updatedPlayers,
-    units: updatedUnits
+    units: updatedUnits,
+    cities:
+      closestCityId
+        ? (state.cities || []).map(c => (c.id === closestCityId ? applyPopulationGain(c, 2) : c))
+        : state.cities
   };
 }
 
@@ -893,12 +872,45 @@ function handleExploreRuins(
 // World Element Action Handlers
 function handleWorldElementHarvest(
   state: GameState,
-  payload: { playerId: string; elementId: string; coordinate: HexCoordinate }
+  payload: { playerId: string; unitId: string; elementId: string; coordinate: HexCoordinate }
 ): GameState {
-  const result = executeElementHarvest(state, payload.playerId, payload.elementId, payload.coordinate);
+  const unit = state.units.find(u => u.id === payload.unitId);
+  if (!unit || unit.playerId !== payload.playerId) return state;
+  if (unit.coordinate.q !== payload.coordinate.q || unit.coordinate.r !== payload.coordinate.r) return state;
+  if (unit.hasAttacked || unit.remainingMovement <= 0) return state;
+
+  const element = getWorldElement(payload.elementId);
+  if (!element) return state;
+
+  const requiredTag = element.immediateAction?.requiresUnitTag;
+  if (requiredTag) {
+    // Only special-cased tag today: naval_commander.
+    const canActAsTag =
+      requiredTag === 'naval_commander' &&
+      unit.type === 'commander' &&
+      (unit.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_COMMAND');
+    if (!canActAsTag) return state;
+  } else if (payload.elementId !== 'jaredite_ruins') {
+    // Default: Worker-only interactions.
+    if (unit.type !== 'worker') return state;
+  }
+
+  let rngSeed = state.rngSeed ?? 0;
+  const rand = () => {
+    rngSeed = (Math.imul(rngSeed, 1664525) + 1013904223) >>> 0;
+    return rngSeed / 4294967296;
+  };
+
+  const result = executeElementHarvest(state, payload.playerId, payload.elementId, payload.coordinate, rand);
 
   if (result.success && result.newState) {
-    return result.newState;
+    return {
+      ...result.newState,
+      rngSeed,
+      units: result.newState.units.map(u =>
+        u.id === payload.unitId ? { ...u, remainingMovement: 0, hasAttacked: true } : u
+      )
+    };
   }
 
   return state;
@@ -906,12 +918,23 @@ function handleWorldElementHarvest(
 
 function handleWorldElementBuild(
   state: GameState,
-  payload: { playerId: string; elementId: string; coordinate: HexCoordinate }
+  payload: { playerId: string; unitId: string; elementId: string; coordinate: HexCoordinate }
 ): GameState {
+  const unit = state.units.find(u => u.id === payload.unitId);
+  if (!unit || unit.playerId !== payload.playerId) return state;
+  if (unit.coordinate.q !== payload.coordinate.q || unit.coordinate.r !== payload.coordinate.r) return state;
+  if (unit.hasAttacked || unit.remainingMovement <= 0) return state;
+  if (unit.type !== 'worker') return state;
+
   const result = executeElementBuild(state, payload.playerId, payload.elementId, payload.coordinate);
 
   if (result.success && result.newState) {
-    return result.newState;
+    return {
+      ...result.newState,
+      units: result.newState.units.map(u =>
+        u.id === payload.unitId ? { ...u, remainingMovement: 0, hasAttacked: true } : u
+      )
+    };
   }
 
   return state;
@@ -1062,6 +1085,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'CONVERT_CITY':
       return handleConvertCity(state, action.payload);
+
+    case 'CONVERT_UNIT':
+      return handleConvertUnit(state, action.payload);
 
     case 'UPGRADE_UNIT':
       return handleUpgradeUnit(state, action.payload);
@@ -1290,7 +1316,10 @@ function handleAttackUnit(
   const unitHasAbility = (unit: Unit, abilityId: string) =>
     (unit.abilities || []).some(a => normalizeAbility(String(a)) === normalizeAbility(abilityId));
 
-  const attackerHasBombardment = unitHasAbility(attacker, 'BOMBARDMENT') || unitHasAbility(attacker, 'bombardment');
+  const attackerHasBombardment =
+    unitHasAbility(attacker, 'SIEGE') ||
+    unitHasAbility(attacker, 'BOMBARDMENT') ||
+    unitHasAbility(attacker, 'bombardment');
 
   // Catapult bombardment requires siege_mode when firing at range.
   if (attackerHasBombardment && distance > 1 && attacker.status !== 'siege_mode') {
@@ -1300,6 +1329,18 @@ function handleAttackUnit(
       attackerId: attacker.id,
       defenderId: target.id,
       reason: 'catapult_not_deployed'
+    });
+    return state;
+  }
+
+  // Siege artillery must be stationary when firing at range.
+  if (attackerHasBombardment && distance > 1 && attacker.remainingMovement !== attacker.movement) {
+    emitTelemetry({
+      channel: 'combat',
+      status: 'blocked',
+      attackerId: attacker.id,
+      defenderId: target.id,
+      reason: 'catapult_moved_this_turn'
     });
     return state;
   }
@@ -1621,6 +1662,12 @@ function handleEndTurn(
   let updatedCities = [...(state.cities || [])];
   let pendingDesertedUnitId: string | null = null;
   let moraleLastAction: { type: 'MORALE_EVENT'; payload: any } | null = null;
+  let rngSeed = state.rngSeed ?? 0;
+  const rand = () => {
+    // Deterministic PRNG (LCG). Keeps tests stable and makes runs replayable per seed.
+    rngSeed = (Math.imul(rngSeed, 1664525) + 1013904223) >>> 0;
+    return rngSeed / 4294967296;
+  };
 
   // Apply end-of-turn effects for current player
   let updatedPlayers = state.players.map(player => {
@@ -1642,8 +1689,14 @@ function handleEndTurn(
       // Resource generation from cities and improvements using centralized rules
       const playerCities = player.citiesOwned.length;
 
+      const temples = (state.structures || []).filter(s =>
+        s.ownerId === player.id &&
+        s.constructionTurns === 0 &&
+        (s.type === 'temple' || s.type === 'cathedral')
+      ).length;
+
       // Calculate base income from cities using Polytopia-style mechanics
-      const faithGeneration = GameRuleHelpers.calculateFaithGeneration(playerCities);
+      const faithGeneration = GameRuleHelpers.calculateFaithGeneration(playerCities, temples);
 
       // Calculate star income based on city levels and production
       let starIncome = 0;
@@ -1712,11 +1765,6 @@ function handleEndTurn(
       // prosperity → pride → contention → loss → humility → deliverance.
       const wars = player.atWarWith?.length || 0;
       const alliances = player.alliedWith?.length || 0;
-      const temples = (state.structures || []).filter(s =>
-        s.ownerId === player.id &&
-        s.constructionTurns === 0 &&
-        (s.type === 'temple' || s.type === 'cathedral')
-      ).length;
 
       // Drift: prosperity tends to inflate pride; pride tends to breed contention (dissent).
       const prosperityScore = starIncome + Math.floor(Math.max(0, player.stars - 10) / 15); // avoids early-game runaway pride
@@ -1750,7 +1798,7 @@ function handleEndTurn(
       let starsDeltaFromEvent = 0;
       let moraleCityIdToRebel: string | null = null;
 
-      const rollBad = Math.random();
+      const rollBad = rand();
       if (rollBad < badChance) {
         const canDesert = updatedStats.internalDissent >= GAME_RULES.morale.desertionFloorDissent;
 
@@ -1760,14 +1808,14 @@ function handleEndTurn(
 
         const eventIndex = pickWeightedIndex(
           [rebellionWeight, desertionWeight, contentionWeight],
-          Math.random()
+          rand()
         );
 
         if (eventIndex === 0) {
           // Rebellion: city unrest + small immediate loss
           const ownedCities = (state.cities || []).filter(c => c.ownerId === player.id);
           if (ownedCities.length > 0) {
-            moraleCityIdToRebel = ownedCities[pickWeightedIndex(new Array(ownedCities.length).fill(1), Math.random())].id;
+            moraleCityIdToRebel = ownedCities[pickWeightedIndex(new Array(ownedCities.length).fill(1), rand())].id;
             starsDeltaFromEvent -= GAME_RULES.morale.rebellionStarsLoss;
             updatedStats = applyMoralDelta(updatedStats, { dissent: 5, pride: -2 });
             moraleLastAction = { type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'rebellion', cityId: moraleCityIdToRebel, starsDelta: -GAME_RULES.morale.rebellionStarsLoss } };
@@ -1783,7 +1831,7 @@ function handleEndTurn(
             .filter(u => u.playerId === player.id)
             .filter(u => u.type !== 'worker'); // workers are less "army desertion"
           if (deserters.length > 0) {
-            const deserter = deserters[pickWeightedIndex(new Array(deserters.length).fill(1), Math.random())];
+            const deserter = deserters[pickWeightedIndex(new Array(deserters.length).fill(1), rand())];
             pendingDesertedUnitId = deserter.id;
             starsDeltaFromEvent -= GAME_RULES.morale.desertionStarsLoss;
             updatedStats = applyMoralDelta(updatedStats, { dissent: 2, pride: -3 });
@@ -1801,10 +1849,10 @@ function handleEndTurn(
           moraleLastAction = { type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'contention', starsDelta: -GAME_RULES.morale.contentionStarsLoss } };
         }
       } else {
-        const rollGood = Math.random();
+        const rollGood = rand();
         if (rollGood < goodChance) {
           // Blessings of humility/peace: modest gains, stability, and strengthened faith.
-          const starsGain = 4 + Math.floor(6 * Math.random()); // 4..9
+          const starsGain = 4 + Math.floor(6 * rand()); // 4..9
           starsDeltaFromEvent += starsGain;
           updatedStats = applyMoralDelta(updatedStats, { faith: 3, dissent: -4, pride: -2 });
           moraleLastAction = { type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'blessing', starsDelta: starsGain } };
@@ -2002,6 +2050,7 @@ function handleEndTurn(
     currentPlayerIndex: nextPlayerIndex,
     turn: isNewTurn ? state.turn + 1 : state.turn,
     winner,
+    rngSeed,
     lastAction: moraleLastAction ?? { type: 'END_TURN', payload }
   };
 }
@@ -2097,6 +2146,8 @@ function handleClearForest(
 
   const player = state.players.find(p => p.id === playerId);
   if (!player || player.stars < 5) return state;
+  if (!player.researchedTechs?.includes('forestry')) return state;
+  if (unit.remainingMovement <= 0 || unit.hasAttacked) return state;
 
   // Find the target tile
   const targetTile = state.map.tiles.find(tile =>
@@ -2131,7 +2182,7 @@ function handleClearForest(
     },
     units: state.units.map(u =>
       u.id === unitId
-        ? { ...u, remainingMovement: 0 } // Exhaust unit after clearing
+        ? { ...u, remainingMovement: 0, hasAttacked: true } // Exhaust unit after clearing
         : u
     )
   };
@@ -2332,6 +2383,7 @@ function handleFormationFighting(
 
   const unit = state.units.find(u => u.id === unitId);
   if (!unit || unit.playerId !== playerId) return state;
+  if (unit.remainingMovement <= 0 || unit.hasAttacked) return state;
 
   // Check if unit has formation fighting ability
   if (!unit.abilities.includes('formation_fighting')) return state;
@@ -2339,7 +2391,7 @@ function handleFormationFighting(
   // Apply formation bonus - this is passive, just mark the unit as having used the action
   const updatedUnits = state.units.map(u =>
     u.id === unitId
-      ? { ...u, status: 'formation' as const, hasAttacked: true }
+      ? { ...u, status: 'formation' as const, hasAttacked: true, remainingMovement: 0 }
       : u
   );
 
@@ -2363,7 +2415,7 @@ function handleSiegeMode(
 
   const updatedUnits = state.units.map(u =>
     u.id === unitId
-      ? { ...u, status: 'siege_mode' as const, hasAttacked: true }
+      ? { ...u, status: 'siege_mode' as const, hasAttacked: true, remainingMovement: 0 }
       : u
   );
 
@@ -3175,8 +3227,9 @@ function handleConvertCity(
       break;
     case 'peace':
       resourceCost = 10;
+      if (player.stats.faith < resourceCost) return state;
       statChanges = {
-        faith: Math.min(100, player.stats.faith + 5),
+        faith: clampStat(player.stats.faith - resourceCost + 5),
         internalDissent: Math.max(0, player.stats.internalDissent - 10)
       };
       break;
@@ -3221,6 +3274,84 @@ function handleConvertCity(
   };
 }
 
+function handleConvertUnit(
+  state: GameState,
+  payload: { playerId: string; unitId: string; targetUnitId: string }
+): GameState {
+  const { playerId, unitId, targetUnitId } = payload;
+
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+  if (unit.type !== 'missionary') return state;
+  if (unit.hasAttacked || unit.remainingMovement <= 0) return state;
+
+  const target = state.units.find(u => u.id === targetUnitId);
+  if (!target) return state;
+  if (target.playerId === playerId) return state;
+
+  const distance = hexDistance(unit.coordinate, target.coordinate);
+  if (distance > 1) return state;
+
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+
+  const FAITH_COST = 10;
+  if (player.stats.faith < FAITH_COST) return state;
+
+  const targetPlayer = state.players.find(p => p.id === target.playerId);
+  const targetFaith = targetPlayer?.stats.faith ?? 0;
+  const targetPride = targetPlayer?.stats.pride ?? 0;
+  const targetDissent = targetPlayer?.stats.internalDissent ?? 0;
+
+  // Book of Mormon framing:
+  // - Conversion is easier when faith is strong and the target society is proud/unstable.
+  // - Wounded units are slightly easier to sway (morale shock).
+  const base = GAME_RULES.abilities.conversionResistance.baseDifficulty / 100; // 0..1
+  const diff = player.stats.faith - targetFaith;
+  const diffBonus = (diff * GAME_RULES.abilities.conversionResistance.faithDifferentialWeight) / 100; // points -> %
+
+  const woundFactor = 0.8 + 0.2 * (1 - target.hp / Math.max(1, target.maxHp)); // 0.8..1.0
+  const prideFactor = 1 + (targetPride / 100) * 0.25; // up to +25%
+  const dissentFactor = 1 + (targetDissent / 100) * 0.15; // up to +15%
+
+  const minChance = GAME_RULES.abilities.conversionResistance.minSuccessChance / 100;
+  const maxChance = GAME_RULES.abilities.conversionResistance.maxSuccessChance / 100;
+  const chance = Math.max(minChance, Math.min(maxChance, (base + diffBonus) * woundFactor * prideFactor * dissentFactor));
+
+  let rngSeed = state.rngSeed ?? 0;
+  rngSeed = (Math.imul(rngSeed, 1664525) + 1013904223) >>> 0;
+  const roll = rngSeed / 4294967296;
+  const success = roll < chance;
+
+  const updatedPlayers = state.players.map(p =>
+    p.id === playerId
+      ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - FAITH_COST) } }
+      : p
+  );
+
+  const updatedUnits = state.units
+    .map(u => {
+      if (u.id === unitId) {
+        return { ...u, hasAttacked: true, remainingMovement: 0 };
+      }
+      if (u.id === targetUnitId && success) {
+        return {
+          ...u,
+          playerId,
+          hp: Math.min(u.maxHp, u.hp + GAME_RULES.units.healingAmount),
+        };
+      }
+      return u;
+    });
+
+  return {
+    ...state,
+    players: updatedPlayers,
+    units: updatedUnits,
+    rngSeed,
+  };
+}
+
 function handleUnitAction(
   state: GameState,
   payload: { unitId: string; actionType: string; playerId: string; target?: any }
@@ -3256,23 +3387,7 @@ function handleUnitAction(
       // Prefer the weakest adjacent unit if no specific target was supplied
       const targetUnit = candidates.sort((a, b) => a.hp - b.hp)[0];
 
-      return {
-        ...state,
-        players: state.players.map(p =>
-          p.id === playerId
-            ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - 10) } }
-            : p
-        ),
-        units: state.units.map(u => {
-          if (u.id === unitId) {
-            return { ...u, hasAttacked: true, remainingMovement: 0 };
-          }
-          if (u.id === targetUnit.id) {
-            return { ...u, playerId };
-          }
-          return u;
-        })
-      };
+      return handleConvertUnit(state, { playerId, unitId, targetUnitId: targetUnit.id });
     }
 
     case 'stealth':

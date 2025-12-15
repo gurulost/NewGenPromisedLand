@@ -215,7 +215,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
   road: {
     id: 'road',
     name: 'Road',
-    description: 'Infrastructure that reduces movement cost for units',
+    description: 'Infrastructure that speeds movement and boosts commerce when it connects your cities (+1★/turn per additional city in each connected network; doubled with Trade).',
     cost: 3,
     starProduction: 0,
     validTerrain: ['plains', 'forest', 'desert'],

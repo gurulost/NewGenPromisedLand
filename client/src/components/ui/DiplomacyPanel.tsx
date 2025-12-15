@@ -7,12 +7,16 @@ import { Button } from './button';
 import { Badge } from './badge';
 import { Separator } from './separator';
 import { GameState } from '../../../../shared/types/game';
-import { hexDistance, hexNeighbors } from '../../../../shared/utils/hex';
 import { TOKENS } from '../../theme/tokens';
 import { useHotkeys } from '../../hooks/useHotkeys';
 import { useSfxEngine } from '../../hooks/useSfx';
 import { StaggeredContent, StaggeredContainer } from '../primitives/StaggeredContent';
 import { Swords, Heart, Coins, Crown, Users, TrendingUp } from 'lucide-react';
+import {
+    areCitiesConnectedByRoad,
+    calculateTradeRouteEstablishCostStars,
+    calculateTradeRouteStarsPerTurn
+} from '@shared/logic/tradeRoutes';
 
 export interface DiplomacyPanelProps {
     gameState: GameState;
@@ -486,58 +490,11 @@ function TradeTab({ gameState, currentPlayer, playerCities, selectedFromCity, se
 
     const fromCity = allCities.find((c: any) => c.id === selectedFromCity);
     const toCity = allCities.find((c: any) => c.id === selectedToCity);
-
-    const roadKeys = new Set(
-        (gameState.improvements || [])
-            .filter((imp: any) => imp.ownerId === currentPlayer.id)
-            .filter((imp: any) => imp.type === 'road')
-            .filter((imp: any) => imp.constructionTurns === 0)
-            .map((imp: any) => `${imp.coordinate.q},${imp.coordinate.r}`)
+    const isConnected = !!(
+        selectedFromCity &&
+        selectedToCity &&
+        areCitiesConnectedByRoad(gameState, currentPlayer.id, selectedFromCity, selectedToCity)
     );
-
-    const areCitiesConnectedByRoad = (fromId: string, toId: string): boolean => {
-        if (!fromId || !toId || fromId === toId) return false;
-        const a = allCities.find((c: any) => c.id === fromId);
-        const b = allCities.find((c: any) => c.id === toId);
-        if (!a || !b) return false;
-        if (!(currentPlayer.citiesOwned || []).includes(fromId)) return false;
-        if (!(currentPlayer.citiesOwned || []).includes(toId)) return false;
-        if (roadKeys.size === 0) return false;
-
-        const aKey = `${a.coordinate.q},${a.coordinate.r}`;
-        const bKey = `${b.coordinate.q},${b.coordinate.r}`;
-        const cityKeys = new Set([aKey, bKey]);
-
-        const aHasAdjacentRoad = hexNeighbors(a.coordinate).some(n => roadKeys.has(`${n.q},${n.r}`));
-        const bHasAdjacentRoad = hexNeighbors(b.coordinate).some(n => roadKeys.has(`${n.q},${n.r}`));
-        if (!aHasAdjacentRoad || !bHasAdjacentRoad) return false;
-
-        const visited = new Set<string>();
-        const queue = [a.coordinate];
-
-        while (queue.length > 0) {
-            const current = queue.shift()!;
-            const key = `${current.q},${current.r}`;
-            if (visited.has(key)) continue;
-            visited.add(key);
-            if (key === bKey) return true;
-
-            const isCity = cityKeys.has(key);
-            const isRoad = roadKeys.has(key);
-
-            for (const neighbor of hexNeighbors(current)) {
-                const nKey = `${neighbor.q},${neighbor.r}`;
-                const canTraverse =
-                    (isCity && roadKeys.has(nKey)) ||
-                    (isRoad && (roadKeys.has(nKey) || cityKeys.has(nKey)));
-                if (canTraverse && !visited.has(nKey)) queue.push(neighbor);
-            }
-        }
-
-        return false;
-    };
-
-    const isConnected = !!(selectedFromCity && selectedToCity && areCitiesConnectedByRoad(selectedFromCity, selectedToCity));
 
     const isDuplicatePair = !!(selectedFromCity && selectedToCity && tradeRoutes.some((r: any) =>
         (r.fromCityId === selectedFromCity && r.toCityId === selectedToCity) ||
@@ -546,16 +503,12 @@ function TradeTab({ gameState, currentPlayer, playerCities, selectedFromCity, se
 
     const fromAlreadyHasOutgoing = !!(selectedFromCity && tradeRoutes.some((r: any) => r.fromCityId === selectedFromCity));
 
-    const starsPerTurn = (() => {
-        if (!fromCity || !toCity) return 0;
-        const base = 1 + Math.floor(((fromCity.level || 1) + (toCity.level || 1)) / 2);
-        const distance = hexDistance(fromCity.coordinate, toCity.coordinate);
-        const proximity = Math.max(0, 2 - Math.floor(distance / 4));
-        const connectivityBonus = isConnected ? 1 : 0;
-        return Math.max(1, Math.min(6, base + proximity + connectivityBonus));
-    })();
+    const starsPerTurn =
+        selectedFromCity && selectedToCity
+            ? calculateTradeRouteStarsPerTurn(gameState, currentPlayer.id, selectedFromCity, selectedToCity)
+            : 0;
 
-    const costStars = Math.max(8, starsPerTurn * 5);
+    const costStars = calculateTradeRouteEstablishCostStars(starsPerTurn);
 
     const canEstablish =
         hasTradeTech &&
@@ -642,7 +595,7 @@ function TradeTab({ gameState, currentPlayer, playerCities, selectedFromCity, se
                                         Pop: {city.population} • Lvl: {city.level}
                                         {selectedFromCity && (
                                             <span className="ml-2">
-                                                {areCitiesConnectedByRoad(selectedFromCity, city.id) ? 'Connected' : 'Not connected'}
+                                                {selectedFromCity && areCitiesConnectedByRoad(gameState, currentPlayer.id, selectedFromCity, city.id) ? 'Connected' : 'Not connected'}
                                             </span>
                                         )}
                                     </div>

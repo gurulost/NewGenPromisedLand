@@ -95,7 +95,7 @@ describe('VictoryScreen', () => {
     
     expect(screen.getByText('Divine Victory')).toBeInTheDocument();
     expect(screen.getByText('Alice Victorious!')).toBeInTheDocument();
-    expect(screen.getByText('Nephites')).toBeInTheDocument();
+    expect(screen.getAllByText('Nephites').length).toBeGreaterThan(0);
   });
 
   it('displays correct victory type and description', () => {
@@ -108,10 +108,10 @@ describe('VictoryScreen', () => {
   it('shows final statistics correctly', () => {
     render(<VictoryScreen {...mockProps} />);
     
-    expect(screen.getByText('15')).toBeInTheDocument(); // Total turns
-    expect(screen.getByText('2')).toBeInTheDocument(); // Cities controlled
-    expect(screen.getByText('1')).toBeInTheDocument(); // Units remaining
-    expect(screen.getByText('2')).toBeInTheDocument(); // Technologies researched
+    expect(screen.getByText('Total Turns').parentElement).toHaveTextContent('15');
+    expect(screen.getByText('Cities Controlled').parentElement).toHaveTextContent('2');
+    expect(screen.getByText('Units Remaining').parentElement).toHaveTextContent('1');
+    expect(screen.getByText('Technologies').parentElement).toHaveTextContent('2');
   });
 
   it('calls onPlayAgain when play again button is clicked', () => {

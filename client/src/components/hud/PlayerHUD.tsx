@@ -7,6 +7,7 @@ import { GlowingButton } from '../primitives/GlowingButton';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Progress } from '../ui/progress';
 import { InfoTooltip } from '../primitives/InfoTooltip';
+import { DissentSystemTooltip, FaithSystemTooltip, PrideSystemTooltip, StarProductionTooltip } from '../ui/TooltipSystem';
 
 import { PlayerState, GameState } from '@shared/types/game';
 import { getFaction } from '@shared/data/factions';
@@ -156,7 +157,12 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
     {/* Dissent Progress */}
     <div>
       <div className="flex justify-between text-sm mb-1">
-        <span className="text-red-300 font-cinzel font-medium">Dissent</span>
+        <span className="text-red-300 font-cinzel font-medium flex items-center gap-1">
+          Dissent
+          <InfoTooltip content={<DissentSystemTooltip />}>
+            <Info className="w-3 h-3 text-red-400/60 hover:text-red-400 cursor-help transition-colors" />
+          </InfoTooltip>
+        </span>
         <span className="text-amber-100 font-body font-medium">{playerStats.dissentPercentage}/100</span>
       </div>
       <Progress value={playerStats.dissentPercentage} className="h-2" />
@@ -230,42 +236,4 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
   </div>
 ));
 
-// Tooltip content components
-const StarProductionTooltip = ({ totalIncome, breakdown }: {
-  totalIncome: number;
-  breakdown: PlayerStats['starProductionBreakdown'];
-}) => (
-  <div className="space-y-2">
-    <h4 className="font-semibold text-amber-200">Star Production</h4>
-    {breakdown.map((item, index) => (
-      <div key={index} className="flex justify-between text-sm">
-        <span>{item.source}:</span>
-        <span className="text-amber-300">+{item.amount}</span>
-      </div>
-    ))}
-    <div className="border-t border-amber-600/50 pt-1 flex justify-between font-semibold">
-      <span>Total per turn:</span>
-      <span className="text-amber-300">+{totalIncome}</span>
-    </div>
-  </div>
-);
-
-const FaithSystemTooltip = () => (
-  <div className="space-y-2">
-    <h4 className="font-semibold text-blue-300">Faith System</h4>
-    <p className="text-xs text-blue-200">
-      Faith represents your covenant relationship with the Lord. Higher faith unlocks
-      powerful abilities and bonuses for righteous actions.
-    </p>
-  </div>
-);
-
-const PrideSystemTooltip = () => (
-  <div className="space-y-2">
-    <h4 className="font-semibold text-purple-300">Pride System</h4>
-    <p className="text-xs text-purple-200">
-      Pride measures worldly power and ambition. Pride enables certain military and
-      economic actions but can lead to spiritual consequences.
-    </p>
-  </div>
-);
+// Tooltip content components are centralized in `client/src/components/ui/TooltipSystem.tsx`

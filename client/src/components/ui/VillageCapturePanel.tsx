@@ -45,6 +45,21 @@ export function VillageCapturePanel(props: VillageCapturePanelProps) {
     const canConquer = canAffordVillageAction(conquerAction, { faith: player.stats.faith, stars: player.stars });
     const canConvert = canAffordVillageAction(convertAction, { faith: player.stats.faith, stars: player.stars });
 
+    const formatCost = (action: VillageActionDefinition) => {
+        const parts: string[] = [];
+        if (action.requirements.stars > 0) parts.push(`${action.requirements.stars} Stars`);
+        if (action.requirements.faith > 0) parts.push(`${action.requirements.faith} Faith`);
+        return parts.length ? parts.join(', ') : 'Free';
+    };
+
+    const formatMoralImpact = (action: VillageActionDefinition) => {
+        const parts: string[] = [];
+        if (action.moralImpact.pride) parts.push(`${action.moralImpact.pride > 0 ? '+' : ''}${action.moralImpact.pride} Pride`);
+        if (action.moralImpact.dissent) parts.push(`${action.moralImpact.dissent > 0 ? '+' : ''}${action.moralImpact.dissent} Dissent`);
+        if (action.moralImpact.faith) parts.push(`${action.moralImpact.faith > 0 ? '+' : ''}${action.moralImpact.faith} Faith`);
+        return parts.length ? parts.join(', ') : 'None';
+    };
+
     return (
         <Transition appear show as={Fragment}>
             <Dialog as="div" className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -146,20 +161,22 @@ export function VillageCapturePanel(props: VillageCapturePanelProps) {
                                         <div className="text-center font-semibold text-blue-300">Convert</div>
 
                                         <div className="text-amber-300/70">Cost</div>
-                                        <div className="text-center text-green-300">Free</div>
-                                        <div className="text-center text-amber-300">8 Faith</div>
+                                        <div className="text-center text-green-300">{formatCost(conquerAction)}</div>
+                                        <div className="text-center text-amber-300">{formatCost(convertAction)}</div>
 
                                         <div className="text-amber-300/70">Immediate Stars</div>
-                                        <div className="text-center text-amber-300">+5</div>
-                                        <div className="text-center text-amber-300">+2</div>
+                                        <div className="text-center text-amber-300">+{conquerAction.immediateRewards.stars}</div>
+                                        <div className="text-center text-amber-300">+{convertAction.immediateRewards.stars}</div>
 
                                         <div className="text-amber-300/70">Ongoing Benefit</div>
                                         <div className="text-center text-gray-400">None</div>
-                                        <div className="text-center text-green-300">+1 ⭐/turn</div>
+                                        <div className="text-center text-green-300">
+                                            {convertAction.ongoingRewards.starsPerTurn ? `+${convertAction.ongoingRewards.starsPerTurn} ⭐/turn` : 'None'}
+                                        </div>
 
                                         <div className="text-amber-300/70">Moral Impact</div>
-                                        <div className="text-center text-red-300">+2 Pride, +1 Dissent</div>
-                                        <div className="text-center text-blue-300">+2 Faith</div>
+                                        <div className="text-center text-red-300">{formatMoralImpact(conquerAction)}</div>
+                                        <div className="text-center text-blue-300">{formatMoralImpact(convertAction)}</div>
                                     </div>
                                 </div>
                             </StaggeredContent>

@@ -75,7 +75,8 @@ const MAP_GENERATION_CONSTANTS = {
   
   // City and village spacing
   CITY_MIN_DISTANCE: 6,                // Minimum distance between cities
-  VILLAGE_MIN_DISTANCE: 2,             // Minimum distance between villages
+  VILLAGE_MIN_DISTANCE: 3,             // Minimum distance between villages
+  VILLAGE_MIN_DISTANCE_FROM_CITY: 4,   // Minimum distance from any city
   MAP_EDGE_BUFFER: 2,                  // Buffer distance from map edge
   
   // Water generation
@@ -289,8 +290,11 @@ export class MapGenerator {
     // Place additional neutral cities/villages
     const additionalCities = Math.max(2, Math.floor(this.config.playerCount * 0.5));
     let placed = 0;
+    let attempts = 0;
+    const maxAttempts = tiles.length * 10; // Prevent infinite loops on small/tight maps
     
-    while (placed < additionalCities) {
+    while (placed < additionalCities && attempts < maxAttempts) {
+      attempts++;
       const candidate = tiles[Math.floor(this.rng.next() * tiles.length)];
       
       // Check distance from existing cities
@@ -311,8 +315,9 @@ export class MapGenerator {
    * Pass 2: Pre-terrain villages (future expansion - skipped for now) 
    * Pass 3: Post-terrain villages (main implementation)
    */
-  private placeVillages(tiles: Tile[], mapRadius: number, capitalPositions: HexCoordinate[]): void {
+  private placeVillages(tiles: Tile[], mapRadius: number, _capitalPositions: HexCoordinate[]): void {
     const placedVillages: HexCoordinate[] = [];
+    const cityPositions = tiles.filter(tile => tile.hasCity).map(tile => tile.coordinate);
     
     // Pass 1: Suburbs (around capitals)
     // Skipped for initial implementation - can add later for water-heavy maps
@@ -333,7 +338,7 @@ export class MapGenerator {
       // Pick random tile
       const candidateTile = tiles[Math.floor(this.rng.next() * tiles.length)];
       
-      if (this.isValidVillageLocation(candidateTile, capitalPositions, placedVillages, mapRadius)) {
+      if (this.isValidVillageLocation(candidateTile, cityPositions, placedVillages, mapRadius)) {
         candidateTile.feature = 'village';
         placedVillages.push(candidateTile.coordinate);
         villagesPlaced++;
@@ -348,7 +353,7 @@ export class MapGenerator {
    */
   private isValidVillageLocation(
     tile: Tile, 
-    capitalPositions: HexCoordinate[], 
+    cityPositions: HexCoordinate[],
     existingVillages: HexCoordinate[], 
     mapRadius: number
   ): boolean {
@@ -372,9 +377,9 @@ export class MapGenerator {
       }
     }
     
-    // Must be ≥ 2 tiles from any capital (prevent blocking starting areas)
-    for (const capitalPos of capitalPositions) {
-      if (hexDistance(tile.coordinate, capitalPos) < MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE) {
+    // Must be ≥ N tiles from any city (prevent blocking starting areas / neutral cities)
+    for (const cityPos of cityPositions) {
+      if (hexDistance(tile.coordinate, cityPos) < MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE_FROM_CITY) {
         return false;
       }
     }

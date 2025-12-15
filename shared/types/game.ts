@@ -122,6 +122,8 @@ export type PlayerState = z.infer<typeof PlayerStateSchema>;
 // Game state
 export const GameStateSchema = z.object({
   id: z.string(),
+  // Seed for deterministic-but-random-feeling systems (morale events, etc.)
+  rngSeed: z.number().int().optional(),
   players: z.array(PlayerStateSchema),
   currentPlayerIndex: z.number(),
   turn: z.number(),
@@ -132,16 +134,17 @@ export const GameStateSchema = z.object({
   cities: z.array(CitySchema).default([]),
   improvements: z.array(ImprovementSchema).default([]),
   structures: z.array(StructureSchema).default([]),
-  lastAction: z.union([
-    z.object({ type: z.literal('MOVE_UNIT'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema }) }),
-    z.object({ type: z.literal('ATTACK_UNIT'), payload: z.object({ attackerId: z.string(), targetId: z.string() }) }),
-    z.object({ type: z.literal('END_TURN'), payload: z.object({ playerId: z.string() }) }),
-    z.object({ type: z.literal('HARVEST_RESOURCE'), payload: z.object({ unitId: z.string(), resourceCoordinate: HexCoordinateSchema, cityId: z.string() }) }),
-    z.object({ type: z.literal('HEAL_UNIT'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
-    z.object({ type: z.literal('APPLY_STEALTH'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
-    z.object({ type: z.literal('RECONNAISSANCE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
-    z.object({ type: z.literal('FORMATION_FIGHTING'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
-    z.object({ type: z.literal('SIEGE_MODE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+	  lastAction: z.union([
+	    z.object({ type: z.literal('MOVE_UNIT'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema }) }),
+	    z.object({ type: z.literal('ATTACK_UNIT'), payload: z.object({ attackerId: z.string(), targetId: z.string() }) }),
+	    z.object({ type: z.literal('END_TURN'), payload: z.object({ playerId: z.string() }) }),
+	    z.object({ type: z.literal('CONVERT_UNIT'), payload: z.object({ playerId: z.string(), unitId: z.string(), targetUnitId: z.string() }) }),
+	    z.object({ type: z.literal('HARVEST_RESOURCE'), payload: z.object({ unitId: z.string(), resourceCoordinate: HexCoordinateSchema, cityId: z.string() }) }),
+	    z.object({ type: z.literal('HEAL_UNIT'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+	    z.object({ type: z.literal('APPLY_STEALTH'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+	    z.object({ type: z.literal('RECONNAISSANCE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+	    z.object({ type: z.literal('FORMATION_FIGHTING'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+	    z.object({ type: z.literal('SIEGE_MODE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
     z.object({ type: z.literal('RALLY_TROOPS'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
     z.object({ type: z.literal('RESEARCH_TECHNOLOGY'), payload: z.object({ playerId: z.string(), technologyId: z.string() }) }),
     z.object({ type: z.literal('CLEAR_FOREST'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema, playerId: z.string() }) }),
@@ -154,7 +157,7 @@ export const GameStateSchema = z.object({
 export type GameState = z.infer<typeof GameStateSchema>;
 
 // Game actions
-export const GameActionSchema = z.discriminatedUnion('type', [
+	export const GameActionSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('MOVE_UNIT'),
     payload: z.object({
@@ -182,12 +185,20 @@ export const GameActionSchema = z.discriminatedUnion('type', [
       ]).optional(),
     }),
   }),
-  z.object({
-    type: z.literal('END_TURN'),
-    payload: z.object({
-      playerId: z.string(),
-    }),
-  }),
+	  z.object({
+	    type: z.literal('END_TURN'),
+	    payload: z.object({
+	      playerId: z.string(),
+	    }),
+	  }),
+	  z.object({
+	    type: z.literal('CONVERT_UNIT'),
+	    payload: z.object({
+	      playerId: z.string(),
+	      unitId: z.string(),
+	      targetUnitId: z.string(),
+	    }),
+	  }),
   z.object({
     type: z.literal('BUILD_UNIT'),
     payload: z.object({
@@ -223,6 +234,7 @@ export const GameActionSchema = z.discriminatedUnion('type', [
     type: z.literal('WORLD_ELEMENT_HARVEST'),
     payload: z.object({
       playerId: z.string(),
+      unitId: z.string(),
       elementId: z.string(),
       coordinate: HexCoordinateSchema,
     }),
@@ -231,6 +243,7 @@ export const GameActionSchema = z.discriminatedUnion('type', [
     type: z.literal('WORLD_ELEMENT_BUILD'),
     payload: z.object({
       playerId: z.string(),
+      unitId: z.string(),
       elementId: z.string(),
       coordinate: HexCoordinateSchema,
     }),

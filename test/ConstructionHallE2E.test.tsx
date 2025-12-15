@@ -99,13 +99,13 @@ describe('Construction Hall End-to-End Tests', () => {
 
       // Verify Construction Hall opens with proper structure
       expect(screen.getByText('Construction Hall')).toBeInTheDocument();
-      expect(screen.getByText('Test City - Build your empire')).toBeInTheDocument();
+      expect(screen.getByText('Test City — Build in the Promised Land')).toBeInTheDocument();
       expect(screen.getByTestId('animated-background')).toBeInTheDocument();
 
       // Check resource display
-      expect(screen.getByText('100')).toBeInTheDocument(); // Stars
-      expect(screen.getByText('50')).toBeInTheDocument();  // Faith
-      expect(screen.getByText('30')).toBeInTheDocument();  // Pride
+      expect(screen.getAllByText('100').length).toBeGreaterThan(0); // Stars
+      expect(screen.getAllByText('50').length).toBeGreaterThan(0);  // Faith
+      expect(screen.getAllByText('30').length).toBeGreaterThan(0);  // Pride
 
       // Verify category tabs are present
       expect(screen.getByText('Units')).toBeInTheDocument();
@@ -118,18 +118,24 @@ describe('Construction Hall End-to-End Tests', () => {
       expect(searchInput).toHaveValue('warrior');
 
       // Test sorting
-      const sortSelect = screen.getByDisplayValue('Name');
-      await user.selectOptions(sortSelect, 'cost');
-      expect(sortSelect).toHaveValue('cost');
+      const sortSelect = screen.getByDisplayValue('Cost');
+      await user.selectOptions(sortSelect, 'name');
+      expect(sortSelect).toHaveValue('name');
 
       // Test category switching
       await user.click(screen.getByText('Structures'));
       // Should switch to structures view
 
+      // Reset search so build options are visible
+      await user.clear(searchInput);
+      expect(searchInput).toHaveValue('');
+      await user.click(screen.getByText('Units'));
+
       // Test building selection and construction
-      const buildButtons = screen.getAllByTestId('success-button');
-      if (buildButtons.length > 0) {
-        await user.click(buildButtons[0]);
+      const buildButtons = screen.getAllByRole('button', { name: /Build/i });
+      const enabledBuild = buildButtons.find(btn => !btn.hasAttribute('disabled'));
+      if (enabledBuild) {
+        await user.click(enabledBuild);
         expect(mockOnBuild).toHaveBeenCalled();
       }
     });
@@ -185,10 +191,10 @@ describe('Construction Hall End-to-End Tests', () => {
       );
 
       // Should show resource constraints
-      expect(screen.getByText('1')).toBeInTheDocument(); // Low stars
+      expect(screen.getAllByText('1').length).toBeGreaterThan(0); // Low stars
       
       // Most buildings should be locked due to insufficient resources
-      const lockedButtons = screen.getAllByTestId('ghost-button');
+      const lockedButtons = screen.getAllByRole('button', { name: /Locked/i });
       expect(lockedButtons.length).toBeGreaterThan(0);
       
       // Verify locked buttons show "Locked" text
@@ -249,15 +255,15 @@ describe('Construction Hall End-to-End Tests', () => {
       );
 
       // Should show high resources
-      expect(screen.getByText('1000')).toBeInTheDocument(); // High stars
-      expect(screen.getByText('100')).toBeInTheDocument();  // High faith
+      expect(screen.getAllByText('1000').length).toBeGreaterThan(0); // High stars
+      expect(screen.getAllByText('100').length).toBeGreaterThan(0);  // High faith
 
       // Switch to structures tab to see tech-dependent buildings
       const user = userEvent.setup();
       await user.click(screen.getByText('Structures'));
 
       // Many structures should be locked due to missing technologies
-      const lockedButtons = screen.getAllByTestId('ghost-button');
+      const lockedButtons = screen.getAllByRole('button', { name: /Locked/i });
       expect(lockedButtons.length).toBeGreaterThan(0);
     });
 
@@ -394,10 +400,10 @@ describe('Construction Hall End-to-End Tests', () => {
       );
 
       // Verify realistic data is displayed correctly
-      expect(screen.getByText('Zarahemla - Build your empire')).toBeInTheDocument();
-      expect(screen.getByText('75')).toBeInTheDocument(); // Stars
-      expect(screen.getByText('40')).toBeInTheDocument(); // Faith
-      expect(screen.getByText('25')).toBeInTheDocument(); // Pride
+      expect(screen.getByText('Zarahemla — Build in the Promised Land')).toBeInTheDocument();
+      expect(screen.getAllByText('75').length).toBeGreaterThan(0); // Stars
+      expect(screen.getAllByText('40').length).toBeGreaterThan(0); // Faith
+      expect(screen.getAllByText('25').length).toBeGreaterThan(0); // Pride
 
       // Should show various building options based on researched techs
       expect(screen.getByText('Units')).toBeInTheDocument();

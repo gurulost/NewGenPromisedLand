@@ -1,6 +1,7 @@
 import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
+import React from 'react';
 
 // Extend Vitest's expect with testing-library matchers
 expect.extend(matchers);
@@ -105,3 +106,45 @@ vi.mock('zustand', () => ({
     return () => store;
   }),
 }));
+
+// Mock Headless UI (Dialog/Transition) to avoid focus-trap timers and portal side effects in tests
+vi.mock('@headlessui/react', () => {
+  const Fragment = React.Fragment;
+  const Transition: any = ({ show = true, children }: any) =>
+    show ? React.createElement(Fragment, null, children) : null;
+  Transition.Child = ({ children }: any) => React.createElement(Fragment, null, children);
+
+  const Dialog: any = ({ as: Comp = 'div', children, ...props }: any) =>
+    React.createElement(Comp, { ...props, role: props.role ?? 'dialog' }, children);
+
+  return { Dialog, Transition };
+});
+
+// Mock framer-motion to prevent infinite RAF loops during tests
+vi.mock('framer-motion', () => {
+  const stripMotionProps = (props: any) => {
+    if (!props) return props;
+    // Avoid forwarding motion-only props to the DOM
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { animate, initial, exit, transition, whileHover, whileTap, layout, layoutId, ...rest } = props;
+    return rest;
+  };
+
+  const motionProxy = new Proxy(
+    {},
+    {
+      get: (_target, tag: string) => {
+        const Component = React.forwardRef<any, any>(({ children, ...props }, ref) =>
+          React.createElement(tag, { ...stripMotionProps(props), ref }, children),
+        );
+        Component.displayName = `motion.${tag}`;
+        return Component;
+      },
+    },
+  );
+
+  return {
+    motion: motionProxy,
+    AnimatePresence: ({ children }: any) => children,
+  };
+});

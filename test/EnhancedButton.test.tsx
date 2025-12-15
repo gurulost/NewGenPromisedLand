@@ -84,7 +84,7 @@ describe('EnhancedButton Component', () => {
     
     render(<EnhancedButton disabled onClick={mockClick}>Disabled</EnhancedButton>);
     
-    const button = screen.getByText('Disabled');
+    const button = screen.getByRole('button', { name: 'Disabled' });
     expect(button).toBeDisabled();
     
     fireEvent.click(button);
@@ -174,7 +174,7 @@ describe('Button Presets', () => {
   it('preset buttons can be disabled', () => {
     render(<SuccessButton disabled>Disabled Success</SuccessButton>);
     
-    const button = screen.getByText('Disabled Success');
+    const button = screen.getByRole('button', { name: 'Disabled Success' });
     expect(button).toBeDisabled();
   });
 });

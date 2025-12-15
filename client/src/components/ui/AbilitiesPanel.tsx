@@ -6,7 +6,7 @@ import { Separator } from "./separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./dialog";
 import { Alert, AlertDescription } from "./alert";
 import {
-  Star, Target, Heart, Swords, Eye,
+  Star, Target, Heart, Swords, Eye, Shield,
   X, Hammer, Bomb, Crown, Move, Coins, Sparkles, AlertTriangle
 } from "lucide-react";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
@@ -49,6 +49,8 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
   const [showCitySelector, setShowCitySelector] = useState(false);
   const [pendingConversionType, setPendingConversionType] = useState<'faith' | 'pride' | 'peace' | null>(null);
   const [adjacentCitiesForConversion, setAdjacentCitiesForConversion] = useState<Array<{ id: string; name: string }>>([]);
+  const [showUnitConvertSelector, setShowUnitConvertSelector] = useState(false);
+  const [adjacentUnitsForConversion, setAdjacentUnitsForConversion] = useState<Array<{ id: string; name: string }>>([]);
 
   if (!gameState) return null;
 
@@ -144,26 +146,24 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
       });
     }
 
-    // Check for adjacent ruins
-    const adjacentRuins = gameState?.map?.tiles?.find(tile => {
-      const distance = Math.max(
-        Math.abs(unit.coordinate.q - tile.coordinate.q),
-        Math.abs(unit.coordinate.r - tile.coordinate.r),
-        Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (tile.coordinate.s || -tile.coordinate.q - tile.coordinate.r))
-      );
-      return distance <= 1 && tile.feature === 'ruin';
-    });
+    // Jaredite ruins are a world element resource on the tile (not a map feature).
+    const canExploreRuins =
+      !!currentTile &&
+      (currentTile.resources || []).includes('jaredite_ruins') &&
+      isPlayerTurn &&
+      unit.remainingMovement > 0 &&
+      !unit.hasAttacked;
 
-    if (adjacentRuins && isPlayerTurn && unit.remainingMovement > 0) {
+    if (canExploreRuins) {
       actions.push({
         id: 'explore_ruins',
         name: 'Explore Ruins',
-        description: 'Search the ancient ruins for rewards',
+        description: 'Explore Jaredite ruins for a random boon (+1 Faith)',
         icon: <span className="text-lg">🏛️</span>,
         cost: 'Free',
         available: true,
         rangeType: 'ability',
-        range: 1
+        range: 0
       });
     }
 
@@ -172,6 +172,14 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
       case 'worker':
         const bestImprovement = getBestImprovementForCurrentTile();
         const closestCityId = getClosestOwnedCityId();
+        const canClearForest =
+          !!currentTile &&
+          currentTile.terrain === 'forest' &&
+          currentPlayer.researchedTechs.includes('forestry') &&
+          currentPlayer.stars >= 5 &&
+          isPlayerTurn &&
+          unit.remainingMovement > 0 &&
+          !unit.hasAttacked;
         actions.push(
           {
             id: 'build_improvement',
@@ -203,18 +211,45 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: !currentPlayer.researchedTechs.includes('organization')
               ? 'Requires Organization technology'
               : currentPlayer.stars >= 3
-                ? 'Create road infrastructure (3 stars)'
+                ? 'Create road infrastructure (3 stars) • Connect cities for +★/turn'
                 : 'Insufficient stars (need 3)',
             icon: <Target className="w-4 h-4" />,
             cost: '3 Stars',
             starCost: 3,
             available: currentPlayer.researchedTechs.includes('organization') && currentPlayer.stars >= 3 && isPlayerTurn && unit.remainingMovement > 0 && !!currentTile && !unit.hasAttacked
+          },
+          {
+            id: 'clear_forest',
+            name: 'Clear Forest',
+            description: !currentTile
+              ? 'No tile selected'
+              : currentTile.terrain !== 'forest'
+                ? 'Must be standing on a forest tile'
+                : !currentPlayer.researchedTechs.includes('forestry')
+                  ? 'Requires Forestry technology'
+                  : currentPlayer.stars < 5
+                    ? 'Insufficient stars (need 5)'
+                    : 'Clear the forest (5 stars) • Convert to plains',
+            icon: <AlertTriangle className="w-4 h-4" />,
+            cost: '5 Stars',
+            starCost: 5,
+            available: canClearForest
           }
         );
         break;
 
       case 'missionary':
         const hasHealingTech = currentPlayer.researchedTechs.includes('spirituality');
+        const adjacentEnemyUnits = gameState.units.filter(u => {
+          if (u.playerId === currentPlayer.id) return false;
+          const distance = Math.max(
+            Math.abs(unit.coordinate.q - u.coordinate.q),
+            Math.abs(unit.coordinate.r - u.coordinate.r),
+            Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (u.coordinate.s || -u.coordinate.q - u.coordinate.r))
+          );
+          return distance <= 1;
+        });
+
         actions.push(
           {
             id: 'heal',
@@ -232,11 +267,13 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           {
             id: 'convert',
             name: 'Convert Enemy',
-            description: 'Convert enemy unit to your side',
+            description: adjacentEnemyUnits.length > 0
+              ? (adjacentEnemyUnits.length === 1 ? `Convert adjacent ${adjacentEnemyUnits[0].type}` : `Convert an adjacent enemy unit (${adjacentEnemyUnits.length} targets)`)
+              : 'No adjacent enemy units to convert',
             icon: <Star className="w-4 h-4" />,
             cost: '10 Faith',
             faithCost: 10,
-            available: currentPlayer.stats.faith >= 10 && !unit.hasAttacked,
+            available: currentPlayer.stats.faith >= 10 && !unit.hasAttacked && adjacentEnemyUnits.length > 0,
             rangeType: 'attack',
             range: 1
           }
@@ -317,6 +354,17 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         );
         break;
 
+      case 'spearman':
+        actions.push({
+          id: 'formation_fighting',
+          name: 'Formation Fighting',
+          description: 'Assume formation for +2 defense until broken',
+          icon: <Shield className="w-4 h-4" />,
+          cost: 'Turn',
+          available: isPlayerTurn && !unit.hasAttacked && unit.remainingMovement > 0
+        });
+        break;
+
       case 'commander':
         actions.push({
           id: 'rally_troops',
@@ -329,23 +377,49 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           prideCost: 5,
           available: isPlayerTurn && !unit.hasAttacked && currentPlayer.stats.pride >= 5,
           rangeType: 'ability',
-          range: 3
+          range: 2
         });
         break;
 
       case 'catapult':
-        actions.push({
-          id: 'bombardment',
-          name: 'Artillery Bombardment',
-          description: unit.remainingMovement === unit.movement ?
-            'Long-range area attack' :
-            'Must not have moved this turn',
-          icon: <Bomb className="w-4 h-4" />,
-          cost: 'Turn',
-          available: isPlayerTurn && unit.remainingMovement === unit.movement && !unit.hasAttacked,
-          rangeType: 'attack',
-          range: 3
-        });
+        actions.push(
+          {
+            id: 'siege_mode',
+            name: 'Deploy Siege Mode',
+            description:
+              unit.status === 'siege_mode'
+                ? 'Already deployed'
+                : unit.remainingMovement !== unit.movement
+                  ? 'Must be stationary to deploy'
+                  : 'Deploy to enable long-range bombardment',
+            icon: <Target className="w-4 h-4" />,
+            cost: 'Turn',
+            available:
+              isPlayerTurn &&
+              !unit.hasAttacked &&
+              unit.remainingMovement === unit.movement &&
+              unit.status !== 'siege_mode',
+          },
+          {
+            id: 'bombardment',
+            name: 'Artillery Bombardment',
+            description:
+              unit.status !== 'siege_mode'
+                ? 'Deploy siege mode first'
+                : unit.remainingMovement !== unit.movement
+                  ? 'Must be stationary this turn'
+                  : 'Long-range attack (splash on adjacent enemies when firing at range)',
+            icon: <Bomb className="w-4 h-4" />,
+            cost: 'Turn',
+            available:
+              isPlayerTurn &&
+              !unit.hasAttacked &&
+              unit.status === 'siege_mode' &&
+              unit.remainingMovement === unit.movement,
+            rangeType: 'attack',
+            range: unit.attackRange
+          }
+        );
         break;
     }
 
@@ -431,24 +505,14 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         setAttackMode(true);
         break;
       case 'explore_ruins':
-        // Find adjacent ruins tile
-        const ruinsTile = gameState?.map?.tiles?.find(tile => {
-          const distance = Math.max(
-            Math.abs(unit.coordinate.q - tile.coordinate.q),
-            Math.abs(unit.coordinate.r - tile.coordinate.r),
-            Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (tile.coordinate.s || -tile.coordinate.q - tile.coordinate.r))
-          );
-          return distance <= 1 && tile.feature === 'ruin';
-        });
-
-        if (ruinsTile) {
+        if (currentTile && (currentTile.resources || []).includes('jaredite_ruins')) {
           dispatch({
-            type: 'EXPLORE_RUINS',
+            type: 'WORLD_ELEMENT_HARVEST',
             payload: {
               playerId: currentPlayer.id,
               unitId: unit.id,
-              coordinate: ruinsTile.coordinate,
-              randomSeed: Math.random() // Generate seed on client for determinism
+              elementId: 'jaredite_ruins',
+              coordinate: currentTile.coordinate
             }
           });
         }
@@ -500,12 +564,26 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           payload: { playerId: currentPlayer.id, unitId: unit.id }
         });
         break;
+      case 'siege_mode':
+        dispatch({
+          type: 'SIEGE_MODE',
+          payload: { playerId: currentPlayer.id, unitId: unit.id }
+        });
+        break;
       case 'bombardment':
         // Use standard attack targeting (catapult already has extended `attackRange`)
         setAttackMode(true);
         break;
       case 'build_road':
         startRoadBuild(unit.id);
+        break;
+      case 'clear_forest':
+        if (currentTile) {
+          dispatch({
+            type: 'CLEAR_FOREST',
+            payload: { playerId: currentPlayer.id, unitId: unit.id, targetCoordinate: currentTile.coordinate }
+          });
+        }
         break;
       case 'build_improvement':
         if (currentTile) {
@@ -529,6 +607,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             type: 'WORLD_ELEMENT_HARVEST',
             payload: {
               playerId: currentPlayer.id,
+              unitId: unit.id,
               elementId: currentTile.resources[0],
               coordinate: currentTile.coordinate
             }
@@ -536,9 +615,33 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         }
         break;
       case 'convert':
+        {
+          const enemies = gameState.units.filter(u => {
+            if (u.playerId === currentPlayer.id) return false;
+            const distance = Math.max(
+              Math.abs(unit.coordinate.q - u.coordinate.q),
+              Math.abs(unit.coordinate.r - u.coordinate.r),
+              Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (u.coordinate.s || -unit.coordinate.q - unit.coordinate.r))
+            );
+            return distance <= 1;
+          });
+
+          if (enemies.length === 1) {
+            dispatch({
+              type: 'CONVERT_UNIT',
+              payload: { playerId: currentPlayer.id, unitId: unit.id, targetUnitId: enemies[0].id }
+            });
+          } else if (enemies.length > 1) {
+            setAdjacentUnitsForConversion(enemies.map(e => ({ id: e.id, name: e.type })));
+            setShowUnitConvertSelector(true);
+            return; // keep panel open
+          }
+        }
+        break;
+      case 'formation_fighting':
         dispatch({
-          type: 'UNIT_ACTION',
-          payload: { playerId: currentPlayer.id, unitId: unit.id, actionType: 'convert' }
+          type: 'FORMATION_FIGHTING',
+          payload: { playerId: currentPlayer.id, unitId: unit.id }
         });
         break;
 
@@ -963,6 +1066,59 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                 setAdjacentCitiesForConversion([]);
               }}
               className="border-amber-600 text-amber-300 md:hover:bg-amber-800/50"
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unit Selection Modal for Missionaries (Convert Enemy) */}
+      <Dialog open={showUnitConvertSelector} onOpenChange={setShowUnitConvertSelector}>
+        <DialogContent className="bg-blue-950 border-blue-600 text-white max-w-md p-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-blue-300">
+              <Sparkles className="w-5 h-5" />
+              Select Unit to Convert
+            </DialogTitle>
+            <DialogDescription className="text-blue-200">
+              Choose which adjacent unit to attempt conversion on (costs 10 Faith).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {adjacentUnitsForConversion.map(enemy => (
+              <button
+                key={enemy.id}
+                onClick={() => {
+                  dispatch({
+                    type: 'CONVERT_UNIT',
+                    payload: { playerId: currentPlayer.id, unitId: unit.id, targetUnitId: enemy.id }
+                  });
+                  setShowUnitConvertSelector(false);
+                  setAdjacentUnitsForConversion([]);
+                  onClose();
+                }}
+                className="w-full p-3 bg-blue-900/40 hover:bg-blue-700/50 border border-blue-500/40 hover:border-blue-400 rounded-lg transition-all text-left"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold text-blue-100">{enemy.name}</div>
+                  <Badge className="bg-blue-800/50 text-blue-200 border-blue-500/50">
+                    Convert
+                  </Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowUnitConvertSelector(false);
+                setAdjacentUnitsForConversion([]);
+              }}
+              className="border-blue-600 text-blue-200 md:hover:bg-blue-800/50"
             >
               Cancel
             </Button>
