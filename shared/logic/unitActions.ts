@@ -46,31 +46,31 @@ export function executeWorkerAction(
     return { success: false, message: "Unit cannot build" };
   }
 
-  if (action === 'BUILD_IMPROVEMENT' && target && buildingType) {
-    // Check if improvement can be built on this terrain
-    const hex = state.map?.tiles.find(tile => 
-      tile.coordinate.q === target.q && tile.coordinate.r === target.r
-    );
-    
-    if (!hex) {
-      return { success: false, message: "Invalid location" };
-    }
+  // Get hex for target location if provided
+  const hex = target ? state.map?.tiles.find(tile => 
+    tile.coordinate.q === target.q && tile.coordinate.r === target.r
+  ) : state.map?.tiles.find(tile => 
+    tile.coordinate.q === unit.coordinate.q && tile.coordinate.r === unit.coordinate.r
+  );
 
-    // Check action type properly
-    if (action === 'HARVEST' && unitDef.abilities.includes('HARVEST')) {
-      return executeHarvestAction(state, unit, hex);
-    }
+  if (!hex) {
+    return { success: false, message: "Invalid location" };
+  }
 
-    // Handle Clear Forest action
-    if (action === 'CLEAR_FOREST') {
-      return executeClearForestAction(state, unit, hex);
-    }
+  // Handle each action type independently
+  if (action === 'HARVEST' && unitDef.abilities.includes('HARVEST')) {
+    return executeHarvestAction(state, unit, hex);
+  }
 
-    // Handle Build Road action
-    if (action === 'BUILD_ROAD') {
-      return executeBuildRoadAction(state, unit, hex);
-    }
+  if (action === 'CLEAR_FOREST') {
+    return executeClearForestAction(state, unit, hex);
+  }
 
+  if (action === 'BUILD_ROAD') {
+    return executeBuildRoadAction(state, unit, hex);
+  }
+
+  if (action === 'BUILD_IMPROVEMENT' && buildingType) {
     // Building logic would integrate with existing improvement system
     return {
       success: true,
