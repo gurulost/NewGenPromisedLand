@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Save, Trash2, Download, Upload, Calendar, Clock, Users } from 'lucide-react';
 import { GameState } from '@shared/types/game';
 import { compress, decompress } from 'lz-string';
+import { saveAutosave } from '../../lib/autosaveStorage';
 
 interface SaveSlot {
   id: string;
@@ -119,7 +120,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
     }
   };
 
-  const createAutoSave = () => {
+  const createAutoSave = async () => {
     // Remove old auto-saves (keep only 3)
     const autoSaves = saves.filter(save => save.autoSave);
     if (autoSaves.length >= 3) {
@@ -127,6 +128,13 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
     }
     
     createSave('', true);
+    
+    // Also save to IndexedDB for "Resume Last Session" feature
+    try {
+      await saveAutosave(currentGameState);
+    } catch (error) {
+      console.warn('Failed to save autosave to IndexedDB:', error);
+    }
   };
 
   const deleteSave = (saveId: string) => {
