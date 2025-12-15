@@ -3,7 +3,20 @@ import { UNIT_DEFINITIONS, getUnitDefinition, getUnitsForFaction } from './units
 
 describe('Unit Definitions', () => {
   it('should have all unit types defined', () => {
-    const unitTypes = ['warrior', 'stripling_warrior', 'royal_envoy', 'missionary', 'guard', 'scout', 'worker', 'commander'];
+    const unitTypes = [
+      'warrior',
+      'stripling_warrior',
+      'royal_envoy',
+      'missionary',
+      'priestcraft_preacher',
+      'converted_missionary',
+      'scribe_teacher',
+      'prophet',
+      'guard',
+      'scout',
+      'worker',
+      'commander'
+    ];
     
     unitTypes.forEach(type => {
       expect(UNIT_DEFINITIONS[type]).toBeDefined();

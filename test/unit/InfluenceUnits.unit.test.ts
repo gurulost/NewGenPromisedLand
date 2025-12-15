@@ -168,6 +168,99 @@ describe('Influence units (passive per-turn effects)', () => {
     expect(after.players[0].diplomaticCooldowns?.requestTrade).toBe(1); // 3 - 1 (base tick) - 1 (scribe)
   });
 
+  it('Converted Missionary grants faith and reduces pride/dissent per turn', () => {
+    const baseline = makeState({
+      factionId: 'LAMANITES',
+      stats: { faith: 10, pride: 10, internalDissent: 10 },
+      units: [],
+    });
+    const baselineAfter = gameReducer(baseline, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+
+    const state = makeState({
+      factionId: 'LAMANITES',
+      stats: { faith: 10, pride: 10, internalDissent: 10 },
+      units: [
+        {
+          id: 'u1',
+          type: 'converted_missionary',
+          playerId: 'p1',
+          coordinate: { q: 0, r: 0, s: 0 },
+          hp: 18,
+          maxHp: 18,
+          attack: 1,
+          defense: 2,
+          movement: 3,
+          remainingMovement: 3,
+          status: 'active',
+          abilities: [],
+          level: 1,
+          experience: 0,
+          visionRadius: 2,
+          attackRange: 1,
+          hasAttacked: false,
+        } as any,
+      ],
+    });
+
+    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    expect(after.players[0].stats.faith - baselineAfter.players[0].stats.faith).toBe(1);
+    expect(after.players[0].stats.pride - baselineAfter.players[0].stats.pride).toBe(-1);
+    expect(after.players[0].stats.internalDissent - baselineAfter.players[0].stats.internalDissent).toBe(-1);
+  });
+
+  it('clamps pride/dissent within 0..100 for negative/positive passive deltas', () => {
+    const state = makeState({
+      factionId: 'ZORAMITES',
+      stats: { pride: 99, internalDissent: 0, faith: 0 },
+      units: [
+        {
+          id: 'p',
+          type: 'priestcraft_preacher',
+          playerId: 'p1',
+          coordinate: { q: 0, r: 0, s: 0 },
+          hp: 15,
+          maxHp: 15,
+          attack: 2,
+          defense: 1,
+          movement: 3,
+          remainingMovement: 3,
+          status: 'active',
+          abilities: [],
+          level: 1,
+          experience: 0,
+          visionRadius: 2,
+          attackRange: 1,
+          hasAttacked: false,
+        } as any,
+        {
+          id: 'prop',
+          type: 'prophet',
+          playerId: 'p1',
+          coordinate: { q: 0, r: 0, s: 0 },
+          hp: 16,
+          maxHp: 16,
+          attack: 1,
+          defense: 2,
+          movement: 3,
+          remainingMovement: 3,
+          status: 'active',
+          abilities: [],
+          level: 1,
+          experience: 0,
+          visionRadius: 2,
+          attackRange: 1,
+          hasAttacked: false,
+        } as any,
+      ],
+    });
+
+    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    expect(after.players[0].stats.pride).toBeGreaterThanOrEqual(0);
+    expect(after.players[0].stats.pride).toBeLessThanOrEqual(100);
+    expect(after.players[0].stats.internalDissent).toBeGreaterThanOrEqual(0);
+    expect(after.players[0].stats.internalDissent).toBeLessThanOrEqual(100);
+  });
+
   it('Prophet reduces dissent every turn', () => {
     const state = makeState({
       factionId: 'JAREDITES',

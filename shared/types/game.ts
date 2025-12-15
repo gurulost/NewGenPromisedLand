@@ -427,14 +427,15 @@ export type GameState = z.infer<typeof GameStateSchema>;
       targetPlayerId: z.string(),
     }),
   }),
-  z.object({
-    type: z.literal('CONVERT_CITY'),
-    payload: z.object({
-      playerId: z.string(),
-      cityId: z.string(),
-      conversionType: z.enum(['faith', 'pride', 'peace']),
-    }),
-  }),
+	  z.object({
+	    type: z.literal('CONVERT_CITY'),
+	    payload: z.object({
+	      playerId: z.string(),
+	      unitId: z.string().optional(),
+	      cityId: z.string(),
+	      conversionType: z.enum(['faith', 'pride', 'peace']),
+	    }),
+	  }),
   z.object({
     type: z.literal('UPGRADE_UNIT'),
     payload: z.object({

@@ -187,16 +187,16 @@ describe('City capture/conversion income', () => {
           harvestedResources: [],
         },
       ],
-      units: [
-        {
-          id: 'm1',
-          type: 'missionary',
-          playerId: p1,
-          coordinate: { q: 1, r: 0, s: -1 }, // within conversion radius
-          hp: 18,
-          maxHp: 18,
-          attack: 1,
-          defense: 2,
+	      units: [
+	        {
+	          id: 'm1',
+	          type: 'missionary',
+	          playerId: p1,
+	          coordinate: { q: 1, r: 0, s: -1 }, // adjacent to target city
+	          hp: 18,
+	          maxHp: 18,
+	          attack: 1,
+	          defense: 2,
           movement: 3,
           remainingMovement: 3,
           visionRadius: 2,
@@ -205,20 +205,20 @@ describe('City capture/conversion income', () => {
           experience: 0,
           abilities: ['convert'],
           level: 1,
-          hasAttacked: false,
-        } as any,
-      ],
-      improvements: [],
-      structures: [],
-    };
+	          hasAttacked: false,
+	        } as any,
+	      ],
+	      improvements: [],
+	      structures: [],
+	    };
 
-    const converted = gameReducer(state, { type: 'CONVERT_CITY', payload: { playerId: p1, cityId, conversionType: 'faith' } } as any);
-    expect(converted.cities.find(c => c.id === cityId)?.ownerId).toBe(p1);
-    expect(converted.players.find(p => p.id === p1)?.citiesOwned.includes(cityId)).toBe(true);
-    expect(converted.players.find(p => p.id === p2)?.citiesOwned.includes(cityId)).toBe(false);
+	    const converted = gameReducer(state, { type: 'CONVERT_CITY', payload: { playerId: p1, unitId: 'm1', cityId, conversionType: 'faith' } } as any);
+	    expect(converted.cities.find(c => c.id === cityId)?.ownerId).toBe(p1);
+	    expect(converted.players.find(p => p.id === p1)?.citiesOwned.includes(cityId)).toBe(true);
+	    expect(converted.players.find(p => p.id === p2)?.citiesOwned.includes(cityId)).toBe(false);
+	    expect((converted.units.find(u => u.id === 'm1') as any)?.hasAttacked).toBe(true);
 
-    const afterIncome = gameReducer(converted, { type: 'END_TURN', payload: { playerId: p1 } } as any);
-    expect(afterIncome.players.find(p => p.id === p1)?.stars).toBe(3);
-  });
+	    const afterIncome = gameReducer(converted, { type: 'END_TURN', payload: { playerId: p1 } } as any);
+	    expect(afterIncome.players.find(p => p.id === p1)?.stars).toBe(3);
+	  });
 });
-

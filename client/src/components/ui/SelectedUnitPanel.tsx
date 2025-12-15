@@ -150,6 +150,45 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
             </div>
           )}
 
+          {/* Passive Effects (SSOT from unit definition) */}
+          {unitStats.definition.passiveEffects && (
+            <div className="bg-amber-900/10 rounded p-2 border border-amber-500/20">
+              <h4 className="text-sm font-semibold text-amber-100 mb-1 font-cinzel">Per Turn</h4>
+              <div className="text-xs text-amber-200/90 space-y-1 font-body">
+                {unitStats.definition.passiveEffects.perTurn?.stars ? (
+                  <div>{unitStats.definition.passiveEffects.perTurn.stars > 0 ? '+' : ''}{unitStats.definition.passiveEffects.perTurn.stars}★</div>
+                ) : null}
+                {unitStats.definition.passiveEffects.perTurn?.faith ? (
+                  <div>{unitStats.definition.passiveEffects.perTurn.faith > 0 ? '+' : ''}{unitStats.definition.passiveEffects.perTurn.faith} Faith</div>
+                ) : null}
+                {unitStats.definition.passiveEffects.perTurn?.pride ? (
+                  <div>{unitStats.definition.passiveEffects.perTurn.pride > 0 ? '+' : ''}{unitStats.definition.passiveEffects.perTurn.pride} Pride</div>
+                ) : null}
+                {unitStats.definition.passiveEffects.perTurn?.dissent ? (
+                  <div>{unitStats.definition.passiveEffects.perTurn.dissent > 0 ? '+' : ''}{unitStats.definition.passiveEffects.perTurn.dissent} Dissent</div>
+                ) : null}
+                {(unitStats.definition.passiveEffects.perTurnWhen || []).map((cond, idx) => {
+                  const statLabel = cond.stat === 'internalDissent' ? 'Dissent' : (cond.stat.charAt(0).toUpperCase() + cond.stat.slice(1));
+                  const condition = typeof cond.gte === 'number'
+                    ? `${statLabel} ≥ ${cond.gte}`
+                    : typeof cond.lte === 'number'
+                      ? `${statLabel} ≤ ${cond.lte}`
+                      : statLabel;
+                  const parts: string[] = [];
+                  if (cond.perTurn.stars) parts.push(`${cond.perTurn.stars > 0 ? '+' : ''}${cond.perTurn.stars}★`);
+                  if (cond.perTurn.faith) parts.push(`${cond.perTurn.faith > 0 ? '+' : ''}${cond.perTurn.faith} Faith`);
+                  if (cond.perTurn.pride) parts.push(`${cond.perTurn.pride > 0 ? '+' : ''}${cond.perTurn.pride} Pride`);
+                  if (cond.perTurn.dissent) parts.push(`${cond.perTurn.dissent > 0 ? '+' : ''}${cond.perTurn.dissent} Dissent`);
+                  if (parts.length === 0) return null;
+                  return <div key={idx}>When {condition}: {parts.join(', ')}</div>;
+                })}
+                {unitStats.definition.passiveEffects.diplomacyCooldownDelta?.perTurn.requestTrade ? (
+                  <div>Request Trade cooldown: {unitStats.definition.passiveEffects.diplomacyCooldownDelta.perTurn.requestTrade}/turn</div>
+                ) : null}
+              </div>
+            </div>
+          )}
+
           {/* Unified Actions Button */}
           <div className="space-y-2">
             <Button

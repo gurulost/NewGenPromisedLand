@@ -21,6 +21,11 @@ export const MODEL_PATHS = {
     wilderness_hunter: '/models/scout.glb', // Use scout model
     royal_envoy: '/models/scout.glb', // Use scout model
     missionary: '/models/missionary.glb', // Upgraded missionary model
+    // Influence/support units use the missionary model for visual consistency
+    priestcraft_preacher: '/models/missionary.glb',
+    converted_missionary: '/models/missionary.glb',
+    scribe_teacher: '/models/missionary.glb',
+    prophet: '/models/missionary.glb',
     boat: '/models/boat.glb', // Upgraded boat model
     catapult: '/models/warrior.glb', // Use warrior model
     cavalry: '/models/cavalry.glb', // Upgraded cavalry model (war elephant)

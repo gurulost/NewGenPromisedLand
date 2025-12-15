@@ -133,5 +133,22 @@ describe('combatPreview', () => {
     expect(preview?.canAttack).toBe(false);
     expect(preview?.reason).toMatch(/diplomacy/i);
   });
-});
 
+  it('shows and applies testimony pressure attack penalty on the attacker', () => {
+    const baseAttacker = mkUnit({ id: 'a', playerId: 'p1', attack: 6, coordinate: { q: 0, r: 0, s: 0 } });
+    const pressuredAttacker = mkUnit({
+      ...baseAttacker,
+      statusEffects: [{ type: 'TESTIMONY_PRESSURE', turnsRemaining: 1, attackPenalty: 2, sourcePlayerId: 'p2' }],
+    });
+    const defender = mkUnit({ id: 'd', playerId: 'p2', defense: 2, coordinate: { q: 1, r: 0, s: -1 } });
+
+    const state = mkState({ units: [pressuredAttacker, defender] });
+    const preview = getCombatPreview(pressuredAttacker as any, defender as any, state);
+    expect(preview?.canAttack).toBe(true);
+    expect(preview?.modifiers.attacker.join(' ')).toMatch(/Testimony Pressure/i);
+
+    const stateNoPressure = mkState({ units: [baseAttacker, defender] });
+    const previewNoPressure = getCombatPreview(baseAttacker as any, defender as any, stateNoPressure);
+    expect(preview!.attackerDamage).toBeLessThan(previewNoPressure!.attackerDamage);
+  });
+});

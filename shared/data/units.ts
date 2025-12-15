@@ -42,6 +42,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     type: 'worker',
     name: 'Worker',
     description: 'Essential civilian unit for building improvements, harvesting resources, and terraforming',
+    tags: ['civilian'],
     baseStats: {
       hp: 10,
       attack: 1,
@@ -170,6 +171,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     type: 'missionary',
     name: 'Missionary',
     description: 'Peaceful conversion specialist - spreads faith and heals allies',
+    tags: ['civilian', 'influence'],
     baseStats: {
       hp: 18,
       attack: 1,
@@ -189,6 +191,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     type: 'priestcraft_preacher',
     name: 'Priestcraft Preacher',
     description: 'A charismatic Zoramite preacher who exalts status and wealth, increasing prosperity at the cost of pride and dissent.',
+    tags: ['civilian', 'influence'],
     baseStats: {
       hp: 15,
       attack: 2,
@@ -210,6 +213,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     type: 'converted_missionary',
     name: 'Converted Missionary',
     description: 'A Lamanite who has embraced the covenant, strengthening faith and softening hearts within the people.',
+    tags: ['civilian', 'influence'],
     baseStats: {
       hp: 18,
       attack: 1,
@@ -233,6 +237,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     type: 'scribe_teacher',
     name: 'Scribe-Teacher',
     description: 'A Mulekite record keeper and teacher who strengthens faith and steadies society through knowledge and diplomacy.',
+    tags: ['civilian', 'influence'],
     baseStats: {
       hp: 16,
       attack: 2,
@@ -256,6 +261,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     type: 'prophet',
     name: 'Prophet',
     description: 'A Jaredite prophet who warns against pride and contention, helping prevent collapse by calling the people to humility.',
+    tags: ['civilian', 'influence'],
     baseStats: {
       hp: 16,
       attack: 1,
@@ -280,6 +286,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     type: 'royal_envoy',
     name: 'Royal Envoy',
     description: 'Elite diplomatic unit - converts enemies and gathers intelligence',
+    tags: ['civilian', 'diplomat'],
     baseStats: {
       hp: 15,
       attack: 2,
