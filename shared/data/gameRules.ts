@@ -16,7 +16,6 @@ export interface GameRules {
     baseStarsPerTurn: number;
     starsPerCity: number;
     faithPerCity: number;
-    faithPerTemple: number;
     faithPerMissionary: number; // Faith bonus per missionary unit
     maxMissionaryFaithBonus: number; // Cap on missionary faith bonus
   };
@@ -82,7 +81,6 @@ export interface GameRules {
     };
     resourceCosts: {
       faithHealing: number;
-      conversion: number;
       towerVision: number;
       ancientKnowledge: number;
       prideBoost: number;
@@ -117,8 +115,31 @@ export interface GameRules {
     lowDefenseBonus: number; // Defense bonus at lowThreshold+
     highAttackBonus: number; // Attack bonus at highThreshold+
     highDefenseBonus: number; // Defense bonus at highThreshold+
-    faithDrainPerMissionary: number; // Faith drained from enemies per adjacent missionary
-    maxFaithDrainPerTurn: number; // Max faith drain per enemy player per turn
+  };
+
+  // Missionary / Preacher influence effects (non-faith-drain)
+  influence: {
+    testimonyPressure: {
+      attackPenalty: number; // Temporary attack reduction applied to adjacent enemy military units
+      durationTurns: number; // How long the penalty lasts (in turns of the affected unit’s owner)
+    };
+  };
+
+  // Conversion System
+  conversion: {
+    costs: {
+      unit: number; // Unit conversion faith cost
+      village: number; // Village conversion faith cost
+      cityFaith: number; // City conversion (faith) cost
+      cityPride: number; // City conversion (pride) cost
+      cityPeaceFaithCost: number; // City conversion (peace) upfront faith cost
+      cityPeaceFaithRefund: number; // City conversion (peace) faith returned on success
+      cityPeaceDissentReduction: number; // City conversion (peace) dissent reduction on success
+    };
+    covenantOfPeace: {
+      requiredFaithAdvantage: number;
+      range: number;
+    };
   };
 
   // Morale / Pride Cycle
@@ -146,7 +167,6 @@ export const GAME_RULES: GameRules = {
     baseStarsPerTurn: 1,
     starsPerCity: 2,
     faithPerCity: 2,
-    faithPerTemple: 5,
     faithPerMissionary: 1,
     maxMissionaryFaithBonus: 5,
   },
@@ -219,7 +239,6 @@ export const GAME_RULES: GameRules = {
     },
     resourceCosts: {
       faithHealing: 10,
-      conversion: 20,
       towerVision: 15,
       ancientKnowledge: 25,
       prideBoost: 5,
@@ -252,8 +271,29 @@ export const GAME_RULES: GameRules = {
     lowDefenseBonus: 1,
     highAttackBonus: 2,
     highDefenseBonus: 1,
-    faithDrainPerMissionary: 1,
-    maxFaithDrainPerTurn: 3,
+  },
+
+  influence: {
+    testimonyPressure: {
+      attackPenalty: 1,
+      durationTurns: 1,
+    },
+  },
+
+  conversion: {
+    costs: {
+      unit: 20,
+      village: 8,
+      cityFaith: 20,
+      cityPride: 15,
+      cityPeaceFaithCost: 10,
+      cityPeaceFaithRefund: 5,
+      cityPeaceDissentReduction: 10,
+    },
+    covenantOfPeace: {
+      requiredFaithAdvantage: 10,
+      range: 2,
+    },
   },
 
   morale: {
@@ -276,9 +316,8 @@ export const GameRuleHelpers = {
   /**
    * Calculate faith generation for a player based on their cities and structures
    */
-  calculateFaithGeneration: (cityCount: number, templeCount: number = 0): number => {
-    return (cityCount * GAME_RULES.resources.faithPerCity) +
-      (templeCount * GAME_RULES.resources.faithPerTemple);
+  calculateFaithGeneration: (cityCount: number): number => {
+    return (cityCount * GAME_RULES.resources.faithPerCity);
   },
 
   /**

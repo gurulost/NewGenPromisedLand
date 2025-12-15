@@ -12,6 +12,7 @@ import {
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { getUnitDefinition } from "@shared/data/units";
+import { GAME_RULES } from "@shared/data/gameRules";
 import { getActionAvailability } from "../../lib/helpers/actionAvailabilityHelpers";
 import type { Unit } from "@shared/types/unit";
 import { IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
@@ -240,14 +241,10 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
 
       case 'missionary':
         const hasHealingTech = currentPlayer.researchedTechs.includes('spirituality');
+        const unitConversionFaithCost = GAME_RULES.conversion.costs.unit;
         const adjacentEnemyUnits = gameState.units.filter(u => {
           if (u.playerId === currentPlayer.id) return false;
-          const distance = Math.max(
-            Math.abs(unit.coordinate.q - u.coordinate.q),
-            Math.abs(unit.coordinate.r - u.coordinate.r),
-            Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (u.coordinate.s || -u.coordinate.q - u.coordinate.r))
-          );
-          return distance <= 1;
+          return hexDistance(unit.coordinate, u.coordinate) <= GAME_RULES.abilities.conversionRadius;
         });
 
         actions.push(
@@ -268,14 +265,17 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             id: 'convert',
             name: 'Convert Enemy',
             description: adjacentEnemyUnits.length > 0
-              ? (adjacentEnemyUnits.length === 1 ? `Convert adjacent ${adjacentEnemyUnits[0].type}` : `Convert an adjacent enemy unit (${adjacentEnemyUnits.length} targets)`)
               : 'No adjacent enemy units to convert',
+              ? (adjacentEnemyUnits.length === 1
+                ? `Convert nearby ${adjacentEnemyUnits[0].type}`
+                : `Convert a nearby enemy unit (${adjacentEnemyUnits.length} targets)`)
+              : `No enemy units within ${GAME_RULES.abilities.conversionRadius} tiles to convert`,
             icon: <Star className="w-4 h-4" />,
-            cost: '10 Faith',
-            faithCost: 10,
-            available: currentPlayer.stats.faith >= 10 && !unit.hasAttacked && adjacentEnemyUnits.length > 0,
+            cost: `${unitConversionFaithCost} Faith`,
+            faithCost: unitConversionFaithCost,
+            available: currentPlayer.stats.faith >= unitConversionFaithCost && !unit.hasAttacked && unit.remainingMovement > 0 && adjacentEnemyUnits.length > 0,
             rangeType: 'attack',
-            range: 1
+            range: GAME_RULES.abilities.conversionRadius
           }
         );
 
@@ -299,33 +299,33 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             {
               id: 'convert_city_faith',
               name: 'Convert City (Faith)',
-              description: `Convert ${cityName} through faith (20 Faith)${multipleNote}`,
+              description: `Convert ${cityName} through faith (${GAME_RULES.conversion.costs.cityFaith} Faith)${multipleNote}`,
               icon: <Heart className="w-4 h-4" />,
-              cost: '20 Faith',
-              faithCost: 20,
-              available: currentPlayer.stats.faith >= 20,
+              cost: `${GAME_RULES.conversion.costs.cityFaith} Faith`,
+              faithCost: GAME_RULES.conversion.costs.cityFaith,
+              available: currentPlayer.stats.faith >= GAME_RULES.conversion.costs.cityFaith,
               rangeType: 'ability',
               range: 1
             },
             {
               id: 'convert_city_pride',
               name: 'Convert City (Pride)',
-              description: `Convert ${cityName} through pride (15 Pride)${multipleNote}`,
+              description: `Convert ${cityName} through pride (${GAME_RULES.conversion.costs.cityPride} Pride)${multipleNote}`,
               icon: <Crown className="w-4 h-4" />,
-              cost: '15 Pride',
-              prideCost: 15,
-              available: currentPlayer.stats.pride >= 15,
+              cost: `${GAME_RULES.conversion.costs.cityPride} Pride`,
+              prideCost: GAME_RULES.conversion.costs.cityPride,
+              available: currentPlayer.stats.pride >= GAME_RULES.conversion.costs.cityPride,
               rangeType: 'ability',
               range: 1
             },
             {
               id: 'convert_city_peace',
               name: 'Convert City (Peace)',
-              description: `Peaceful conversion of ${cityName} (+5 Faith, -10 Dissent)${multipleNote}`,
+              description: `Peaceful conversion of ${cityName} (${GAME_RULES.conversion.costs.cityPeaceFaithCost} Faith → +${GAME_RULES.conversion.costs.cityPeaceFaithRefund} Faith, -${GAME_RULES.conversion.costs.cityPeaceDissentReduction} Dissent)${multipleNote}`,
               icon: <Star className="w-4 h-4" />,
-              cost: '10 Faith',
-              faithCost: 10,
-              available: currentPlayer.stats.faith >= 10,
+              cost: `${GAME_RULES.conversion.costs.cityPeaceFaithCost} Faith`,
+              faithCost: GAME_RULES.conversion.costs.cityPeaceFaithCost,
+              available: currentPlayer.stats.faith >= GAME_RULES.conversion.costs.cityPeaceFaithCost,
               rangeType: 'ability',
               range: 1
             }
@@ -618,12 +618,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         {
           const enemies = gameState.units.filter(u => {
             if (u.playerId === currentPlayer.id) return false;
-            const distance = Math.max(
-              Math.abs(unit.coordinate.q - u.coordinate.q),
-              Math.abs(unit.coordinate.r - u.coordinate.r),
-              Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (u.coordinate.s || -unit.coordinate.q - unit.coordinate.r))
-            );
-            return distance <= 1;
+            return hexDistance(unit.coordinate, u.coordinate) <= GAME_RULES.abilities.conversionRadius;
           });
 
           if (enemies.length === 1) {
@@ -1082,7 +1077,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
               Select Unit to Convert
             </DialogTitle>
             <DialogDescription className="text-blue-200">
-              Choose which adjacent unit to attempt conversion on (costs 10 Faith).
+              Choose which nearby unit to attempt conversion on (costs {GAME_RULES.conversion.costs.unit} Faith).
             </DialogDescription>
           </DialogHeader>
 

@@ -21,6 +21,7 @@ import {
   calculateTradeRouteStarsPerTurn
 } from "./tradeRoutes";
 import { applyPopulationGain } from "./cityGrowth";
+import { attemptUnitConversion } from "./conversion";
 
 function getUnitSpawnCoordinate(state: GameState, unitType: UnitType, cityCoordinate: HexCoordinate): HexCoordinate | null {
   if (unitType !== 'boat') return cityCoordinate;
@@ -669,7 +670,7 @@ function handleConvertVillage(
   if (!player) return state;
 
   // Check if player has enough faith
-  const CONVERT_FAITH_COST = 8;
+  const CONVERT_FAITH_COST = GAME_RULES.conversion.costs.village;
   if (player.stats.faith < CONVERT_FAITH_COST) return state;
 
   // Convert the village - update tile ownership, mark as converted, add ongoing bonus
@@ -1383,6 +1384,16 @@ function handleAttackUnit(
   let attackPower = attacker.attack;
   let defensePower = target.defense;
 
+  // Testimony pressure: temporary attack penalty (applied via statusEffects).
+  const testimonyPressurePenalty = (() => {
+    const effects = Array.isArray((attacker as any).statusEffects) ? (attacker as any).statusEffects : [];
+    const pressure = effects.find((e: any) => e?.type === 'TESTIMONY_PRESSURE');
+    return typeof pressure?.attackPenalty === 'number' ? pressure.attackPenalty : 0;
+  })();
+  if (testimonyPressurePenalty > 0) {
+    attackPower = Math.max(0, attackPower - testimonyPressurePenalty);
+  }
+
   // Apply status effect bonuses
   if (attacker.status === 'rallied') {
     attackPower += 2; // Rally bonus
@@ -1678,7 +1689,7 @@ function handleEndTurn(
 
   let updatedCities = [...(state.cities || [])];
   let pendingDesertedUnitId: string | null = null;
-  let moraleLastAction: { type: 'MORALE_EVENT'; payload: any } | null = null;
+  const endTurnEvents: Array<{ type: string; payload: any }> = [];
   let rngSeed = state.rngSeed ?? 0;
   const rand = () => {
     // Deterministic PRNG (LCG). Keeps tests stable and makes runs replayable per seed.
@@ -1706,29 +1717,22 @@ function handleEndTurn(
       // Resource generation from cities and improvements using centralized rules
       const playerCities = player.citiesOwned.length;
 
-      const temples = (state.structures || []).filter(s =>
-        s.ownerId === player.id &&
-        s.constructionTurns === 0 &&
-        s.type === 'temple'
-      ).length;
+      // Faith income is data-driven from structure/improvement effects (plus a small missionary presence bonus).
+      const baseFaith = GameRuleHelpers.calculateFaithGeneration(playerCities);
 
-      // Cathedral faith production: +4 per cathedral
-      const cathedrals = (state.structures || []).filter(s =>
-        s.ownerId === player.id &&
-        s.constructionTurns === 0 &&
-        s.type === 'cathedral'
-      ).length;
-      const cathedralFaithPer = STRUCTURE_DEFINITIONS.cathedral.effects.faithProduction ?? 0;
-      const cathedralFaith = cathedrals * cathedralFaithPer;
+      const faithFromStructures = (state.structures || [])
+        .filter(s => s.ownerId === player.id && s.constructionTurns === 0)
+        .reduce((sum, s) => {
+          const def = STRUCTURE_DEFINITIONS[s.type as keyof typeof STRUCTURE_DEFINITIONS];
+          return sum + (s.effects?.faithProduction ?? def?.effects?.faithProduction ?? 0);
+        }, 0);
 
-      // Shrine faith production: +2 per shrine
-      const shrines = (state.improvements || []).filter(imp =>
-        imp.ownerId === player.id &&
-        imp.constructionTurns === 0 &&
-        imp.type === 'shrine'
-      ).length;
-      const shrineFaithPer = IMPROVEMENT_DEFINITIONS.shrine.effects?.faithProduction ?? 0;
-      const shrineFaith = shrines * shrineFaithPer;
+      const faithFromImprovements = (state.improvements || [])
+        .filter(imp => imp.ownerId === player.id && imp.constructionTurns === 0)
+        .reduce((sum, imp) => {
+          const def = IMPROVEMENT_DEFINITIONS[imp.type as keyof typeof IMPROVEMENT_DEFINITIONS];
+          return sum + (def?.effects?.faithProduction ?? 0);
+        }, 0);
 
       // Missionary presence bonus: +1 per missionary (capped)
       const missionaries = state.units.filter(u =>
@@ -1741,8 +1745,7 @@ function handleEndTurn(
       );
 
       // Calculate base income from cities using Polytopia-style mechanics
-      const faithGeneration = GameRuleHelpers.calculateFaithGeneration(playerCities, temples) +
-        cathedralFaith + shrineFaith + missionaryFaith;
+      const faithGeneration = baseFaith + faithFromStructures + faithFromImprovements + missionaryFaith;
 
       // Calculate star income based on city levels and production
       let starIncome = 0;
@@ -1809,6 +1812,11 @@ function handleEndTurn(
       // === Morale System (Pride Cycle + Dissent Events) ===
       // Book of Mormon-inspired pattern:
       // prosperity → pride → contention → loss → humility → deliverance.
+      const temples = (state.structures || []).filter(s =>
+        s.ownerId === player.id &&
+        s.constructionTurns === 0 &&
+        s.type === 'temple'
+      ).length;
       const wars = player.atWarWith?.length || 0;
       const alliances = player.alliedWith?.length || 0;
 
@@ -1864,12 +1872,12 @@ function handleEndTurn(
             moraleCityIdToRebel = ownedCities[pickWeightedIndex(new Array(ownedCities.length).fill(1), rand())].id;
             starsDeltaFromEvent -= GAME_RULES.morale.rebellionStarsLoss;
             updatedStats = applyMoralDelta(updatedStats, { dissent: 5, pride: -2 });
-            moraleLastAction = { type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'rebellion', cityId: moraleCityIdToRebel, starsDelta: -GAME_RULES.morale.rebellionStarsLoss } };
+            endTurnEvents.push({ type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'rebellion', cityId: moraleCityIdToRebel, starsDelta: -GAME_RULES.morale.rebellionStarsLoss } });
           } else {
             // fallback to contention
             starsDeltaFromEvent -= GAME_RULES.morale.contentionStarsLoss;
             updatedStats = applyMoralDelta(updatedStats, { dissent: 3, pride: -2 });
-            moraleLastAction = { type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'contention', starsDelta: -GAME_RULES.morale.contentionStarsLoss } };
+            endTurnEvents.push({ type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'contention', starsDelta: -GAME_RULES.morale.contentionStarsLoss } });
           }
         } else if (eventIndex === 1) {
           // Desertion: lose a unit (only possible at high dissent) + small immediate loss
@@ -1881,18 +1889,18 @@ function handleEndTurn(
             pendingDesertedUnitId = deserter.id;
             starsDeltaFromEvent -= GAME_RULES.morale.desertionStarsLoss;
             updatedStats = applyMoralDelta(updatedStats, { dissent: 2, pride: -3 });
-            moraleLastAction = { type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'desertion', unitId: deserter.id, starsDelta: -GAME_RULES.morale.desertionStarsLoss } };
+            endTurnEvents.push({ type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'desertion', unitId: deserter.id, starsDelta: -GAME_RULES.morale.desertionStarsLoss } });
           } else {
             // fallback to contention
             starsDeltaFromEvent -= GAME_RULES.morale.contentionStarsLoss;
             updatedStats = applyMoralDelta(updatedStats, { dissent: 3, pride: -2 });
-            moraleLastAction = { type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'contention', starsDelta: -GAME_RULES.morale.contentionStarsLoss } };
+            endTurnEvents.push({ type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'contention', starsDelta: -GAME_RULES.morale.contentionStarsLoss } });
           }
         } else {
           // Contention: small loss of riches, dissent rises, pride is humbled.
           starsDeltaFromEvent -= GAME_RULES.morale.contentionStarsLoss;
           updatedStats = applyMoralDelta(updatedStats, { dissent: 4, pride: -3 });
-          moraleLastAction = { type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'contention', starsDelta: -GAME_RULES.morale.contentionStarsLoss } };
+          endTurnEvents.push({ type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'contention', starsDelta: -GAME_RULES.morale.contentionStarsLoss } });
         }
       } else {
         const rollGood = rand();
@@ -1901,7 +1909,7 @@ function handleEndTurn(
           const starsGain = 4 + Math.floor(6 * rand()); // 4..9
           starsDeltaFromEvent += starsGain;
           updatedStats = applyMoralDelta(updatedStats, { faith: 3, dissent: -4, pride: -2 });
-          moraleLastAction = { type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'blessing', starsDelta: starsGain } };
+          endTurnEvents.push({ type: 'MORALE_EVENT', payload: { playerId: player.id, kind: 'blessing', starsDelta: starsGain } });
         }
       }
 
@@ -2037,6 +2045,25 @@ function handleEndTurn(
     }
   });
 
+  // Tick down end-of-turn unit effects for the player who just ended their turn.
+  // Effects here should last *through* a player turn and expire after they finish acting.
+  updatedUnits = updatedUnits.map((u: Unit) => {
+    if (u.playerId !== currentPlayer.id) return u;
+    const effects = Array.isArray(u.statusEffects) ? u.statusEffects : [];
+    if (effects.length === 0) return u;
+
+    const nextEffects = effects
+      .map(effect => {
+        if (effect?.type === 'TESTIMONY_PRESSURE' && typeof effect.turnsRemaining === 'number') {
+          return { ...effect, turnsRemaining: effect.turnsRemaining - 1 };
+        }
+        return effect;
+      })
+      .filter(effect => !(effect?.type === 'TESTIMONY_PRESSURE' && typeof effect.turnsRemaining === 'number' && effect.turnsRemaining <= 0));
+
+    return nextEffects === effects ? u : { ...u, statusEffects: nextEffects };
+  });
+
   // Calculate next player and turn
   const nextPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
   const nextPlayer = updatedPlayers[nextPlayerIndex];
@@ -2089,41 +2116,74 @@ function handleEndTurn(
     return u;
   });
 
-  // === Faith Drain for Religious Factions ===
-  // Missionaries from NEPHITES or ANTI_NEPHI_LEHIES drain faith from adjacent enemy units' players
+  // === Testimony Pressure (Missionaries) ===
+  // Nephite / Anti-Nephi-Lehi missionaries can weaken adjacent enemy *military* units:
+  // - temporary attack penalty
+  // - clears temporary command buffs (rallied / rallyBuff / tacticalCommand)
   const currentPlayerData = updatedPlayers.find(p => p.id === currentPlayer.id);
-  const isReligiousFaction = currentPlayerData?.factionId === 'NEPHITES' || currentPlayerData?.factionId === 'ANTI_NEPHI_LEHIES';
+  const isTestimonyFaction = currentPlayerData?.factionId === 'NEPHITES' || currentPlayerData?.factionId === 'ANTI_NEPHI_LEHIES';
 
-  if (isReligiousFaction) {
+  if (isTestimonyFaction) {
+    const isEligibleEnemyUnit = (u: Unit): boolean => {
+      // Exclude civilians (prevents weird non-combat clumps).
+      return u.type !== 'worker' && u.type !== 'missionary' && u.type !== 'royal_envoy';
+    };
+
     const myMissionaries = updatedUnits.filter(u => u.playerId === currentPlayer.id && u.type === 'missionary');
-    const faithDrainPerEnemy: Record<string, number> = {}; // Track drain per enemy player
+    const affectedUnitIds = new Set<string>();
+    const affectedByOwner: Record<string, Set<string>> = {};
 
     myMissionaries.forEach(missionary => {
-      // Find enemy units adjacent to this missionary
       const adjacentEnemyUnits = updatedUnits.filter(u =>
         u.playerId !== currentPlayer.id &&
+        isEligibleEnemyUnit(u) &&
         hexDistance(u.coordinate, missionary.coordinate) <= 1
       );
 
-      // Drain faith once per enemy player per missionary (not per adjacent unit)
-      const enemyPlayerIds = new Set(adjacentEnemyUnits.map(u => u.playerId));
-      enemyPlayerIds.forEach(enemyPlayerId => {
-        const currentDrain = faithDrainPerEnemy[enemyPlayerId] || 0;
-        if (currentDrain < GAME_RULES.faithBonuses.maxFaithDrainPerTurn) {
-          faithDrainPerEnemy[enemyPlayerId] = currentDrain + GAME_RULES.faithBonuses.faithDrainPerMissionary;
-        }
+      adjacentEnemyUnits.forEach(enemyUnit => {
+        affectedUnitIds.add(enemyUnit.id);
+        if (!affectedByOwner[enemyUnit.playerId]) affectedByOwner[enemyUnit.playerId] = new Set();
+        affectedByOwner[enemyUnit.playerId].add(enemyUnit.id);
       });
     });
 
-    // Apply faith drain to enemy players (capped at maxFaithDrainPerTurn)
-    Object.entries(faithDrainPerEnemy).forEach(([enemyPlayerId, drainAmount]) => {
-      const cappedDrain = Math.min(drainAmount, GAME_RULES.faithBonuses.maxFaithDrainPerTurn);
-      updatedPlayers = updatedPlayers.map(p =>
-        p.id === enemyPlayerId
-          ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - cappedDrain) } }
-          : p
-      );
-    });
+    if (affectedUnitIds.size > 0) {
+      const penalty = GAME_RULES.influence.testimonyPressure.attackPenalty;
+      const durationTurns = GAME_RULES.influence.testimonyPressure.durationTurns;
+
+      updatedUnits = updatedUnits.map((u: any) => {
+        if (!affectedUnitIds.has(u.id)) return u;
+
+        const existing = Array.isArray(u.statusEffects) ? u.statusEffects : [];
+        const filtered = existing.filter((e: any) => e?.type !== 'TESTIMONY_PRESSURE');
+        const nextStatusEffects = [
+          ...filtered,
+          { type: 'TESTIMONY_PRESSURE', turnsRemaining: durationTurns, attackPenalty: penalty, sourcePlayerId: currentPlayer.id }
+        ];
+
+        return {
+          ...u,
+          statusEffects: nextStatusEffects,
+          // Clear temporary command buffs.
+          status: u.status === 'rallied' ? 'active' : u.status,
+          rallyBuff: false,
+          tacticalCommand: false,
+        };
+      });
+
+      endTurnEvents.push({
+        type: 'TESTIMONY_PRESSURE',
+        payload: {
+          sourcePlayerId: currentPlayer.id,
+          attackPenalty: penalty,
+          durationTurns,
+          affected: Object.entries(affectedByOwner).map(([playerId, unitIds]) => ({
+            playerId,
+            unitIds: Array.from(unitIds),
+          })),
+        }
+      });
+    }
   }
 
   // Check for victory conditions
@@ -2140,7 +2200,9 @@ function handleEndTurn(
     turn: isNewTurn ? state.turn + 1 : state.turn,
     winner,
     rngSeed,
-    lastAction: moraleLastAction ?? { type: 'END_TURN', payload }
+    lastAction: endTurnEvents.length > 0
+      ? { type: 'END_TURN_RESOLUTION', payload: { endingPlayerId: payload.playerId, nextPlayerId: updatedPlayers[nextPlayerIndex].id, events: endTurnEvents } }
+      : { type: 'END_TURN', payload }
   };
 }
 
@@ -2754,14 +2816,16 @@ function applyRameumptom(state: GameState, player: PlayerState): GameState {
 
 function applyCovenantOfPeace(state: GameState, player: PlayerState): GameState {
   // Attempt to convert a nearby enemy unit if faith advantage is significant.
-  const COST_FAITH = 15;
-  const REQUIRED_ADVANTAGE = 10;
-  if (player.stats.faith < COST_FAITH) return state;
+  const costFaith = GAME_RULES.abilities.resourceCosts.covenantOfPeace;
+  const requiredAdvantage = GAME_RULES.conversion.covenantOfPeace.requiredFaithAdvantage;
+  const range = GAME_RULES.conversion.covenantOfPeace.range;
+  if (player.stats.faith < costFaith) return state;
 
   const enemyCandidates = state.units
     .filter(u => u.playerId !== player.id)
     .filter(u => u.playerId !== undefined)
-    .filter(u => state.units.some(ally => ally.playerId === player.id && hexDistance(ally.coordinate, u.coordinate) <= 2));
+    .filter(u => state.units.some(ally => ally.playerId === player.id && hexDistance(ally.coordinate, u.coordinate) <= range))
+    .sort((a, b) => a.hp - b.hp);
 
   if (enemyCandidates.length === 0) return state;
 
@@ -2769,14 +2833,14 @@ function applyCovenantOfPeace(state: GameState, player: PlayerState): GameState 
   const enemyPlayer = state.players.find(p => p.id === chosen.playerId);
   const enemyFaith = enemyPlayer?.stats.faith ?? 0;
   const advantage = player.stats.faith - enemyFaith;
-  if (advantage < REQUIRED_ADVANTAGE) return state;
+  if (advantage < requiredAdvantage) return state;
 
   return {
     ...state,
     units: state.units.map(u => u.id === chosen.id ? { ...u, playerId: player.id } : u),
     players: state.players.map(p =>
       p.id === player.id
-        ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - COST_FAITH) } }
+        ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - costFaith) } }
         : p
     )
   };
@@ -3305,21 +3369,21 @@ function handleConvertCity(
 
   switch (conversionType) {
     case 'faith':
-      resourceCost = 20;
+      resourceCost = GAME_RULES.conversion.costs.cityFaith;
       if (player.stats.faith < resourceCost) return state;
       statChanges = { faith: Math.max(0, player.stats.faith - resourceCost) };
       break;
     case 'pride':
-      resourceCost = 15;
+      resourceCost = GAME_RULES.conversion.costs.cityPride;
       if (player.stats.pride < resourceCost) return state;
       statChanges = { pride: Math.max(0, player.stats.pride - resourceCost) };
       break;
     case 'peace':
-      resourceCost = 10;
+      resourceCost = GAME_RULES.conversion.costs.cityPeaceFaithCost;
       if (player.stats.faith < resourceCost) return state;
       statChanges = {
-        faith: clampStat(player.stats.faith - resourceCost + 5),
-        internalDissent: Math.max(0, player.stats.internalDissent - 10)
+        faith: clampStat(player.stats.faith - resourceCost + GAME_RULES.conversion.costs.cityPeaceFaithRefund),
+        internalDissent: Math.max(0, player.stats.internalDissent - GAME_RULES.conversion.costs.cityPeaceDissentReduction)
       };
       break;
   }
@@ -3369,76 +3433,13 @@ function handleConvertUnit(
 ): GameState {
   const { playerId, unitId, targetUnitId } = payload;
 
-  const unit = state.units.find(u => u.id === unitId);
-  if (!unit || unit.playerId !== playerId) return state;
-  if (unit.type !== 'missionary') return state;
-  if (unit.hasAttacked || unit.remainingMovement <= 0) return state;
+  const caster = state.units.find(u => u.id === unitId);
+  if (!caster || caster.playerId !== playerId) return state;
 
-  const target = state.units.find(u => u.id === targetUnitId);
-  if (!target) return state;
-  if (target.playerId === playerId) return state;
+  const result = attemptUnitConversion(state, unitId, targetUnitId);
+  if (!result.ok) return state;
 
-  const distance = hexDistance(unit.coordinate, target.coordinate);
-  if (distance > 1) return state;
-
-  const player = state.players.find(p => p.id === playerId);
-  if (!player) return state;
-
-  const FAITH_COST = 10;
-  if (player.stats.faith < FAITH_COST) return state;
-
-  const targetPlayer = state.players.find(p => p.id === target.playerId);
-  const targetFaith = targetPlayer?.stats.faith ?? 0;
-  const targetPride = targetPlayer?.stats.pride ?? 0;
-  const targetDissent = targetPlayer?.stats.internalDissent ?? 0;
-
-  // Book of Mormon framing:
-  // - Conversion is easier when faith is strong and the target society is proud/unstable.
-  // - Wounded units are slightly easier to sway (morale shock).
-  const base = GAME_RULES.abilities.conversionResistance.baseDifficulty / 100; // 0..1
-  const diff = player.stats.faith - targetFaith;
-  const diffBonus = (diff * GAME_RULES.abilities.conversionResistance.faithDifferentialWeight) / 100; // points -> %
-
-  const woundFactor = 0.8 + 0.2 * (1 - target.hp / Math.max(1, target.maxHp)); // 0.8..1.0
-  const prideFactor = 1 + (targetPride / 100) * 0.25; // up to +25%
-  const dissentFactor = 1 + (targetDissent / 100) * 0.15; // up to +15%
-
-  const minChance = GAME_RULES.abilities.conversionResistance.minSuccessChance / 100;
-  const maxChance = GAME_RULES.abilities.conversionResistance.maxSuccessChance / 100;
-  const chance = Math.max(minChance, Math.min(maxChance, (base + diffBonus) * woundFactor * prideFactor * dissentFactor));
-
-  let rngSeed = state.rngSeed ?? 0;
-  rngSeed = (Math.imul(rngSeed, 1664525) + 1013904223) >>> 0;
-  const roll = rngSeed / 4294967296;
-  const success = roll < chance;
-
-  const updatedPlayers = state.players.map(p =>
-    p.id === playerId
-      ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - FAITH_COST) } }
-      : p
-  );
-
-  const updatedUnits = state.units
-    .map(u => {
-      if (u.id === unitId) {
-        return { ...u, hasAttacked: true, remainingMovement: 0 };
-      }
-      if (u.id === targetUnitId && success) {
-        return {
-          ...u,
-          playerId,
-          hp: Math.min(u.maxHp, u.hp + GAME_RULES.units.healingAmount),
-        };
-      }
-      return u;
-    });
-
-  return {
-    ...state,
-    players: updatedPlayers,
-    units: updatedUnits,
-    rngSeed,
-  };
+  return result.state;
 }
 
 function handleUnitAction(
@@ -3457,7 +3458,7 @@ function handleUnitAction(
     case 'convert': {
       // Missionary conversion: convert an adjacent enemy unit (auto-targets if none provided)
       if (!unit.abilities.includes('convert') || unit.hasAttacked) return state;
-      if (player.stats.faith < 10) return state;
+      if (player.stats.faith < GAME_RULES.conversion.costs.unit) return state;
 
       const requestedTargetUnitId =
         typeof target === 'string'
@@ -3468,7 +3469,7 @@ function handleUnitAction(
 
       const candidates = state.units
         .filter(u => u.playerId !== playerId)
-        .filter(u => hexDistance(u.coordinate, unit.coordinate) <= 1)
+        .filter(u => hexDistance(u.coordinate, unit.coordinate) <= GAME_RULES.abilities.conversionRadius)
         .filter(u => (requestedTargetUnitId ? u.id === requestedTargetUnitId : true));
 
       if (candidates.length === 0) return state;

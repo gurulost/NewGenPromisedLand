@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Info } from 'lucide-react';
 import { getWorldElement } from '@shared/data/worldElements';
+import { GAME_RULES } from '@shared/data/gameRules';
+import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from '@shared/types/city';
 
 type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right';
 
@@ -479,19 +481,42 @@ export function StarProductionTooltip({ totalIncome, breakdown }: { totalIncome:
 }
 
 export function FaithSystemTooltip() {
+  const shrineFaith = IMPROVEMENT_DEFINITIONS.shrine.effects?.faithProduction ?? 0;
+  const templeFaith = STRUCTURE_DEFINITIONS.temple.effects.faithProduction ?? 0;
+  const cathedralFaith = STRUCTURE_DEFINITIONS.cathedral.effects.faithProduction ?? 0;
+  const missionaryFaith = GAME_RULES.resources.faithPerMissionary;
+  const maxMissionaryFaithBonus = GAME_RULES.resources.maxMissionaryFaithBonus;
+  const { lowThreshold, highThreshold, lowDefenseBonus, highAttackBonus, highDefenseBonus } = GAME_RULES.faithBonuses;
+  const testimonyPressure = GAME_RULES.influence.testimonyPressure;
+
   return (
     <div className="space-y-2">
       <div className="font-semibold text-blue-300">Faith System</div>
       <div className="text-xs text-slate-300">
-        Faith represents your people's spiritual devotion and guides moral choices throughout your civilization's growth.
+        Faith represents your people's spiritual devotion and empowers conversion, blessings, and defensive strength.
       </div>
       <div className="text-xs">
-        <div className="text-green-300 mb-1">Benefits:</div>
+        <div className="text-green-300 mb-1">How To Gain Faith:</div>
         <ul className="list-disc list-inside text-slate-300 space-y-1">
-          <li>Unlocks divine abilities and blessings</li>
-          <li>Strengthens resistance to conversion</li>
-          <li>Enables righteous governance options</li>
+          <li>Cities: +{GAME_RULES.resources.faithPerCity}/turn per city</li>
+          <li>Shrines: +{shrineFaith}/turn</li>
+          <li>Temples: +{templeFaith}/turn</li>
+          <li>Cathedrals: +{cathedralFaith}/turn</li>
+          <li>Missionaries: +{missionaryFaith}/turn each (max +{maxMissionaryFaithBonus})</li>
         </ul>
+      </div>
+      <div className="text-xs">
+        <div className="text-blue-300 mb-1">Combat Bonuses:</div>
+        <ul className="list-disc list-inside text-slate-300 space-y-1">
+          <li>{lowThreshold}+ Faith: Defender +{lowDefenseBonus} defense</li>
+          <li>{highThreshold}+ Faith: Attacker +{highAttackBonus} attack, Defender +{highDefenseBonus} defense</li>
+        </ul>
+      </div>
+      <div className="text-xs">
+        <div className="text-blue-300 mb-1">Missionaries (Nephites / Anti-Nephi-Lehies):</div>
+        <div className="text-slate-300">
+          Enemy military units adjacent to missionaries suffer -{testimonyPressure.attackPenalty} Attack for {testimonyPressure.durationTurns} turn(s), and lose temporary rally/command buffs.
+        </div>
       </div>
     </div>
   );

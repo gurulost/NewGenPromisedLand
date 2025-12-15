@@ -4,6 +4,7 @@ import { HexCoordinate } from "../types/coordinates";
 import { hexDistance } from "../utils/hex";
 import { getUnitDefinition } from "../data/units";
 import { GAME_RULES } from "../data/gameRules";
+import { canAttemptUnitConversion, computeUnitConversionChance, getUnitConversionFaithCost } from "./conversion";
 
 /**
  * Advanced Combat System - Handles all unit combat mechanics
@@ -327,7 +328,6 @@ export function calculateConversion(
   message: string;
   faithCost: number;
 } {
-  const converterDef = getUnitDefinition(converter.type);
   const converterPlayer = state.players.find(p => p.id === converter.playerId);
   const targetPlayer = state.players.find(p => p.id === target.playerId);
 
@@ -340,44 +340,35 @@ export function calculateConversion(
     };
   }
 
-  if (converter.type === 'missionary' && converterDef.abilities.includes('CONVERT')) {
-    const faithCost = GAME_RULES.abilities.resourceCosts.conversion;
-    const distance = hexDistance(converter.coordinate, target.coordinate);
+  const eligibility = canAttemptUnitConversion(state, converter, target, { ignoreTurn: true });
+  if (!eligibility.ok) {
+    const faithCost = getUnitConversionFaithCost();
+    const message =
+      eligibility.reason === 'same_player' ? 'Cannot convert allied units' :
+        eligibility.reason === 'out_of_range' ? `Target too far for conversion (range ${GAME_RULES.abilities.conversionRadius})` :
+          eligibility.reason === 'exhausted' ? 'Unit has already acted this turn' :
+            eligibility.reason === 'invalid_caster' ? 'Unit cannot convert enemies' :
+              'Conversion attempt is not valid';
+    return { success: false, conversionChance: 0, message, faithCost: 0 };
+  }
 
-    if (distance > 1) {
-      return {
-        success: false,
-        conversionChance: 0,
-        message: "Target too far for conversion",
-        faithCost: 0
-      };
-    }
-
-    if (converterPlayer.stats.faith < faithCost) {
-      return {
-        success: false,
-        conversionChance: 0,
-        message: `Insufficient faith for conversion (need ${faithCost})`,
-        faithCost: 0
-      };
-    }
-
-    // Conversion chance based on faith difference and target health
-    const faithDifference = converterPlayer.stats.faith - targetPlayer.stats.faith;
-    const healthFactor = 1 - (target.hp / target.maxHp); // Wounded units easier to convert
-    const baseChance = 0.3;
-
-    const conversionChance = Math.min(0.9,
-      baseChance + (faithDifference / 100) + (healthFactor * 0.3)
-    );
-
+  const faithCost = getUnitConversionFaithCost();
+  if (converterPlayer.stats.faith < faithCost) {
     return {
-      success: true,
-      conversionChance,
-      message: `${Math.round(conversionChance * 100)}% chance to convert ${target.type}`,
-      faithCost
+      success: false,
+      conversionChance: 0,
+      message: `Insufficient faith for conversion (need ${faithCost})`,
+      faithCost: 0
     };
   }
+
+  const conversionChance = computeUnitConversionChance(converterPlayer, targetPlayer, target);
+  return {
+    success: true,
+    conversionChance,
+    message: `${Math.round(conversionChance * 100)}% chance to convert ${target.type}`,
+    faithCost
+  };
 
   return {
     success: false,

@@ -1,7 +1,8 @@
 import { GameState } from "../types/game";
 import { Unit } from "../types/unit";
 import { HexCoordinate } from "../types/coordinates";
-import { calculateCombatDamage, calculateRangedAttack, calculateHealing, calculateConversion } from "./combatSystem";
+import { calculateCombatDamage, calculateRangedAttack, calculateHealing } from "./combatSystem";
+import { attemptUnitConversion } from "./conversion";
 
 /**
  * Enhanced Combat Integration - Integrates advanced combat into game reducer
@@ -171,63 +172,10 @@ export function handleUnitConversion(
 ): GameState {
   const { converterId, targetId } = payload;
   
-  const converter = state.units.find(u => u.id === converterId);
-  const target = state.units.find(u => u.id === targetId);
-  
-  if (!converter || !target) {
+  const outcome = attemptUnitConversion(state, converterId, targetId);
+  if (!outcome.ok) {
     return state;
   }
 
-  const conversionResult = calculateConversion(converter, target, state);
-  
-  if (!conversionResult.success) {
-    console.log('Conversion failed:', conversionResult.message);
-    return state;
-  }
-
-  // Roll for conversion
-  const conversionSucceeded = Math.random() < conversionResult.conversionChance;
-  
-  // Reduce faith cost regardless
-  const updatedPlayers = state.players.map(player => {
-    if (player.id === converter.playerId) {
-      return {
-        ...player,
-        stats: {
-          ...player.stats,
-          faith: player.stats.faith - conversionResult.faithCost
-        }
-      };
-    }
-    return player;
-  });
-
-  if (conversionSucceeded) {
-    // Convert the unit
-    const updatedUnits = state.units.map(unit => {
-      if (unit.id === targetId) {
-        return {
-          ...unit,
-          playerId: converter.playerId,
-          hp: Math.min(unit.maxHp, unit.hp + 5) // Small healing upon conversion
-        };
-      }
-      return unit;
-    });
-
-    console.log(`Conversion successful! ${target.type} joins your cause.`);
-
-    return {
-      ...state,
-      units: updatedUnits,
-      players: updatedPlayers
-    };
-  } else {
-    console.log(`Conversion failed. ${target.type} resists.`);
-    
-    return {
-      ...state,
-      players: updatedPlayers
-    };
-  }
+  return outcome.state;
 }
