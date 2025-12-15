@@ -29,6 +29,7 @@ import { UNIT_DEFINITIONS } from "@shared/data/units";
 import { getWorldElement, WORLD_ELEMENTS } from "@shared/data/worldElements";
 import { useMapToastStore, hexToWorldPos } from "../../lib/stores/useMapToasts";
 import { useParticleStore } from "../effects/ParticleEffects";
+import { pushCapped, MEMORY_LIMITS } from "../../lib/memoryUtils";
 import type { Unit } from "@shared/types/unit";
 
 interface ActiveNotification {
@@ -145,7 +146,7 @@ export default function GameUI() {
               kind === 'desertion' ? `Desertion: a unit abandoned them` :
                 kind === 'contention' ? `Contention: lost wealth` :
                   kind === 'blessing' ? `Blessings of humility` : 'Morale event';
-          setGameLogEntries(prev => [...prev, {
+          setGameLogEntries(prev => pushCapped(prev, {
             id: `log_${Date.now()}`,
             turn: gameState.turn,
             playerId: actor.id,
@@ -153,7 +154,7 @@ export default function GameUI() {
             type: 'morale',
             message,
             timestamp: Date.now(),
-          }]);
+          }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
         }
       } else if (action.type === 'TESTIMONY_PRESSURE') {
         const currentPlayerId = gameState.players[gameState.currentPlayerIndex].id;
@@ -489,7 +490,7 @@ export default function GameUI() {
             message,
             timestamp: Date.now(),
           };
-          setGameLogEntries(prev => [...prev, newEntry]);
+          setGameLogEntries(prev => pushCapped(prev, newEntry, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
         }
       }
     };
@@ -567,7 +568,7 @@ export default function GameUI() {
             message: `Explored ruins and found: ${reward.name}`,
             timestamp: Date.now(),
           };
-          setGameLogEntries(prev => [...prev, newEntry]);
+          setGameLogEntries(prev => pushCapped(prev, newEntry, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
         }
       }
     };

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { pushCapped, MEMORY_LIMITS } from '../../lib/memoryUtils';
 
 // Toast notification types
 export type ToastType = 'success' | 'warning' | 'error' | 'reward' | 'combat' | 'info';
@@ -119,13 +120,13 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
     );
 }
 
-// Custom hook for managing toasts
+// Custom hook for managing toasts with bounded memory
 export function useGameToasts() {
     const [toasts, setToasts] = useState<GameToast[]>([]);
 
     const addToast = useCallback((message: string, type: ToastType, icon?: string, duration?: number) => {
         const id = `toast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        setToasts(prev => [...prev, { id, message, type, icon, duration }]);
+        setToasts(prev => pushCapped(prev, { id, message, type, icon, duration }, MEMORY_LIMITS.TOAST_MAX_ITEMS));
         return id;
     }, []);
 
