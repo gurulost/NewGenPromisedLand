@@ -93,7 +93,7 @@ export const UnitDefinitionSchema = z.object({
   type: UnitTypeSchema,
   name: z.string(),
   description: z.string(),
-  tags: z.array(z.string()).optional(),
+  tags: z.array(z.string()).default([]),
   baseStats: z.object({
     hp: z.number(),
     attack: z.number(),
@@ -126,4 +126,5 @@ export const UnitDefinitionSchema = z.object({
   requiredTechnology: z.string().optional(), // Technology required to unlock this unit
 });
 
-export type UnitDefinition = z.infer<typeof UnitDefinitionSchema>;
+export type UnitDefinition = z.output<typeof UnitDefinitionSchema>;
+export type UnitDefinitionInput = z.input<typeof UnitDefinitionSchema>;

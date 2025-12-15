@@ -3386,11 +3386,15 @@ function handleConvertCity(
   // City conversions are missionary actions: they require an eligible missionary and consume its turn.
   const actingMissionary = (() => {
     const candidateById = unitId ? state.units.find(u => u.id === unitId) : undefined;
+    const missionaryHasConvertAbility = (u: Unit): boolean => {
+      const abilities = (u.abilities && u.abilities.length > 0) ? u.abilities : getUnitDefinition(u.type as any)?.abilities || [];
+      return abilities.includes('convert');
+    };
     const isEligible = (u: Unit | undefined): u is Unit =>
       !!u &&
       u.playerId === playerId &&
       u.type === 'missionary' &&
-      !!u.abilities?.includes('convert') &&
+      missionaryHasConvertAbility(u) &&
       !u.hasAttacked &&
       u.remainingMovement > 0 &&
       hexDistance(u.coordinate, city.coordinate) <= 1;

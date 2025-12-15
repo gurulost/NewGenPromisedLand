@@ -174,17 +174,40 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
                     : typeof cond.lte === 'number'
                       ? `${statLabel} ≤ ${cond.lte}`
                       : statLabel;
+                  const perTurn = cond?.perTurn ?? {};
                   const parts: string[] = [];
-                  if (cond.perTurn.stars) parts.push(`${cond.perTurn.stars > 0 ? '+' : ''}${cond.perTurn.stars}★`);
-                  if (cond.perTurn.faith) parts.push(`${cond.perTurn.faith > 0 ? '+' : ''}${cond.perTurn.faith} Faith`);
-                  if (cond.perTurn.pride) parts.push(`${cond.perTurn.pride > 0 ? '+' : ''}${cond.perTurn.pride} Pride`);
-                  if (cond.perTurn.dissent) parts.push(`${cond.perTurn.dissent > 0 ? '+' : ''}${cond.perTurn.dissent} Dissent`);
+                  if (perTurn.stars) parts.push(`${perTurn.stars > 0 ? '+' : ''}${perTurn.stars}★`);
+                  if (perTurn.faith) parts.push(`${perTurn.faith > 0 ? '+' : ''}${perTurn.faith} Faith`);
+                  if (perTurn.pride) parts.push(`${perTurn.pride > 0 ? '+' : ''}${perTurn.pride} Pride`);
+                  if (perTurn.dissent) parts.push(`${perTurn.dissent > 0 ? '+' : ''}${perTurn.dissent} Dissent`);
                   if (parts.length === 0) return null;
                   return <div key={idx}>When {condition}: {parts.join(', ')}</div>;
                 })}
-                {unitStats.definition.passiveEffects.diplomacyCooldownDelta?.perTurn.requestTrade ? (
-                  <div>Request Trade cooldown: {unitStats.definition.passiveEffects.diplomacyCooldownDelta.perTurn.requestTrade}/turn</div>
-                ) : null}
+                {(() => {
+                  const cooldownDeltaPerTurn = unitStats.definition.passiveEffects.diplomacyCooldownDelta?.perTurn;
+                  if (!cooldownDeltaPerTurn) return null;
+
+                  const entries = Object.entries(cooldownDeltaPerTurn).filter(
+                    (entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] !== 0
+                  );
+                  if (entries.length === 0) return null;
+
+                  const formatCooldownName = (cooldownKey: string) =>
+                    cooldownKey
+                      .replace(/_/g, ' ')
+                      .replace(/([a-z])([A-Z])/g, '$1 $2')
+                      .replace(/^./, (c) => c.toUpperCase());
+
+                  return (
+                    <>
+                      {entries.map(([cooldownKey, delta]) => (
+                        <div key={cooldownKey}>
+                          {formatCooldownName(cooldownKey)} cooldown: {delta > 0 ? '+' : ''}{delta}/turn
+                        </div>
+                      ))}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}

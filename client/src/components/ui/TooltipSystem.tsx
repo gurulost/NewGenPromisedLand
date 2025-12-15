@@ -495,11 +495,31 @@ export function UnitTooltip({ unit, unitDef }: { unit: any; unitDef: any }) {
               </div>
             );
           })}
-          {passive?.diplomacyCooldownDelta?.perTurn?.requestTrade && (
-            <div className="text-xs text-green-300">
-              Request Trade cooldown: {passive.diplomacyCooldownDelta.perTurn.requestTrade}/turn
-            </div>
-          )}
+          {(() => {
+            const cooldownDeltaPerTurn = passive?.diplomacyCooldownDelta?.perTurn;
+            if (!cooldownDeltaPerTurn) return null;
+
+            const entries = Object.entries(cooldownDeltaPerTurn).filter(
+              (entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] !== 0
+            );
+            if (entries.length === 0) return null;
+
+            const formatCooldownName = (cooldownKey: string) =>
+              cooldownKey
+                .replace(/_/g, ' ')
+                .replace(/([a-z])([A-Z])/g, '$1 $2')
+                .replace(/^./, (c) => c.toUpperCase());
+
+            return (
+              <div className="text-xs text-green-300 space-y-0.5">
+                {entries.map(([cooldownKey, delta]) => (
+                  <div key={cooldownKey}>
+                    {formatCooldownName(cooldownKey)} cooldown: {delta > 0 ? '+' : ''}{delta}/turn
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

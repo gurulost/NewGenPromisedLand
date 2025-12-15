@@ -1,6 +1,6 @@
-import { UnitDefinition, UnitType } from "../types/unit";
+import { UnitDefinitionSchema, type UnitDefinition, type UnitDefinitionInput, type UnitType } from "../types/unit";
 
-export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
+const RAW_UNIT_DEFINITIONS = {
   // === COMMON UNITS (Available to all factions) ===
   
   warrior: {
@@ -353,7 +353,14 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     factionSpecific: ['ANTI_NEPHI_LEHIES'], // Anti-Nephi-Lehies only
     abilities: ['PACIFIST_DEFENSE', 'PROTECTIVE_AURA', 'NON_VIOLENCE'],
   },
-};
+} satisfies Record<UnitType, UnitDefinitionInput>;
+
+export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = Object.fromEntries(
+  (Object.entries(RAW_UNIT_DEFINITIONS) as Array<[UnitType, UnitDefinitionInput]>).map(([type, def]) => [
+    type,
+    UnitDefinitionSchema.parse(def),
+  ])
+) as Record<UnitType, UnitDefinition>;
 
 export const getUnitDefinition = (type: UnitType): UnitDefinition => {
   return UNIT_DEFINITIONS[type];
