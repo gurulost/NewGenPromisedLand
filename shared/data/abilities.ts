@@ -1,4 +1,5 @@
 import { FACTIONS } from "./factions";
+import { GAME_RULES } from "./gameRules";
 
 export interface AbilityDefinition {
   id: string;
@@ -217,10 +218,10 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
   conversion: {
     id: 'conversion',
     name: 'Conversion',
-    description: 'Convert enemy units to your side through faith (costs 20 Faith)',
+    description: `Convert enemy units to your side through faith (costs ${GAME_RULES.conversion.costs.unit} Faith)`,
     type: 'unit',
     effect: 'CONVERT_ENEMY',
-    requirements: { faith: 20 },
+    requirements: { faith: GAME_RULES.conversion.costs.unit },
   },
 
   divine_protection: {
@@ -256,9 +257,9 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
   SPIRITUAL_WARFARE: {
     id: 'SPIRITUAL_WARFARE',
     name: 'Spiritual Warfare',
-    description: 'Nearby enemies lose 2 Faith per turn when adjacent to your units',
+    description: 'Adjacent enemy military units suffer reduced attack under testimony pressure.',
     type: 'faction',
-    effect: 'FAITH_DRAIN_AURA',
+    effect: 'TESTIMONY_PRESSURE_AURA',
   },
 
   RIGHTEOUS_FURY: {

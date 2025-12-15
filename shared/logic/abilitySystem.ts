@@ -4,6 +4,7 @@ import { HexCoordinate } from "../types/coordinates";
 import { hexDistance, hexNeighbors } from "../utils/hex";
 import { ABILITIES } from "../data/abilities";
 import { GAME_RULES } from "../data/gameRules";
+import { attemptUnitConversion, getUnitConversionFaithCost } from "./conversion";
 
 /**
  * Ability System - Handles technology-unlocked abilities
@@ -119,11 +120,6 @@ export function executeConversion(
   casterId: string,
   targetUnitId: string
 ): AbilityResult {
-  const ability = ABILITIES.conversion;
-  if (!ability) {
-    return { success: false, message: "Conversion ability not found" };
-  }
-
   const caster = state.units.find(u => u.id === casterId);
   const target = state.units.find(u => u.id === targetUnitId);
 
@@ -131,84 +127,28 @@ export function executeConversion(
     return { success: false, message: "Caster or target not found" };
   }
 
-  if (caster.playerId === target.playerId) {
-    return { success: false, message: "Cannot convert allied units" };
+  const outcome = attemptUnitConversion(state, casterId, targetUnitId);
+  if (!outcome.ok) {
+    const faithCost = getUnitConversionFaithCost();
+    const reason =
+      outcome.reason === 'not_owner_turn' ? 'Not your turn' :
+      outcome.reason === 'same_player' ? 'Cannot convert allied units' :
+        outcome.reason === 'out_of_range' ? `Target too far away for conversion (range ${GAME_RULES.abilities.conversionRadius})` :
+          outcome.reason === 'exhausted' ? 'Unit has already acted this turn' :
+            outcome.reason === 'insufficient_faith' ? `Insufficient faith (need ${faithCost})` :
+              'Conversion attempt is not valid';
+    return { success: false, message: reason };
   }
 
-  const player = state.players.find(p => p.id === caster.playerId);
-  if (!player) {
-    return { success: false, message: "Player not found" };
-  }
-
-  const faithCost = GAME_RULES.abilities.resourceCosts.conversion;
-  if (player.stats.faith < faithCost) {
-    return {
-      success: false,
-      message: `Insufficient faith. Need ${faithCost}, have ${player.stats.faith}`
-    };
-  }
-
-  const distance = hexDistance(caster.coordinate, target.coordinate);
-  if (distance > 2) {
-    return { success: false, message: "Target too far away for conversion" };
-  }
-
-  // Conversion success based on relative faith and target's health
-  const targetPlayer = state.players.find(p => p.id === target.playerId);
-  const targetFaith = targetPlayer?.stats.faith || 0;
-
-  const conversionChance = Math.min(0.9,
-    (player.stats.faith - targetFaith + 50) / 100 *
-    (1 - target.hp / target.maxHp) // Wounded units easier to convert
-  );
-
-  const success = Math.random() < conversionChance;
-
-  if (!success) {
-    const newState = {
-      ...state,
-      players: state.players.map(p =>
-        p.id === player.id
-          ? { ...p, stats: { ...p.stats, faith: p.stats.faith - faithCost } }
-          : p
-      )
-    };
-
-    return {
-      success: false,
-      message: "Conversion attempt failed",
-      newState,
-      resourceCost: { faith: faithCost }
-    };
-  }
-
-  const newState = {
-    ...state,
-    players: state.players.map(p =>
-      p.id === player.id
-        ? { ...p, stats: { ...p.stats, faith: p.stats.faith - faithCost } }
-        : p
-    ),
-    units: state.units.map(unit =>
-      unit.id === target.id
-        ? {
-          ...unit,
-          playerId: caster.playerId,
-          hp: Math.min(unit.maxHp, unit.hp + GAME_RULES.units.healingAmount) // Heal converted unit
-        }
-        : unit
-    )
-  };
-
+  const faithCost = getUnitConversionFaithCost();
   return {
-    success: true,
-    message: `Successfully converted ${target.type}`,
-    newState,
+    success: outcome.success,
+    message: outcome.success
+      ? `Successfully converted ${target.type}`
+      : `Conversion attempt failed (${Math.round(outcome.chance * 100)}% chance)`,
+    newState: outcome.state,
     resourceCost: { faith: faithCost },
-    effects: {
-      unitsAffected: [target.id],
-      healing: GAME_RULES.units.healingAmount
-    }
+    effects: outcome.success ? { unitsAffected: [target.id], healing: GAME_RULES.units.healingAmount } : undefined
   };
 }
 

@@ -32,6 +32,35 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
     [player, gameState]
   );
 
+  const testimonyPressureLastTurn = useMemo(() => {
+    const action: any = gameState.lastAction;
+    if (!action) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+
+    if (action.type === 'END_TURN_RESOLUTION') {
+      const events = action.payload?.events || [];
+      const pressureEvent = events.find((e: any) => e?.type === 'TESTIMONY_PRESSURE');
+      const affected: Array<{ playerId: string; unitIds: string[] }> = pressureEvent?.payload?.affected || [];
+      const mine = affected.find(a => a.playerId === player.id);
+      return {
+        unitsAffected: mine?.unitIds?.length || 0,
+        attackPenalty: pressureEvent?.payload?.attackPenalty || 0,
+        durationTurns: pressureEvent?.payload?.durationTurns || 0,
+      };
+    }
+
+    if (action.type === 'TESTIMONY_PRESSURE') {
+      const affected: Array<{ playerId: string; unitIds: string[] }> = action.payload?.affected || [];
+      const mine = affected.find(a => a.playerId === player.id);
+      return {
+        unitsAffected: mine?.unitIds?.length || 0,
+        attackPenalty: action.payload?.attackPenalty || 0,
+        durationTurns: action.payload?.durationTurns || 0,
+      };
+    }
+
+    return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+  }, [gameState.lastAction, player.id]);
+
   return (
     <HUDShell position="top-left">
       <Card className="w-72 bg-gradient-to-br from-slate-900/95 via-slate-800/90 to-slate-900/95 
@@ -63,7 +92,7 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
           />
 
           {/* Faith/Pride/Dissent Progress Bars */}
-          <ResourceProgressSection playerStats={playerStats} />
+          <ResourceProgressSection playerStats={playerStats} testimonyPressureLastTurn={testimonyPressureLastTurn} />
 
           {/* Action Buttons */}
           <ActionButtonsSection
@@ -122,8 +151,9 @@ const StarResourcesSection = React.memo(({ stars, starProduction, breakdown }: {
   </div>
 ));
 
-const ResourceProgressSection = React.memo(({ playerStats }: {
+const ResourceProgressSection = React.memo(({ playerStats, testimonyPressureLastTurn }: {
   playerStats: PlayerStats;
+  testimonyPressureLastTurn: { unitsAffected: number; attackPenalty: number; durationTurns: number };
 }) => (
   <div className="space-y-3">
     {/* Faith Progress */}
@@ -138,6 +168,11 @@ const ResourceProgressSection = React.memo(({ playerStats }: {
         <span className="text-amber-100 font-body font-medium">{playerStats.faithPercentage}/100</span>
       </div>
       <Progress value={playerStats.faithPercentage} className="h-2" />
+      {testimonyPressureLastTurn.unitsAffected > 0 && testimonyPressureLastTurn.attackPenalty > 0 && (
+        <div className="mt-1 text-xs text-blue-200/70 font-body">
+          Testimony pressure: {testimonyPressureLastTurn.unitsAffected} unit(s) -{testimonyPressureLastTurn.attackPenalty} attack ({testimonyPressureLastTurn.durationTurns} turn)
+        </div>
+      )}
     </div>
 
     {/* Pride Progress */}

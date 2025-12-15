@@ -26,7 +26,6 @@ describe('GameRules', () => {
     expect(GAME_RULES.resources.baseStarsPerTurn).toBeGreaterThan(0);
     expect(GAME_RULES.resources.starsPerCity).toBeGreaterThan(0);
     expect(GAME_RULES.resources.faithPerCity).toBeGreaterThan(0);
-    expect(GAME_RULES.resources.faithPerTemple).toBeGreaterThan(0);
   });
 
   it('should have valid unit stats', () => {
@@ -61,8 +60,13 @@ describe('GameRules', () => {
 
   it('should have resource costs for abilities', () => {
     expect(GAME_RULES.abilities.resourceCosts.faithHealing).toBeGreaterThan(0);
-    expect(GAME_RULES.abilities.resourceCosts.conversion).toBeGreaterThan(0);
     expect(GAME_RULES.abilities.resourceCosts.towerVision).toBeGreaterThan(0);
+  });
+
+  it('should have conversion costs defined', () => {
+    expect(GAME_RULES.conversion.costs.unit).toBeGreaterThan(0);
+    expect(GAME_RULES.conversion.costs.village).toBeGreaterThan(0);
+    expect(GAME_RULES.conversion.costs.cityFaith).toBeGreaterThan(0);
   });
 });
 

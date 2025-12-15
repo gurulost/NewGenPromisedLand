@@ -138,7 +138,34 @@ export const GameStateSchema = z.object({
 	    z.object({ type: z.literal('MOVE_UNIT'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema }) }),
 	    z.object({ type: z.literal('ATTACK_UNIT'), payload: z.object({ attackerId: z.string(), targetId: z.string() }) }),
 	    z.object({ type: z.literal('END_TURN'), payload: z.object({ playerId: z.string() }) }),
+      z.object({
+        type: z.literal('END_TURN_RESOLUTION'),
+        payload: z.object({
+          endingPlayerId: z.string(),
+          nextPlayerId: z.string(),
+          events: z.array(z.object({ type: z.string(), payload: z.unknown() })),
+        })
+      }),
 	    z.object({ type: z.literal('CONVERT_UNIT'), payload: z.object({ playerId: z.string(), unitId: z.string(), targetUnitId: z.string() }) }),
+      z.object({
+        type: z.literal('TESTIMONY_PRESSURE'),
+        payload: z.object({
+          sourcePlayerId: z.string(),
+          attackPenalty: z.number(),
+          durationTurns: z.number(),
+          affected: z.array(z.object({ playerId: z.string(), unitIds: z.array(z.string()) })),
+        })
+      }),
+      z.object({
+        type: z.literal('MORALE_EVENT'),
+        payload: z.object({
+          playerId: z.string(),
+          kind: z.string(),
+          starsDelta: z.number().optional(),
+          cityId: z.string().optional(),
+          unitId: z.string().optional(),
+        })
+      }),
 	    z.object({ type: z.literal('HARVEST_RESOURCE'), payload: z.object({ unitId: z.string(), resourceCoordinate: HexCoordinateSchema, cityId: z.string() }) }),
 	    z.object({ type: z.literal('HEAL_UNIT'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
 	    z.object({ type: z.literal('APPLY_STEALTH'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),

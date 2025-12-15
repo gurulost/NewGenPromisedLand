@@ -56,104 +56,126 @@ export default function GameUI() {
     if (!gameState?.lastAction) return;
 
     // Explicitly type the action to avoid 'unknown' errors
-    const action: any = gameState.lastAction;
+    const rootAction: any = gameState.lastAction;
     const { addEvent: addParticle } = useParticleStore.getState();
 
-    if (action.type === 'CAPTURE_CITY') {
-      const city = gameState.cities.find(c => c.id === action.payload.cityId);
-      if (city) {
-        addParticle('combat', city.coordinate);
-        // Also show toast if it was the current player
+    const handleAction = (action: any) => {
+      if (!action) return;
+
+      if (action.type === 'CAPTURE_CITY') {
+        const city = gameState.cities.find(c => c.id === action.payload.cityId);
+        if (city) {
+          addParticle('combat', city.coordinate);
+          // Also show toast if it was the current player
+          if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+            addToast('City Captured!', 'combat', hexToWorldPos(city.coordinate.q, city.coordinate.r));
+            triggerFlash('red');
+          }
+        }
+      } else if (action.type === 'CONVERT_CITY') {
+        const city = gameState.cities.find(c => c.id === action.payload.cityId);
+        if (city) {
+          addParticle('faith', city.coordinate);
+          if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+            addToast('City Converted!', 'faith', hexToWorldPos(city.coordinate.q, city.coordinate.r));
+            triggerFlash('blue');
+          }
+        }
+      } else if (action.type === 'CONVERT_UNIT') {
+        const targetUnit = gameState.units.find(u => u.id === action.payload.targetUnitId);
+        const success = targetUnit?.playerId === action.payload.playerId;
+        const coord = targetUnit?.coordinate;
+        const worldPos = coord ? hexToWorldPos(coord.q, coord.r) : { x: 0, y: 0.5, z: 0 };
+        if (coord) {
+          addParticle('faith', coord);
+        }
         if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
-          addToast('City Captured!', 'combat', hexToWorldPos(city.coordinate.q, city.coordinate.r));
+          if (success) {
+            addToast('Unit Converted!', 'faith', worldPos);
+            triggerFlash('blue');
+          } else {
+            addToast('Conversion Failed', 'dissent', worldPos);
+            triggerFlash('red');
+          }
+        }
+      } else if (action.type === 'CONQUER_VILLAGE') {
+        // Find unit to get location
+        const unit = gameState.units.find(u => u.id === action.payload.unitId);
+        if (unit) {
+          addParticle('capture', unit.coordinate);
+          if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+            addToast('Village Conquered', 'reward', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
+            triggerFlash('gold');
+          }
+        }
+      } else if (action.type === 'CONVERT_VILLAGE') {
+        const unit = gameState.units.find(u => u.id === action.payload.unitId);
+        if (unit) {
+          addParticle('faith', unit.coordinate);
+          if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+            addToast('Village Converted', 'faith', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
+            triggerFlash('blue');
+          }
+        }
+      } else if (action.type === 'MORALE_EVENT') {
+        const { kind, playerId, starsDelta, cityId } = action.payload || {};
+        const cityName = typeof cityId === 'string' ? (gameState.cities.find(c => c.id === cityId)?.name || 'a city') : 'a city';
+
+        if (kind === 'rebellion') {
           triggerFlash('red');
-        }
-      }
-    } else if (action.type === 'CONVERT_CITY') {
-      const city = gameState.cities.find(c => c.id === action.payload.cityId);
-      if (city) {
-        addParticle('faith', city.coordinate);
-        if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
-          addToast('City Converted!', 'faith', hexToWorldPos(city.coordinate.q, city.coordinate.r));
-          triggerFlash('blue');
-        }
-      }
-    } else if (action.type === 'CONVERT_UNIT') {
-      const targetUnit = gameState.units.find(u => u.id === action.payload.targetUnitId);
-      const success = targetUnit?.playerId === action.payload.playerId;
-      const coord = targetUnit?.coordinate;
-      const worldPos = coord ? hexToWorldPos(coord.q, coord.r) : { x: 0, y: 0.5, z: 0 };
-      if (coord) {
-        addParticle('faith', coord);
-      }
-      if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
-        if (success) {
-          addToast('Unit Converted!', 'faith', worldPos);
-          triggerFlash('blue');
+          showToast(`Rebellion! Unrest in ${cityName} (${starsDelta ?? -5}★)`, 'warning');
+        } else if (kind === 'desertion') {
+          triggerFlash('red');
+          showToast(`Desertion! A unit abandoned you (${starsDelta ?? -3}★)`, 'warning');
+        } else if (kind === 'contention') {
+          triggerFlash('red');
+          showToast(`Contention! Wealth lost (${starsDelta ?? -5}★)`, 'warning');
+        } else if (kind === 'blessing') {
+          triggerFlash('green');
+          showToast(`Blessings of humility (+${starsDelta ?? 0}★, +Faith)`, 'success');
         } else {
-          addToast('Conversion Failed', 'dissent', worldPos);
-          triggerFlash('red');
+          showToast(`Morale shifted`, 'info');
         }
-      }
-    } else if (action.type === 'CONQUER_VILLAGE') {
-      // Find unit to get location
-      const unit = gameState.units.find(u => u.id === action.payload.unitId);
-      if (unit) {
-        addParticle('capture', unit.coordinate);
-        if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
-          addToast('Village Conquered', 'reward', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
-          triggerFlash('gold');
+
+        // Log it (best-effort; keep concise)
+        const actor = gameState.players.find(p => p.id === playerId);
+        if (actor) {
+          const message =
+            kind === 'rebellion' ? `Rebellion: unrest in ${cityName}` :
+              kind === 'desertion' ? `Desertion: a unit abandoned them` :
+                kind === 'contention' ? `Contention: lost wealth` :
+                  kind === 'blessing' ? `Blessings of humility` : 'Morale event';
+          setGameLogEntries(prev => [...prev, {
+            id: `log_${Date.now()}`,
+            turn: gameState.turn,
+            playerId: actor.id,
+            playerName: actor.name,
+            type: 'morale',
+            message,
+            timestamp: Date.now(),
+          }]);
         }
-      }
-    } else if (action.type === 'CONVERT_VILLAGE') {
-      const unit = gameState.units.find(u => u.id === action.payload.unitId);
-      if (unit) {
-        addParticle('faith', unit.coordinate);
-        if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
-          addToast('Village Converted', 'faith', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
+      } else if (action.type === 'TESTIMONY_PRESSURE') {
+        const currentPlayerId = gameState.players[gameState.currentPlayerIndex].id;
+        const affected: Array<{ playerId: string; unitIds: string[] }> = action.payload?.affected || [];
+        const myAffected = affected.find(a => a.playerId === currentPlayerId);
+        if (myAffected?.unitIds?.length) {
+          const penalty = action.payload?.attackPenalty ?? 1;
+          const duration = action.payload?.durationTurns ?? 1;
           triggerFlash('blue');
+          showToast(`Enemy missionaries weakened ${myAffected.unitIds.length} unit(s) (-${penalty} Attack, ${duration} turn)`, 'warning');
         }
       }
-    } else if (action.type === 'MORALE_EVENT') {
-      const { kind, playerId, starsDelta, cityId } = action.payload || {};
-      const cityName = typeof cityId === 'string' ? (gameState.cities.find(c => c.id === cityId)?.name || 'a city') : 'a city';
+    };
 
-      if (kind === 'rebellion') {
-        triggerFlash('red');
-        showToast(`Rebellion! Unrest in ${cityName} (${starsDelta ?? -5}★)`, 'warning');
-      } else if (kind === 'desertion') {
-        triggerFlash('red');
-        showToast(`Desertion! A unit abandoned you (${starsDelta ?? -3}★)`, 'warning');
-      } else if (kind === 'contention') {
-        triggerFlash('red');
-        showToast(`Contention! Wealth lost (${starsDelta ?? -5}★)`, 'warning');
-      } else if (kind === 'blessing') {
-        triggerFlash('green');
-        showToast(`Blessings of humility (+${starsDelta ?? 0}★, +Faith)`, 'success');
-      } else {
-        showToast(`Morale shifted`, 'info');
-      }
-
-      // Log it (best-effort; keep concise)
-      const actor = gameState.players.find(p => p.id === playerId);
-      if (actor) {
-        const message =
-          kind === 'rebellion' ? `Rebellion: unrest in ${cityName}` :
-            kind === 'desertion' ? `Desertion: a unit abandoned them` :
-              kind === 'contention' ? `Contention: lost wealth` :
-                kind === 'blessing' ? `Blessings of humility` : 'Morale event';
-        setGameLogEntries(prev => [...prev, {
-          id: `log_${Date.now()}`,
-          turn: gameState.turn,
-          playerId: actor.id,
-          playerName: actor.name,
-          type: 'morale',
-          message,
-          timestamp: Date.now(),
-        }]);
-      }
+    if (rootAction.type === 'END_TURN_RESOLUTION') {
+      const events = rootAction.payload?.events || [];
+      events.forEach(handleAction);
+      return;
     }
-  }, [gameState?.lastAction, gameState?.cities, gameState?.units, addToast, triggerFlash, gameState?.players, gameState?.currentPlayerIndex]);
+
+    handleAction(rootAction);
+  }, [gameState?.lastAction, gameState?.cities, gameState?.units, addToast, triggerFlash, showToast, gameState?.players, gameState?.currentPlayerIndex]);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
   const [showAdvancedSaveSystem, setShowAdvancedSaveSystem] = useState(false);

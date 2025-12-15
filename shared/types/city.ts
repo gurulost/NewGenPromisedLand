@@ -270,7 +270,8 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
       starProduction: 1,
       unitProduction: 0,
       defenseBonus: 0,
-      populationGrowth: 1
+      populationGrowth: 1,
+      faithProduction: 5
     }
   },
 

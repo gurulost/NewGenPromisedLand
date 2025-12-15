@@ -109,6 +109,54 @@ describe('Faith System', () => {
         });
     });
 
+    describe('Faith generation data-driven (effects.faithProduction)', () => {
+        it('counts completed temple faithProduction and excludes in-progress construction', () => {
+            const baseState: GameState = {
+                ...mockState,
+                rngSeed: 0,
+                players: [
+                    { ...nephitePlayer, stats: { ...nephitePlayer.stats, faith: 50, pride: 0, internalDissent: 0 } },
+                    { ...lamanitePlayer }
+                ],
+            } as any;
+
+            const withCompletedTemple: GameState = {
+                ...baseState,
+                structures: [{
+                    id: 't1',
+                    type: 'temple',
+                    cityId: 'city1',
+                    ownerId: 'nephite1',
+                    constructionTurns: 0,
+                    effects: { starProduction: 0, unitProduction: 0, defenseBonus: 0, populationGrowth: 0, faithProduction: 5 }
+                }] as any
+            } as any;
+
+            const endTurnAction = { type: 'END_TURN' as const, payload: { playerId: 'nephite1' } };
+            const afterCompleted = gameReducer(withCompletedTemple, endTurnAction as any);
+            const playerCompleted = afterCompleted.players.find(p => p.id === 'nephite1');
+            // +2 from city, +5 from temple
+            expect(playerCompleted!.stats.faith).toBe(57);
+
+            const withInProgressTemple: GameState = {
+                ...baseState,
+                structures: [{
+                    id: 't1',
+                    type: 'temple',
+                    cityId: 'city1',
+                    ownerId: 'nephite1',
+                    constructionTurns: 1,
+                    effects: { starProduction: 0, unitProduction: 0, defenseBonus: 0, populationGrowth: 0, faithProduction: 5 }
+                }] as any
+            } as any;
+
+            const afterInProgress = gameReducer(withInProgressTemple, endTurnAction as any);
+            const playerInProgress = afterInProgress.players.find(p => p.id === 'nephite1');
+            // Only +2 from city
+            expect(playerInProgress!.stats.faith).toBe(52);
+        });
+    });
+
     describe('Faith synergy combat bonuses', () => {
         it('should give +1 defense to defender with 50+ faith', () => {
             const attacker: Unit = createWarrior('a1', 'lamanite1', { q: 0, r: 0, s: 0 });
@@ -142,48 +190,64 @@ describe('Faith System', () => {
 
     describe('Conversion cost', () => {
         it('should use GAME_RULES conversion cost of 20', () => {
-            expect(GAME_RULES.abilities.resourceCosts.conversion).toBe(20);
+            expect(GAME_RULES.conversion.costs.unit).toBe(20);
         });
     });
 
-    describe('Faith drain config', () => {
-        it('should have faith drain settings in GAME_RULES', () => {
-            expect(GAME_RULES.faithBonuses.faithDrainPerMissionary).toBe(1);
-            expect(GAME_RULES.faithBonuses.maxFaithDrainPerTurn).toBe(3);
-        });
-    });
-
-    describe('Faith drain mechanic', () => {
-        it('drains at most 1 per missionary per enemy player (not per adjacent unit)', () => {
-            // One missionary adjacent to multiple Lamanite units should only drain 1 total (before cap).
+    describe('Testimony pressure (missionaries)', () => {
+        it('applies a temporary attack penalty to adjacent enemy military units (no faith drain)', () => {
             mockState.units = [
                 createMissionary('m1', 'nephite1', { q: 0, r: 0, s: 0 }),
                 createWarrior('e1', 'lamanite1', { q: 1, r: 0, s: -1 }),
-                createWarrior('e2', 'lamanite1', { q: 0, r: 1, s: -1 }),
-                createWarrior('e3', 'lamanite1', { q: 1, r: -1, s: 0 }),
             ];
 
             const endTurnAction = { type: 'END_TURN' as const, payload: { playerId: 'nephite1' } };
             const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, endTurnAction as any);
-            const enemy = newState.players.find((p: any) => p.id === 'lamanite1');
-            expect(enemy.stats.faith).toBe(29); // 30 - 1
+            const enemyPlayer = newState.players.find((p: any) => p.id === 'lamanite1');
+            const enemyUnit: any = newState.units.find((u: any) => u.id === 'e1');
+
+            expect(enemyPlayer.stats.faith).toBe(30); // no drain
+            expect(Array.isArray(enemyUnit.statusEffects)).toBe(true);
+            expect(enemyUnit.statusEffects.some((e: any) => e?.type === 'TESTIMONY_PRESSURE')).toBe(true);
         });
 
-        it('caps faith drain at 3 per enemy player per turn', () => {
-            // 5 missionaries adjacent should drain 5, but cap to 3.
+        it('does not apply to adjacent civilians (worker/missionary/envoy)', () => {
             mockState.units = [
-                createWarrior('e1', 'lamanite1', { q: 0, r: 0, s: 0 }),
-                createMissionary('m1', 'nephite1', { q: 1, r: 0, s: -1 }),
-                createMissionary('m2', 'nephite1', { q: 0, r: 1, s: -1 }),
-                createMissionary('m3', 'nephite1', { q: -1, r: 1, s: 0 }),
-                createMissionary('m4', 'nephite1', { q: -1, r: 0, s: 1 }),
-                createMissionary('m5', 'nephite1', { q: 0, r: -1, s: 1 }),
+                createMissionary('m1', 'nephite1', { q: 0, r: 0, s: 0 }),
+                createWorker('w1', 'lamanite1', { q: 1, r: 0, s: -1 }),
+                createMissionary('m2', 'lamanite1', { q: 0, r: 1, s: -1 }),
+                createEnvoy('e1', 'lamanite1', { q: 1, r: -1, s: 0 }),
             ];
 
             const endTurnAction = { type: 'END_TURN' as const, payload: { playerId: 'nephite1' } };
             const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, endTurnAction as any);
-            const enemy = newState.players.find((p: any) => p.id === 'lamanite1');
-            expect(enemy.stats.faith).toBe(27); // 30 - 3
+
+            const worker: any = newState.units.find((u: any) => u.id === 'w1');
+            const enemyMissionary: any = newState.units.find((u: any) => u.id === 'm2');
+            const envoy: any = newState.units.find((u: any) => u.id === 'e1');
+
+            expect(worker?.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
+            expect(enemyMissionary?.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
+            expect(envoy?.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
+        });
+
+        it('expires after the affected player finishes their turn', () => {
+            const state: GameState = {
+                ...mockState,
+                rngSeed: 1,
+                units: [
+                    createMissionary('m1', 'nephite1', { q: 0, r: 0, s: 0 }),
+                    createWarrior('e1', 'lamanite1', { q: 1, r: 0, s: -1 }),
+                ]
+            } as any;
+
+            const afterNephite = gameReducer(state as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
+            const pressuredUnit: any = afterNephite.units.find((u: any) => u.id === 'e1');
+            expect(pressuredUnit.statusEffects.some((e: any) => e?.type === 'TESTIMONY_PRESSURE')).toBe(true);
+
+            const afterLamanite = gameReducer(afterNephite as any, { type: 'END_TURN', payload: { playerId: 'lamanite1' } } as any);
+            const clearedUnit: any = afterLamanite.units.find((u: any) => u.id === 'e1');
+            expect(clearedUnit.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
         });
     });
 });
@@ -227,6 +291,48 @@ function createMissionary(id: string, playerId: string, coordinate: { q: number;
         status: 'active',
         experience: 0,
         abilities: ['heal', 'convert'],
+        level: 1
+    };
+}
+
+function createWorker(id: string, playerId: string, coordinate: { q: number; r: number; s: number }): Unit {
+    return {
+        id,
+        type: 'worker',
+        playerId,
+        coordinate,
+        hp: 10,
+        maxHp: 10,
+        attack: 1,
+        defense: 1,
+        movement: 2,
+        remainingMovement: 2,
+        visionRadius: 2,
+        attackRange: 1,
+        status: 'active',
+        experience: 0,
+        abilities: ['BUILD'],
+        level: 1
+    };
+}
+
+function createEnvoy(id: string, playerId: string, coordinate: { q: number; r: number; s: number }): Unit {
+    return {
+        id,
+        type: 'royal_envoy',
+        playerId,
+        coordinate,
+        hp: 15,
+        maxHp: 15,
+        attack: 2,
+        defense: 3,
+        movement: 4,
+        remainingMovement: 4,
+        visionRadius: 3,
+        attackRange: 1,
+        status: 'active',
+        experience: 0,
+        abilities: ['DIPLOMACY'],
         level: 1
     };
 }

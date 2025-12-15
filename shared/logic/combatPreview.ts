@@ -142,6 +142,17 @@ export function getCombatPreview(
   const attackerModifiers: string[] = [];
   const defenderModifiers: string[] = [];
 
+  // Testimony pressure: temporary attack penalty (applied via statusEffects).
+  const testimonyPressurePenalty = (() => {
+    const effects = Array.isArray((attacker as any).statusEffects) ? (attacker as any).statusEffects : [];
+    const pressure = effects.find((e: any) => e?.type === 'TESTIMONY_PRESSURE');
+    return typeof pressure?.attackPenalty === 'number' ? pressure.attackPenalty : 0;
+  })();
+  if (testimonyPressurePenalty > 0) {
+    attackerAttack = Math.max(0, attackerAttack - testimonyPressurePenalty);
+    attackerModifiers.push(`-${testimonyPressurePenalty} Attack (Testimony Pressure)`);
+  }
+
   // Status effects (matches reducer: rallied/siege_mode/formation)
   if (attacker.status === 'rallied') {
     attackerAttack += 2;

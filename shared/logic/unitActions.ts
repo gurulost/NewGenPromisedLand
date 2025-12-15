@@ -6,6 +6,7 @@ import { hexDistance, hexNeighbors } from "../utils/hex";
 import { getUnitDefinition } from "../data/units";
 import { GAME_RULES } from "../data/gameRules";
 import { ABILITIES } from "../data/abilities";
+import { attemptUnitConversion, getUnitConversionFaithCost } from "./conversion";
 
 /**
  * Unit Action System - Handles special unit abilities and actions
@@ -505,46 +506,34 @@ export function executeMissionaryAction(
     return { success: false, message: "Player not found" };
   }
 
-  if (action === 'CONVERT' && unitDef.abilities.includes('CONVERT')) {
+  if (action === 'CONVERT') {
     if (!target || !('id' in target)) {
       return { success: false, message: "No target unit specified" };
     }
     
     const targetUnit = target as Unit;
-    const distance = hexDistance(unit.coordinate, targetUnit.coordinate);
-    
-    if (distance > 1) {
-      return { success: false, message: "Target too far away" };
+
+    const outcome = attemptUnitConversion(state, unit.id, targetUnit.id);
+    if (!outcome.ok) {
+      const faithCost = getUnitConversionFaithCost();
+      const reason =
+        outcome.reason === 'not_owner_turn' ? 'Not your turn' :
+        outcome.reason === 'same_player' ? 'Cannot convert allied units' :
+          outcome.reason === 'out_of_range' ? `Target too far away (range ${GAME_RULES.abilities.conversionRadius})` :
+            outcome.reason === 'exhausted' ? 'Unit has already acted this turn' :
+              outcome.reason === 'insufficient_faith' ? `Insufficient faith (need ${faithCost})` :
+                'Conversion attempt is not valid';
+      return { success: false, message: reason };
     }
-    
-    // Conversion chance based on faith vs target's defense
-    const faithRequirement = ABILITIES.conversion?.requirements?.faith || 50;
-    if (player.stats.faith < faithRequirement) {
-      return { success: false, message: "Insufficient faith for conversion" };
-    }
-    
-    const conversionChance = Math.min(0.8, player.stats.faith / 100);
-    const success = Math.random() < conversionChance;
-    
-    if (success) {
-      const newState = {
-        ...state,
-        units: state.units.map(u => 
-          u.id === targetUnit.id 
-            ? { ...u, playerId: unit.playerId }
-            : u
-        )
-      };
-      
-      return {
-        success: true,
-        message: `Converted ${targetUnit.type} to your cause`,
-        newState,
-        effects: { conversion: [targetUnit.id] }
-      };
-    } else {
-      return { success: false, message: "Conversion attempt failed" };
-    }
+
+    return {
+      success: outcome.success,
+      message: outcome.success
+        ? `Converted ${targetUnit.type} to your cause`
+        : `Conversion attempt failed (${Math.round(outcome.chance * 100)}% chance)`,
+      newState: outcome.state,
+      effects: outcome.success ? { conversion: [targetUnit.id] } : undefined
+    };
   }
 
   if (action === 'HEAL' && unitDef.abilities.includes('HEAL')) {
