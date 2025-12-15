@@ -61,11 +61,12 @@ export { ResourceDeltaBadge };
 export interface WorldElementPanelProps {
   gameState: GameState; playerId: string; elementId: string;
   coordinate: HexCoordinate;
-  onAction: (a: 'harvest' | 'build') => void; onClose: () => void;
+  unitId?: string;
+  onAction: (a: 'harvest' | 'build', unitId: string) => void; onClose: () => void;
 }
 
 export function WorldElementPanel(props: WorldElementPanelProps) {
-  const { gameState, playerId, elementId, coordinate, onAction, onClose } = props;
+  const { gameState, playerId, elementId, coordinate, unitId, onAction, onClose } = props;
   const element = getWorldElement(elementId);
   const player = gameState.players.find(p => p.id === playerId);
 
@@ -79,8 +80,43 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
 
   if (!element || !player) return null;
 
-  const harvest = canExecuteElementAction(gameState, playerId, elementId, 'harvest', coordinate);
-  const build   = canExecuteElementAction(gameState, playerId, elementId, 'build', coordinate);
+  const { harvestUnitId, buildUnitId } = useMemo(() => {
+    const unitsOnTile = gameState.units.filter(u =>
+      u.playerId === playerId &&
+      u.coordinate.q === coordinate.q &&
+      u.coordinate.r === coordinate.r &&
+      !u.hasAttacked &&
+      u.remainingMovement > 0
+    );
+
+    const prefer = (candidateId?: string) => {
+      if (!candidateId) return null;
+      return unitsOnTile.some(u => u.id === candidateId) ? candidateId : null;
+    };
+
+    const preferred = prefer(unitId);
+
+    const pickNavalCommander = () =>
+      unitsOnTile.find(u => u.type === 'commander' && (u.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_COMMAND'))?.id ??
+      null;
+
+    const defaultHarvest = () => {
+      if (preferred) return preferred;
+      if (element?.immediateAction?.requiresUnitTag === 'naval_commander') return pickNavalCommander();
+      if (elementId === 'jaredite_ruins') return unitsOnTile[0]?.id ?? null;
+      return unitsOnTile.find(u => u.type === 'worker')?.id ?? null;
+    };
+
+    const defaultBuild = () => {
+      if (preferred && unitsOnTile.find(u => u.id === preferred)?.type === 'worker') return preferred;
+      return unitsOnTile.find(u => u.type === 'worker')?.id ?? null;
+    };
+
+    return { harvestUnitId: defaultHarvest(), buildUnitId: defaultBuild() };
+  }, [coordinate.q, coordinate.r, element?.immediateAction?.requiresUnitTag, elementId, gameState.units, playerId, unitId]);
+
+  const harvest = canExecuteElementAction(gameState, playerId, elementId, 'harvest', coordinate, harvestUnitId ?? undefined);
+  const build = canExecuteElementAction(gameState, playerId, elementId, 'build', coordinate, buildUnitId ?? undefined);
 
   const displayedLongTermAction = useMemo(() => {
     if (!element.longTermBuild) return null;
@@ -192,7 +228,7 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
                   badgeColor="destructive"
                   action={element.immediateAction}
                   canExecute={harvest}
-                  onClick={() => onAction('harvest')}
+                  onClick={() => harvestUnitId && onAction('harvest', harvestUnitId)}
                   theme="red"
                 />
               </StaggeredContent>
@@ -212,7 +248,7 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
                   badgeColor="secondary"
                   action={displayedLongTermAction}
                   canExecute={build}
-                  onClick={() => onAction('build')}
+                  onClick={() => buildUnitId && onAction('build', buildUnitId)}
                   theme="blue"
                 />
               </StaggeredContent>

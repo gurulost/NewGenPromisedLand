@@ -100,7 +100,7 @@ describe('TooltipSystem Components', () => {
   });
 
   describe('ActionTooltip Component', () => {
-    it('renders with title and description', () => {
+    it('renders with title and description', async () => {
       render(
         <ActionTooltip
           title="Test Action"
@@ -108,25 +108,33 @@ describe('TooltipSystem Components', () => {
         />
       );
 
-      expect(screen.getByText('Test Action')).toBeInTheDocument();
-      expect(screen.getByText('This is a test action description')).toBeInTheDocument();
+      fireEvent.click(screen.getByLabelText('More information'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Action')).toBeInTheDocument();
+        expect(screen.getByText('This is a test action description')).toBeInTheDocument();
+      });
     });
 
-    it('displays cost information', () => {
+    it('displays cost information', async () => {
       render(
         <ActionTooltip
           title="Build Structure"
           description="Build a new structure"
-          cost="10 stars, 5 faith"
+          cost={10}
         />
       );
 
-      expect(screen.getByText('Build Structure')).toBeInTheDocument();
-      expect(screen.getByText('Build a new structure')).toBeInTheDocument();
-      expect(screen.getByText('10 stars, 5 faith')).toBeInTheDocument();
+      fireEvent.click(screen.getByLabelText('More information'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Build Structure')).toBeInTheDocument();
+        expect(screen.getByText('Build a new structure')).toBeInTheDocument();
+        expect(screen.getByText('10 Stars')).toBeInTheDocument();
+      });
     });
 
-    it('shows hotkey information', () => {
+    it('shows hotkey information', async () => {
       render(
         <ActionTooltip
           title="Build Structure"
@@ -135,11 +143,16 @@ describe('TooltipSystem Components', () => {
         />
       );
 
-      expect(screen.getByText('Build Structure')).toBeInTheDocument();
-      expect(screen.getByText('B')).toBeInTheDocument();
+      fireEvent.click(screen.getByLabelText('More information'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Build Structure')).toBeInTheDocument();
+        expect(screen.getByText('Hotkey:')).toBeInTheDocument();
+        expect(screen.getByText('B')).toBeInTheDocument();
+      });
     });
 
-    it('displays requirements', () => {
+    it('displays requirements', async () => {
       render(
         <ActionTooltip
           title="Build Temple"
@@ -148,12 +161,17 @@ describe('TooltipSystem Components', () => {
         />
       );
 
-      expect(screen.getByText('Build Temple')).toBeInTheDocument();
-      expect(screen.getByText('Writing technology')).toBeInTheDocument();
-      expect(screen.getByText('20 faith')).toBeInTheDocument();
+      fireEvent.click(screen.getByLabelText('More information'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Build Temple')).toBeInTheDocument();
+        expect(screen.getByText('Requirements:')).toBeInTheDocument();
+        expect(screen.getByText('Writing technology')).toBeInTheDocument();
+        expect(screen.getByText('20 faith')).toBeInTheDocument();
+      });
     });
 
-    it('shows effects', () => {
+    it('shows effects', async () => {
       render(
         <ActionTooltip
           title="Build Farm"
@@ -162,32 +180,41 @@ describe('TooltipSystem Components', () => {
         />
       );
 
-      expect(screen.getByText('Build Farm')).toBeInTheDocument();
-      expect(screen.getByText('+2 stars per turn')).toBeInTheDocument();
-      expect(screen.getByText('+1 population growth')).toBeInTheDocument();
+      fireEvent.click(screen.getByLabelText('More information'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Build Farm')).toBeInTheDocument();
+        expect(screen.getByText('Effects:')).toBeInTheDocument();
+        expect(screen.getByText('+2 stars per turn')).toBeInTheDocument();
+        expect(screen.getByText('+1 population growth')).toBeInTheDocument();
+      });
     });
 
-    it('renders with all props combined', () => {
+    it('renders with all props combined', async () => {
       render(
         <ActionTooltip
           title="Advanced Structure"
           description="A complex building with multiple effects"
-          cost="50 stars, 30 faith"
+          cost={50}
           hotkey="Ctrl+B"
           requirements={['Advanced Technology', 'City Level 3']}
           effects={['+5 stars per turn', '+3 defense', 'Unlocks special units']}
         />
       );
 
-      expect(screen.getByText('Advanced Structure')).toBeInTheDocument();
-      expect(screen.getByText('A complex building with multiple effects')).toBeInTheDocument();
-      expect(screen.getByText('50 stars, 30 faith')).toBeInTheDocument();
-      expect(screen.getByText('Ctrl+B')).toBeInTheDocument();
-      expect(screen.getByText('Advanced Technology')).toBeInTheDocument();
-      expect(screen.getByText('City Level 3')).toBeInTheDocument();
-      expect(screen.getByText('+5 stars per turn')).toBeInTheDocument();
-      expect(screen.getByText('+3 defense')).toBeInTheDocument();
-      expect(screen.getByText('Unlocks special units')).toBeInTheDocument();
+      fireEvent.click(screen.getByLabelText('More information'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Advanced Structure')).toBeInTheDocument();
+        expect(screen.getByText('A complex building with multiple effects')).toBeInTheDocument();
+        expect(screen.getByText('50 Stars')).toBeInTheDocument();
+        expect(screen.getByText('Ctrl+B')).toBeInTheDocument();
+        expect(screen.getByText('Advanced Technology')).toBeInTheDocument();
+        expect(screen.getByText('City Level 3')).toBeInTheDocument();
+        expect(screen.getByText('+5 stars per turn')).toBeInTheDocument();
+        expect(screen.getByText('+3 defense')).toBeInTheDocument();
+        expect(screen.getByText('Unlocks special units')).toBeInTheDocument();
+      });
     });
   });
 
@@ -263,7 +290,7 @@ describe('TooltipSystem Components', () => {
   });
 
   describe('Tooltip Integration', () => {
-    it('ActionTooltip works as standalone component', () => {
+    it('ActionTooltip works as standalone component', async () => {
       render(
         <ActionTooltip
           title="Standalone Action"
@@ -272,9 +299,14 @@ describe('TooltipSystem Components', () => {
         />
       );
 
-      expect(screen.getByText('Standalone Action')).toBeInTheDocument();
-      expect(screen.getByText('This action works independently')).toBeInTheDocument();
-      expect(screen.getByText('25 stars')).toBeInTheDocument();
+      const infoButton = screen.getByLabelText('More information');
+      fireEvent.click(infoButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Standalone Action')).toBeInTheDocument();
+        expect(screen.getByText('This action works independently')).toBeInTheDocument();
+        expect(screen.getByText('25 stars')).toBeInTheDocument();
+      });
     });
 
     it('InfoTooltip works as standalone component', async () => {

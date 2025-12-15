@@ -1,25 +1,12 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { gameReducer } from '../../shared/logic/gameReducer';
 import type { GameState } from '../../shared/types/game';
 
-function withMockRandom(values: number[], fn: () => void) {
-  let idx = 0;
-  vi.spyOn(Math, 'random').mockImplementation(() => {
-    const v = values[Math.min(idx, values.length - 1)];
-    idx += 1;
-    return v;
-  });
-  fn();
-}
-
 describe('Morale events (Pride/Dissent)', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it('does not allow desertion below dissent floor', () => {
     const state: GameState = {
       id: 'g1',
+      rngSeed: 1972, // forces a bad event roll in deterministic PRNG
       currentPlayerIndex: 0,
       turn: 10,
       phase: 'playing',
@@ -88,22 +75,14 @@ describe('Morale events (Pride/Dissent)', () => {
       structures: [],
     };
 
-    withMockRandom(
-      [
-        0.0, // rollBad (trigger a bad event)
-        0.9, // pickWeightedIndex for event type (tries to push toward later entries, but desertion weight is 0 here)
-        0.0, // any subsequent roll
-      ],
-      () => {
-        const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
-        expect(after.units.length).toBe(1); // no desertion possible
-      }
-    );
+    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    expect(after.units.length).toBe(1); // no desertion possible
   });
 
   it('can cause desertion when dissent is high', () => {
     const state: GameState = {
       id: 'g1',
+      rngSeed: 7135, // bad event + desertion selection + pick first deserter
       currentPlayerIndex: 0,
       turn: 30,
       phase: 'playing',
@@ -191,23 +170,15 @@ describe('Morale events (Pride/Dissent)', () => {
       structures: [],
     };
 
-    withMockRandom(
-      [
-        0.0, // rollBad (trigger)
-        0.6, // event selection -> desertion (given weights)
-        0.0, // pick deserter -> first unit
-      ],
-      () => {
-        const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
-        expect(after.units.some(u => u.id === 'u1')).toBe(false);
-        expect(after.units.length).toBe(1);
-      }
-    );
+    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    expect(after.units.some(u => u.id === 'u1')).toBe(false);
+    expect(after.units.length).toBe(1);
   });
 
   it('rebellion can apply unrestTurns to a city', () => {
     const state: GameState = {
       id: 'g1',
+      rngSeed: 1972, // bad event roll + rebellion selection
       currentPlayerIndex: 0,
       turn: 30,
       phase: 'playing',
@@ -256,17 +227,7 @@ describe('Morale events (Pride/Dissent)', () => {
       structures: [],
     };
 
-    withMockRandom(
-      [
-        0.0, // rollBad (trigger)
-        0.0, // event selection -> rebellion
-        0.0, // pick city -> first
-      ],
-      () => {
-        const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
-        expect(after.cities.find(c => c.id === 'c1')?.unrestTurns).toBe(3);
-      }
-    );
+    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    expect(after.cities.find(c => c.id === 'c1')?.unrestTurns).toBe(3);
   });
 });
-

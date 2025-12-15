@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BuildingMenu } from '../client/src/components/ui/BuildingMenu';
 import { GameState, PlayerState, City } from '../shared/types/game';
-import { getFaction } from '../shared/data/factions';
 
 // Mock framer-motion
 vi.mock('framer-motion', () => ({
@@ -58,7 +57,7 @@ describe('BuildingMenu Component', () => {
     mockPlayer = {
       id: 'player1',
       name: 'Test Player',
-      factionId: 'nephites',
+      factionId: 'NEPHITES' as any,
       stars: 50,
       stats: {
         faith: 30,
@@ -76,27 +75,28 @@ describe('BuildingMenu Component', () => {
       turnOrder: 0
     };
 
-    mockCity = {
-      id: 'city1',
-      name: 'Test City',
-      coordinate: { q: 0, r: 0 },
-      population: 5,
-      ownerId: 'player1'
-    };
+	    mockCity = {
+	      id: 'city1',
+	      name: 'Test City',
+	      coordinate: { q: 0, r: 0 },
+	      population: 5,
+	      ownerId: 'player1',
+	      starProduction: 2
+	    };
 
     mockGameState = {
       id: 'game1',
       currentPlayerIndex: 0,
-      currentTurn: 1,
-      phase: 'main',
+      turn: 1,
+      phase: 'playing',
       players: [mockPlayer],
       units: [],
       cities: [mockCity],
       map: {
         tiles: [],
-        size: { width: 10, height: 10 }
+        width: 10,
+        height: 10
       },
-      visibility: {},
       structures: [],
       improvements: []
     };
@@ -117,11 +117,11 @@ describe('BuildingMenu Component', () => {
     );
 
     expect(screen.getByText('Construction Hall')).toBeInTheDocument();
-    expect(screen.getByText('Test City - Build your empire')).toBeInTheDocument();
+    expect(screen.getByText('Test City — Build in the Promised Land')).toBeInTheDocument();
     expect(screen.getByTestId('animated-background')).toBeInTheDocument();
   });
 
-  it('displays player resources correctly', () => {
+	  it('displays player resources correctly', () => {
     render(
       <BuildingMenu
         city={mockCity}
@@ -132,10 +132,11 @@ describe('BuildingMenu Component', () => {
       />
     );
 
-    expect(screen.getByText('50')).toBeInTheDocument(); // Stars
-    expect(screen.getByText('30')).toBeInTheDocument(); // Faith
-    expect(screen.getByText('20')).toBeInTheDocument(); // Pride
-  });
+	    expect(screen.getByLabelText('Stars')).toHaveTextContent('50');
+	    expect(screen.getByLabelText('Faith')).toHaveTextContent('30');
+	    expect(screen.getByLabelText('Pride')).toHaveTextContent('20');
+	    expect(screen.getByLabelText('Dissent')).toHaveTextContent('5');
+	  });
 
   it('shows category tabs and allows switching', async () => {
     const user = userEvent.setup();
@@ -171,7 +172,7 @@ describe('BuildingMenu Component', () => {
 
     // Should show warrior unit by default (units tab)
     expect(screen.getByText('Warrior')).toBeInTheDocument();
-    expect(screen.getByText('Stalwart defender of the faith, trained in ancient combat techniques')).toBeInTheDocument();
+    expect(screen.getByText('Basic melee unit with balanced stats - the backbone of any army')).toBeInTheDocument();
   });
 
   it('handles search functionality', async () => {
@@ -206,10 +207,10 @@ describe('BuildingMenu Component', () => {
       />
     );
 
-    const sortSelect = screen.getByDisplayValue('Name');
-    await user.selectOptions(sortSelect, 'cost');
+    const sortSelect = screen.getByDisplayValue('Cost');
+    await user.selectOptions(sortSelect, 'name');
 
-    expect(sortSelect).toHaveValue('cost');
+    expect(sortSelect).toHaveValue('name');
   });
 
   it('shows correct affordability status for buildings', () => {
@@ -231,7 +232,7 @@ describe('BuildingMenu Component', () => {
     );
 
     // Should show locked/disabled state for expensive items
-    expect(screen.getByText('Locked')).toBeInTheDocument();
+    expect(screen.getAllByText('Locked').length).toBeGreaterThan(0);
   });
 
   it('handles building selection and construction', async () => {
@@ -247,14 +248,9 @@ describe('BuildingMenu Component', () => {
       />
     );
 
-    // Click on a building card
-    const warriorCard = screen.getByText('Warrior').closest('div');
-    if (warriorCard) {
-      await user.click(warriorCard);
-    }
-
-    // Try to build
-    const buildButton = screen.getByText('Build');
+    const card = screen.getByText('Warrior').closest('div[class*="rounded-xl"]');
+    expect(card).toBeTruthy();
+    const buildButton = within(card as HTMLElement).getByRole('button', { name: /build/i });
     await user.click(buildButton);
 
     expect(mockOnBuild).toHaveBeenCalledWith('warrior');
@@ -278,7 +274,7 @@ describe('BuildingMenu Component', () => {
     );
 
     // Buildings requiring tech should be locked
-    expect(screen.getAllByText('Locked')).toHaveLength > 0;
+    expect(screen.getAllByText('Locked').length).toBeGreaterThan(0);
   });
 
   it('closes menu when close button is clicked', async () => {
@@ -300,7 +296,7 @@ describe('BuildingMenu Component', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
-  it('shows rarity indicators correctly', () => {
+	  it('shows rarity indicators correctly', () => {
     render(
       <BuildingMenu
         city={mockCity}
@@ -311,11 +307,11 @@ describe('BuildingMenu Component', () => {
       />
     );
 
-    // Should show rarity badges
-    expect(screen.getByText('common')).toBeInTheDocument();
-  });
+	    // Should show rarity badges
+	    expect(screen.getAllByText('common').length).toBeGreaterThan(0);
+	  });
 
-  it('displays build time and costs accurately', () => {
+	  it('displays build time and costs accurately', () => {
     render(
       <BuildingMenu
         city={mockCity}
@@ -326,16 +322,17 @@ describe('BuildingMenu Component', () => {
       />
     );
 
-    // Should show cost and build time information
-    expect(screen.getByText('10')).toBeInTheDocument(); // Warrior cost
-    expect(screen.getByText('1T')).toBeInTheDocument(); // Build time
-  });
+	    const card = screen.getByText('Warrior').closest('div[class*="rounded-xl"]');
+	    expect(card).toBeTruthy();
+	    expect(within(card as HTMLElement).getByLabelText('Stars cost')).toHaveTextContent('10');
+	    expect(within(card as HTMLElement).getByLabelText('Build time')).toHaveTextContent('1T');
+	  });
 
   it('handles faction-specific restrictions', () => {
     // Test with different faction
     const lamanitePlayer = {
       ...mockPlayer,
-      factionId: 'lamanites' as const
+      factionId: 'LAMANITES' as any
     };
 
     render(

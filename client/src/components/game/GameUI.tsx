@@ -78,6 +78,23 @@ export default function GameUI() {
           triggerFlash('blue');
         }
       }
+    } else if (action.type === 'CONVERT_UNIT') {
+      const targetUnit = gameState.units.find(u => u.id === action.payload.targetUnitId);
+      const success = targetUnit?.playerId === action.payload.playerId;
+      const coord = targetUnit?.coordinate;
+      const worldPos = coord ? hexToWorldPos(coord.q, coord.r) : { x: 0, y: 0.5, z: 0 };
+      if (coord) {
+        addParticle('faith', coord);
+      }
+      if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+        if (success) {
+          addToast('Unit Converted!', 'faith', worldPos);
+          triggerFlash('blue');
+        } else {
+          addToast('Conversion Failed', 'dissent', worldPos);
+          triggerFlash('red');
+        }
+      }
     } else if (action.type === 'CONQUER_VILLAGE') {
       // Find unit to get location
       const unit = gameState.units.find(u => u.id === action.payload.unitId);
@@ -147,6 +164,7 @@ export default function GameUI() {
   const [selectedWorldElement, setSelectedWorldElement] = useState<{
     elementId: string;
     coordinate: { q: number; r: number; s: number };
+    unitId?: string;
   } | null>(null);
 
   const [selectedVillage, setSelectedVillage] = useState<{
@@ -268,13 +286,14 @@ export default function GameUI() {
   }, [subscribeKeys]);
 
   // Handle world element actions
-  const handleWorldElementAction = (actionType: 'harvest' | 'build') => {
+  const handleWorldElementAction = (actionType: 'harvest' | 'build', unitId: string) => {
     if (!selectedWorldElement) return;
 
     const action = {
       type: actionType === 'harvest' ? 'WORLD_ELEMENT_HARVEST' : 'WORLD_ELEMENT_BUILD',
       payload: {
         playerId: currentPlayer.id,
+        unitId,
         elementId: selectedWorldElement.elementId,
         coordinate: selectedWorldElement.coordinate
       }
@@ -298,9 +317,27 @@ export default function GameUI() {
         for (const resource of resources) {
           if (WORLD_ELEMENTS[resource]) {
             console.log('✅ Setting selected world element:', resource, coordinate);
+            const unitsOnTile =
+              gameState?.units?.filter(u =>
+                u.playerId === currentPlayer.id &&
+                u.coordinate.q === coordinate.q &&
+                u.coordinate.r === coordinate.r &&
+                !u.hasAttacked &&
+                u.remainingMovement > 0
+              ) || [];
+            const preferredUnitId =
+              selectedUnit &&
+              selectedUnit.playerId === currentPlayer.id &&
+              selectedUnit.coordinate.q === coordinate.q &&
+              selectedUnit.coordinate.r === coordinate.r &&
+              !selectedUnit.hasAttacked &&
+              selectedUnit.remainingMovement > 0
+                ? selectedUnit.id
+                : unitsOnTile[0]?.id;
             setSelectedWorldElement({
               elementId: resource,
-              coordinate
+              coordinate,
+              unitId: preferredUnitId
             });
             return;
           } else {
@@ -319,7 +356,7 @@ export default function GameUI() {
     return () => {
       window.removeEventListener('worldElementClick', handleWorldElementClick as EventListener);
     };
-  }, []);
+  }, [currentPlayer.id, gameState?.units, selectedUnit]);
 
   // Handle village capture actions
   const handleVillageCaptureAction = (actionType: 'conquer' | 'convert') => {
@@ -865,6 +902,7 @@ export default function GameUI() {
               playerId={currentPlayer.id}
               elementId={selectedWorldElement.elementId}
               coordinate={selectedWorldElement.coordinate}
+              unitId={selectedWorldElement.unitId}
               onAction={handleWorldElementAction}
               onClose={() => setSelectedWorldElement(null)}
             />

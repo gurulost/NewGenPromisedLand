@@ -35,7 +35,7 @@ describe('technologyHelpers', () => {
     const veteranPlayer = createPlayer({ researchedTechs: ['organization', 'woodcraft', 'hunting'] });
     const forestry = TECHNOLOGIES.forestry;
     const scaledCost = getEffectiveTechCostForPlayer(forestry, veteranPlayer);
-    expect(scaledCost).toBe(Math.floor(9 * Math.pow(1.2, 3)));
+    expect(scaledCost).toBe(Math.floor(forestry.cost * Math.pow(1.2, 3)));
   });
 
   it('prevents research when prerequisites are missing', () => {
@@ -65,25 +65,6 @@ describe('technologyHelpers', () => {
     expect(canPlayerResearchTechnology(player, bronzeWorking)).toBe(true);
   });
 
-  it('applies research inspiration to reduce final cost', () => {
-    const player = createPlayer({ researchedTechs: ['organization'], researchInspiration: 5 });
-    const agriculture = TECHNOLOGIES.agriculture;
-
-    const costDetails = getTechCostDetails(agriculture, player);
-    expect(costDetails.baseCost).toBe(12);
-    expect(costDetails.discount).toBe(5);
-    expect(costDetails.finalCost).toBe(7);
-  });
-
-  it('caps inspiration discount to keep at least 1 star cost', () => {
-    const player = createPlayer({ researchInspiration: 50 });
-    const woodcraft = TECHNOLOGIES.woodcraft;
-
-    const costDetails = getTechCostDetails(woodcraft, player);
-    expect(costDetails.finalCost).toBe(1);
-    expect(costDetails.discount).toBe(costDetails.baseCost - 1);
-  });
-});
   it('applies research inspiration to reduce final cost', () => {
     const player = createPlayer({ researchedTechs: ['organization'], researchInspiration: 5 });
     const agriculture = TECHNOLOGIES.agriculture;

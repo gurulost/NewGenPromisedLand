@@ -32,7 +32,12 @@ export default function CombatPanel({ selectedUnit, gameState, onAttackUnit, hov
       unit: enemy,
       definition: getUnitDefinition(enemy.type),
       distance: hexDistance(selectedUnit.coordinate, enemy.coordinate),
-      hpPercentage: ((enemy.currentHp ?? getUnitDefinition(enemy.type).baseStats.hp) / getUnitDefinition(enemy.type).baseStats.hp) * 100,
+      hpPercentage: (() => {
+        const def = getUnitDefinition(enemy.type);
+        const maxHp = enemy.maxHp ?? def.baseStats.hp;
+        const hp = enemy.hp ?? maxHp;
+        return maxHp > 0 ? (hp / maxHp) * 100 : 0;
+      })(),
       preview: getCombatPreview(selectedUnit, enemy, gameState)
     }));
   }, [selectedUnit, gameState]);
@@ -146,7 +151,7 @@ export default function CombatPanel({ selectedUnit, gameState, onAttackUnit, hov
                       <div className="flex items-center gap-1">
                         {preview && getOddsIcon(preview.odds)}
                         <span className="text-xs">
-                          {enemy.currentHp}/{enemyDef.baseStats.hp} HP
+                          {(enemy.hp ?? enemyDef.baseStats.hp)}/{(enemy.maxHp ?? enemyDef.baseStats.hp)} HP
                         </span>
                       </div>
                     </div>

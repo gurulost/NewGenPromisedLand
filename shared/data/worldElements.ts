@@ -166,7 +166,7 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
         structure: 'Windmill',
         costStars: 0,
         effectPermanent: {
-          popDelta: 0,
+          popDelta: 2,
           starsPerTurn: 1
         }
       }
@@ -175,7 +175,7 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
     assetTileset: 'tiles/feature_grain.png',
     assetStructure: 'structures/field.png',
     assetStructureUpgrade: 'structures/windmill.png',
-    uiTooltipHarvest: 'Free +1 Pop now (Pride +1, Dissent +1)',
+    uiTooltipHarvest: 'Free +2 Pop now (Pride +1, Dissent +1)',
     uiTooltipBuild: '5★ Field (+2 Pop, +1 Faith). Windmill adds +1★/turn post-Irrigation',
     notes: 'Matches Polytopia fruit/crop → farm → windmill chain'
   },
@@ -241,7 +241,7 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
         structure: 'Harbor',
         costStars: 0,
         effectPermanent: {
-          popDelta: 0,
+          popDelta: 1,
           starsPerTurn: 2 // same as Custom House
         }
       }

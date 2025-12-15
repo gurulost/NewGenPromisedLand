@@ -255,11 +255,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       };
     });
 
-    const gameState: GameState = {
-      id: `local-${Date.now()}`,
-      players: updatedPlayers,
-      currentPlayerIndex: 0,
-      turn: 1,
+	    const gameState: GameState = {
+	      id: `local-${Date.now()}`,
+	      rngSeed: Date.now() >>> 0,
+	      players: updatedPlayers,
+	      currentPlayerIndex: 0,
+	      turn: 1,
       phase: 'playing',
       map,
       units,

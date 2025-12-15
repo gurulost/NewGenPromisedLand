@@ -7,6 +7,7 @@ import { getWorldElement, RuinReward } from '../data/worldElements';
 import { getUnitDefinition, UNIT_DEFINITIONS } from '../data/units';
 import { getAvailableTechnologies, TECHNOLOGIES } from '../data/technologies';
 import type { UnitType } from '../types/unit';
+import { applyPopulationGain } from './cityGrowth';
 import { emitTelemetry } from './telemetry';
 
 type WeightedRuinReward = RuinReward & { weight: number };
@@ -212,7 +213,7 @@ export function executeElementHarvest(
     ),
     cities: gameState.cities?.map(city =>
       city.id === closestCity?.id && action.popDelta > 0
-        ? { ...city, population: Math.min(20, city.population + action.popDelta) }
+        ? applyPopulationGain(city, action.popDelta)
         : city
     ) || []
   };
@@ -345,10 +346,10 @@ export function executeElementBuild(
     ...state,
     cities: (state.cities || []).map(city => {
       if (city.id !== closestCity.id) return city;
+      const grownCity = applyPopulationGain(city, popDelta);
       return {
-        ...city,
-        population: Math.min(20, (city.population || 0) + popDelta),
-        starProduction: Math.max(0, (city.starProduction || 0) + starsPerTurnDelta)
+        ...grownCity,
+        starProduction: Math.max(0, (grownCity.starProduction || 0) + starsPerTurnDelta)
       };
     })
   });
@@ -653,7 +654,7 @@ function executeRuinExploration(
     units: newUnits,
     cities: gameState.cities.map(city =>
       city.id === closestCity?.id && popGain > 0
-        ? { ...city, population: Math.min(20, city.population + popGain) }
+        ? applyPopulationGain(city, popGain)
         : city
     ),
     map: {
@@ -705,7 +706,8 @@ export function canExecuteElementAction(
   playerId: string,
   elementId: string,
   actionType: 'harvest' | 'build',
-  coordinate?: HexCoordinate
+  coordinate?: HexCoordinate,
+  unitId?: string
 ): { canExecute: boolean; reason?: string } {
   const element = getWorldElement(elementId);
   if (!element) {
@@ -715,6 +717,38 @@ export function canExecuteElementAction(
   const player = gameState.players.find(p => p.id === playerId);
   if (!player) {
     return { canExecute: false, reason: 'Player not found' };
+  }
+
+  // Unit gating: world elements are interacted with by units standing on the tile.
+  // Default is Worker-only, except for ruins exploration; some elements require special tags (e.g., naval_commander).
+  if (coordinate) {
+    const tile = gameState.map.tiles.find(t => t.coordinate.q === coordinate.q && t.coordinate.r === coordinate.r);
+    if (!tile) return { canExecute: false, reason: 'Tile not found' };
+
+    const hasElementAtTile =
+      tile.feature === (elementId as any) || (tile.resources || []).includes(elementId);
+    if (!hasElementAtTile) return { canExecute: false, reason: 'Element not present' };
+
+    const unitsOnTile = gameState.units.filter(u =>
+      u.playerId === playerId &&
+      u.coordinate.q === coordinate.q &&
+      u.coordinate.r === coordinate.r
+    );
+    const actingUnit = unitId ? unitsOnTile.find(u => u.id === unitId) : unitsOnTile[0];
+    if (!actingUnit) return { canExecute: false, reason: 'Requires a unit on this tile' };
+    if (actingUnit.hasAttacked || actingUnit.remainingMovement <= 0) return { canExecute: false, reason: 'Unit is exhausted' };
+
+    const requiresUnitTag = actionType === 'harvest' ? element.immediateAction?.requiresUnitTag : undefined;
+    if (requiresUnitTag) {
+      if (!hasRequiredTag(actingUnit.type as UnitType, requiresUnitTag)) {
+        return { canExecute: false, reason: `Requires unit with ${requiresUnitTag} capability on this tile` };
+      }
+    } else {
+      const requiresWorker = elementId !== 'jaredite_ruins';
+      if (requiresWorker && actingUnit.type !== 'worker') {
+        return { canExecute: false, reason: 'Requires a Worker on this tile' };
+      }
+    }
   }
 
   // Check tech prerequisite

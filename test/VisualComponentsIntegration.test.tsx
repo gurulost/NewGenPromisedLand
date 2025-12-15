@@ -112,7 +112,7 @@ describe('Visual Components Integration', () => {
         </EnhancedButton>
       );
 
-      const button = screen.getByRole('button', { name: /disabled button/i });
+      const button = screen.getByRole('button', { name: /disabled action/i });
       expect(button).toBeDisabled();
       expect(button).toHaveAttribute('aria-label', 'Disabled action');
     });

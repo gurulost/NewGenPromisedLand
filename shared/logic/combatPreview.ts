@@ -1,7 +1,8 @@
 import { Unit } from '../types/unit';
 import { GameState } from '../types/game';
-import { UNIT_DEFINITIONS } from '../data/units';
-import { GAME_RULES } from '../data/gameRules';
+import { getUnitDefinition } from '../data/units';
+import { getActiveModifiers } from '../data/modifiers';
+import { hexDistance } from '../utils/hex';
 
 export interface CombatPreview {
   attackerDamage: number;
@@ -24,16 +25,12 @@ export function getCombatPreview(
 ): CombatPreview | null {
   if (!attacker || !defender) return null;
 
-  // Check if attack is valid
-  const attackerDef = UNIT_DEFINITIONS[attacker.type];
-  const defenderDef = UNIT_DEFINITIONS[defender.type];
-  
-  if (!attackerDef || !defenderDef) return null;
+  const attackerDef = getUnitDefinition(attacker.type);
+  const defenderDef = getUnitDefinition(defender.type);
+  const attackerHp = attacker.hp ?? attackerDef.baseStats.hp;
+  const defenderHp = defender.hp ?? defenderDef.baseStats.hp;
 
-  const attackerHp = attacker.currentHp ?? attackerDef.baseStats.hp;
-  const defenderHp = defender.currentHp ?? defenderDef.baseStats.hp;
-
-  if (attacker.ownerId === defender.ownerId) {
+  if (attacker.playerId === defender.playerId) {
     return {
       attackerDamage: 0,
       defenderDamage: 0,
@@ -59,97 +56,153 @@ export function getCombatPreview(
     };
   }
 
-  // Get player states for bonuses
-  const attackerPlayer = gameState.players.find(p => p.id === attacker.ownerId);
-  const defenderPlayer = gameState.players.find(p => p.id === defender.ownerId);
+  const distance = hexDistance(attacker.coordinate, defender.coordinate);
+  if (distance > attacker.attackRange) {
+    return {
+      attackerDamage: 0,
+      defenderDamage: 0,
+      attackerHealthAfter: attackerHp,
+      defenderHealthAfter: defenderHp,
+      odds: 'Even',
+      modifiers: { attacker: [], defender: [] },
+      canAttack: false,
+      reason: 'Target out of range'
+    };
+  }
 
-  // Calculate base stats
-  let attackerAttack = attackerDef.baseStats.attack;
-  let attackerDefense = attackerDef.baseStats.defense;
-  let defenderAttack = defenderDef.baseStats.attack;
-  let defenderDefense = defenderDef.baseStats.defense;
+  // Cannot target stealthed units unless adjacent
+  if (defender.status === 'stealthed' && distance > 1) {
+    return {
+      attackerDamage: 0,
+      defenderDamage: 0,
+      attackerHealthAfter: attackerHp,
+      defenderHealthAfter: defenderHp,
+      odds: 'Even',
+      modifiers: { attacker: [], defender: [] },
+      canAttack: false,
+      reason: 'Target is hidden (stealth)'
+    };
+  }
+
+  const normalizeAbility = (abilityId: string) => abilityId.toUpperCase();
+  const unitHasAbility = (unit: Unit, abilityId: string) =>
+    (unit.abilities || []).some(a => normalizeAbility(String(a)) === normalizeAbility(abilityId));
+
+  const attackerHasBombardment =
+    unitHasAbility(attacker, 'SIEGE') ||
+    unitHasAbility(attacker, 'BOMBARDMENT') ||
+    unitHasAbility(attacker, 'bombardment');
+  if (attackerHasBombardment && distance > 1 && attacker.status !== 'siege_mode') {
+    return {
+      attackerDamage: 0,
+      defenderDamage: 0,
+      attackerHealthAfter: attackerHp,
+      defenderHealthAfter: defenderHp,
+      odds: 'Even',
+      modifiers: { attacker: [], defender: [] },
+      canAttack: false,
+      reason: 'Artillery must deploy (Siege Mode) to fire at range'
+    };
+  }
+  if (attackerHasBombardment && distance > 1 && attacker.remainingMovement !== attacker.movement) {
+    return {
+      attackerDamage: 0,
+      defenderDamage: 0,
+      attackerHealthAfter: attackerHp,
+      defenderHealthAfter: defenderHp,
+      odds: 'Even',
+      modifiers: { attacker: [], defender: [] },
+      canAttack: false,
+      reason: 'Artillery must be stationary to fire at range'
+    };
+  }
+
+  const attackerPlayer = gameState.players.find(p => p.id === attacker.playerId);
+  const defenderPlayer = gameState.players.find(p => p.id === defender.playerId);
+
+  // Diplomacy: avoid combat when defender is an envoy-type with strong faith backing.
+  if (unitHasAbility(defender, 'DIPLOMACY') && (defenderPlayer?.stats.faith ?? 0) >= 80) {
+    return {
+      attackerDamage: 0,
+      defenderDamage: 0,
+      attackerHealthAfter: attackerHp,
+      defenderHealthAfter: defenderHp,
+      odds: 'Even',
+      modifiers: { attacker: [], defender: [] },
+      canAttack: false,
+      reason: 'Diplomacy prevents combat (high enemy faith)'
+    };
+  }
+
+  // Calculate base stats using the unit's current values (matches reducer).
+  let attackerAttack = attacker.attack;
+  let defenderDefense = defender.defense;
 
   const attackerModifiers: string[] = [];
   const defenderModifiers: string[] = [];
 
-  // Apply status effects
-  const attackerEffects = (attacker.statusEffects as any) || {};
-  const defenderEffects = (defender.statusEffects as any) || {};
-
-  if (attackerEffects) {
-    if (attackerEffects.formation_fighting) {
-      attackerAttack += 2;
-      attackerDefense += 2;
-      attackerModifiers.push('+2 Attack/Defense (Formation)');
-    }
-    if (attackerEffects.siege_mode) {
-      attackerAttack += 5;
-      attackerModifiers.push('+5 Attack (Siege Mode)');
-    }
-    if (attackerEffects.rally_troops) {
-      attackerAttack += 3;
-      attackerModifiers.push('+3 Attack (Rally)');
-    }
+  // Status effects (matches reducer: rallied/siege_mode/formation)
+  if (attacker.status === 'rallied') {
+    attackerAttack += 2;
+    attackerModifiers.push('+2 Attack (Rallied)');
+  }
+  if (attacker.status === 'siege_mode') {
+    attackerAttack += 3;
+    attackerModifiers.push('+3 Attack (Siege Mode)');
+  }
+  if (defender.status === 'formation') {
+    defenderDefense += 2;
+    defenderModifiers.push('+2 Defense (Formation)');
   }
 
-  if (defenderEffects) {
-    if (defenderEffects.formation_fighting) {
-      defenderAttack += 2;
-      defenderDefense += 2;
-      defenderModifiers.push('+2 Attack/Defense (Formation)');
-    }
-    if (defenderEffects.siege_mode) {
-      defenderAttack += 5;
-      defenderModifiers.push('+5 Attack (Siege Mode)');
-    }
-    if (defenderEffects.rally_troops) {
-      defenderAttack += 3;
-      defenderModifiers.push('+3 Attack (Rally)');
-    }
-    if (defenderEffects.stealth) {
-      defenderDefense += 3;
-      defenderModifiers.push('+3 Defense (Stealth)');
-    }
-  }
-
-  // Apply faith/pride bonuses
+  // Player modifiers (matches reducer: data-driven modifiers only)
   if (attackerPlayer) {
-    const faithBonus = Math.floor(attackerPlayer.stats.faith / 20);
-    const prideBonus = Math.floor(attackerPlayer.stats.pride / 25);
-    if (faithBonus > 0) {
-      attackerAttack += faithBonus;
-      attackerModifiers.push(`+${faithBonus} Attack (Faith)`);
-    }
-    if (prideBonus > 0) {
-      attackerDefense += prideBonus;
-      attackerModifiers.push(`+${prideBonus} Defense (Pride)`);
+    const attackModifiers = getActiveModifiers(attackerPlayer, 'on_attack');
+    for (const modifier of attackModifiers) {
+      for (const effect of modifier.effect) {
+        if (effect.stat === 'attack' && effect.target === 'self') {
+          attackerAttack += effect.value;
+          attackerModifiers.push(`${effect.value >= 0 ? '+' : ''}${effect.value} Attack (${modifier.name})`);
+        }
+      }
     }
   }
-
   if (defenderPlayer) {
-    const faithBonus = Math.floor(defenderPlayer.stats.faith / 20);
-    const prideBonus = Math.floor(defenderPlayer.stats.pride / 25);
-    if (faithBonus > 0) {
-      defenderAttack += faithBonus;
-      defenderModifiers.push(`+${faithBonus} Attack (Faith)`);
-    }
-    if (prideBonus > 0) {
-      defenderDefense += prideBonus;
-      defenderModifiers.push(`+${prideBonus} Defense (Pride)`);
+    const defenseModifiers = getActiveModifiers(defenderPlayer, 'on_defend');
+    for (const modifier of defenseModifiers) {
+      for (const effect of modifier.effect) {
+        if (effect.stat === 'defense' && effect.target === 'self') {
+          defenderDefense += effect.value;
+          defenderModifiers.push(`${effect.value >= 0 ? '+' : ''}${effect.value} Defense (${modifier.name})`);
+        }
+      }
     }
   }
 
   // Calculate damage
-  const attackerDamage = Math.max(1, attackerAttack - defenderDefense);
-  const defenderDamage = Math.max(1, defenderAttack - attackerDefense);
+  let attackerDamage = Math.max(1, attackerAttack - defenderDefense);
+
+  // Protective aura: allied guardian adjacent to defender reduces incoming damage.
+  const hasProtectiveAura = gameState.units.some(u =>
+    u.playerId === defender.playerId &&
+    u.id !== defender.id &&
+    unitHasAbility(u, 'PROTECTIVE_AURA') &&
+    hexDistance(u.coordinate, defender.coordinate) <= 1
+  );
+  if (hasProtectiveAura) {
+    attackerDamage = Math.max(1, attackerDamage - 1);
+    defenderModifiers.push('-1 Damage Taken (Protective Aura)');
+  }
 
   // Calculate health after combat
-  const attackerHealthAfter = Math.max(0, attackerHp - defenderDamage);
   const defenderHealthAfter = Math.max(0, defenderHp - attackerDamage);
+  const defenderCanCounter = defenderHealthAfter > 0 && distance <= defender.attackRange && defender.attack > 0;
+  const defenderDamage = defenderCanCounter ? Math.max(1, defender.attack - attacker.defense) : 0;
+  const attackerHealthAfter = Math.max(0, attackerHp - defenderDamage);
 
   // Determine odds based on damage ratio and health
   let odds: CombatPreview['odds'] = 'Even';
-  const damageRatio = attackerDamage / defenderDamage;
+  const damageRatio = attackerDamage / Math.max(1, defenderDamage);
   const healthRatio = attackerHp / defenderHp;
   const combinedRatio = damageRatio * healthRatio;
 

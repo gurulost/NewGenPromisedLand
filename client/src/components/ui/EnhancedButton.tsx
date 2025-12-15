@@ -1,32 +1,32 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, type HTMLMotionProps } from 'framer-motion';
 import { LucideIcon } from 'lucide-react';
 
-interface EnhancedButtonProps {
+type EnhancedButtonProps = Omit<HTMLMotionProps<'button'>, 'children'> & {
   children: React.ReactNode;
-  onClick?: () => void;
   variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
-  disabled?: boolean;
   loading?: boolean;
   icon?: LucideIcon;
-  className?: string;
   glow?: boolean;
   pulse?: boolean;
-}
+};
 
 export function EnhancedButton({
   children,
   onClick,
   variant = 'primary',
   size = 'md',
+  type = 'button',
   disabled = false,
   loading = false,
   icon: Icon,
   className = '',
   glow = false,
-  pulse = false
+  pulse = false,
+  ...rest
 }: EnhancedButtonProps) {
+  const isDisabled = disabled || loading;
   const getVariantClasses = () => {
     switch (variant) {
       case 'primary':
@@ -72,11 +72,14 @@ export function EnhancedButton({
 
   return (
     <motion.button
+      {...rest}
+      type={type}
       className={baseClasses}
       onClick={onClick}
-      disabled={disabled || loading}
-      whileHover={!disabled ? { scale: 1.02 } : {}}
-      whileTap={!disabled ? { scale: 0.98 } : {}}
+      disabled={isDisabled}
+      aria-busy={loading || undefined}
+      whileHover={!isDisabled ? { scale: 1.02 } : {}}
+      whileTap={!isDisabled ? { scale: 0.98 } : {}}
       animate={pulse ? { 
         boxShadow: [
           '0 0 0 0 rgba(59, 130, 246, 0.4)',

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Info } from 'lucide-react';
+import { getWorldElement } from '@shared/data/worldElements';
 
 type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right';
 
@@ -30,6 +31,7 @@ interface ActionTooltipProps {
   effects?: string[];
   title?: string;
   description?: string;
+  hotkey?: string;
   placement?: TooltipPlacement;
   disabled?: boolean;
 }
@@ -357,13 +359,40 @@ function getArrowClasses(placement: string): string {
 }
 
 // ActionTooltip component - Shows contextual information about actions
-export function ActionTooltip({ cost, requirements = [], effects = [], placement = 'top', disabled = false }: ActionTooltipProps) {
+export function ActionTooltip({
+  title,
+  description,
+  hotkey,
+  cost,
+  requirements = [],
+  effects = [],
+  placement = 'top',
+  disabled = false,
+}: ActionTooltipProps) {
+  const formattedCost = (() => {
+    if (cost === undefined) return undefined;
+    if (typeof cost === 'number') return `${cost} Stars`;
+    return cost;
+  })();
+
   const tooltipContent = (
     <div className="space-y-2">
-      {cost !== undefined && (
+      {(title || description || hotkey) && (
+        <div className="space-y-1">
+          {title && <div className="font-semibold text-amber-200">{title}</div>}
+          {description && <div className="text-xs text-slate-200/90">{description}</div>}
+          {hotkey && (
+            <div className="text-xs text-slate-300">
+              Hotkey: <span className="font-mono text-slate-100">{hotkey}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {formattedCost !== undefined && (
         <div className="flex items-center gap-2">
           <span className="text-yellow-400">⭐</span>
-          <span className="text-yellow-400 font-semibold">{cost} Stars</span>
+          <span className="text-yellow-400 font-semibold">{formattedCost}</span>
         </div>
       )}
       
@@ -473,14 +502,14 @@ export function PrideSystemTooltip() {
     <div className="space-y-2">
       <div className="font-semibold text-red-300">Pride System</div>
       <div className="text-xs text-slate-300">
-        Pride reflects your civilization's worldly ambition and military prowess, but can corrupt righteous intentions.
+        Pride reflects worldly ambition and the “pride cycle” (riches → pride → contention → loss). In this game, Pride increases the chance of costly moral events.
       </div>
       <div className="text-xs">
-        <div className="text-red-300 mb-1">Benefits:</div>
+        <div className="text-red-300 mb-1">Risks:</div>
         <ul className="list-disc list-inside text-slate-300 space-y-1">
-          <li>Boosts combat effectiveness</li>
-          <li>Accelerates military production</li>
-          <li>Unlocks aggressive expansion options</li>
+          <li>Raises the likelihood of Contention (star loss)</li>
+          <li>Can trigger Rebellions (city unrest)</li>
+          <li>At high Dissent, can trigger Desertion (lose a unit)</li>
         </ul>
       </div>
     </div>
@@ -492,84 +521,129 @@ export function DissentSystemTooltip() {
     <div className="space-y-2">
       <div className="font-semibold text-purple-300">Dissent System</div>
       <div className="text-xs text-slate-300">
-        Dissent measures internal conflict and opposition within your civilization from moral choices.
+        Dissent measures internal conflict and civil unrest. Higher Dissent increases the chance of rebellion and desertion events.
       </div>
       <div className="text-xs">
         <div className="text-purple-300 mb-1">Effects:</div>
         <ul className="list-disc list-inside text-slate-300 space-y-1">
-          <li>Reduces city loyalty and stability</li>
-          <li>Increases risk of rebellion</li>
-          <li>Weakens diplomatic relations</li>
+          <li>Rebellions cause temporary city unrest (reduced star income)</li>
+          <li>At high levels, desertion can remove a unit</li>
+          <li>Low Pride + low Dissent can trigger Blessings (gain stars)</li>
         </ul>
       </div>
+    </div>
+  );
+}
+
+function formatSigned(value: number, suffix: string): string {
+  if (!value) return '';
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${value}${suffix}`;
+}
+
+function formatWorldElementDeltas(deltas: {
+  starsDelta?: number;
+  popDelta?: number;
+  faithDelta?: number;
+  prideDelta?: number;
+  dissentDelta?: number;
+}): string {
+  const parts: string[] = [];
+  if (deltas.starsDelta) parts.push(formatSigned(deltas.starsDelta, '★'));
+  if (deltas.popDelta) parts.push(formatSigned(deltas.popDelta, ' Pop'));
+  if (deltas.faithDelta) parts.push(formatSigned(deltas.faithDelta, ' Faith'));
+  if (deltas.prideDelta) parts.push(formatSigned(deltas.prideDelta, ' Pride'));
+  if (deltas.dissentDelta) parts.push(formatSigned(deltas.dissentDelta, ' Dissent'));
+  return parts.join(', ');
+}
+
+export function WorldElementTooltip({ elementId }: { elementId: string }) {
+  const element = getWorldElement(elementId);
+  if (!element) {
+    return (
+      <div className="space-y-2">
+        <div className="font-semibold text-slate-200">Unknown Resource</div>
+        <div className="text-xs text-slate-300">No tooltip data found for: {elementId}</div>
+      </div>
+    );
+  }
+
+  const immediate = element.immediateAction;
+  const build = element.longTermBuild;
+
+  return (
+    <div className="space-y-2">
+      <div className="font-semibold text-amber-200">{element.displayName}</div>
+      <div className="text-xs text-slate-300">{element.description}</div>
+      {element.scriptureRef && (
+        <div className="text-xs text-amber-200/70">{element.scriptureRef}</div>
+      )}
+
+      {immediate && (
+        <div className="text-xs space-y-1">
+          <div className="text-amber-300 font-semibold">Immediate</div>
+          <div className="text-slate-300">{immediate.name}</div>
+          <div className="text-slate-300">
+            {immediate.summary ?? formatWorldElementDeltas(immediate)}
+          </div>
+        </div>
+      )}
+
+      {build && (
+        <div className="text-xs space-y-1">
+          <div className="text-amber-300 font-semibold">Build</div>
+          <div className="text-slate-300">
+            {build.name} ({build.costStars}★)
+          </div>
+          <div className="text-slate-300">
+            {build.summary ??
+              [
+                formatWorldElementDeltas({
+                  starsDelta: -build.costStars,
+                  popDelta: build.effectPermanent?.popDelta || 0,
+                  faithDelta: build.faithDelta || 0,
+                  prideDelta: build.prideDelta || 0,
+                  dissentDelta: build.dissentDelta || 0,
+                }),
+                build.effectPermanent?.starsPerTurn
+                  ? `+${build.effectPermanent.starsPerTurn}★/turn`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(' • ')}
+          </div>
+
+          {build.upgrade && (
+            <div className="text-slate-300">
+              Upgrade: {build.upgrade.structure}
+              {build.upgrade.costStars ? ` (${build.upgrade.costStars}★)` : ''}
+              {build.upgrade.techRequired ? ` after ${build.upgrade.techRequired}` : ''}{' '}
+              {build.upgrade.effectPermanent?.starsPerTurn
+                ? `(+${build.upgrade.effectPermanent.starsPerTurn}★/turn)`
+                : ''}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 // Resource-specific tooltips
 export function TimberGroveTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-green-300">Timber Grove</div>
-      <div className="text-xs text-slate-300">
-        Sacred forests provide both immediate resources and long-term spiritual growth opportunities.
-      </div>
-      <div className="text-xs">
-        <div className="text-green-300 mb-1">Harvest Options:</div>
-        <ul className="list-disc list-inside text-slate-300 space-y-1">
-          <li><span className="text-blue-300">Faithful Stewardship:</span> +2 Faith, sustainable growth</li>
-          <li><span className="text-red-300">Prideful Exploitation:</span> +3 Stars, +1 Pride, -1 Faith</li>
-        </ul>
-      </div>
-    </div>
-  );
+  return <WorldElementTooltip elementId="timber_grove" />;
 }
 
 export function WildGoatsTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-brown-300">Wild Goats</div>
-      <div className="text-xs text-slate-300">
-        Wild herds offer protein and materials, but your approach affects your people's relationship with nature.
-      </div>
-      <div className="text-xs">
-        <div className="text-brown-300 mb-1">Harvest Options:</div>
-        <ul className="list-disc list-inside text-slate-300 space-y-1">
-          <li><span className="text-blue-300">Respectful Hunting:</span> +1 Population, +1 Faith</li>
-          <li><span className="text-red-300">Aggressive Hunting:</span> +2 Population, +1 Pride, +1 Dissent</li>
-        </ul>
-      </div>
-    </div>
-  );
+  return <WorldElementTooltip elementId="wild_goats" />;
 }
 
 export function GrainPatchTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-yellow-300">Grain Patch</div>
-      <div className="text-xs text-slate-300">
-        Wild grains provide sustenance and can be cultivated, representing humanity's relationship with the land.
-      </div>
-      <div className="text-xs">
-        <div className="text-yellow-300 mb-1">Harvest Options:</div>
-        <ul className="list-disc list-inside text-slate-300 space-y-1">
-          <li><span className="text-blue-300">Patient Cultivation:</span> +1 Population, +1 Faith, long-term growth</li>
-          <li><span className="text-red-300">Quick Harvesting:</span> +2 Population, +1 Pride</li>
-        </ul>
-      </div>
-    </div>
-  );
+  return <WorldElementTooltip elementId="grain_patch" />;
 }
 
 export function GameResourceTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-purple-300">Game Animals</div>
-      <div className="text-xs text-slate-300">
-        Wild game provides protein and materials for your growing civilization.
-      </div>
-    </div>
-  );
+  return <WorldElementTooltip elementId="sea_beast" />;
 }
 
 export function MetalResourceTooltip() {
@@ -584,57 +658,15 @@ export function MetalResourceTooltip() {
 }
 
 export function OreVeinTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-orange-300">Ore Vein</div>
-      <div className="text-xs text-slate-300">
-        Sacred mineral veins represent the earth's hidden treasures and test stewardship values.
-      </div>
-      <div className="text-xs">
-        <div className="text-orange-300 mb-1">Harvest Options:</div>
-        <ul className="list-disc list-inside text-slate-300 space-y-1">
-          <li><span className="text-blue-300">Careful Mining:</span> +2 Stars, +1 Faith, sustainable extraction</li>
-          <li><span className="text-red-300">Strip Mining:</span> +4 Stars, +1 Pride, +1 Dissent</li>
-        </ul>
-      </div>
-    </div>
-  );
+  return <WorldElementTooltip elementId="ore_vein" />;
 }
 
 export function FishingShoalTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-blue-300">Fishing Shoal</div>
-      <div className="text-xs text-slate-300">
-        Rich fishing grounds provide abundant protein and materials from the sea's bounty.
-      </div>
-      <div className="text-xs">
-        <div className="text-blue-300 mb-1">Harvest Options:</div>
-        <ul className="list-disc list-inside text-slate-300 space-y-1">
-          <li><span className="text-blue-300">Sustainable Fishing:</span> +2 Population, +1 Faith</li>
-          <li><span className="text-red-300">Overfishing:</span> +3 Population, +1 Pride, +1 Dissent</li>
-        </ul>
-      </div>
-    </div>
-  );
+  return <WorldElementTooltip elementId="fishing_shoal" />;
 }
 
 export function JarediteRuinsTooltip() {
-  return (
-    <div className="space-y-2">
-      <div className="font-semibold text-purple-300">Jaredite Ruins</div>
-      <div className="text-xs text-slate-300">
-        Ancient ruins from the fallen Jaredite civilization offer both knowledge and moral tests.
-      </div>
-      <div className="text-xs">
-        <div className="text-purple-300 mb-1">Exploration Options:</div>
-        <ul className="list-disc list-inside text-slate-300 space-y-1">
-          <li><span className="text-blue-300">Reverent Study:</span> +1 Tech Progress, +1 Faith</li>
-          <li><span className="text-red-300">Treasure Hunting:</span> +3 Stars, +1 Pride, +1 Dissent</li>
-        </ul>
-      </div>
-    </div>
-  );
+  return <WorldElementTooltip elementId="jaredite_ruins" />;
 }
 
 export function StoneResourceTooltip() {
@@ -685,9 +717,9 @@ export function DissentTooltip() {
       </div>
       <div className="text-xs space-y-1">
         <div>• Increases with aggressive actions</div>
-        <div>• Reduces efficiency and growth</div>
+        <div>• Rebellions can cause city unrest (reduced income)</div>
         <div>• Can be reduced through faith</div>
-        <div>• High dissent causes rebellions</div>
+        <div>• Very high dissent can trigger desertion</div>
       </div>
     </div>
   );
