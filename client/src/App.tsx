@@ -12,6 +12,7 @@ import { CombatEffectsDemo } from "./components/effects/CombatEffectsDemo";
 import { ToastProvider } from "./components/ui/ToastProvider";
 import { VisualFeedbackProvider } from "./components/ui/VisualFeedback";
 import { FloatingTextManager } from "./components/ui/FloatingText";
+import { AudioProvider } from "./components/ui/AudioProvider";
 import { useTouchModeProvider, TouchModeContext } from "./hooks/useTouchMode";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "@fontsource/inter";
@@ -70,10 +71,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TouchModeProvider>
-        <ToastProvider>
-          <VisualFeedbackProvider>
-            <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
-              <KeyboardControls map={controls}>
+        <AudioProvider>
+          <ToastProvider>
+            <VisualFeedbackProvider>
+              <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
+                <KeyboardControls map={controls}>
                 {gamePhase === 'menu' && <MainMenu />}
 
                 {gamePhase === 'playerSetup' && <PlayerSetup />}
@@ -122,9 +124,10 @@ function App() {
                 )}
               </KeyboardControls>
             </div>
-          </VisualFeedbackProvider>
-        </ToastProvider>
-        <FloatingTextManager />
+            </VisualFeedbackProvider>
+          </ToastProvider>
+          <FloatingTextManager />
+        </AudioProvider>
       </TouchModeProvider>
     </QueryClientProvider>
   );
