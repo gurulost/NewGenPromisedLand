@@ -398,31 +398,32 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           const category = constructionMode.buildingCategory;
           
           // Get cost for confirmation
-          let cost = { stars: 0, faith: 0, pride: 0 };
+          let costStars = 0;
+          let requirementNote = '';
           if (category === 'units') {
             const unitDef = getUnitDefinition(buildingName as any);
             if (unitDef) {
-              cost.stars = unitDef.cost; // Units have direct cost number
-              cost.faith = unitDef.requirements?.faith || 0;
-              cost.pride = unitDef.requirements?.pride || 0;
+              costStars = unitDef.cost; // Units have direct cost number
+              const req: string[] = [];
+              if (unitDef.requirements?.faith) req.push(`Faith ${unitDef.requirements.faith}+`);
+              if (unitDef.requirements?.pride) req.push(`Pride ${unitDef.requirements.pride}+`);
+              if (unitDef.requirements?.dissent) req.push(`Dissent ${unitDef.requirements.dissent}+`);
+              if (req.length > 0) requirementNote = ` (requires ${req.join(', ')})`;
             }
           } else if (category === 'improvements') {
             const improvementDef = IMPROVEMENT_DEFINITIONS[buildingName as keyof typeof IMPROVEMENT_DEFINITIONS];
             if (improvementDef) {
-              cost.stars = improvementDef.cost;
+              costStars = improvementDef.cost;
             }
           } else if (category === 'structures') {
             const structureDef = STRUCTURE_DEFINITIONS[buildingName as keyof typeof STRUCTURE_DEFINITIONS];
             if (structureDef) {
-              cost.stars = structureDef.cost;
+              costStars = structureDef.cost;
             }
           }
           
           const confirmed = window.confirm(
-            `Build ${buildingName} for ${cost.stars} stars` +
-            (cost.faith > 0 ? `, ${cost.faith} faith` : '') +
-            (cost.pride > 0 ? `, ${cost.pride} pride` : '') +
-            '?'
+            `Build ${buildingName} for ${costStars} stars${requirementNote}?`
           );
           
           if (!confirmed) {

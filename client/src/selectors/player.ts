@@ -2,6 +2,8 @@ import { GameState, PlayerState } from '@shared/types/game';
 import { GameRuleHelpers, GAME_RULES } from '@shared/data/gameRules';
 import { hexNeighbors } from '@shared/utils/hex';
 import type { HexCoordinate } from '@shared/types/coordinates';
+import { computeUnitPassiveEffectsForPlayer } from '@shared/logic/unitPassiveEffects';
+import { getUnitDefinition } from '@shared/data/units';
 
 export interface PlayerStats {
   faithPercentage: number;
@@ -175,6 +177,17 @@ export function getPlayerStats(player: PlayerState, gameState: GameState): Playe
   }, 0);
   if (tradeIncome > 0) breakdown.push({ source: `Trade Routes (${tradeRoutes.length})`, amount: tradeIncome });
   totalStarProduction += tradeIncome;
+
+  // Passive unit income (e.g., Priestcraft Preachers). Matches reducer end-turn logic.
+  const unitPassive = computeUnitPassiveEffectsForPlayer(gameState, player.id, player.stats);
+  unitPassive.breakdown.forEach(entry => {
+    const perUnit = entry.perTurn.stars || 0;
+    if (!perUnit) return;
+    const amount = perUnit * entry.count;
+    const def = getUnitDefinition(entry.unitType);
+    breakdown.push({ source: `${def.name} (${entry.count})`, amount });
+    totalStarProduction += amount;
+  });
 
   return {
     faithPercentage: player.stats.faith,

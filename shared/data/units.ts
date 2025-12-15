@@ -185,6 +185,97 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     requiredTechnology: 'priesthood',
   },
 
+  priestcraft_preacher: {
+    type: 'priestcraft_preacher',
+    name: 'Priestcraft Preacher',
+    description: 'A charismatic Zoramite preacher who exalts status and wealth, increasing prosperity at the cost of pride and dissent.',
+    baseStats: {
+      hp: 15,
+      attack: 2,
+      defense: 1,
+      movement: 3,
+      visionRadius: 2,
+      attackRange: 1,
+    },
+    cost: 10,
+    factionSpecific: ['ZORAMITES'],
+    abilities: [],
+    requiredTechnology: 'spirituality',
+    passiveEffects: {
+      perTurn: { stars: 1, pride: 2, dissent: 1 },
+    },
+  },
+
+  converted_missionary: {
+    type: 'converted_missionary',
+    name: 'Converted Missionary',
+    description: 'A Lamanite who has embraced the covenant, strengthening faith and softening hearts within the people.',
+    baseStats: {
+      hp: 18,
+      attack: 1,
+      defense: 2,
+      movement: 3,
+      visionRadius: 2,
+      attackRange: 1,
+    },
+    cost: 10,
+    // Use a faith cost gate (consistent with existing unit requirements-as-resource-cost behavior).
+    requirements: { faith: 40 },
+    factionSpecific: ['LAMANITES'],
+    abilities: [],
+    requiredTechnology: 'priesthood',
+    passiveEffects: {
+      perTurn: { faith: 1, pride: -1, dissent: -1 },
+    },
+  },
+
+  scribe_teacher: {
+    type: 'scribe_teacher',
+    name: 'Scribe-Teacher',
+    description: 'A Mulekite record keeper and teacher who strengthens faith and steadies society through knowledge and diplomacy.',
+    baseStats: {
+      hp: 16,
+      attack: 2,
+      defense: 2,
+      movement: 3,
+      visionRadius: 2,
+      attackRange: 1,
+    },
+    cost: 12,
+    factionSpecific: ['MULEKITES'],
+    abilities: [],
+    requiredTechnology: 'trade',
+    passiveEffects: {
+      perTurn: { faith: 1, dissent: -1 },
+      // Non-stacking: having at least one scribe improves trade request tempo.
+      diplomacyCooldownDelta: { stacking: 'any', perTurn: { requestTrade: -1 } },
+    },
+  },
+
+  prophet: {
+    type: 'prophet',
+    name: 'Prophet',
+    description: 'A Jaredite prophet who warns against pride and contention, helping prevent collapse by calling the people to humility.',
+    baseStats: {
+      hp: 16,
+      attack: 1,
+      defense: 2,
+      movement: 3,
+      visionRadius: 2,
+      attackRange: 1,
+    },
+    cost: 12,
+    factionSpecific: ['JAREDITES'],
+    abilities: [],
+    requiredTechnology: 'spirituality',
+    passiveEffects: {
+      perTurn: { dissent: -1 },
+      perTurnWhen: [
+        { stat: 'pride', gte: 60, perTurn: { pride: -2 } },
+      ],
+    },
+  },
+
   royal_envoy: {
     type: 'royal_envoy',
     name: 'Royal Envoy',
