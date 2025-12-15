@@ -1,8 +1,9 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { useLoader } from '@react-three/fiber';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import * as THREE from 'three';
 import { TerrainType } from '@shared/types/game';
+import { disposeClonedMaterials } from '../../lib/memoryUtils';
 
 interface TerrainTileProps {
   terrain: TerrainType;
@@ -73,17 +74,42 @@ function TerrainModel({ terrain, position, color, opacity }: {
     
     clone.traverse((child: any) => {
       if (child instanceof THREE.Mesh && child.material) {
-        const material = child.material as THREE.MeshStandardMaterial;
-        const newMaterial = material.clone();
-        newMaterial.color.setRGB(color[0], color[1], color[2]);
-        newMaterial.transparent = opacity < 1;
-        newMaterial.opacity = opacity;
-        child.material = newMaterial;
+        if (Array.isArray(child.material)) {
+          child.material = child.material.map((m: any) => m?.clone?.() ?? m);
+        } else {
+          child.material = (child.material as THREE.MeshStandardMaterial).clone();
+        }
       }
     });
     
     return clone;
-  }, [gltf?.scene, color, opacity]);
+  }, [gltf?.scene]);
+
+  // Update tint/opacity without re-cloning.
+  useEffect(() => {
+    if (!clonedScene) return;
+    clonedScene.traverse((child: any) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      const apply = (mat: any) => {
+        if (!mat) return;
+        if (mat.color?.setRGB) mat.color.setRGB(color[0], color[1], color[2]);
+        mat.transparent = opacity < 1;
+        if (typeof mat.opacity === 'number') mat.opacity = opacity;
+        mat.needsUpdate = true;
+      };
+      if (Array.isArray(child.material)) {
+        child.material.forEach(apply);
+      } else {
+        apply(child.material);
+      }
+    });
+  }, [clonedScene, color, opacity]);
+
+  useEffect(() => {
+    return () => {
+      disposeClonedMaterials(clonedScene);
+    };
+  }, [clonedScene]);
   
   if (!clonedScene) {
     return (

@@ -36,29 +36,33 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         if (child.material) {
-          // Clone material to avoid modifying the original
-          const material = child.material.clone();
+          const cloneMaterial = (m: any) => (m && typeof m.clone === 'function' ? m.clone() : m);
+          const clonedMaterial = Array.isArray(child.material)
+            ? child.material.map(cloneMaterial)
+            : cloneMaterial(child.material);
+          child.material = clonedMaterial;
+          const materials = Array.isArray(clonedMaterial) ? clonedMaterial : [clonedMaterial];
           
-          // Adjust colors based on ownership
-          if (isPlayerCity) {
-            // Player cities get warmer, friendlier colors
-            if (material.color) {
-              material.color.multiplyScalar(1.1); // Slightly brighter
-            }
-            if (material.emissive) {
-              material.emissive.setHex(0x004400); // Subtle green glow
-            }
-          } else {
-            // Neutral/enemy cities get cooler colors
-            if (material.color) {
-              material.color.multiplyScalar(0.9); // Slightly darker
-            }
-            if (material.emissive) {
-              material.emissive.setHex(0x440000); // Subtle red glow
+          for (const material of materials) {
+            // Adjust colors based on ownership
+            if (isPlayerCity) {
+              // Player cities get warmer, friendlier colors
+              if (material?.color) {
+                material.color.multiplyScalar(1.1); // Slightly brighter
+              }
+              if (material?.emissive) {
+                material.emissive.setHex(0x004400); // Subtle green glow
+              }
+            } else {
+              // Neutral/enemy cities get cooler colors
+              if (material?.color) {
+                material.color.multiplyScalar(0.9); // Slightly darker
+              }
+              if (material?.emissive) {
+                material.emissive.setHex(0x440000); // Subtle red glow
+              }
             }
           }
-          
-          child.material = material;
         }
       }
     });

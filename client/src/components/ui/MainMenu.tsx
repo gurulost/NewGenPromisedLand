@@ -64,7 +64,7 @@ function HeroBackground() {
 }
 
 export default function MainMenu() {
-  const { setGamePhase, setGameState } = useLocalGame();
+  const { setGamePhase, loadGameState } = useLocalGame();
   const [savedGames, setSavedGames] = useState<ServerSave[]>([]);
   const [showLoadMenu, setShowLoadMenu] = useState(false);
   const [autosaveInfo, setAutosaveInfo] = useState<{ timestamp: number; turn: number; playerCount: number } | null>(null);
@@ -110,8 +110,7 @@ export default function MainMenu() {
   const resumeAutosave = async () => {
     const autosave = await loadAutosave();
     if (!autosave?.gameState) return;
-    setGameState(autosave.gameState);
-    setGamePhase('playing');
+    loadGameState(autosave.gameState);
   };
 
   return (

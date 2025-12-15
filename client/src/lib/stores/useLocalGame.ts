@@ -6,7 +6,8 @@ import { gameReducer } from "@shared/logic/gameReducer";
 import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenerator";
 import { useGameState } from "./useGameState";
 import { gameDebugger } from "../../utils/gameDebug";
-import { clearAutosave, saveAutosave } from "../autosaveStorage";
+import { clearAutosave } from "../autosaveStorage";
+import { markAutosaveDirty, requestAutosave } from "../autosaveManager";
 
 const applyPlayerDefaults = (player: PlayerState): PlayerState => {
   const normalized: PlayerState = { ...player };
@@ -280,10 +281,8 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       gamePhase: 'handoff'
     });
 
-    // Fire-and-forget autosave so a reload isn’t catastrophic.
-    setTimeout(() => {
-      void saveAutosave(gameState).catch(() => undefined);
-    }, 0);
+    markAutosaveDirty();
+    requestAutosave(gameState, 'startLocalGame');
   },
 
   endTurn: (playerId) => {
@@ -305,17 +304,15 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       gamePhase: 'handoff'
     });
 
-    // Autosave at the end of each turn (best semantics for turn-based resume).
-    setTimeout(() => {
-      void saveAutosave(newGameState).catch(() => undefined);
-    }, 0);
+    markAutosaveDirty();
+    requestAutosave(newGameState, 'endTurn');
   },
 
   moveUnit: (unitId, targetCoordinate) => {
     const { gameState } = get();
     if (!gameState) return;
 
-    console.log('Moving unit:', unitId, 'to:', targetCoordinate);
+    if (import.meta.env.DEV) console.log('Moving unit:', unitId, 'to:', targetCoordinate);
 
     const action = {
       type: 'MOVE_UNIT' as const,
@@ -323,15 +320,16 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     };
 
     const newGameState = gameReducer(gameState, action);
-    console.log('Game state updated:', newGameState);
+    if (import.meta.env.DEV) console.log('Game state updated:', newGameState);
     set({ gameState: newGameState });
+    markAutosaveDirty();
   },
 
   attackUnit: (attackerId: string, targetId: string) => {
     const { gameState } = get();
     if (!gameState) return;
 
-    console.log('Unit attacking:', attackerId, 'target:', targetId);
+    if (import.meta.env.DEV) console.log('Unit attacking:', attackerId, 'target:', targetId);
 
     const action = {
       type: 'ATTACK_UNIT' as const,
@@ -339,8 +337,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     };
 
     const newGameState = gameReducer(gameState, action);
-    console.log('Combat result:', newGameState);
+    if (import.meta.env.DEV) console.log('Combat result:', newGameState);
     set({ gameState: newGameState });
+    markAutosaveDirty();
   },
 
   useAbility: (playerId, abilityId) => {
@@ -354,6 +353,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
 
     const newGameState = gameReducer(gameState, action);
     set({ gameState: newGameState });
+    markAutosaveDirty();
   },
 
   dispatch: (action) => {
@@ -362,6 +362,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
 
     const newGameState = gameReducer(gameState, action);
     set({ gameState: newGameState });
+    markAutosaveDirty();
   },
 
   resetGame: () => {
@@ -380,10 +381,8 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       gameState: normalizedState,
       gamePhase: 'playing'
     });
-
-    setTimeout(() => {
-      void saveAutosave(normalizedState).catch(() => undefined);
-    }, 0);
+    markAutosaveDirty();
+    requestAutosave(normalizedState, 'loadGameState');
   },
 
   harvestResource: (unitId, resourceCoordinate, cityId) => {
@@ -397,5 +396,6 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
 
     const newGameState = gameReducer(gameState, action);
     set({ gameState: newGameState });
+    markAutosaveDirty();
   },
 }));
