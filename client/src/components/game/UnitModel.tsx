@@ -1,11 +1,12 @@
 import { useGLTF } from '@react-three/drei';
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import type { Unit } from '@shared/types/unit';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
 import { getUnitModelPath } from '../../utils/modelManager';
 import { GroundedModel } from './GroundedModel';
+import { disposeClonedMaterials } from '../../lib/memoryUtils';
 
 interface UnitModelProps {
   unit: Unit;
@@ -194,6 +195,13 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     const bottomShift = -box.min.y;
     clonedScene.position.set(0, bottomShift, 0);
     return clonedScene;
+  }, [clonedScene]);
+
+  // Dispose cloned materials on unmount to free GPU memory
+  useEffect(() => {
+    return () => {
+      disposeClonedMaterials(clonedScene);
+    };
   }, [clonedScene]);
 
   return (

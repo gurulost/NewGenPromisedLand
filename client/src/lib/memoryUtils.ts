@@ -85,3 +85,33 @@ export const MEMORY_LIMITS = {
   FLOATING_TEXT_MAX_ITEMS: 30,
   FLOATING_TEXT_TTL_MS: 5000, // 5 seconds
 } as const;
+
+/**
+ * Dispose ONLY cloned materials from a THREE.js Object3D.
+ * 
+ * IMPORTANT: This does NOT dispose geometries or textures because:
+ * - scene.clone() creates shallow clones that SHARE geometries with the cached original
+ * - material.clone() creates new materials but they reference the SAME textures
+ * 
+ * Only the cloned material instances need disposal - the shared resources
+ * are managed by drei's useGLTF cache.
+ * 
+ * @param object - The cloned Object3D (from scene.clone())
+ */
+export function disposeClonedMaterials(object: any): void {
+  if (!object) return;
+  
+  object.traverse?.((child: any) => {
+    // Only dispose materials - NOT geometries or textures (they're shared)
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material: any) => {
+          // Call dispose on the material only, not its textures
+          material.dispose?.();
+        });
+      } else {
+        child.material.dispose?.();
+      }
+    }
+  });
+}
