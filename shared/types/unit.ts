@@ -15,6 +15,10 @@ export const UnitTypeSchema = z.enum([
   // Faction-specific special units
   'stripling_warrior',      // Nephites
   'missionary',             // Nephites, Anti-Nephi-Lehies
+  'priestcraft_preacher',   // Zoramites
+  'converted_missionary',   // Lamanites (late/unlocked)
+  'scribe_teacher',         // Mulekites
+  'prophet',                // Jaredites
   'royal_envoy',           // Mulekites, Zoramites
   'wilderness_hunter',     // Lamanites
   'ancient_giant',         // Jaredites
@@ -71,6 +75,20 @@ export const UnitSchema = z.object({
 
 export type Unit = z.infer<typeof UnitSchema>;
 
+const PerTurnDeltaSchema = z.object({
+  stars: z.number().optional(),
+  faith: z.number().optional(),
+  pride: z.number().optional(),
+  dissent: z.number().optional(),
+});
+
+const CooldownDeltaSchema = z.object({
+  declareWar: z.number().optional(),
+  formAlliance: z.number().optional(),
+  breakAlliance: z.number().optional(),
+  requestTrade: z.number().optional(),
+});
+
 export const UnitDefinitionSchema = z.object({
   type: UnitTypeSchema,
   name: z.string(),
@@ -88,6 +106,19 @@ export const UnitDefinitionSchema = z.object({
     faith: z.number().optional(),
     pride: z.number().optional(),
     dissent: z.number().optional(),
+  }).optional(),
+  passiveEffects: z.object({
+    perTurn: PerTurnDeltaSchema.optional(),
+    perTurnWhen: z.array(z.object({
+      stat: z.enum(['faith', 'pride', 'internalDissent']),
+      gte: z.number().optional(),
+      lte: z.number().optional(),
+      perTurn: PerTurnDeltaSchema,
+    })).optional(),
+    diplomacyCooldownDelta: z.object({
+      stacking: z.enum(['any', 'per_unit']).default('any'),
+      perTurn: CooldownDeltaSchema,
+    }).optional(),
   }).optional(),
   factionSpecific: z.array(z.string()).default([]),
   abilities: z.array(z.string()).default([]),

@@ -100,7 +100,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
     const hasRequiredTech = !unitDef.requiredTechnology || currentPlayer.researchedTechs.includes(unitDef.requiredTechnology);
     const meetsRequirements = !unitDef.requirements || 
       ((!unitDef.requirements.faith || currentPlayer.stats.faith >= unitDef.requirements.faith) &&
-       (!unitDef.requirements.pride || currentPlayer.stats.pride >= unitDef.requirements.pride));
+       (!unitDef.requirements.pride || currentPlayer.stats.pride >= unitDef.requirements.pride) &&
+       (!unitDef.requirements.dissent || currentPlayer.stats.internalDissent >= unitDef.requirements.dissent));
     const factionMatch = unitDef.factionSpecific.length === 0 || 
       unitDef.factionSpecific.includes(currentPlayer.factionId);
     
@@ -134,6 +135,9 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
       }
       if (unitDef.requirements.pride && currentPlayer.stats.pride < unitDef.requirements.pride) {
         return `Need ${unitDef.requirements.pride} Pride`;
+      }
+      if (unitDef.requirements.dissent && currentPlayer.stats.internalDissent < unitDef.requirements.dissent) {
+        return `Need ${unitDef.requirements.dissent} Dissent`;
       }
     }
     
@@ -391,11 +395,13 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.values(UNIT_DEFINITIONS).filter(unit => {
-                  // Filter units based on technology requirements
-                  if (!unit.requiredTechnology) return true;
-                  return currentPlayer.researchedTechs.includes(unit.requiredTechnology);
-                }).map(unit => {
+                {Object.values(UNIT_DEFINITIONS)
+                  .filter(unit => unit.factionSpecific.length === 0 || unit.factionSpecific.includes(currentPlayer.factionId))
+                  .filter(unit => {
+                    if (!unit.requiredTechnology) return true;
+                    return currentPlayer.researchedTechs.includes(unit.requiredTechnology);
+                  })
+                  .map(unit => {
                   const canAfford = canAffordUnit(unit.type);
                   const hasRequiredTech = !unit.requiredTechnology || currentPlayer.researchedTechs.includes(unit.requiredTechnology);
                   
@@ -427,6 +433,50 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                           <div className="text-xs space-y-1">
                             {unit.requirements.faith && (
                               <p>Faith: {unit.requirements.faith}+ (have: {currentPlayer.stats.faith})</p>
+                            )}
+                            {unit.requirements.pride && (
+                              <p>Pride: {unit.requirements.pride}+ (have: {currentPlayer.stats.pride})</p>
+                            )}
+                            {unit.requirements.dissent && (
+                              <p>Dissent: {unit.requirements.dissent}+ (have: {currentPlayer.stats.internalDissent})</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {unit.passiveEffects && (
+                        <div className="mb-3">
+                          <p className="text-xs font-medium text-gray-500 mb-1">Per Turn:</p>
+                          <div className="text-xs space-y-1">
+                            {unit.passiveEffects.perTurn?.stars && (
+                              <p>{unit.passiveEffects.perTurn.stars > 0 ? '+' : ''}{unit.passiveEffects.perTurn.stars}★</p>
+                            )}
+                            {unit.passiveEffects.perTurn?.faith && (
+                              <p>{unit.passiveEffects.perTurn.faith > 0 ? '+' : ''}{unit.passiveEffects.perTurn.faith} Faith</p>
+                            )}
+                            {unit.passiveEffects.perTurn?.pride && (
+                              <p>{unit.passiveEffects.perTurn.pride > 0 ? '+' : ''}{unit.passiveEffects.perTurn.pride} Pride</p>
+                            )}
+                            {unit.passiveEffects.perTurn?.dissent && (
+                              <p>{unit.passiveEffects.perTurn.dissent > 0 ? '+' : ''}{unit.passiveEffects.perTurn.dissent} Dissent</p>
+                            )}
+                            {(unit.passiveEffects.perTurnWhen || []).map((cond, idx) => {
+                              const statLabel = cond.stat === 'internalDissent' ? 'Dissent' : (cond.stat.charAt(0).toUpperCase() + cond.stat.slice(1));
+                              const condition = typeof cond.gte === 'number'
+                                ? `${statLabel} ≥ ${cond.gte}`
+                                : typeof cond.lte === 'number'
+                                  ? `${statLabel} ≤ ${cond.lte}`
+                                  : statLabel;
+                              const parts: string[] = [];
+                              if (cond.perTurn.stars) parts.push(`${cond.perTurn.stars > 0 ? '+' : ''}${cond.perTurn.stars}★`);
+                              if (cond.perTurn.faith) parts.push(`${cond.perTurn.faith > 0 ? '+' : ''}${cond.perTurn.faith} Faith`);
+                              if (cond.perTurn.pride) parts.push(`${cond.perTurn.pride > 0 ? '+' : ''}${cond.perTurn.pride} Pride`);
+                              if (cond.perTurn.dissent) parts.push(`${cond.perTurn.dissent > 0 ? '+' : ''}${cond.perTurn.dissent} Dissent`);
+                              if (parts.length === 0) return null;
+                              return <p key={idx}>When {condition}: {parts.join(', ')}</p>;
+                            })}
+                            {unit.passiveEffects.diplomacyCooldownDelta?.perTurn.requestTrade && (
+                              <p>Request Trade cooldown: {unit.passiveEffects.diplomacyCooldownDelta.perTurn.requestTrade}/turn</p>
                             )}
                           </div>
                         </div>

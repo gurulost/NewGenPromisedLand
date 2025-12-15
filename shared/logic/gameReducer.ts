@@ -22,6 +22,7 @@ import {
 } from "./tradeRoutes";
 import { applyPopulationGain } from "./cityGrowth";
 import { attemptUnitConversion } from "./conversion";
+import { computeUnitPassiveEffectsForPlayer } from "./unitPassiveEffects";
 
 function getUnitSpawnCoordinate(state: GameState, unitType: UnitType, cityCoordinate: HexCoordinate): HexCoordinate | null {
   if (unitType !== 'boat') return cityCoordinate;
@@ -226,9 +227,12 @@ function handleStartConstruction(
     if (unitDef.requiredTechnology && !player.researchedTechs.includes(unitDef.requiredTechnology)) return state;
     if (unitDef.factionSpecific.length > 0 && !unitDef.factionSpecific.includes(player.factionId)) return state;
     cost.stars = unitDef.cost; // Units have direct cost number
-    cost.faith = unitDef.requirements?.faith || 0;
-    cost.pride = unitDef.requirements?.pride || 0;
     buildTime = 1; // Units build quickly
+    if (unitDef.requirements) {
+      if (unitDef.requirements.faith && player.stats.faith < unitDef.requirements.faith) return state;
+      if (unitDef.requirements.pride && player.stats.pride < unitDef.requirements.pride) return state;
+      if (unitDef.requirements.dissent && player.stats.internalDissent < unitDef.requirements.dissent) return state;
+    }
 
     // Special validation for boats - they need coastal access
     if (buildingType === 'boat') {
@@ -295,11 +299,6 @@ function handleStartConstruction(
         ? {
           ...p,
           stars: p.stars - cost.stars,
-          stats: {
-            ...p.stats,
-            faith: p.stats.faith - (cost.faith || 0),
-            pride: p.stats.pride - (cost.pride || 0),
-          },
           constructionQueue: [...(p.constructionQueue || []), constructionItem]
         }
         : p
@@ -1720,6 +1719,8 @@ function handleEndTurn(
       // Faith income is data-driven from structure/improvement effects (plus a small missionary presence bonus).
       const baseFaith = GameRuleHelpers.calculateFaithGeneration(playerCities);
 
+      const unitPassive = computeUnitPassiveEffectsForPlayer(state, player.id, updatedStats);
+
       const faithFromStructures = (state.structures || [])
         .filter(s => s.ownerId === player.id && s.constructionTurns === 0)
         .reduce((sum, s) => {
@@ -1745,7 +1746,12 @@ function handleEndTurn(
       );
 
       // Calculate base income from cities using Polytopia-style mechanics
-      const faithGeneration = baseFaith + faithFromStructures + faithFromImprovements + missionaryFaith;
+      const faithGeneration =
+        baseFaith +
+        faithFromStructures +
+        faithFromImprovements +
+        missionaryFaith +
+        (unitPassive.perTurn.faith || 0);
 
       // Calculate star income based on city levels and production
       let starIncome = 0;
@@ -1808,6 +1814,17 @@ function handleEndTurn(
       });
       const tradeIncome = validTradeRoutes.reduce((sum, r) => sum + (r.starsPerTurn || 0), 0);
       starIncome += tradeIncome;
+
+      // Passive unit income (e.g., Priestcraft Preachers).
+      starIncome += unitPassive.perTurn.stars || 0;
+
+      // Passive per-turn moral shifts from units should influence this turn's morale outcomes.
+      if (unitPassive.perTurn.pride || unitPassive.perTurn.dissent) {
+        updatedStats = applyMoralDelta(updatedStats, {
+          pride: unitPassive.perTurn.pride || 0,
+          dissent: unitPassive.perTurn.dissent || 0,
+        });
+      }
 
       // === Morale System (Pride Cycle + Dissent Events) ===
       // Book of Mormon-inspired pattern:
@@ -1933,6 +1950,15 @@ function handleEndTurn(
         breakAlliance: Math.max(0, currentCooldowns.breakAlliance - 1),
         requestTrade: Math.max(0, currentCooldowns.requestTrade - 1),
       };
+
+      // Additional cooldown adjustments from passive units (e.g., Scribe-Teacher).
+      const cd = unitPassive.cooldownDelta || {};
+      if (cd.declareWar || cd.formAlliance || cd.breakAlliance || cd.requestTrade) {
+        updatedCooldowns.declareWar = Math.max(0, updatedCooldowns.declareWar + (cd.declareWar || 0));
+        updatedCooldowns.formAlliance = Math.max(0, updatedCooldowns.formAlliance + (cd.formAlliance || 0));
+        updatedCooldowns.breakAlliance = Math.max(0, updatedCooldowns.breakAlliance + (cd.breakAlliance || 0));
+        updatedCooldowns.requestTrade = Math.max(0, updatedCooldowns.requestTrade + (cd.requestTrade || 0));
+      }
 
       // Decrement ability cooldowns
       const abilityCooldowns = player.abilityCooldowns || {};

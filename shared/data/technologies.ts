@@ -72,7 +72,9 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 5,
     prerequisites: [],
     unlocks: {
+      improvements: ['shrine'],
       structures: ['temple'],
+      units: ['priestcraft_preacher', 'prophet'],
       abilities: ['blessing']
     },
     category: 'religious'
@@ -196,6 +198,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 15,
     prerequisites: ['organization', 'seafaring'],
     unlocks: {
+      units: ['scribe_teacher'],
       abilities: ['Trade Routes', 'Harbor Upgrade (Fishing Jetty)', 'Road Network bonus increased']
     },
     category: 'economic'
@@ -208,7 +211,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 15,
     prerequisites: ['spirituality'],
     unlocks: {
-      units: ['missionary'],
+      units: ['missionary', 'converted_missionary'],
       structures: ['cathedral'],
       abilities: ['conversion', 'divine_protection']
     },

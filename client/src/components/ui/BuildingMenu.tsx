@@ -27,8 +27,9 @@ import { City } from '@shared/types/city';
 import { InfoTooltip, ActionTooltip, StarProductionTooltip, FaithSystemTooltip, PrideSystemTooltip, DissentTooltip } from './TooltipSystem';
 import { BuildingMenuBackground } from './AnimatedBackground';
 import { PrimaryButton, SuccessButton, GhostButton } from './EnhancedButton';
-import { getUnitDefinition, UNIT_DEFINITIONS } from '@shared/data/units';
+import { UNIT_DEFINITIONS } from '@shared/data/units';
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '@shared/types/city';
+import { getPlayerStats } from '../../selectors/player';
 
 interface BuildingOption {
   id: string;
@@ -68,45 +69,69 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
   const [sortBy, setSortBy] = useState<'cost' | 'name' | 'buildTime'>('cost');
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // Calculate star production breakdown
-  const playerCityObjects = gameState.cities?.filter(city => city.ownerId === player.id) || [];
-  let totalStarProduction = 0;
-  const breakdown: Array<{source: string, amount: number}> = [];
-  
-  // Cities
-  const cityStarProduction = playerCityObjects.reduce((sum, city) => sum + (city.starProduction || 0), 0);
-  totalStarProduction += cityStarProduction;
-  if (playerCityObjects.length > 0) {
-    breakdown.push({ source: `Cities (${playerCityObjects.length})`, amount: cityStarProduction });
-  } else {
-    const baseProduction = 2; // Base production fallback
-    totalStarProduction += baseProduction;
-    breakdown.push({ source: "Base", amount: baseProduction });
-  }
-  
-  // Improvements
-  const playerImprovements = gameState.improvements?.filter(imp => imp.ownerId === player.id && imp.constructionTurns === 0) || [];
-  const improvementStars = playerImprovements.reduce((sum, imp) => sum + imp.starProduction, 0);
-  if (improvementStars > 0) {
-    totalStarProduction += improvementStars;
-    breakdown.push({ source: `Improvements (${playerImprovements.length})`, amount: improvementStars });
-  }
-  
-  // Structures
-  const playerStructures = gameState.structures?.filter(struct => struct.ownerId === player.id && struct.constructionTurns === 0) || [];
-  const structureStars = playerStructures.reduce((sum, struct) => {
-    const structureDef = STRUCTURE_DEFINITIONS[struct.type as keyof typeof STRUCTURE_DEFINITIONS];
-    return sum + (structureDef?.effects.starProduction || 0);
-  }, 0);
-  if (structureStars > 0) {
-    totalStarProduction += structureStars;
-    breakdown.push({ source: `Structures (${playerStructures.length})`, amount: structureStars });
-  }
+  const playerStats = getPlayerStats(player, gameState);
+  const totalStarProduction = playerStats.starProduction;
+  const breakdown = playerStats.starProductionBreakdown;
 
   // Play UI sounds
   const playSound = (soundType: 'hover' | 'select' | 'build' | 'error') => {
     // Sound effects would be implemented here
     console.log(`Playing ${soundType} sound`);
+  };
+
+  const formatTechName = (techId: string) =>
+    techId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+  const formatUnitRequirements = (unit: (typeof UNIT_DEFINITIONS)[keyof typeof UNIT_DEFINITIONS]) => {
+    const out: string[] = [];
+    if (unit.requiredTechnology) out.push(`Technology: ${formatTechName(unit.requiredTechnology)}`);
+    if (unit.requirements?.faith) out.push(`Faith: ${unit.requirements.faith}+`);
+    if (unit.requirements?.pride) out.push(`Pride: ${unit.requirements.pride}+`);
+    if (unit.requirements?.dissent) out.push(`Dissent: ${unit.requirements.dissent}+`);
+    return out;
+  };
+
+  const getUnitPassiveEffects = (unit: (typeof UNIT_DEFINITIONS)[keyof typeof UNIT_DEFINITIONS]): BuildingOption['effects'] => {
+    const effects: BuildingOption['effects'] = [];
+    const passive = unit.passiveEffects;
+    if (!passive) return effects;
+
+    const parts: string[] = [];
+    if (passive.perTurn?.stars) parts.push(`${passive.perTurn.stars > 0 ? '+' : ''}${passive.perTurn.stars}★/turn`);
+    if (passive.perTurn?.faith) parts.push(`${passive.perTurn.faith > 0 ? '+' : ''}${passive.perTurn.faith} Faith/turn`);
+    if (passive.perTurn?.pride) parts.push(`${passive.perTurn.pride > 0 ? '+' : ''}${passive.perTurn.pride} Pride/turn`);
+    if (passive.perTurn?.dissent) parts.push(`${passive.perTurn.dissent > 0 ? '+' : ''}${passive.perTurn.dissent} Dissent/turn`);
+    if (parts.length > 0) {
+      effects.push({ description: 'Per Turn', icon: <Zap className="w-4 h-4" />, value: parts.join(', ') });
+    }
+
+    (passive.perTurnWhen || []).forEach(cond => {
+      const statLabel =
+        cond.stat === 'internalDissent' ? 'Dissent' : cond.stat.charAt(0).toUpperCase() + cond.stat.slice(1);
+      const condition = typeof cond.gte === 'number'
+        ? `${statLabel} ≥ ${cond.gte}`
+        : typeof cond.lte === 'number'
+          ? `${statLabel} ≤ ${cond.lte}`
+          : statLabel;
+      const deltaParts: string[] = [];
+      if (cond.perTurn.stars) deltaParts.push(`${cond.perTurn.stars > 0 ? '+' : ''}${cond.perTurn.stars}★/turn`);
+      if (cond.perTurn.faith) deltaParts.push(`${cond.perTurn.faith > 0 ? '+' : ''}${cond.perTurn.faith} Faith/turn`);
+      if (cond.perTurn.pride) deltaParts.push(`${cond.perTurn.pride > 0 ? '+' : ''}${cond.perTurn.pride} Pride/turn`);
+      if (cond.perTurn.dissent) deltaParts.push(`${cond.perTurn.dissent > 0 ? '+' : ''}${cond.perTurn.dissent} Dissent/turn`);
+      if (deltaParts.length > 0) {
+        effects.push({ description: `When ${condition}`, icon: <Zap className="w-4 h-4" />, value: deltaParts.join(', ') });
+      }
+    });
+
+    if (passive.diplomacyCooldownDelta?.perTurn.requestTrade) {
+      effects.push({
+        description: 'Request Trade Cooldown',
+        icon: <Clock className="w-4 h-4" />,
+        value: `${passive.diplomacyCooldownDelta.perTurn.requestTrade}/turn`,
+      });
+    }
+
+    return effects;
   };
 
   // Generate building options from actual game data
@@ -117,22 +142,24 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       name: unit.name,
       description: unit.description,
       category: 'units' as const,
-      cost: { stars: unit.cost, ...(unit.requirements || {}) },
-      requirements: [
-        ...(unit.requiredTechnology ? [unit.requiredTechnology] : []),
-      ],
+      cost: { stars: unit.cost },
+      requirements: formatUnitRequirements(unit),
       effects: [
         { description: 'Attack', icon: <Swords className="w-4 h-4" />, value: `${unit.baseStats.attack}` },
         { description: 'Defense', icon: <Shield className="w-4 h-4" />, value: `${unit.baseStats.defense}` },
         { description: 'Health', icon: <Heart className="w-4 h-4" />, value: `${unit.baseStats.hp} HP` },
-        { description: 'Movement', icon: <TrendingUp className="w-4 h-4" />, value: `${unit.baseStats.movement}` }
+        { description: 'Movement', icon: <TrendingUp className="w-4 h-4" />, value: `${unit.baseStats.movement}` },
+        ...getUnitPassiveEffects(unit),
       ],
       buildTime: 1,
       icon: <Users className="w-6 h-6" />,
       rarity: unit.factionSpecific.length > 0 ? 'rare' : 'common' as const,
       unlocked:
         (unit.factionSpecific.length === 0 || unit.factionSpecific.includes(player.factionId)) &&
-        (!unit.requiredTechnology || player.researchedTechs.includes(unit.requiredTechnology))
+        (!unit.requiredTechnology || player.researchedTechs.includes(unit.requiredTechnology)) &&
+        (!unit.requirements?.faith || player.stats.faith >= unit.requirements.faith) &&
+        (!unit.requirements?.pride || player.stats.pride >= unit.requirements.pride) &&
+        (!unit.requirements?.dissent || player.stats.internalDissent >= unit.requirements.dissent)
     })),
     
     // Structures from game data
@@ -226,11 +253,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
   };
 
   const canAfford = (option: BuildingOption) => {
-    return (
-      (option.cost.stars || 0) <= player.stars &&
-      (option.cost.faith || 0) <= player.stats.faith &&
-      (option.cost.pride || 0) <= player.stats.pride
-    );
+    return (option.cost.stars || 0) <= player.stars;
   };
 
   return (
@@ -501,6 +524,14 @@ function BuildingCard({
         ))}
       </div>
 
+      {/* Requirements */}
+      {option.requirements && option.requirements.length > 0 && (
+        <div className="mb-4 text-xs text-slate-400">
+          <span className="text-slate-300 font-semibold">Requires:</span>{' '}
+          {option.requirements.join(' • ')}
+        </div>
+      )}
+
       {/* Cost and Build */}
       <div className="flex items-center justify-between pt-4 border-t border-slate-600">
         <div className="flex items-center gap-4">
@@ -512,17 +543,6 @@ function BuildingCard({
                 className={`text-sm font-semibold ${canAfford ? 'text-white' : 'text-red-400'}`}
               >
                 {option.cost.stars}
-              </span>
-            </div>
-          )}
-          {option.cost.faith && (
-            <div className="flex items-center gap-1">
-              <Crown className="w-4 h-4 text-purple-400" />
-              <span
-                aria-label="Faith cost"
-                className={`text-sm font-semibold ${canAfford ? 'text-white' : 'text-red-400'}`}
-              >
-                {option.cost.faith}
               </span>
             </div>
           )}
@@ -563,7 +583,13 @@ function BuildingCard({
           </motion.button>
           <ActionTooltip
             title={canAfford && option.unlocked ? "Build Now" : "Cannot Build"}
-            description={!option.unlocked ? "Requirements not met" : !canAfford ? "Insufficient resources" : `Build ${option.name}`}
+            description={
+              !option.unlocked
+                ? `Requirements: ${option.requirements?.join(' • ') || 'Not met'}`
+                : !canAfford
+                  ? "Insufficient stars"
+                  : `Build ${option.name}`
+            }
             cost={`${option.cost.stars || 0} stars, ${option.buildTime} turns`}
           />
         </div>
