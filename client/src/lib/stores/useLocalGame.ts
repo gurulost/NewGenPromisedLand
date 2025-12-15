@@ -6,6 +6,7 @@ import { gameReducer } from "@shared/logic/gameReducer";
 import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenerator";
 import { useGameState } from "./useGameState";
 import { gameDebugger } from "../../utils/gameDebug";
+import { clearAutosave, saveAutosave } from "../autosaveStorage";
 
 const applyPlayerDefaults = (player: PlayerState): PlayerState => {
   const normalized: PlayerState = { ...player };
@@ -68,6 +69,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
   },
 
   startLocalGame: (playerSetup, mapSize = 'normal') => {
+    // Starting a new game invalidates any previous autosave resume target.
+    void clearAutosave().catch(() => undefined);
+
     // Create initial game state
     const players: PlayerState[] = playerSetup.map(setup => applyPlayerDefaults({
       id: setup.id,
@@ -275,6 +279,11 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       gameState,
       gamePhase: 'handoff'
     });
+
+    // Fire-and-forget autosave so a reload isn’t catastrophic.
+    setTimeout(() => {
+      void saveAutosave(gameState).catch(() => undefined);
+    }, 0);
   },
 
   endTurn: (playerId) => {
@@ -295,6 +304,11 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       gameState: newGameState,
       gamePhase: 'handoff'
     });
+
+    // Autosave at the end of each turn (best semantics for turn-based resume).
+    setTimeout(() => {
+      void saveAutosave(newGameState).catch(() => undefined);
+    }, 0);
   },
 
   moveUnit: (unitId, targetCoordinate) => {
@@ -355,14 +369,21 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       gamePhase: 'menu',
       gameState: null,
     });
+
+    void clearAutosave().catch(() => undefined);
   },
 
   loadGameState: (state: GameState) => {
     const normalizedPlayers = state.players.map(applyPlayerDefaults);
+    const normalizedState = { ...state, players: normalizedPlayers };
     set({
-      gameState: { ...state, players: normalizedPlayers },
+      gameState: normalizedState,
       gamePhase: 'playing'
     });
+
+    setTimeout(() => {
+      void saveAutosave(normalizedState).catch(() => undefined);
+    }, 0);
   },
 
   harvestResource: (unitId, resourceCoordinate, cityId) => {

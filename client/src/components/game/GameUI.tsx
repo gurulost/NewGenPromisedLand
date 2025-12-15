@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useKeyboardControls } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
@@ -30,6 +30,7 @@ import { getWorldElement, WORLD_ELEMENTS } from "@shared/data/worldElements";
 import { useMapToastStore, hexToWorldPos } from "../../lib/stores/useMapToasts";
 import { useParticleStore } from "../effects/ParticleEffects";
 import { pushCapped, MEMORY_LIMITS } from "../../lib/memoryUtils";
+import { useMemoryCleanup, useTurnEndCleanup } from "../../hooks/useMemoryCleanup";
 import type { Unit } from "@shared/types/unit";
 
 interface ActiveNotification {
@@ -40,6 +41,7 @@ interface ActiveNotification {
 }
 
 export default function GameUI() {
+  const isDev = import.meta.env.DEV;
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
   const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
@@ -50,6 +52,43 @@ export default function GameUI() {
   const { toasts: mapToasts } = useMapToastStore();
   const addToast = useMapToastStore(state => state.addToast);
   const [activeNotification, setActiveNotification] = useState<ActiveNotification | null>(null);
+
+  // Safety-net cleanup for long sessions (stale particles/map-toasts can linger when tab is backgrounded).
+  useMemoryCleanup();
+  useTurnEndCleanup(gameState?.turn || 0);
+
+  // Keep latest visual-feedback functions for stable event listeners.
+  const visualRef = useRef({ triggerFlash, showToast });
+  useEffect(() => {
+    visualRef.current = { triggerFlash, showToast };
+  }, [triggerFlash, showToast]);
+
+  // Dev-only: deterministic long-session simulation helper for memory profiling.
+  useEffect(() => {
+    if (!isDev) return;
+    (window as any).simulateTurns = async (turns: number = 50, delayMs: number = 0) => {
+      for (let i = 0; i < turns; i++) {
+        const gs = useLocalGame.getState().gameState;
+        if (!gs) break;
+        const currentPlayerId = gs.players?.[gs.currentPlayerIndex]?.id;
+        if (!currentPlayerId) break;
+        useLocalGame.getState().dispatch({ type: 'END_TURN', payload: { playerId: currentPlayerId } } as any);
+        useGameState.getState().setSelectedUnit(null);
+        if (delayMs > 0) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        } else {
+          await Promise.resolve();
+        }
+      }
+    };
+    return () => {
+      try {
+        delete (window as any).simulateTurns;
+      } catch {
+        (window as any).simulateTurns = undefined;
+      }
+    };
+  }, [isDev]);
 
   // Global Event Particle Triggers (Captures, Conversions)
   // Watches gameState.lastAction to trigger effects for both Player and AI
@@ -330,47 +369,57 @@ export default function GameUI() {
   // Detect clicks on world element tiles
   useEffect(() => {
     const handleWorldElementClick = (event: CustomEvent) => {
-      if (event.detail?.coordinate && event.detail?.resources) {
-        const { coordinate, resources } = event.detail;
+      const gs = useLocalGame.getState().gameState;
+      if (!gs) return;
+      const player = gs.players?.[gs.currentPlayerIndex];
+      if (!player) return;
 
-        // Enhanced logging for debugging
-        console.log('🌍 World element click detected:', { coordinate, resources, availableElements: Object.keys(WORLD_ELEMENTS) });
-
-        // Check if any resource is a world element
-        for (const resource of resources) {
-          if (WORLD_ELEMENTS[resource]) {
-            console.log('✅ Setting selected world element:', resource, coordinate);
-            const unitsOnTile =
-              gameState?.units?.filter(u =>
-                u.playerId === currentPlayer.id &&
-                u.coordinate.q === coordinate.q &&
-                u.coordinate.r === coordinate.r &&
-                !u.hasAttacked &&
-                u.remainingMovement > 0
-              ) || [];
-            const preferredUnitId =
-              selectedUnit &&
-              selectedUnit.playerId === currentPlayer.id &&
-              selectedUnit.coordinate.q === coordinate.q &&
-              selectedUnit.coordinate.r === coordinate.r &&
-              !selectedUnit.hasAttacked &&
-              selectedUnit.remainingMovement > 0
-                ? selectedUnit.id
-                : unitsOnTile[0]?.id;
-            setSelectedWorldElement({
-              elementId: resource,
-              coordinate,
-              unitId: preferredUnitId
-            });
-            return;
-          } else {
-            console.log('❌ Resource not in WORLD_ELEMENTS:', resource);
-          }
-        }
-        console.log('⚠️ No world elements found in resources:', resources);
-      } else {
-        console.log('⚠️ Invalid world element click event:', event.detail);
+      if (!event.detail?.coordinate || !Array.isArray(event.detail?.resources)) {
+        if (isDev) console.log('⚠️ Invalid world element click event:', event.detail);
+        return;
       }
+
+      const { coordinate, resources } = event.detail;
+      if (isDev) {
+        console.log('🌍 World element click detected:', { coordinate, resources, availableElements: Object.keys(WORLD_ELEMENTS) });
+      }
+
+      for (const resource of resources) {
+        if (!WORLD_ELEMENTS[resource]) {
+          if (isDev) console.log('❌ Resource not in WORLD_ELEMENTS:', resource);
+          continue;
+        }
+
+        if (isDev) console.log('✅ Setting selected world element:', resource, coordinate);
+        const unitsOnTile =
+          gs.units?.filter(u =>
+            u.playerId === player.id &&
+            u.coordinate.q === coordinate.q &&
+            u.coordinate.r === coordinate.r &&
+            !u.hasAttacked &&
+            u.remainingMovement > 0
+          ) || [];
+
+        const maybeSelectedUnit = useGameState.getState().selectedUnit;
+        const preferredUnitId =
+          maybeSelectedUnit &&
+          maybeSelectedUnit.playerId === player.id &&
+          maybeSelectedUnit.coordinate.q === coordinate.q &&
+          maybeSelectedUnit.coordinate.r === coordinate.r &&
+          !maybeSelectedUnit.hasAttacked &&
+          maybeSelectedUnit.remainingMovement > 0
+            ? maybeSelectedUnit.id
+            : unitsOnTile[0]?.id;
+
+        setSelectedWorldElement({
+          elementId: resource,
+          coordinate,
+          unitId: preferredUnitId
+        });
+        return;
+      }
+
+      if (isDev) console.log('⚠️ No world elements found in resources:', resources);
     };
 
     // Listen for world element clicks
@@ -379,7 +428,7 @@ export default function GameUI() {
     return () => {
       window.removeEventListener('worldElementClick', handleWorldElementClick as EventListener);
     };
-  }, [currentPlayer.id, gameState?.units, selectedUnit]);
+  }, [isDev]);
 
   // Handle village capture actions
   const handleVillageCaptureAction = (actionType: 'conquer' | 'convert') => {
@@ -428,20 +477,21 @@ export default function GameUI() {
       if (event.detail?.type && event.detail?.payload) {
         const { type, payload } = event.detail;
 
-        console.log('🤝 Diplomacy action:', type, payload);
+        if (isDev) console.log('🤝 Diplomacy action:', type, payload);
 
         const beforeState = useLocalGame.getState().gameState;
         // Dispatch the diplomacy action through the game reducer
         useLocalGame.getState().dispatch({ type, payload } as any);
         const afterState = useLocalGame.getState().gameState;
+        const { triggerFlash: flash, showToast: toast } = visualRef.current;
 
         // Visual feedback based on action type
         if (type === 'DECLARE_WAR') {
-          triggerFlash('red');
-          showToast(`War Declared!`, 'combat');
+          flash('red');
+          toast(`War Declared!`, 'combat');
         } else if (type === 'FORM_ALLIANCE') {
-          triggerFlash('blue');
-          showToast(`Alliance Formed!`, 'info');
+          flash('blue');
+          toast(`Alliance Formed!`, 'info');
         } else if (type === 'ESTABLISH_TRADE_ROUTE') {
           const beforePlayer = beforeState?.players?.find(p => p.id === payload.playerId);
           const afterPlayer = afterState?.players?.find(p => p.id === payload.playerId);
@@ -454,20 +504,22 @@ export default function GameUI() {
               (br.fromCityId === r.fromCityId && br.toCityId === r.toCityId) ||
               (br.fromCityId === r.toCityId && br.toCityId === r.fromCityId)
             ));
-            triggerFlash('gold');
-            showToast(
+            flash('gold');
+            toast(
               newRoute ? `Trade Route Established (+${newRoute.starsPerTurn}★/turn)` : `Trade Route Established`,
               'reward'
             );
           } else {
-            triggerFlash('red');
-            showToast(`Trade Route Failed`, 'error');
+            flash('red');
+            toast(`Trade Route Failed`, 'error');
           }
         }
 
         // Add to game log
-        if (currentPlayer && gameState) {
-          const targetPlayer = gameState.players.find(p => p.id === payload.targetPlayerId);
+        const gs = useLocalGame.getState().gameState;
+        const current = gs?.players?.[gs?.currentPlayerIndex ?? 0];
+        if (current && gs) {
+          const targetPlayer = gs.players.find(p => p.id === payload.targetPlayerId);
           let message = '';
           if (type === 'DECLARE_WAR') {
             message = `Declared war on ${targetPlayer?.name || 'Unknown'}`;
@@ -483,9 +535,9 @@ export default function GameUI() {
 
           const newEntry = {
             id: `log_${Date.now()}`,
-            turn: gameState.turn,
-            playerId: currentPlayer.id,
-            playerName: currentPlayer.name,
+            turn: gs.turn,
+            playerId: current.id,
+            playerName: current.name,
             type: 'diplomacy',
             message,
             timestamp: Date.now(),
@@ -500,7 +552,7 @@ export default function GameUI() {
     return () => {
       window.removeEventListener('diplomacyAction', handleDiplomacyAction as EventListener);
     };
-  }, [currentPlayer, gameState]);
+  }, [isDev]);
 
   // Handle ruins rewards
   useEffect(() => {
@@ -511,18 +563,19 @@ export default function GameUI() {
         const reward = event.detail.reward;
         const coordinate = event.detail.coordinate;
 
+        const { triggerFlash: flash, showToast: toast } = visualRef.current;
         if (reward.type === 'curse') {
-          triggerFlash('red');
-          showToast('Cursed!', 'combat');
+          flash('red');
+          toast('Cursed!', 'combat');
         } else if (reward.rarity === 'legendary') {
-          triggerFlash('gold');
-          showToast('Legendary Find!', 'reward');
+          flash('gold');
+          toast('Legendary Find!', 'reward');
         } else if (reward.type === 'faith') {
-          triggerFlash('blue');
-          showToast('Divine Inspiration', 'info');
+          flash('blue');
+          toast('Divine Inspiration', 'info');
         } else {
-          triggerFlash('gold');
-          showToast('Ruins Explored', 'reward');
+          flash('gold');
+          toast('Ruins Explored', 'reward');
         }
 
         // Trigger floating map toasts with actual reward values
@@ -558,12 +611,14 @@ export default function GameUI() {
         }
 
         // Add to game log
-        if (currentPlayer && gameState) {
+        const gs = useLocalGame.getState().gameState;
+        const current = gs?.players?.[gs?.currentPlayerIndex ?? 0];
+        if (current && gs) {
           const newEntry = {
             id: `log_${Date.now()}`,
-            turn: gameState.turn,
-            playerId: currentPlayer.id,
-            playerName: currentPlayer.name,
+            turn: gs.turn,
+            playerId: current.id,
+            playerName: current.name,
             type: 'resource',
             message: `Explored ruins and found: ${reward.name}`,
             timestamp: Date.now(),
@@ -578,7 +633,7 @@ export default function GameUI() {
     return () => {
       window.removeEventListener('ruinsReward', handleRuinsReward as EventListener);
     };
-  }, [currentPlayer, gameState, addToast]); // Added addToast to dependency array
+  }, []);
 
 
 

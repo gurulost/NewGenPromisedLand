@@ -1,9 +1,10 @@
-import { useRef } from "react";
-import { useFrame, useLoader } from "@react-three/fiber";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { useRef, useMemo, useEffect } from "react";
+import { useFrame } from "@react-three/fiber";
+import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { hexToPixel } from "@shared/utils/hex";
 import { ConstructionItem } from "@shared/types/game";
+import { disposeClonedMaterials } from "../../lib/memoryUtils";
 
 interface ConstructionProps {
   construction: ConstructionItem;
@@ -22,16 +23,49 @@ export default function Construction({ construction }: ConstructionProps) {
   const coord = construction.coordinate ?? { q: 0, r: 0, s: 0 };
   const pixelPos = hexToPixel(coord, HEX_SIZE);
   
-  // Try to load the model based on construction type
-  let model = null;
-  try {
-    if (construction.type === 'boat') {
-      const gltf = useLoader(GLTFLoader as any, "/models/boat.glb");
-      model = gltf.scene.clone();
-    }
-  } catch (error) {
-    console.log(`No 3D model found for ${construction.type}, using placeholder`);
-  }
+  // Load shared assets once (useGLTF caches by URL). We clone for per-instance material edits.
+  const { scene: boatScene } = useGLTF("/models/boat.glb");
+
+  const clonedModel = useMemo(() => {
+    if (construction.type !== "boat") return null;
+
+    const clone = boatScene.clone();
+    clone.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      if (!child.material) return;
+
+      const material = child.material.clone();
+      material.transparent = true;
+      material.opacity = opacity;
+      if ("emissive" in material) {
+        (material as THREE.MeshStandardMaterial).emissive.setHex(0x404040);
+        (material as THREE.MeshStandardMaterial).emissiveIntensity = 0.1;
+      }
+      child.material = material;
+    });
+
+    return clone;
+  }, [boatScene, construction.type]); // do not re-clone every render
+
+  // Update ghost opacity without re-cloning.
+  useEffect(() => {
+    if (!clonedModel) return;
+    clonedModel.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      const material = child.material as any;
+      if (material && typeof material.opacity === "number") {
+        material.opacity = opacity;
+        material.transparent = true;
+        material.needsUpdate = true;
+      }
+    });
+  }, [clonedModel, opacity]);
+
+  useEffect(() => {
+    return () => {
+      disposeClonedMaterials(clonedModel);
+    };
+  }, [clonedModel]);
   
   // Animation - gentle bobbing for ghost effect
   useFrame((state) => {
@@ -46,10 +80,10 @@ export default function Construction({ construction }: ConstructionProps) {
       position={[pixelPos.x, 0.1, pixelPos.y]}
       scale={[0.8, 0.8, 0.8]} // Scale to fit within one tile
     >
-      {model ? (
+      {clonedModel ? (
         // Use the loaded 3D model
         <primitive 
-          object={model}
+          object={clonedModel}
           scale={[1, 1, 1]}
         />
       ) : (
@@ -70,7 +104,7 @@ export default function Construction({ construction }: ConstructionProps) {
             }
             transparent
             opacity={opacity}
-            emissive={new THREE.Color(0x404040)}
+            emissive={0x404040}
             emissiveIntensity={0.1}
           />
         </mesh>
