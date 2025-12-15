@@ -1,9 +1,10 @@
 import { useGLTF } from '@react-three/drei';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import type { City } from '@shared/types/city';
 import { getCityModelPath } from '../../utils/modelManager';
 import { GroundedModel } from './GroundedModel';
+import { disposeClonedMaterials } from '../../lib/memoryUtils';
 
 interface CityModelProps {
   city: City;
@@ -71,6 +72,13 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
     const bottomShift = -box.min.y;
     clonedScene.position.set(0, bottomShift, 0);
     return clonedScene;
+  }, [clonedScene]);
+
+  // Dispose cloned materials on unmount to free GPU memory
+  useEffect(() => {
+    return () => {
+      disposeClonedMaterials(clonedScene);
+    };
   }, [clonedScene]);
   
   return (

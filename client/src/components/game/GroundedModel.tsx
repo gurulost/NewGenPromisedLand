@@ -31,6 +31,10 @@ export function GroundedModel({
     object.position.set(0, bottomShift, 0);
   }, [object, bottomShift]);
 
+  // Note: No disposal needed here because GroundedModel uses scene.clone()
+  // which only clones the structure but keeps references to the original
+  // cached materials. The materials are managed by drei's useGLTF cache.
+
   return (
     <group 
       position={[position.x, tileY, position.y]} 
