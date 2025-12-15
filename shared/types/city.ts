@@ -3,7 +3,7 @@ import { HexCoordinateSchema } from "./coordinates";
 
 export const ImprovementTypeSchema = z.enum([
   'farm',
-  'mine', 
+  'mine',
   'forest_camp',
   'lumber_hut',
   'sawmill',
@@ -12,7 +12,8 @@ export const ImprovementTypeSchema = z.enum([
   'workshop',
   'port',
   'aqueduct',
-  'road'
+  'road',
+  'shrine'
 ]);
 
 export type ImprovementType = z.infer<typeof ImprovementTypeSchema>;
@@ -51,7 +52,8 @@ export const StructureSchema = z.object({
     starProduction: z.number().default(0),
     unitProduction: z.number().default(0),
     defenseBonus: z.number().default(0),
-    populationGrowth: z.number().default(0)
+    populationGrowth: z.number().default(0),
+    faithProduction: z.number().default(0),
   }).default({}),
 });
 
@@ -92,6 +94,7 @@ export interface ImprovementDefinition {
   constructionTime: number; // Turns to build
   effects?: {
     populationGrowth?: number;
+    faithProduction?: number;
     [key: string]: number | undefined;
   };
 }
@@ -107,7 +110,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     requiredTech: 'organization',
     constructionTime: 1
   },
-  
+
   mine: {
     id: 'mine',
     name: 'Mine',
@@ -167,7 +170,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     requiredTech: 'agriculture',
     constructionTime: 1
   },
-  
+
   irrigation: {
     id: 'irrigation',
     name: 'Irrigation',
@@ -178,7 +181,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     requiredTech: 'irrigation',
     constructionTime: 1
   },
-  
+
   workshop: {
     id: 'workshop',
     name: 'Workshop',
@@ -189,7 +192,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     requiredTech: 'bronze_working',
     constructionTime: 1
   },
-  
+
   port: {
     id: 'port',
     name: 'Port',
@@ -200,7 +203,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     requiredTech: 'sailing',
     constructionTime: 1
   },
-  
+
   aqueduct: {
     id: 'aqueduct',
     name: 'Aqueduct',
@@ -211,7 +214,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     requiredTech: 'engineering',
     constructionTime: 1
   },
-  
+
   road: {
     id: 'road',
     name: 'Road',
@@ -221,6 +224,20 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     validTerrain: ['plains', 'forest', 'desert'],
     requiredTech: 'organization',
     constructionTime: 1
+  },
+
+  shrine: {
+    id: 'shrine',
+    name: 'Shrine',
+    description: 'A sacred place of worship that strengthens the faith of your people',
+    cost: 6,
+    starProduction: 0,
+    validTerrain: ['plains', 'forest', 'mountain'],
+    requiredTech: 'spirituality',
+    constructionTime: 1,
+    effects: {
+      faithProduction: 2
+    }
   }
 };
 
@@ -237,6 +254,7 @@ export interface StructureDefinition {
     unitProduction: number;
     defenseBonus: number;
     populationGrowth: number;
+    faithProduction?: number;
   };
 }
 
@@ -255,7 +273,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
       populationGrowth: 1
     }
   },
-  
+
   granary: {
     id: 'granary',
     name: 'Granary',
@@ -270,7 +288,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
       populationGrowth: 2
     }
   },
-  
+
   lighthouse: {
     id: 'lighthouse',
     name: 'Lighthouse',
@@ -285,7 +303,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
       populationGrowth: 0
     }
   },
-  
+
   cathedral: {
     id: 'cathedral',
     name: 'Cathedral',
@@ -297,10 +315,11 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
       starProduction: 3,
       unitProduction: 0,
       defenseBonus: 1,
-      populationGrowth: 2
+      populationGrowth: 2,
+      faithProduction: 4
     }
   },
-  
+
   academy: {
     id: 'academy',
     name: 'Academy',
@@ -315,7 +334,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
       populationGrowth: 1
     }
   },
-  
+
   library: {
     id: 'library',
     name: 'Library',
@@ -330,7 +349,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
       populationGrowth: 1
     }
   },
-  
+
   fortress: {
     id: 'fortress',
     name: 'Fortress',

@@ -84,7 +84,8 @@ describe('Combat ability interactions', () => {
       attack: 0,
     });
 
-    const player1 = createPlayer({});
+    // Keep attacker faith below thresholds so this test isolates the aura effect.
+    const player1 = createPlayer({ stats: { faith: 40, pride: 30, internalDissent: 10 } });
     const player2 = createPlayer({
       id: 'player2',
       name: 'Defender',
