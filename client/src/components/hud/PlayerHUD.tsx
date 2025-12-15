@@ -12,6 +12,17 @@ import { DissentSystemTooltip, FaithSystemTooltip, PrideSystemTooltip, StarProdu
 import { PlayerState, GameState } from '@shared/types/game';
 import { getFaction } from '@shared/data/factions';
 import { getPlayerStats, PlayerStats } from '../../selectors/player';
+import { useAutosaveStatus } from '../../lib/stores/useAutosaveStatus';
+
+function formatRelativeTime(ts: number): string {
+  const deltaMs = Date.now() - ts;
+  if (deltaMs < 15_000) return 'just now';
+  const mins = Math.floor(deltaMs / 60_000);
+  if (mins < 1) return '<1m ago';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  return `${hours}h ago`;
+}
 
 interface PlayerHUDProps {
   player: PlayerState;
@@ -25,6 +36,7 @@ interface PlayerHUDProps {
 export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructionHall, onShowDiplomacy, onEndTurn }: PlayerHUDProps) {
   const faction = getFaction(player.factionId as any);
   const handleEndTurn = onEndTurn ?? (() => { });
+  const autosaveStatus = useAutosaveStatus();
 
   // Moved expensive calculations to selector
   const playerStats = useMemo(() =>
@@ -81,6 +93,18 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
           <div className="text-xs text-amber-300/70 font-normal">
             — Leader of the Promised Land —
           </div>
+          {autosaveStatus.lastFailureAt ? (
+            <div className="text-xs text-red-200/90 font-body">
+              Autosave unavailable — progress may be lost on reload
+            </div>
+          ) : autosaveStatus.lastSuccessAt ? (
+            <div className="text-xs text-amber-200/70 font-body">
+              Autosaved {autosaveStatus.lastSuccessTurn ? `turn ${autosaveStatus.lastSuccessTurn}` : 'game'} {formatRelativeTime(autosaveStatus.lastSuccessAt)}
+              {autosaveStatus.isSaving ? ' (saving…)': ''}
+            </div>
+          ) : autosaveStatus.isSaving ? (
+            <div className="text-xs text-amber-200/70 font-body">Autosaving…</div>
+          ) : null}
         </CardHeader>
 
         <CardContent className="space-y-4 bg-slate-900/40 p-4">

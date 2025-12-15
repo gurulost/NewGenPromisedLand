@@ -31,7 +31,8 @@ import { useMapToastStore, hexToWorldPos } from "../../lib/stores/useMapToasts";
 import { useParticleStore } from "../effects/ParticleEffects";
 import { pushCapped, MEMORY_LIMITS } from "../../lib/memoryUtils";
 import { useMemoryCleanup, useTurnEndCleanup } from "../../hooks/useMemoryCleanup";
-import { useAutosave } from "../../hooks/useAutosave";
+import { requestAutosaveIfDirty } from "../../lib/autosaveManager";
+import { useAutosaveStatus } from "../../lib/stores/useAutosaveStatus";
 import type { Unit } from "@shared/types/unit";
 
 interface ActiveNotification {
@@ -53,19 +54,46 @@ export default function GameUI() {
   const { toasts: mapToasts } = useMapToastStore();
   const addToast = useMapToastStore(state => state.addToast);
   const [activeNotification, setActiveNotification] = useState<ActiveNotification | null>(null);
+  const gameLogRef = useRef<any[]>([]);
+  const [gameLogEntries, setGameLogEntries] = useState<Array<{
+    id: string;
+    turn: number;
+    playerId: string;
+    playerName: string;
+    type: string;
+    message: string;
+    timestamp: number;
+  }>>([]);
 
   // Safety-net cleanup for long sessions (stale particles/map-toasts can linger when tab is backgrounded).
   useMemoryCleanup();
   useTurnEndCleanup(gameState?.turn || 0);
-  
-  // Persistent autosave during gameplay
-  useAutosave();
 
   // Keep latest visual-feedback functions for stable event listeners.
   const visualRef = useRef({ triggerFlash, showToast });
   useEffect(() => {
     visualRef.current = { triggerFlash, showToast };
   }, [triggerFlash, showToast]);
+
+  // Best-effort autosave on lifecycle events (helps avoid catastrophic loss on tab reclaim).
+  useEffect(() => {
+    const onHide = () => {
+      const gs = useLocalGame.getState().gameState;
+      if (!gs) return;
+      requestAutosaveIfDirty(gs, 'pagehide');
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) onHide();
+    };
+
+    window.addEventListener('pagehide', onHide);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
 
   // Dev-only: deterministic long-session simulation helper for memory profiling.
   useEffect(() => {
@@ -88,8 +116,68 @@ export default function GameUI() {
     return () => {
       try {
         delete (window as any).simulateTurns;
+        delete (window as any).getMemoryDebug;
+        delete (window as any).assertMemoryCaps;
       } catch {
         (window as any).simulateTurns = undefined;
+        (window as any).getMemoryDebug = undefined;
+        (window as any).assertMemoryCaps = undefined;
+      }
+    };
+  }, [isDev]);
+
+  // Dev-only: tiny memory dashboard (immediate regression visibility).
+  const autosave = useAutosaveStatus();
+  const particleCount = useParticleStore((s) => s.events.length);
+  const mapToastCount = useMapToastStore((s) => s.toasts.length);
+  const heapBytes =
+    (isDev && typeof (performance as any)?.memory?.usedJSHeapSize === 'number'
+      ? (performance as any).memory.usedJSHeapSize
+      : null) as number | null;
+
+  useEffect(() => {
+    gameLogRef.current = gameLogEntries;
+  }, [gameLogEntries]);
+
+  // Dev-only: expose debug getters/assertions for quick regression checks from console.
+  useEffect(() => {
+    if (!isDev) return;
+
+    (window as any).getMemoryDebug = () => {
+      const particles = useParticleStore.getState().events.length;
+      const mapToasts = useMapToastStore.getState().toasts.length;
+      const heap =
+        typeof (performance as any)?.memory?.usedJSHeapSize === 'number'
+          ? (performance as any).memory.usedJSHeapSize
+          : null;
+      return {
+        gameLogEntries: gameLogRef.current.length,
+        particles,
+        mapToasts,
+        heapBytes: heap,
+      };
+    };
+
+    (window as any).assertMemoryCaps = () => {
+      const stats = (window as any).getMemoryDebug?.() ?? {};
+      const ok =
+        (stats.gameLogEntries ?? 0) <= MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES &&
+        (stats.particles ?? 0) <= MEMORY_LIMITS.PARTICLE_MAX_EVENTS &&
+        (stats.mapToasts ?? 0) <= MEMORY_LIMITS.MAP_TOAST_MAX_ITEMS;
+      if (!ok) {
+        // eslint-disable-next-line no-console
+        console.warn('[MemoryCaps] Exceeded caps:', stats);
+      }
+      return { ok, stats };
+    };
+
+    return () => {
+      try {
+        delete (window as any).getMemoryDebug;
+        delete (window as any).assertMemoryCaps;
+      } catch {
+        (window as any).getMemoryDebug = undefined;
+        (window as any).assertMemoryCaps = undefined;
       }
     };
   }, [isDev]);
@@ -242,26 +330,28 @@ export default function GameUI() {
   const [ruinsReward, setRuinsReward] = useState<any | null>(null);
   const [showGameLog, setShowGameLog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [gameLogEntries, setGameLogEntries] = useState<Array<{
-    id: string;
-    turn: number;
-    playerId: string;
-    playerName: string;
-    type: string;
-    message: string;
-    timestamp: number;
-  }>>([]);
   // Local screenFlash state removed in favor of VisualFeedbackProvider
 
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
 
-  console.log('[GameUI] Rendering, gameState exists:', !!gameState, 'players:', gameState?.players?.length, 'currentPlayerIndex:', gameState?.currentPlayerIndex);
+  if (isDev) {
+    console.log(
+      '[GameUI] Rendering, gameState exists:',
+      !!gameState,
+      'players:',
+      gameState?.players?.length,
+      'currentPlayerIndex:',
+      gameState?.currentPlayerIndex
+    );
+  }
 
   if (!gameState) {
     console.warn('[GameUI] gameState is null, returning null');
     return null;
   }
+
+  const heapMb = heapBytes ? Math.round(heapBytes / (1024 * 1024)) : null;
 
   // Enable AI opponents
   useAITurn();
@@ -457,7 +547,7 @@ export default function GameUI() {
       if (event.detail?.unitId && event.detail?.coordinate) {
         const { unitId, coordinate } = event.detail;
 
-        console.log('🏘 Village encounter detected:', { unitId, coordinate });
+        if (isDev) console.log('🏘 Village encounter detected:', { unitId, coordinate });
 
         // Open village capture panel
         setSelectedVillage({
@@ -765,6 +855,17 @@ export default function GameUI() {
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10">
+      {isDev && (
+        <div className="fixed bottom-3 left-3 z-[300] rounded-md border border-white/10 bg-black/60 px-3 py-2 text-[11px] text-white/80 backdrop-blur pointer-events-auto">
+          <div className="font-semibold text-white/90">Dev Memory</div>
+          <div>Log: {gameLogEntries.length}/{MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES}</div>
+          <div>Particles: {particleCount}/{MEMORY_LIMITS.PARTICLE_MAX_EVENTS}</div>
+          <div>Map toasts: {mapToastCount}/{MEMORY_LIMITS.MAP_TOAST_MAX_ITEMS}</div>
+          <div>Autosave: {autosave.isSaving ? 'saving…' : autosave.dirty ? 'dirty' : 'ok'}</div>
+          {heapMb !== null && <div>Heap: ~{heapMb} MB</div>}
+          {autosave.lastFailureAt && <div className="text-red-200">Autosave failed</div>}
+        </div>
+      )}
       {/* Construction Mode Indicator - Positioned in top-right corner */}
       {constructionMode.isActive && (
         <div className="absolute top-4 right-4 pointer-events-auto z-50">

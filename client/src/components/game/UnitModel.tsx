@@ -134,54 +134,60 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         if (child.material) {
-          // Clone material to avoid modifying the original
-          const material = child.material.clone();
+          const cloneMaterial = (m: any) => (m && typeof m.clone === 'function' ? m.clone() : m);
 
-          // Adjust colors based on ownership
-          if (isPlayerUnit) {
-            // Player units get slightly brighter colors
-            if (material.color) {
-              material.color.multiplyScalar(1.1);
-            }
-            if (material.emissive) {
-              material.emissive.setHex(0x002200); // Subtle green tint
-            }
-          } else {
-            // Enemy units get cooler colors
-            if (material.color) {
-              material.color.multiplyScalar(0.9);
-            }
-            if (material.emissive) {
-              material.emissive.setHex(0x220000); // Subtle red tint
-            }
-          }
+          // Clone material(s) to avoid modifying the original
+          const clonedMaterial = Array.isArray(child.material)
+            ? child.material.map(cloneMaterial)
+            : cloneMaterial(child.material);
+          child.material = clonedMaterial;
 
-          // Enhanced glow for upgraded units
-          if (totalUpgrades > 0 && material.emissive) {
-            const glowIntensity = Math.min(totalUpgrades * 0.05, 0.25);
+          const materials = Array.isArray(clonedMaterial) ? clonedMaterial : [clonedMaterial];
+          for (const material of materials) {
+            // Adjust colors based on ownership
             if (isPlayerUnit) {
-              material.emissive.setHex(0x004444); // Cyan tint for upgraded player units
+              // Player units get slightly brighter colors
+              if (material?.color) {
+                material.color.multiplyScalar(1.1);
+              }
+              if (material?.emissive) {
+                material.emissive.setHex(0x002200); // Subtle green tint
+              }
             } else {
-              material.emissive.setHex(0x442200); // Orange tint for upgraded enemy units
+              // Enemy units get cooler colors
+              if (material?.color) {
+                material.color.multiplyScalar(0.9);
+              }
+              if (material?.emissive) {
+                material.emissive.setHex(0x220000); // Subtle red tint
+              }
             }
-            material.emissiveIntensity = 1 + glowIntensity;
-          }
 
-          // Add status-based effects
-          if (unit.status === 'stealthed') {
-            material.transparent = true;
-            material.opacity = 0.6;
-          } else if (unit.status === 'siege_mode') {
-            if (material.emissive) {
-              material.emissive.setHex(0x442200); // Orange glow for siege mode
+            // Enhanced glow for upgraded units
+            if (totalUpgrades > 0 && material?.emissive) {
+              const glowIntensity = Math.min(totalUpgrades * 0.05, 0.25);
+              if (isPlayerUnit) {
+                material.emissive.setHex(0x004444); // Cyan tint for upgraded player units
+              } else {
+                material.emissive.setHex(0x442200); // Orange tint for upgraded enemy units
+              }
+              material.emissiveIntensity = 1 + glowIntensity;
             }
-          } else if (unit.status === 'formation') {
-            if (material.emissive) {
-              material.emissive.setHex(0x000044); // Blue glow for formation
+
+            // Add status-based effects
+            if (unit.status === 'stealthed') {
+              material.transparent = true;
+              material.opacity = 0.6;
+            } else if (unit.status === 'siege_mode') {
+              if (material?.emissive) {
+                material.emissive.setHex(0x442200); // Orange glow for siege mode
+              }
+            } else if (unit.status === 'formation') {
+              if (material?.emissive) {
+                material.emissive.setHex(0x000044); // Blue glow for formation
+              }
             }
           }
-
-          child.material = material;
         }
       }
     });

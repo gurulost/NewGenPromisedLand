@@ -34,14 +34,21 @@ export default function Construction({ construction }: ConstructionProps) {
       if (!(child instanceof THREE.Mesh)) return;
       if (!child.material) return;
 
-      const material = child.material.clone();
-      material.transparent = true;
-      material.opacity = opacity;
-      if ("emissive" in material) {
-        (material as THREE.MeshStandardMaterial).emissive.setHex(0x404040);
-        (material as THREE.MeshStandardMaterial).emissiveIntensity = 0.1;
+      const cloneMaterial = (m: any) => (m && typeof m.clone === 'function' ? m.clone() : m);
+      const clonedMaterial = Array.isArray(child.material)
+        ? child.material.map(cloneMaterial)
+        : cloneMaterial(child.material);
+      child.material = clonedMaterial;
+
+      const materials = Array.isArray(clonedMaterial) ? clonedMaterial : [clonedMaterial];
+      for (const material of materials) {
+        material.transparent = true;
+        material.opacity = opacity;
+        if ("emissive" in material) {
+          (material as THREE.MeshStandardMaterial).emissive.setHex(0x404040);
+          (material as THREE.MeshStandardMaterial).emissiveIntensity = 0.1;
+        }
       }
-      child.material = material;
     });
 
     return clone;
