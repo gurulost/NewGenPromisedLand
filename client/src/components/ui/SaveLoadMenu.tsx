@@ -17,6 +17,7 @@ import {
   getLocalSavesSnapshot,
   type ServerSave, type SaveMetadata 
 } from "../../lib/saveApi";
+import { loadAutosave, type AutosavePayload } from "../../lib/autosaveStorage";
 
 interface SaveLoadMenuProps {
   onClose: () => void;
@@ -27,8 +28,9 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
   const { gameState, setGameState, setGamePhase } = useLocalGame();
   const initialSaves = getLocalSavesSnapshot();
   const [savedGames, setSavedGames] = useState<ServerSave[]>(initialSaves);
+  const [autosaveData, setAutosaveData] = useState<AutosavePayload | null>(null);
   const [saveName, setSaveName] = useState("");
-  const [selectedSave, setSelectedSave] = useState<number | null>(null);
+  const [selectedSave, setSelectedSave] = useState<number | string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,17 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
 
   useEffect(() => {
     loadSavedGamesList();
+    loadAutosaveData();
   }, []);
+
+  const loadAutosaveData = async () => {
+    try {
+      const autosave = await loadAutosave();
+      setAutosaveData(autosave);
+    } catch (err) {
+      console.error('Error loading autosave:', err);
+    }
+  };
 
   const loadSavedGamesList = async () => {
     setError(null);
@@ -80,7 +92,24 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
     }
   };
 
-  const loadGame = (saveId: number) => {
+  const loadGame = (saveId: number | string) => {
+    // Handle autosave
+    if (saveId === 'autosave' && autosaveData?.gameState) {
+      try {
+        setGameState(autosaveData.gameState);
+        if (onLoadFromMenu) {
+          setGamePhase('playing');
+        }
+        onClose();
+        console.log('Autosave loaded successfully');
+      } catch (err) {
+        console.error('Failed to load autosave:', err);
+        setError('Failed to load autosave');
+      }
+      return;
+    }
+
+    // Handle regular saves
     const save = savedGames.find(s => s.id === saveId);
     if (!save) return;
 
@@ -234,7 +263,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                   </span>
                 </GlowingButton>
               
-                {selectedSave && (
+                {selectedSave !== null && typeof selectedSave === 'number' && (
                   <GlowingButton
                     variant="secondary"
                     onClick={() => exportSave(selectedSave)}
@@ -259,13 +288,75 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                 <Loader2 className="w-12 h-12 text-amber-500 mx-auto mb-2 animate-spin" />
                 <p className="text-slate-400">Loading saved games...</p>
               </div>
-            ) : savedGames.length === 0 ? (
+            ) : savedGames.length === 0 && !autosaveData ? (
               <div className="text-center py-8">
                 <FolderOpen className="w-12 h-12 text-slate-600 mx-auto mb-2" />
                 <p className="text-slate-400">No saved games found</p>
               </div>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
+                {/* Autosave Entry */}
+                {autosaveData && (
+                  <motion.div
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      selectedSave === 'autosave'
+                        ? 'bg-blue-600/20 border-blue-500/50'
+                        : 'bg-amber-900/30 border-amber-600/50 hover:bg-amber-900/50'
+                    }`}
+                    onClick={() => setSelectedSave('autosave')}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-white text-lg">Last Session</h4>
+                          <Badge className="bg-amber-600 text-white text-xs">Auto</Badge>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 mt-2 text-sm text-slate-400">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(autosaveData.timestamp).toLocaleString()}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            {autosaveData.gameState.players.length} players
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            Turn {autosaveData.gameState.turn || 1}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="outline" className="text-xs text-slate-300 border-slate-500">
+                            {autosaveData.gameState.map.width}x{autosaveData.gameState.map.height}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs text-green-300 border-green-500/50">
+                            {autosaveData.gameState.players[autosaveData.gameState.currentPlayerIndex]?.name}'s turn
+                          </Badge>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-1 ml-2">
+                        <GlowingButton
+                          variant="secondary"
+                          size="sm"
+                          aria-label="Load"
+                          onClick={(e) => {
+                            e?.stopPropagation();
+                            loadGame('autosave');
+                          }}
+                        >
+                          <FolderOpen className="w-4 h-4" />
+                        </GlowingButton>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+                
+                {/* Regular Saves */}
                 {savedGames.map((save, index) => (
                   <motion.div
                     key={save.id}
@@ -340,7 +431,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
           </div>
 
           {/* Load Button */}
-              {selectedSave && (
+              {selectedSave !== null && (
                 <div className="flex justify-center pt-4">
                   <GlowingButton
                     onClick={() => loadGame(selectedSave)}
@@ -348,7 +439,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                   >
                     <span className="flex items-center justify-center gap-2">
                       <FolderOpen />
-                      Load Selected Game
+                      {selectedSave === 'autosave' ? 'Load Autosave' : 'Load Selected Game'}
                     </span>
                   </GlowingButton>
                 </div>
