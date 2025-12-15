@@ -32,16 +32,25 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
     loadSaveSlots();
   }, []);
 
-  // Auto-save every 5 minutes during gameplay
+  // Auto-save every 2 minutes during gameplay for better session recovery
   useEffect(() => {
     const autoSaveInterval = setInterval(() => {
       if (currentGameState.phase === 'playing') {
         createAutoSave();
       }
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 2 * 60 * 1000); // 2 minutes (reduced from 5 for better recovery)
 
     return () => clearInterval(autoSaveInterval);
   }, [currentGameState]);
+
+  // Auto-save on turn change for critical game state preservation
+  const prevTurnRef = React.useRef(currentGameState.turn);
+  useEffect(() => {
+    if (currentGameState.phase === 'playing' && currentGameState.turn !== prevTurnRef.current) {
+      prevTurnRef.current = currentGameState.turn;
+      createAutoSave();
+    }
+  }, [currentGameState.turn, currentGameState.phase]);
 
   const loadSaveSlots = () => {
     try {
