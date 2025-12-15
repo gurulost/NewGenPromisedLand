@@ -1930,7 +1930,7 @@ function handleEndTurn(
         }
       }
 
-      updatedStats.faith = Math.min(100, updatedStats.faith + faithGeneration);
+      updatedStats.faith = clampStat(updatedStats.faith + faithGeneration);
 
       // Process construction queue
       const updatedConstructionQueue = (player.constructionQueue || []).map(item => ({
@@ -2149,11 +2149,13 @@ function handleEndTurn(
   const currentPlayerData = updatedPlayers.find(p => p.id === currentPlayer.id);
   const isTestimonyFaction = currentPlayerData?.factionId === 'NEPHITES' || currentPlayerData?.factionId === 'ANTI_NEPHI_LEHIES';
 
-  if (isTestimonyFaction) {
-    const isEligibleEnemyUnit = (u: Unit): boolean => {
-      // Exclude civilians (prevents weird non-combat clumps).
-      return u.type !== 'worker' && u.type !== 'missionary' && u.type !== 'royal_envoy';
-    };
+	  if (isTestimonyFaction) {
+	    const isEligibleEnemyUnit = (u: Unit): boolean => {
+	      // Exclude civilian/influence units (prevents weird non-combat clumps and future drift).
+	      const def = getUnitDefinition(u.type as any);
+	      const tags = def?.tags ?? [];
+	      return !tags.includes('civilian') && !tags.includes('influence') && !tags.includes('diplomat');
+	    };
 
     const myMissionaries = updatedUnits.filter(u => u.playerId === currentPlayer.id && u.type === 'missionary');
     const affectedUnitIds = new Set<string>();
@@ -3371,9 +3373,9 @@ function handleFormAlliance(
 
 function handleConvertCity(
   state: GameState,
-  payload: { playerId: string; cityId: string; conversionType: 'faith' | 'pride' | 'peace' }
+  payload: { playerId: string; unitId?: string; cityId: string; conversionType: 'faith' | 'pride' | 'peace' }
 ): GameState {
-  const { playerId, cityId, conversionType } = payload;
+  const { playerId, unitId, cityId, conversionType } = payload;
 
   const player = state.players.find(p => p.id === playerId);
   if (!player) return state;
@@ -3381,14 +3383,27 @@ function handleConvertCity(
   const city = state.cities?.find(c => c.id === cityId);
   if (!city) return state;
 
-  // Check if player has a unit near the city
-  const playerUnits = state.units.filter(unit => unit.playerId === playerId);
-  const canConvert = playerUnits.some(unit => {
-    const distance = hexDistance(unit.coordinate, city.coordinate);
-    return distance <= GAME_RULES.abilities.conversionRadius && unit.type === 'missionary';
-  });
+  // City conversions are missionary actions: they require an eligible missionary and consume its turn.
+  const actingMissionary = (() => {
+    const candidateById = unitId ? state.units.find(u => u.id === unitId) : undefined;
+    const isEligible = (u: Unit | undefined): u is Unit =>
+      !!u &&
+      u.playerId === playerId &&
+      u.type === 'missionary' &&
+      !!u.abilities?.includes('convert') &&
+      !u.hasAttacked &&
+      u.remainingMovement > 0 &&
+      hexDistance(u.coordinate, city.coordinate) <= 1;
 
-  if (!canConvert) return state;
+    if (isEligible(candidateById)) return candidateById;
+
+    const candidates = state.units
+      .filter(u => isEligible(u))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    return candidates[0];
+  })();
+
+  if (!actingMissionary) return state;
 
   let resourceCost = 0;
   let statChanges = {};
@@ -3418,6 +3433,9 @@ function handleConvertCity(
 
   return {
     ...state,
+    units: state.units.map(u =>
+      u.id === actingMissionary.id ? { ...u, hasAttacked: true, remainingMovement: 0 } : u
+    ),
     players: state.players.map(p => {
       if (p.id === playerId) {
         return {

@@ -211,30 +211,100 @@ describe('Faith System', () => {
             expect(enemyUnit.statusEffects.some((e: any) => e?.type === 'TESTIMONY_PRESSURE')).toBe(true);
         });
 
-        it('does not apply to adjacent civilians (worker/missionary/envoy)', () => {
-            mockState.units = [
-                createMissionary('m1', 'nephite1', { q: 0, r: 0, s: 0 }),
-                createWorker('w1', 'lamanite1', { q: 1, r: 0, s: -1 }),
-                createMissionary('m2', 'lamanite1', { q: 0, r: 1, s: -1 }),
-                createEnvoy('e1', 'lamanite1', { q: 1, r: -1, s: 0 }),
-            ];
+	        it('does not apply to adjacent civilians (worker/missionary/envoy)', () => {
+	            mockState.units = [
+	                createMissionary('m1', 'nephite1', { q: 0, r: 0, s: 0 }),
+	                createWorker('w1', 'lamanite1', { q: 1, r: 0, s: -1 }),
+	                createMissionary('m2', 'lamanite1', { q: 0, r: 1, s: -1 }),
+	                createEnvoy('e1', 'lamanite1', { q: 1, r: -1, s: 0 }),
+	                createScribeTeacher('s1', 'lamanite1', { q: 0, r: -1, s: 1 }),
+	            ];
 
             const endTurnAction = { type: 'END_TURN' as const, payload: { playerId: 'nephite1' } };
             const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, endTurnAction as any);
 
             const worker: any = newState.units.find((u: any) => u.id === 'w1');
             const enemyMissionary: any = newState.units.find((u: any) => u.id === 'm2');
-            const envoy: any = newState.units.find((u: any) => u.id === 'e1');
+	            const envoy: any = newState.units.find((u: any) => u.id === 'e1');
+	            const scribe: any = newState.units.find((u: any) => u.id === 's1');
 
-            expect(worker?.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
-            expect(enemyMissionary?.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
-            expect(envoy?.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
-        });
+	            expect(worker?.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
+	            expect(enemyMissionary?.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
+		            expect(envoy?.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
+		            expect(scribe?.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
+		        });
 
-        it('expires after the affected player finishes their turn', () => {
-            const state: GameState = {
-                ...mockState,
-                rngSeed: 1,
+	        it('does not stack when multiple missionaries are adjacent (refresh/replace only)', () => {
+	            mockState.units = [
+	                createMissionary('m1', 'nephite1', { q: 0, r: 0, s: 0 }),
+	                createMissionary('m2', 'nephite1', { q: 0, r: 1, s: -1 }),
+	                createWarrior('e1', 'lamanite1', { q: 1, r: 0, s: -1 }),
+	            ];
+
+	            const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
+	            const enemyUnit: any = newState.units.find((u: any) => u.id === 'e1');
+	            const effects = (enemyUnit.statusEffects || []).filter((e: any) => e?.type === 'TESTIMONY_PRESSURE');
+	            expect(effects.length).toBe(1);
+	            expect(effects[0].attackPenalty).toBeGreaterThan(0);
+	        });
+
+	        it('clears temporary command buffs on affected units', () => {
+	            mockState.units = [
+	                createMissionary('m1', 'nephite1', { q: 0, r: 0, s: 0 }),
+	                {
+	                    ...createWarrior('e1', 'lamanite1', { q: 1, r: 0, s: -1 }),
+	                    status: 'rallied',
+	                    rallyBuff: true,
+	                    tacticalCommand: true,
+	                } as any,
+	            ];
+
+	            const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
+	            const enemyUnit: any = newState.units.find((u: any) => u.id === 'e1');
+	            expect(enemyUnit.status).toBe('active');
+	            expect(enemyUnit.rallyBuff).toBe(false);
+	            expect(enemyUnit.tacticalCommand).toBe(false);
+	        });
+
+	        it('does not clear unrelated statuses (e.g., siege_mode); only rally-related status is cleared', () => {
+	            mockState.units = [
+	                createMissionary('m1', 'nephite1', { q: 0, r: 0, s: 0 }),
+	                {
+	                    ...createWarrior('e1', 'lamanite1', { q: 1, r: 0, s: -1 }),
+	                    status: 'siege_mode',
+	                    rallyBuff: true,
+	                    tacticalCommand: true,
+	                } as any,
+	            ];
+
+	            const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
+	            const enemyUnit: any = newState.units.find((u: any) => u.id === 'e1');
+	            expect(enemyUnit.status).toBe('siege_mode');
+	            expect(enemyUnit.rallyBuff).toBe(false);
+	            expect(enemyUnit.tacticalCommand).toBe(false);
+	            expect(enemyUnit.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(true);
+	        });
+
+	        it('only applies when the acting player is Nephite/Anti-Nephi-Lehi', () => {
+	            mockState.players = [
+	                { ...nephitePlayer, factionId: 'ZORAMITES' as any },
+	                { ...lamanitePlayer },
+	            ] as any;
+	            mockState.currentPlayerIndex = 0;
+	            mockState.units = [
+	                createMissionary('m1', 'nephite1', { q: 0, r: 0, s: 0 }),
+	                createWarrior('e1', 'lamanite1', { q: 1, r: 0, s: -1 }),
+	            ];
+
+	            const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
+	            const enemyUnit: any = newState.units.find((u: any) => u.id === 'e1');
+	            expect(enemyUnit.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
+	        });
+
+	        it('expires after the affected player finishes their turn', () => {
+	            const state: GameState = {
+	                ...mockState,
+	                rngSeed: 1,
                 units: [
                     createMissionary('m1', 'nephite1', { q: 0, r: 0, s: 0 }),
                     createWarrior('e1', 'lamanite1', { q: 1, r: 0, s: -1 }),
@@ -316,8 +386,8 @@ function createWorker(id: string, playerId: string, coordinate: { q: number; r: 
     };
 }
 
-function createEnvoy(id: string, playerId: string, coordinate: { q: number; r: number; s: number }): Unit {
-    return {
+	function createEnvoy(id: string, playerId: string, coordinate: { q: number; r: number; s: number }): Unit {
+	    return {
         id,
         type: 'royal_envoy',
         playerId,
@@ -334,5 +404,26 @@ function createEnvoy(id: string, playerId: string, coordinate: { q: number; r: n
         experience: 0,
         abilities: ['DIPLOMACY'],
         level: 1
-    };
-}
+	    };
+	}
+
+	function createScribeTeacher(id: string, playerId: string, coordinate: { q: number; r: number; s: number }): Unit {
+	    return {
+	        id,
+	        type: 'scribe_teacher',
+	        playerId,
+	        coordinate,
+	        hp: 16,
+	        maxHp: 16,
+	        attack: 2,
+	        defense: 2,
+	        movement: 3,
+	        remainingMovement: 3,
+	        visionRadius: 2,
+	        attackRange: 1,
+	        status: 'active',
+	        experience: 0,
+	        abilities: [],
+	        level: 1
+	    };
+	}

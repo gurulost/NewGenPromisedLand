@@ -110,7 +110,14 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
       return 0.55; // Increased for civilian units
     } else if (unit.type === 'scout' || unit.type === 'wilderness_hunter') {
       return 0.6; // Increased for ranged units
-    } else if (unit.type === 'missionary' || unit.type === 'royal_envoy') {
+    } else if (
+      unit.type === 'missionary' ||
+      unit.type === 'royal_envoy' ||
+      unit.type === 'priestcraft_preacher' ||
+      unit.type === 'converted_missionary' ||
+      unit.type === 'scribe_teacher' ||
+      unit.type === 'prophet'
+    ) {
       return 0.58; // Increased for religious units
     } else if (unit.type === 'stripling_warrior') {
       return 0.7; // Slightly larger for elite Nephite warriors

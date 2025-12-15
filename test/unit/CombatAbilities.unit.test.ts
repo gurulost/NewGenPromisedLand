@@ -73,6 +73,34 @@ const baseState = (players: PlayerState[], units: Unit[]): GameState => ({
 });
 
 describe('Combat ability interactions', () => {
+  it('reduces attacker damage when the attacker is under testimony pressure', () => {
+    const attacker = createUnit({
+      id: 'attacker',
+      attack: 6,
+      statusEffects: [{ type: 'TESTIMONY_PRESSURE', turnsRemaining: 1, attackPenalty: 2, sourcePlayerId: 'player2' }] as any,
+    } as any);
+    const defender = createUnit({ id: 'defender', playerId: 'player2', defense: 4, coordinate: { q: 1, r: 0, s: -1 } });
+
+    // Keep both players faith below thresholds so this test isolates testimony pressure.
+    const player1 = createPlayer({ stats: { faith: 40, pride: 30, internalDissent: 10 } });
+    const player2 = createPlayer({
+      id: 'player2',
+      name: 'Defender',
+      factionId: 'LAMANITES',
+      stats: { faith: 40, pride: 30, internalDissent: 15 },
+      turnOrder: 1,
+    });
+
+    const state = baseState([player1, player2], [attacker, defender]);
+    const result = gameReducer(state, {
+      type: 'ATTACK_UNIT',
+      payload: { attackerId: 'attacker', targetId: 'defender' },
+    });
+
+    const updatedDefender = result.units.find(unit => unit.id === 'defender');
+    expect(updatedDefender?.hp).toBe(19); // (6-2) - 4 = 0 => min damage 1
+  });
+
   it('reduces damage when protective aura is present', () => {
     const attacker = createUnit({ id: 'attacker' });
     const defender = createUnit({ id: 'defender', playerId: 'player2', defense: 4 });

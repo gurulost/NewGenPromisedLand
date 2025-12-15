@@ -71,6 +71,36 @@ describe('Movement UI Flow (light integration)', () => {
     expect(screen.getByText('Abilities')).toBeInTheDocument();
   });
 
+  it('renders passive effects from unit definition (Per Turn)', () => {
+    render(
+      <SelectedUnitPanel
+        unit={
+          {
+            id: 'unit-2',
+            type: 'scribe_teacher',
+            playerId: 'player-1',
+            coordinate: { q: 0, r: 0, s: 0 },
+            hp: 16,
+            maxHp: 16,
+            attack: 2,
+            defense: 2,
+            movement: 3,
+            remainingMovement: 3,
+            visionRadius: 2,
+            attackRange: 1,
+            upgrades: {},
+            abilities: [],
+            status: 'active',
+            hasAttacked: false,
+          } as any
+        }
+      />,
+    );
+
+    expect(screen.getByText('Per Turn')).toBeInTheDocument();
+    expect(screen.getByText(/Request Trade cooldown/i)).toBeInTheDocument();
+  });
+
   it('cancels MovementControls and clears reachable coordinates', async () => {
     const user = userEvent.setup();
     const setMovementMode = vi.fn();
@@ -93,4 +123,3 @@ describe('Movement UI Flow (light integration)', () => {
     expect(setReachableCoordinates).toHaveBeenCalledWith([]);
   });
 });
-

@@ -93,6 +93,7 @@ export const UnitDefinitionSchema = z.object({
   type: UnitTypeSchema,
   name: z.string(),
   description: z.string(),
+  tags: z.array(z.string()).optional(),
   baseStats: z.object({
     hp: z.number(),
     attack: z.number(),

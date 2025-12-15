@@ -433,6 +433,13 @@ export function ActionTooltip({
 
 // Legacy specialized tooltip content components
 export function UnitTooltip({ unit, unitDef }: { unit: any; unitDef: any }) {
+  const passive = unitDef?.passiveEffects;
+  const perTurnParts: string[] = [];
+  if (passive?.perTurn?.stars) perTurnParts.push(`${passive.perTurn.stars > 0 ? '+' : ''}${passive.perTurn.stars}★/turn`);
+  if (passive?.perTurn?.faith) perTurnParts.push(`${passive.perTurn.faith > 0 ? '+' : ''}${passive.perTurn.faith} Faith/turn`);
+  if (passive?.perTurn?.pride) perTurnParts.push(`${passive.perTurn.pride > 0 ? '+' : ''}${passive.perTurn.pride} Pride/turn`);
+  if (passive?.perTurn?.dissent) perTurnParts.push(`${passive.perTurn.dissent > 0 ? '+' : ''}${passive.perTurn.dissent} Dissent/turn`);
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -459,6 +466,40 @@ export function UnitTooltip({ unit, unitDef }: { unit: any; unitDef: any }) {
           <div className="text-xs text-blue-300">
             {unitDef.abilities.join(', ')}
           </div>
+        </div>
+      )}
+
+      {(perTurnParts.length > 0 || passive?.perTurnWhen?.length || passive?.diplomacyCooldownDelta) && (
+        <div className="border-t border-slate-600 pt-2">
+          <div className="text-xs text-slate-300 mb-1">Per Turn:</div>
+          {perTurnParts.length > 0 && (
+            <div className="text-xs text-green-300">{perTurnParts.join(', ')}</div>
+          )}
+          {(passive?.perTurnWhen || []).map((cond: any, idx: number) => {
+            const statLabel = cond.stat === 'internalDissent' ? 'Dissent' : String(cond.stat).charAt(0).toUpperCase() + String(cond.stat).slice(1);
+            const condition =
+              typeof cond.gte === 'number'
+                ? `${statLabel} ≥ ${cond.gte}`
+                : typeof cond.lte === 'number'
+                  ? `${statLabel} ≤ ${cond.lte}`
+                  : statLabel;
+            const parts: string[] = [];
+            if (cond.perTurn?.stars) parts.push(`${cond.perTurn.stars > 0 ? '+' : ''}${cond.perTurn.stars}★/turn`);
+            if (cond.perTurn?.faith) parts.push(`${cond.perTurn.faith > 0 ? '+' : ''}${cond.perTurn.faith} Faith/turn`);
+            if (cond.perTurn?.pride) parts.push(`${cond.perTurn.pride > 0 ? '+' : ''}${cond.perTurn.pride} Pride/turn`);
+            if (cond.perTurn?.dissent) parts.push(`${cond.perTurn.dissent > 0 ? '+' : ''}${cond.perTurn.dissent} Dissent/turn`);
+            if (parts.length === 0) return null;
+            return (
+              <div key={idx} className="text-xs text-green-300">
+                When {condition}: {parts.join(', ')}
+              </div>
+            );
+          })}
+          {passive?.diplomacyCooldownDelta?.perTurn?.requestTrade && (
+            <div className="text-xs text-green-300">
+              Request Trade cooldown: {passive.diplomacyCooldownDelta.perTurn.requestTrade}/turn
+            </div>
+          )}
         </div>
       )}
     </div>
