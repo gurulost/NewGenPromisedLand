@@ -220,14 +220,14 @@ describe('Game State Validation Tests', () => {
     it('validates turn progression', () => {
       const gameState = createValidGameState();
       
-      expect(gameState.currentTurn).toBeGreaterThan(0);
+      expect(gameState.turn).toBeGreaterThan(0);
       expect(gameState.currentPlayerIndex).toBeGreaterThanOrEqual(0);
       expect(gameState.currentPlayerIndex).toBeLessThan(gameState.players.length);
     });
 
     it('validates game phase constraints', () => {
       const gameState = createValidGameState();
-      const validPhases = ['setup', 'main', 'combat', 'end'];
+      const validPhases = ['setup', 'playing', 'ended'];
       
       expect(validPhases).toContain(gameState.phase);
     });
@@ -239,12 +239,12 @@ describe('Game State Validation Tests', () => {
       expect(activePlayers.length).toBeGreaterThan(0);
       
       // If there's only one player in the test state, that's valid for a single-player scenario
-      // In actual game logic, when players are eliminated the game would transition to 'end' phase
-      if (activePlayers.length === 1 && gameState.phase === 'end') {
-        expect(gameState.phase).toBe('end');
+      // In actual game logic, when players are eliminated the game would transition to 'ended' phase
+      if (activePlayers.length === 1 && gameState.phase === 'ended') {
+        expect(gameState.phase).toBe('ended');
       } else if (activePlayers.length > 1) {
         // Multi-player game should be in progress
-        expect(['main', 'combat', 'setup']).toContain(gameState.phase);
+        expect(['playing', 'setup']).toContain(gameState.phase);
       }
     });
   });

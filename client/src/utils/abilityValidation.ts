@@ -40,13 +40,13 @@ export const validateAbilityForPlayer = (
   const reqs = ability.requirements;
 
   if (reqs?.faith && player.stats.faith < reqs.faith) {
-    unmet.push(`Faith ${player.stats.faith}/${reqs.faith}`);
+    unmet.push(`faith:${player.stats.faith}/${reqs.faith}`);
   }
   if (reqs?.pride && player.stats.pride < reqs.pride) {
-    unmet.push(`Pride ${player.stats.pride}/${reqs.pride}`);
+    unmet.push(`pride:${player.stats.pride}/${reqs.pride}`);
   }
   if (reqs?.dissent && player.stats.internalDissent < reqs.dissent) {
-    unmet.push(`Dissent ${player.stats.internalDissent}/${reqs.dissent}`);
+    unmet.push(`dissent:${player.stats.internalDissent}/${reqs.dissent}`);
   }
 
   if (unmet.length > 0) {

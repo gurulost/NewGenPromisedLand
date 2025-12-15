@@ -13,6 +13,7 @@ import { executeAbility } from "./abilitySystem";
 import { executeElementHarvest, executeElementBuild } from "./worldElementActions";
 import { HexCoordinate } from "../types/coordinates";
 import { isPassableForUnit } from "./unitLogic";
+import { emitTelemetry } from "./telemetry";
 
 function areCitiesConnectedByRoad(state: GameState, playerId: string, fromCityId: string, toCityId: string): boolean {
   if (fromCityId === toCityId) return false;
@@ -1156,16 +1157,34 @@ function handleMoveUnit(
 
   // Allow units to move and explore - no additional blocking logic needed
 
-  // Update unit position and movement
-  const updatedUnits = state.units.map((u: Unit) =>
-    u.id === payload.unitId
-      ? {
-        ...u,
-        coordinate: payload.targetCoordinate,
-        remainingMovement: u.remainingMovement - distance
+  const getTileAt = (coordinate: any) =>
+    state.map.tiles.find(t => t.coordinate.q === coordinate.q && t.coordinate.r === coordinate.r);
+
+  // Update unit position and movement (+ clear conditional buffs that depend on terrain)
+  const updatedUnits = state.units.map((u: Unit) => {
+    if (u.id !== payload.unitId) return u;
+
+    const nextCoordinate = payload.targetCoordinate;
+    const updatedUnit: Unit = {
+      ...u,
+      coordinate: nextCoordinate,
+      remainingMovement: u.remainingMovement - distance
+    };
+
+    // Guerrilla/forest bonuses are terrain-dependent; reset to base stats when leaving forest.
+    const unitDef = getUnitDefinition(updatedUnit.type);
+    const unitAbilities = new Set((unitDef.abilities || []).map(a => String(a).toUpperCase()));
+    const hasForestKit = unitAbilities.has('FOREST_STEALTH') || unitAbilities.has('AMBUSH');
+    if (hasForestKit) {
+      const destTile = getTileAt(nextCoordinate);
+      const isForest = destTile?.terrain === 'forest';
+      if (!isForest && updatedUnit.defense !== unitDef.baseStats.defense) {
+        updatedUnit.defense = unitDef.baseStats.defense;
       }
-      : u
-  );
+    }
+
+    return updatedUnit;
+  });
 
   // Use unit's actual vision radius from definition
   const unitDef = getUnitDefinition(unit.type);
@@ -1267,6 +1286,55 @@ function handleAttackUnit(
     return state;
   }
 
+  const normalizeAbility = (abilityId: string) => abilityId.toUpperCase();
+  const unitHasAbility = (unit: Unit, abilityId: string) =>
+    (unit.abilities || []).some(a => normalizeAbility(String(a)) === normalizeAbility(abilityId));
+
+  const attackerHasBombardment = unitHasAbility(attacker, 'BOMBARDMENT') || unitHasAbility(attacker, 'bombardment');
+
+  // Catapult bombardment requires siege_mode when firing at range.
+  if (attackerHasBombardment && distance > 1 && attacker.status !== 'siege_mode') {
+    emitTelemetry({
+      channel: 'combat',
+      status: 'blocked',
+      attackerId: attacker.id,
+      defenderId: target.id,
+      reason: 'catapult_not_deployed'
+    });
+    return state;
+  }
+
+  // Diplomacy: avoid combat when defender is an envoy-type with strong faith backing.
+  if (unitHasAbility(target, 'DIPLOMACY')) {
+    const defenderPlayer = state.players.find(p => p.id === target.playerId);
+    if (defenderPlayer && defenderPlayer.stats.faith >= 80) {
+      emitTelemetry({
+        channel: 'combat',
+        status: 'info',
+        attackerId: attacker.id,
+        defenderId: target.id,
+        reason: 'diplomacy_avoided'
+      });
+
+      const updatedPlayers = state.players.map(p => {
+        if (p.id !== attacker.playerId) return p;
+        return {
+          ...p,
+          stats: {
+            ...p.stats,
+            pride: Math.max(0, p.stats.pride - 3),
+          }
+        };
+      });
+
+      return {
+        ...state,
+        players: updatedPlayers,
+        units: state.units.map(u => u.id === attacker.id ? { ...u, hasAttacked: true } : u)
+      };
+    }
+  }
+
   // Calculate damage using data-driven modifier system with status effects
   let attackPower = attacker.attack;
   let defensePower = target.defense;
@@ -1312,7 +1380,19 @@ function handleAttackUnit(
   }
 
   // Calculate final damage
-  const damage = Math.max(1, attackPower - defensePower);
+  let damage = Math.max(1, attackPower - defensePower);
+
+  // Protective aura: allied guardian adjacent to defender reduces incoming damage.
+  const hasProtectiveAura = state.units.some(u =>
+    u.playerId === target.playerId &&
+    u.id !== target.id &&
+    unitHasAbility(u, 'PROTECTIVE_AURA') &&
+    hexDistance(u.coordinate, target.coordinate) <= 1
+  );
+  if (hasProtectiveAura) {
+    damage = Math.max(1, damage - 1);
+  }
+
   const newHp = Math.max(0, target.hp - damage);
 
   console.log(`Combat: ${attacker.type} (${attackPower} attack) vs ${target.type} (${defensePower} defense) = ${damage} damage`);
@@ -1324,13 +1404,39 @@ function handleAttackUnit(
     if (u.id === payload.attackerId) {
       // Remove stealth when attacking
       const newStatus = u.status === 'stealthed' ? 'active' : u.status;
-      return { ...u, hasAttacked: true, status: newStatus };
+      const isRangedBombardment = attackerHasBombardment && distance > 1;
+      return { ...u, hasAttacked: true, status: newStatus, remainingMovement: isRangedBombardment ? 0 : u.remainingMovement };
     }
     return u;
   });
 
+  // Splash damage during bombardment (adjacent to target).
+  if (attackerHasBombardment && attacker.status === 'siege_mode' && distance > 1) {
+    const splashDamage = Math.max(1, Math.floor(damage / 2));
+    updatedUnits = updatedUnits.map(u => {
+      if (u.playerId !== target.playerId) return u;
+      if (u.id === target.id) return u;
+      if (hexDistance(u.coordinate, target.coordinate) !== 1) return u;
+      return { ...u, hp: Math.max(0, u.hp - splashDamage) };
+    });
+  }
+
+  // Counter damage: defender retaliates if alive and in range.
+  const attackerAfter = updatedUnits.find(u => u.id === attacker.id);
+  const targetAfter = updatedUnits.find(u => u.id === target.id);
+  if (attackerAfter && targetAfter && targetAfter.hp > 0) {
+    const retaliateDistance = hexDistance(targetAfter.coordinate, attackerAfter.coordinate);
+    if (retaliateDistance <= targetAfter.attackRange && targetAfter.attack > 0) {
+      const counterDamage = Math.max(1, targetAfter.attack - attackerAfter.defense);
+      updatedUnits = updatedUnits.map(u =>
+        u.id === attackerAfter.id ? { ...u, hp: Math.max(0, u.hp - counterDamage) } : u
+      );
+    }
+  }
+
   // Remove unit if killed
   if (newHp <= 0) {
+    const killedUnit = target;
     updatedUnits = updatedUnits.filter((u: Unit) => u.id !== payload.targetId);
 
     // Apply data-driven death modifiers
@@ -1361,6 +1467,33 @@ function handleAttackUnit(
         });
       });
     }
+
+    // Blood Feud (Lamanites): nearby allies gain +2 attack when an allied unit dies.
+    if (targetPlayer?.factionId === 'LAMANITES') {
+      updatedUnits = updatedUnits.map(u => {
+        if (u.playerId !== targetPlayer.id) return u;
+        if (hexDistance(u.coordinate, killedUnit.coordinate) > 1) return u;
+        return { ...u, attack: u.attack + 2 };
+      });
+      emitTelemetry({
+        channel: 'combat',
+        status: 'success',
+        reason: 'blood_feud_triggered',
+        defenderId: killedUnit.id,
+        playerId: targetPlayer.id
+      });
+    }
+
+    // Protective stance: if guardian dies, clear adjacent ally defense back to base.
+    const killedHasProtectiveStance = unitHasAbility(killedUnit as any, 'PROTECTIVE_STANCE');
+    if (killedHasProtectiveStance) {
+      updatedUnits = updatedUnits.map(u => {
+        if (u.playerId !== killedUnit.playerId) return u;
+        if (hexDistance(u.coordinate, killedUnit.coordinate) > 1) return u;
+        const def = getUnitDefinition(u.type);
+        return { ...u, defense: def.baseStats.defense };
+      });
+    }
   }
 
   return {
@@ -1379,6 +1512,18 @@ function handleUseAbility(
   const ability = ABILITIES[payload.abilityId];
   if (!ability) return state;
 
+  const cooldownRemaining = player.abilityCooldowns?.[payload.abilityId] ?? 0;
+  if (cooldownRemaining > 0) {
+    emitTelemetry({
+      channel: 'ability',
+      status: 'blocked',
+      playerId: player.id,
+      abilityId: payload.abilityId,
+      reason: 'cooldown'
+    });
+    return state;
+  }
+
   // Check resource requirements
   if (ability.requirements) {
     if (ability.requirements.faith && player.stats.faith < ability.requirements.faith) return state;
@@ -1389,13 +1534,17 @@ function handleUseAbility(
   console.log(`Player ${player.name} using ability: ${ability.name}`);
 
   // Implement specific ability effects
+  let next: GameState = state;
   switch (payload.abilityId) {
     case 'TITLE_OF_LIBERTY':
-      return applyTitleOfLiberty(state, player);
+      next = applyTitleOfLiberty(state, player);
+      break;
     case 'RAMEUMPTOM':
-      return applyRameumptom(state, player);
+      next = applyRameumptom(state, player);
+      break;
     case 'COVENANT_OF_PEACE':
-      return applyCovenantOfPeace(state, player);
+      next = applyCovenantOfPeace(state, player);
+      break;
 
     // Nephite faction abilities
     case 'nephite_righteous_charge':
@@ -1435,8 +1584,31 @@ function handleUseAbility(
 
     default:
       console.warn(`Ability ${payload.abilityId} not implemented yet`);
-      return state;
+      next = state;
   }
+
+  if (next === state) return state;
+
+  const cooldown = ability.cooldown;
+  if (typeof cooldown === 'number' && cooldown > 0) {
+    next = {
+      ...next,
+      players: next.players.map(p =>
+        p.id === player.id
+          ? {
+            ...p,
+            abilityCooldowns: {
+              ...(p.abilityCooldowns || {}),
+              [payload.abilityId]: cooldown,
+            }
+          }
+          : p
+      )
+    };
+  }
+
+  emitTelemetry({ channel: 'ability', status: 'success', playerId: player.id, abilityId: payload.abilityId });
+  return next;
 }
 
 function handleEndTurn(
@@ -1547,7 +1719,7 @@ function handleEndTurn(
       ).length;
 
       // Drift: prosperity tends to inflate pride; pride tends to breed contention (dissent).
-      const prosperityScore = starIncome + Math.floor(player.stars / 10); // stable, moderate
+      const prosperityScore = starIncome + Math.floor(Math.max(0, player.stars - 10) / 15); // avoids early-game runaway pride
       const prideFromProsperity = Math.min(2, Math.floor(prosperityScore / 12));
       const dissentFromPride = Math.min(3, Math.floor(updatedStats.pride / 35));
       const dissentFromWar = wars > 0 ? Math.min(4, wars * 1) : 0;
@@ -1557,6 +1729,14 @@ function handleEndTurn(
         pride: prideFromProsperity,
         dissent: dissentFromPride + dissentFromWar - dissentRelief,
       });
+
+      // Humility pressure: sustained faith and worship tends to humble pride over time.
+      const prideHumble =
+        (updatedStats.faith >= 70 ? 1 : 0) +
+        (temples >= 1 ? 1 : 0);
+      if (prideHumble > 0) {
+        updatedStats = applyMoralDelta(updatedStats, { pride: -prideHumble });
+      }
 
       // Random-feeling events (scaled by Pride + Dissent). Moderate severity.
       const prideN = updatedStats.pride / 100;
@@ -1652,6 +1832,12 @@ function handleEndTurn(
         requestTrade: Math.max(0, currentCooldowns.requestTrade - 1),
       };
 
+      // Decrement ability cooldowns
+      const abilityCooldowns = player.abilityCooldowns || {};
+      const updatedAbilityCooldowns = Object.fromEntries(
+        Object.entries(abilityCooldowns).map(([key, value]) => [key, Math.max(0, value - 1)])
+      );
+
       // Tick down existing unrest AFTER it affected this turn's income
       updatedCities = updatedCities.map(city => {
         if (city.ownerId !== player.id) return city;
@@ -1676,7 +1862,8 @@ function handleEndTurn(
         tradeRoutes: validTradeRoutes,
         constructionQueue: ongoingConstructions,
         completedConstructions, // We'll handle this below
-        diplomaticCooldowns: updatedCooldowns
+        diplomaticCooldowns: updatedCooldowns,
+        abilityCooldowns: updatedAbilityCooldowns
       };
     }
     return player;
@@ -2386,10 +2573,16 @@ function handleBuildUnit(
 function applyTitleOfLiberty(state: GameState, player: PlayerState): GameState {
   if (player.stats.faith < 70) return state;
 
-  // Find all units within 3 tiles of any player unit and apply buff
-  // Implementation would be more complex in practice
   return {
     ...state,
+    units: state.units.map(u => {
+      if (u.playerId !== player.id) return u;
+      return {
+        ...u,
+        attack: u.attack + 2,
+        defense: u.defense + 2,
+      };
+    }),
     players: state.players.map(p =>
       p.id === player.id
         ? { ...p, stats: { ...p.stats, faith: p.stats.faith - 50 } }
@@ -2419,21 +2612,30 @@ function applyRameumptom(state: GameState, player: PlayerState): GameState {
 }
 
 function applyCovenantOfPeace(state: GameState, player: PlayerState): GameState {
-  // Anti-Nephi-Lehies: Instead of combat, convert nearby enemy units
-  console.log('Covenant of Peace activated - nearby enemies may convert');
+  // Attempt to convert a nearby enemy unit if faith advantage is significant.
+  const COST_FAITH = 15;
+  const REQUIRED_ADVANTAGE = 10;
+  if (player.stats.faith < COST_FAITH) return state;
+
+  const enemyCandidates = state.units
+    .filter(u => u.playerId !== player.id)
+    .filter(u => u.playerId !== undefined)
+    .filter(u => state.units.some(ally => ally.playerId === player.id && hexDistance(ally.coordinate, u.coordinate) <= 2));
+
+  if (enemyCandidates.length === 0) return state;
+
+  const chosen = enemyCandidates[0];
+  const enemyPlayer = state.players.find(p => p.id === chosen.playerId);
+  const enemyFaith = enemyPlayer?.stats.faith ?? 0;
+  const advantage = player.stats.faith - enemyFaith;
+  if (advantage < REQUIRED_ADVANTAGE) return state;
 
   return {
     ...state,
+    units: state.units.map(u => u.id === chosen.id ? { ...u, playerId: player.id } : u),
     players: state.players.map(p =>
       p.id === player.id
-        ? {
-          ...p,
-          stats: {
-            ...p.stats,
-            faith: Math.min(100, p.stats.faith + 10),
-            internalDissent: Math.max(0, p.stats.internalDissent - 15)
-          }
-        }
+        ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - COST_FAITH) } }
         : p
     )
   };
@@ -2497,26 +2699,20 @@ function applyFaithHealing(state: GameState, payload: any): GameState {
 
 // Lamanite Faction Abilities
 function applyGuerrillaTactics(state: GameState, payload: any): GameState {
-  const unit = state.units.find(u => u.id === payload.unitId);
-  if (!unit) return state;
+  const player = state.players.find(p => p.id === payload.playerId);
+  if (!player) return state;
 
-  // Guerrilla Tactics: Hide in forest/jungle terrain for defense bonus
-  const unitTile = state.map.tiles.find(tile =>
-    tile.coordinate.q === unit.coordinate.q &&
-    tile.coordinate.r === unit.coordinate.r
-  );
+  // Guerrilla Tactics: units positioned in forest gain a defense bonus until they leave the forest.
+  const bonus = GAME_RULES.abilities.attackBonuses.guerrillaBonus;
+  const updatedUnits = state.units.map(u => {
+    if (u.playerId !== player.id) return u;
+    const tile = state.map.tiles.find(t => t.coordinate.q === u.coordinate.q && t.coordinate.r === u.coordinate.r);
+    if (tile?.terrain !== 'forest') return u;
+    return { ...u, defense: u.defense + bonus };
+  });
 
-  if (unitTile && (unitTile.terrain === 'plains' || unitTile.terrain === 'swamp')) {
-    return {
-      ...state,
-      units: state.units.map(u =>
-        u.id === unit.id
-          ? { ...u, defense: u.defense + GAME_RULES.abilities.attackBonuses.guerrillaBonus, status: 'active' as const }
-          : u
-      )
-    };
-  }
-  return state;
+  if (updatedUnits === state.units) return state;
+  return { ...state, units: updatedUnits };
 }
 
 function applyAncestralRage(state: GameState, payload: any): GameState {

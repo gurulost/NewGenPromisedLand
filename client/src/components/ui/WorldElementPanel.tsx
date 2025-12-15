@@ -65,7 +65,7 @@ export interface WorldElementPanelProps {
 }
 
 export function WorldElementPanel(props: WorldElementPanelProps) {
-  const { gameState, playerId, elementId, onAction, onClose } = props;
+  const { gameState, playerId, elementId, coordinate, onAction, onClose } = props;
   const element = getWorldElement(elementId);
   const player = gameState.players.find(p => p.id === playerId);
 
@@ -79,8 +79,60 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
 
   if (!element || !player) return null;
 
-  const harvest = canExecuteElementAction(gameState, playerId, elementId, 'harvest');
-  const build   = canExecuteElementAction(gameState, playerId, elementId, 'build');
+  const harvest = canExecuteElementAction(gameState, playerId, elementId, 'harvest', coordinate);
+  const build   = canExecuteElementAction(gameState, playerId, elementId, 'build', coordinate);
+
+  const displayedLongTermAction = useMemo(() => {
+    if (!element.longTermBuild) return null;
+
+    const tile = gameState.map.tiles.find(t =>
+      t.coordinate.q === coordinate.q && t.coordinate.r === coordinate.r
+    );
+    const markerPrefix = `we:${elementId}:`;
+    const existingMarker = tile?.resources?.find(r => String(r).startsWith(markerPrefix));
+    if (!existingMarker) return element.longTermBuild;
+
+    const base = element.longTermBuild;
+    const baseMarker = `${markerPrefix}${base.name}`;
+    const upgrade = base.upgrade;
+    if (
+      upgrade &&
+      existingMarker === baseMarker &&
+      player.researchedTechs.includes(upgrade.techRequired)
+    ) {
+      const baseStars = base.effectPermanent?.starsPerTurn || 0;
+      const basePop = base.effectPermanent?.popDelta || 0;
+      const upgradedStars = upgrade.effectPermanent?.starsPerTurn || 0;
+      const upgradedPop = upgrade.effectPermanent?.popDelta || 0;
+      const deltaStars = upgradedStars - baseStars;
+      const deltaPop = upgradedPop - basePop;
+
+      return {
+        ...base,
+        name: `Upgrade to ${upgrade.structure}`,
+        costStars: upgrade.costStars || 0,
+        faithDelta: 0,
+        prideDelta: 0,
+        dissentDelta: 0,
+        effectPermanent: {
+          popDelta: deltaPop,
+          starsPerTurn: deltaStars
+        },
+        uiTooltipBuild: `${upgrade.structure}: ${deltaStars > 0 ? `+${deltaStars}★/turn` : ''}${deltaPop > 0 ? `, +${deltaPop} Pop` : ''}`.trim(),
+      };
+    }
+
+    return {
+      ...base,
+      name: `${base.name} (Built)`,
+      costStars: 0,
+      faithDelta: 0,
+      prideDelta: 0,
+      dissentDelta: 0,
+      effectPermanent: { popDelta: 0, starsPerTurn: 0 },
+      uiTooltipBuild: 'Already constructed',
+    };
+  }, [coordinate.q, coordinate.r, element, elementId, gameState.map.tiles, player.researchedTechs]);
 
   const moralMsg = useMemo(() => {
     const msgs: string[] = [];
@@ -153,12 +205,12 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
             )}
 
             {/* LONG‑TERM ACTION */}
-            {element.longTermBuild && (
+            {displayedLongTermAction && (
               <StaggeredContent>
                 <ActionSection
                   label="Long‑term"
                   badgeColor="secondary"
-                  action={element.longTermBuild}
+                  action={displayedLongTermAction}
                   canExecute={build}
                   onClick={() => onAction('build')}
                   theme="blue"

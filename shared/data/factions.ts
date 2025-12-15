@@ -120,10 +120,11 @@ export const FACTIONS: Record<FactionId, Faction> = {
       {
         id: 'COVENANT_OF_PEACE',
         name: 'Covenant of Peace',
-        description: 'When attacked, convert attacking units instead of fighting back.',
+        description: 'Attempt to convert a nearby enemy unit through faith. Costs 15 Faith.',
         cost: 0,
-        cooldown: 0,
-        type: 'passive',
+        cooldown: 6,
+        type: 'active',
+        requirements: { faith: 15 },
       },
       {
         id: 'MISSIONARY_ZEAL',

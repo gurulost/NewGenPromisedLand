@@ -72,11 +72,18 @@ const createState = (players: PlayerState[], units: Unit[]): GameState => ({
 describe('getUnitAbilityStates', () => {
   it('marks missionary abilities ready with sufficient faith and tech', () => {
     const missionary = createUnit();
+    const enemy = createUnit({
+      id: 'enemy1',
+      type: 'warrior',
+      playerId: 'player2',
+      coordinate: { q: 1, r: 0, s: -1 },
+      abilities: [],
+    });
     const player = createPlayer({
       stats: { faith: 30, pride: 10, internalDissent: 5 },
       researchedTechs: ['spirituality'],
     });
-    const state = createState([player], [missionary]);
+    const state = createState([player] as any, [missionary, enemy]);
 
     const abilityStates = getUnitAbilityStates(missionary, player, state);
     const heal = abilityStates.find(state => state.abilityId === 'HEAL');
