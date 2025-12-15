@@ -52,16 +52,16 @@ export function executeBlessing(
 
   const faithCost = ability.requirements?.faith || 30;
   if (player.stats.faith < faithCost) {
-    return { 
-      success: false, 
-      message: `Insufficient faith. Need ${faithCost}, have ${player.stats.faith}` 
+    return {
+      success: false,
+      message: `Insufficient faith. Need ${faithCost}, have ${player.stats.faith}`
     };
   }
 
   // Affect all allied units in 2-tile radius
   const blessingRadius = 2;
   const affectedTiles = [targetArea, ...hexNeighbors(targetArea)];
-  
+
   // Add second ring
   affectedTiles.forEach(tile => {
     hexNeighbors(tile).forEach(neighbor => {
@@ -71,9 +71,9 @@ export function executeBlessing(
     });
   });
 
-  const affectedUnits = state.units.filter(unit => 
+  const affectedUnits = state.units.filter(unit =>
     unit.playerId === caster.playerId &&
-    affectedTiles.some(tile => 
+    affectedTiles.some(tile =>
       tile.q === unit.coordinate.q && tile.r === unit.coordinate.r
     )
   );
@@ -82,8 +82,8 @@ export function executeBlessing(
 
   const newState = {
     ...state,
-    players: state.players.map(p => 
-      p.id === player.id 
+    players: state.players.map(p =>
+      p.id === player.id
         ? { ...p, stats: { ...p.stats, faith: p.stats.faith - faithCost } }
         : p
     ),
@@ -126,7 +126,7 @@ export function executeConversion(
 
   const caster = state.units.find(u => u.id === casterId);
   const target = state.units.find(u => u.id === targetUnitId);
-  
+
   if (!caster || !target) {
     return { success: false, message: "Caster or target not found" };
   }
@@ -140,11 +140,11 @@ export function executeConversion(
     return { success: false, message: "Player not found" };
   }
 
-  const faithCost = ability.requirements?.faith || 50;
+  const faithCost = GAME_RULES.abilities.resourceCosts.conversion;
   if (player.stats.faith < faithCost) {
-    return { 
-      success: false, 
-      message: `Insufficient faith. Need ${faithCost}, have ${player.stats.faith}` 
+    return {
+      success: false,
+      message: `Insufficient faith. Need ${faithCost}, have ${player.stats.faith}`
     };
   }
 
@@ -156,9 +156,9 @@ export function executeConversion(
   // Conversion success based on relative faith and target's health
   const targetPlayer = state.players.find(p => p.id === target.playerId);
   const targetFaith = targetPlayer?.stats.faith || 0;
-  
-  const conversionChance = Math.min(0.9, 
-    (player.stats.faith - targetFaith + 50) / 100 * 
+
+  const conversionChance = Math.min(0.9,
+    (player.stats.faith - targetFaith + 50) / 100 *
     (1 - target.hp / target.maxHp) // Wounded units easier to convert
   );
 
@@ -167,13 +167,13 @@ export function executeConversion(
   if (!success) {
     const newState = {
       ...state,
-      players: state.players.map(p => 
-        p.id === player.id 
+      players: state.players.map(p =>
+        p.id === player.id
           ? { ...p, stats: { ...p.stats, faith: p.stats.faith - faithCost } }
           : p
       )
     };
-    
+
     return {
       success: false,
       message: "Conversion attempt failed",
@@ -184,18 +184,18 @@ export function executeConversion(
 
   const newState = {
     ...state,
-    players: state.players.map(p => 
-      p.id === player.id 
+    players: state.players.map(p =>
+      p.id === player.id
         ? { ...p, stats: { ...p.stats, faith: p.stats.faith - faithCost } }
         : p
     ),
-    units: state.units.map(unit => 
-      unit.id === target.id 
-        ? { 
-            ...unit, 
-            playerId: caster.playerId,
-            hp: Math.min(unit.maxHp, unit.hp + GAME_RULES.units.healingAmount) // Heal converted unit
-          }
+    units: state.units.map(unit =>
+      unit.id === target.id
+        ? {
+          ...unit,
+          playerId: caster.playerId,
+          hp: Math.min(unit.maxHp, unit.hp + GAME_RULES.units.healingAmount) // Heal converted unit
+        }
         : unit
     )
   };
@@ -237,19 +237,19 @@ export function executeDivineProtection(
 
   const faithCost = ability.requirements?.faith || 60;
   if (player.stats.faith < faithCost) {
-    return { 
-      success: false, 
-      message: `Insufficient faith. Need ${faithCost}, have ${player.stats.faith}` 
+    return {
+      success: false,
+      message: `Insufficient faith. Need ${faithCost}, have ${player.stats.faith}`
     };
   }
 
   // Protection radius
   const protectionRadius = 1;
   const affectedTiles = [targetArea, ...hexNeighbors(targetArea)];
-  
-  const protectedUnits = state.units.filter(unit => 
+
+  const protectedUnits = state.units.filter(unit =>
     unit.playerId === caster.playerId &&
-    affectedTiles.some(tile => 
+    affectedTiles.some(tile =>
       tile.q === unit.coordinate.q && tile.r === unit.coordinate.r
     )
   );
@@ -257,8 +257,8 @@ export function executeDivineProtection(
   // Add divine protection status (would need to extend unit schema for temporary effects)
   const newState = {
     ...state,
-    players: state.players.map(p => 
-      p.id === player.id 
+    players: state.players.map(p =>
+      p.id === player.id
         ? { ...p, stats: { ...p.stats, faith: p.stats.faith - faithCost } }
         : p
     ),
@@ -308,24 +308,24 @@ export function executeEnlightenment(
 
   const faithCost = ability.requirements?.faith || 80;
   if (player.stats.faith < faithCost) {
-    return { 
-      success: false, 
-      message: `Insufficient faith. Need ${faithCost}, have ${player.stats.faith}` 
+    return {
+      success: false,
+      message: `Insufficient faith. Need ${faithCost}, have ${player.stats.faith}`
     };
   }
 
   // Grant bonus research points or reduce next tech cost
   const researchBonus = 50; // Percentage of next tech cost
-  
+
   const newState = {
     ...state,
-    players: state.players.map(p => 
-      p.id === player.id 
-        ? { 
-            ...p, 
-            stats: { ...p.stats, faith: p.stats.faith - faithCost },
-            // Could add enlightenment effect to player state
-          }
+    players: state.players.map(p =>
+      p.id === player.id
+        ? {
+          ...p,
+          stats: { ...p.stats, faith: p.stats.faith - faithCost },
+          // Could add enlightenment effect to player state
+        }
         : p
     )
   };
@@ -398,11 +398,11 @@ export function canUseAbility(
   if (!ability) return false;
 
   // Check if player has the required technology
-  const requiredTechs = Object.entries(TECHNOLOGIES).filter(([_, tech]) => 
+  const requiredTechs = Object.entries(TECHNOLOGIES).filter(([_, tech]) =>
     tech.unlocks.abilities?.includes(abilityId)
   );
 
-  return requiredTechs.some(([techId, _]) => 
+  return requiredTechs.some(([techId, _]) =>
     player.researchedTechs.includes(techId)
   );
 }

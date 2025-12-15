@@ -33,7 +33,7 @@ export function calculateCombatDamage(
 ): CombatResult {
   const attackerDef = getUnitDefinition(attacker.type);
   const defenderDef = getUnitDefinition(defender.type);
-  
+
   let attackerAttack = attacker.attack;
   let defenderDefense = defender.defense;
   const specialEffects: string[] = [];
@@ -50,13 +50,13 @@ export function calculateCombatDamage(
 
   // Formation Fighting (Spearmen near each other)
   if (attacker.type === 'spearman' && attackerDef.abilities.includes('FORMATION_FIGHTING')) {
-    const nearbySpearmen = state.units.filter(u => 
-      u.playerId === attacker.playerId && 
-      u.type === 'spearman' && 
+    const nearbySpearmen = state.units.filter(u =>
+      u.playerId === attacker.playerId &&
+      u.type === 'spearman' &&
       u.id !== attacker.id &&
       hexDistance(u.coordinate, attacker.coordinate) === 1
     ).length;
-    
+
     if (nearbySpearmen > 0) {
       const formationBonus = nearbySpearmen * 2;
       attackerAttack += formationBonus;
@@ -80,7 +80,7 @@ export function calculateCombatDamage(
         message: "Catapult must be setup before attacking"
       };
     }
-    
+
     // Extra damage to structures and cities
     if (defender.type === 'guard') { // Representing city defenders
       attackerAttack *= 2;
@@ -131,10 +131,34 @@ export function calculateCombatDamage(
   const attackerPlayer = state.players.find(p => p.id === attacker.playerId);
   const defenderPlayer = state.players.find(p => p.id === defender.playerId);
 
-  // Faith-based combat bonuses
-  if (attackerPlayer && attackerPlayer.stats.faith >= 70) {
-    attackerAttack += 2;
-    specialEffects.push("High faith combat bonus (+2 attack)");
+  // Faith-based combat bonuses (tiered system)
+  if (attackerPlayer) {
+    const { lowThreshold, highThreshold, lowDefenseBonus, highAttackBonus, highDefenseBonus } = GAME_RULES.faithBonuses;
+    const attackerFaith = attackerPlayer.stats.faith;
+
+    if (attackerFaith >= highThreshold) {
+      // High faith: +2 attack AND +1 defense
+      attackerAttack += highAttackBonus;
+      specialEffects.push(`High faith combat bonus (+${highAttackBonus} attack)`);
+      // Note: defense bonus applies to attacker when defending in counterattack
+    } else if (attackerFaith >= lowThreshold) {
+      // Moderate faith: +1 defense only (applied to attack calculation as morale)
+      specialEffects.push(`Moderate faith morale (+${lowDefenseBonus} defense)`);
+    }
+  }
+
+  // Defender faith-based defense bonuses
+  if (defenderPlayer) {
+    const { lowThreshold, highThreshold, lowDefenseBonus, highDefenseBonus } = GAME_RULES.faithBonuses;
+    const defenderFaith = defenderPlayer.stats.faith;
+
+    if (defenderFaith >= highThreshold) {
+      defenderDefense += highDefenseBonus;
+      specialEffects.push(`Defender high faith (+${highDefenseBonus} defense)`);
+    } else if (defenderFaith >= lowThreshold) {
+      defenderDefense += lowDefenseBonus;
+      specialEffects.push(`Defender faith bonus (+${lowDefenseBonus} defense)`);
+    }
   }
 
   // Pride-based combat bonuses
@@ -184,26 +208,26 @@ export function calculateRangedAttack(
   attacker: Unit,
   targetCoordinate: HexCoordinate,
   state: GameState
-): { 
-  success: boolean; 
-  affectedUnits: Unit[]; 
-  damage: number; 
+): {
+  success: boolean;
+  affectedUnits: Unit[];
+  damage: number;
   message: string;
   specialEffects: string[];
 } {
   const attackerDef = getUnitDefinition(attacker.type);
-  
+
   if (attacker.type === 'catapult' && attackerDef.abilities.includes('LONG_RANGE_BOMBARDMENT')) {
     // Area of effect attack
     const bombardmentRadius = 1;
     const baseDamage = attacker.attack;
-    
+
     // Find all units in bombardment area
-    const affectedUnits = state.units.filter(unit => 
+    const affectedUnits = state.units.filter(unit =>
       unit.playerId !== attacker.playerId &&
       hexDistance(unit.coordinate, targetCoordinate) <= bombardmentRadius
     );
-    
+
     return {
       success: true,
       affectedUnits,
@@ -212,7 +236,7 @@ export function calculateRangedAttack(
       specialEffects: ["Area bombardment attack"]
     };
   }
-  
+
   return {
     success: false,
     affectedUnits: [],
@@ -238,7 +262,7 @@ export function calculateHealing(
 } {
   const healerDef = getUnitDefinition(healer.type);
   const player = state.players.find(p => p.id === healer.playerId);
-  
+
   if (!player) {
     return {
       success: false,
@@ -254,7 +278,7 @@ export function calculateHealing(
     const healingRange = 2;
     const healingAmount = GAME_RULES.units.healingAmount;
     const faithCost = 20;
-    
+
     if (player.stats.faith < faithCost) {
       return {
         success: false,
@@ -264,14 +288,14 @@ export function calculateHealing(
         faithCost: 0
       };
     }
-    
-    const healedUnits = state.units.filter(unit => 
+
+    const healedUnits = state.units.filter(unit =>
       unit.playerId === healer.playerId &&
       unit.id !== healer.id &&
       hexDistance(unit.coordinate, targetArea) <= healingRange &&
       unit.hp < unit.maxHp
     );
-    
+
     return {
       success: true,
       healedUnits,
@@ -280,7 +304,7 @@ export function calculateHealing(
       faithCost
     };
   }
-  
+
   return {
     success: false,
     healedUnits: [],
@@ -306,7 +330,7 @@ export function calculateConversion(
   const converterDef = getUnitDefinition(converter.type);
   const converterPlayer = state.players.find(p => p.id === converter.playerId);
   const targetPlayer = state.players.find(p => p.id === target.playerId);
-  
+
   if (!converterPlayer || !targetPlayer) {
     return {
       success: false,
@@ -317,9 +341,9 @@ export function calculateConversion(
   }
 
   if (converter.type === 'missionary' && converterDef.abilities.includes('CONVERT')) {
-    const faithCost = 50;
+    const faithCost = GAME_RULES.abilities.resourceCosts.conversion;
     const distance = hexDistance(converter.coordinate, target.coordinate);
-    
+
     if (distance > 1) {
       return {
         success: false,
@@ -328,7 +352,7 @@ export function calculateConversion(
         faithCost: 0
       };
     }
-    
+
     if (converterPlayer.stats.faith < faithCost) {
       return {
         success: false,
@@ -337,16 +361,16 @@ export function calculateConversion(
         faithCost: 0
       };
     }
-    
+
     // Conversion chance based on faith difference and target health
     const faithDifference = converterPlayer.stats.faith - targetPlayer.stats.faith;
     const healthFactor = 1 - (target.hp / target.maxHp); // Wounded units easier to convert
     const baseChance = 0.3;
-    
-    const conversionChance = Math.min(0.9, 
+
+    const conversionChance = Math.min(0.9,
       baseChance + (faithDifference / 100) + (healthFactor * 0.3)
     );
-    
+
     return {
       success: true,
       conversionChance,
@@ -354,7 +378,7 @@ export function calculateConversion(
       faithCost
     };
   }
-  
+
   return {
     success: false,
     conversionChance: 0,

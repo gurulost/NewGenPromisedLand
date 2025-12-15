@@ -2,6 +2,7 @@ import { Unit } from '../types/unit';
 import { GameState } from '../types/game';
 import { getUnitDefinition } from '../data/units';
 import { getActiveModifiers } from '../data/modifiers';
+import { GAME_RULES } from '../data/gameRules';
 import { hexDistance } from '../utils/hex';
 
 export interface CombatPreview {
@@ -177,6 +178,21 @@ export function getCombatPreview(
         }
       }
     }
+  }
+
+  // Faith synergy combat bonuses (tiered; matches reducer)
+  const faithCfg = GAME_RULES.faithBonuses;
+  if ((attackerPlayer?.stats.faith ?? 0) >= faithCfg.highThreshold) {
+    attackerAttack += faithCfg.highAttackBonus;
+    attackerModifiers.push(`+${faithCfg.highAttackBonus} Attack (High Faith)`);
+  }
+  const defenderFaith = defenderPlayer?.stats.faith ?? 0;
+  if (defenderFaith >= faithCfg.highThreshold) {
+    defenderDefense += faithCfg.highDefenseBonus;
+    defenderModifiers.push(`+${faithCfg.highDefenseBonus} Defense (High Faith)`);
+  } else if (defenderFaith >= faithCfg.lowThreshold) {
+    defenderDefense += faithCfg.lowDefenseBonus;
+    defenderModifiers.push(`+${faithCfg.lowDefenseBonus} Defense (Faith)`);
   }
 
   // Calculate damage

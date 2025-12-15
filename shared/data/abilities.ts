@@ -217,10 +217,10 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
   conversion: {
     id: 'conversion',
     name: 'Conversion',
-    description: 'Convert enemy units to your side through faith',
+    description: 'Convert enemy units to your side through faith (costs 20 Faith)',
     type: 'unit',
     effect: 'CONVERT_ENEMY',
-    requirements: { faith: 50 },
+    requirements: { faith: 20 },
   },
 
   divine_protection: {

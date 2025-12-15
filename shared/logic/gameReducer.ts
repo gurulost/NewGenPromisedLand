@@ -405,7 +405,10 @@ function handleBuildStructure(
     cityId,
     ownerId: playerId,
     constructionTurns: 0, // Built immediately for now
-    effects: structureDef.effects
+    effects: {
+      ...structureDef.effects,
+      faithProduction: structureDef.effects.faithProduction ?? 0,
+    }
   };
 
   return {
@@ -1031,111 +1034,111 @@ function handleRecruitUnit(
 export function gameReducer(state: GameState, action: GameAction): GameState {
   const nextState = (() => {
     switch (action.type) {
-    case 'MOVE_UNIT':
-      return handleMoveUnit(state, action.payload);
+      case 'MOVE_UNIT':
+        return handleMoveUnit(state, action.payload);
 
-    case 'ATTACK_UNIT':
-      return handleAttackUnit(state, action.payload);
+      case 'ATTACK_UNIT':
+        return handleAttackUnit(state, action.payload);
 
-    case 'USE_ABILITY':
-      return handleUseAbility(state, action.payload);
+      case 'USE_ABILITY':
+        return handleUseAbility(state, action.payload);
 
-    case 'END_TURN':
-      return handleEndTurn(state, action.payload);
+      case 'END_TURN':
+        return handleEndTurn(state, action.payload);
 
-    case 'BUILD_UNIT':
-      return handleBuildUnit(state, action.payload);
+      case 'BUILD_UNIT':
+        return handleBuildUnit(state, action.payload);
 
-    case 'RESEARCH_TECH':
-      return handleResearchTech(state, action.payload);
+      case 'RESEARCH_TECH':
+        return handleResearchTech(state, action.payload);
 
-    case 'BUILD_IMPROVEMENT':
-      return handleBuildImprovement(state, action.payload);
+      case 'BUILD_IMPROVEMENT':
+        return handleBuildImprovement(state, action.payload);
 
-    case 'START_CONSTRUCTION':
-      return handleStartConstruction(state, action.payload);
+      case 'START_CONSTRUCTION':
+        return handleStartConstruction(state, action.payload);
 
-    case 'BUILD_STRUCTURE':
-      return handleBuildStructure(state, action.payload);
+      case 'BUILD_STRUCTURE':
+        return handleBuildStructure(state, action.payload);
 
-    case 'CAPTURE_CITY':
-      return handleCaptureCity(state, action.payload);
+      case 'CAPTURE_CITY':
+        return handleCaptureCity(state, action.payload);
 
 
-    case 'CONQUER_VILLAGE':
-      return handleConquerVillage(state, action.payload);
+      case 'CONQUER_VILLAGE':
+        return handleConquerVillage(state, action.payload);
 
-    case 'CONVERT_VILLAGE':
-      return handleConvertVillage(state, action.payload);
+      case 'CONVERT_VILLAGE':
+        return handleConvertVillage(state, action.payload);
 
-    case 'EXPLORE_RUINS':
-      return handleExploreRuins(state, action.payload);
+      case 'EXPLORE_RUINS':
+        return handleExploreRuins(state, action.payload);
 
-    case 'RECRUIT_UNIT':
-      return handleRecruitUnit(state, action.payload);
+      case 'RECRUIT_UNIT':
+        return handleRecruitUnit(state, action.payload);
 
-    case 'ESTABLISH_TRADE_ROUTE':
-      return handleEstablishTradeRoute(state, action.payload);
+      case 'ESTABLISH_TRADE_ROUTE':
+        return handleEstablishTradeRoute(state, action.payload);
 
-    case 'DECLARE_WAR':
-      return handleDeclareWar(state, action.payload);
+      case 'DECLARE_WAR':
+        return handleDeclareWar(state, action.payload);
 
-    case 'FORM_ALLIANCE':
-      return handleFormAlliance(state, action.payload);
+      case 'FORM_ALLIANCE':
+        return handleFormAlliance(state, action.payload);
 
-    case 'CONVERT_CITY':
-      return handleConvertCity(state, action.payload);
+      case 'CONVERT_CITY':
+        return handleConvertCity(state, action.payload);
 
-    case 'CONVERT_UNIT':
-      return handleConvertUnit(state, action.payload);
+      case 'CONVERT_UNIT':
+        return handleConvertUnit(state, action.payload);
 
-    case 'UPGRADE_UNIT':
-      return handleUpgradeUnit(state, action.payload);
+      case 'UPGRADE_UNIT':
+        return handleUpgradeUnit(state, action.payload);
 
-    case 'UNIT_ACTION':
-      return handleUnitAction(state, action.payload);
+      case 'UNIT_ACTION':
+        return handleUnitAction(state, action.payload);
 
-    case 'HEAL_UNIT':
-      return handleHealUnit(state, action.payload);
+      case 'HEAL_UNIT':
+        return handleHealUnit(state, action.payload);
 
-    case 'APPLY_STEALTH':
-      return handleApplyStealth(state, action.payload);
+      case 'APPLY_STEALTH':
+        return handleApplyStealth(state, action.payload);
 
-    case 'RECONNAISSANCE':
-      return handleReconnaissance(state, action.payload);
+      case 'RECONNAISSANCE':
+        return handleReconnaissance(state, action.payload);
 
-    case 'FORMATION_FIGHTING':
-      return handleFormationFighting(state, action.payload);
+      case 'FORMATION_FIGHTING':
+        return handleFormationFighting(state, action.payload);
 
-    case 'SIEGE_MODE':
-      return handleSiegeMode(state, action.payload);
+      case 'SIEGE_MODE':
+        return handleSiegeMode(state, action.payload);
 
-    case 'RALLY_TROOPS':
-      return handleRallyTroops(state, action.payload);
+      case 'RALLY_TROOPS':
+        return handleRallyTroops(state, action.payload);
 
-    case 'RESEARCH_TECHNOLOGY':
-      return handleResearchTechnology(state, action.payload);
+      case 'RESEARCH_TECHNOLOGY':
+        return handleResearchTechnology(state, action.payload);
 
-    case 'ACTIVATE_FACTION_ABILITY':
-      return handleActivateFactionAbility(state, action.payload);
+      case 'ACTIVATE_FACTION_ABILITY':
+        return handleActivateFactionAbility(state, action.payload);
 
-    case 'HARVEST_RESOURCE':
-      return handleHarvestResource(state, action.payload);
+      case 'HARVEST_RESOURCE':
+        return handleHarvestResource(state, action.payload);
 
-    case 'CLEAR_FOREST':
-      return handleClearForest(state, action.payload);
+      case 'CLEAR_FOREST':
+        return handleClearForest(state, action.payload);
 
-    case 'BUILD_ROAD':
-      return handleBuildRoad(state, action.payload);
+      case 'BUILD_ROAD':
+        return handleBuildRoad(state, action.payload);
 
-    case 'WORLD_ELEMENT_HARVEST':
-      return handleWorldElementHarvest(state, action.payload);
+      case 'WORLD_ELEMENT_HARVEST':
+        return handleWorldElementHarvest(state, action.payload);
 
-    case 'WORLD_ELEMENT_BUILD':
-      return handleWorldElementBuild(state, action.payload);
+      case 'WORLD_ELEMENT_BUILD':
+        return handleWorldElementBuild(state, action.payload);
 
-    default:
-      return state;
+      default:
+        return state;
     }
   })();
 
@@ -1420,6 +1423,20 @@ function handleAttackUnit(
     });
   }
 
+  // Faith synergy combat bonuses (tiered)
+  const faithCfg = GAME_RULES.faithBonuses;
+  if (attackerPlayer && attackerPlayer.stats.faith >= faithCfg.highThreshold) {
+    attackPower += faithCfg.highAttackBonus;
+  }
+  if (targetPlayer) {
+    const defenderFaith = targetPlayer.stats.faith;
+    if (defenderFaith >= faithCfg.highThreshold) {
+      defensePower += faithCfg.highDefenseBonus;
+    } else if (defenderFaith >= faithCfg.lowThreshold) {
+      defensePower += faithCfg.lowDefenseBonus;
+    }
+  }
+
   // Calculate final damage
   let damage = Math.max(1, attackPower - defensePower);
 
@@ -1692,11 +1709,40 @@ function handleEndTurn(
       const temples = (state.structures || []).filter(s =>
         s.ownerId === player.id &&
         s.constructionTurns === 0 &&
-        (s.type === 'temple' || s.type === 'cathedral')
+        s.type === 'temple'
       ).length;
 
+      // Cathedral faith production: +4 per cathedral
+      const cathedrals = (state.structures || []).filter(s =>
+        s.ownerId === player.id &&
+        s.constructionTurns === 0 &&
+        s.type === 'cathedral'
+      ).length;
+      const cathedralFaithPer = STRUCTURE_DEFINITIONS.cathedral.effects.faithProduction ?? 0;
+      const cathedralFaith = cathedrals * cathedralFaithPer;
+
+      // Shrine faith production: +2 per shrine
+      const shrines = (state.improvements || []).filter(imp =>
+        imp.ownerId === player.id &&
+        imp.constructionTurns === 0 &&
+        imp.type === 'shrine'
+      ).length;
+      const shrineFaithPer = IMPROVEMENT_DEFINITIONS.shrine.effects?.faithProduction ?? 0;
+      const shrineFaith = shrines * shrineFaithPer;
+
+      // Missionary presence bonus: +1 per missionary (capped)
+      const missionaries = state.units.filter(u =>
+        u.playerId === player.id &&
+        u.type === 'missionary'
+      ).length;
+      const missionaryFaith = Math.min(
+        missionaries * GAME_RULES.resources.faithPerMissionary,
+        GAME_RULES.resources.maxMissionaryFaithBonus
+      );
+
       // Calculate base income from cities using Polytopia-style mechanics
-      const faithGeneration = GameRuleHelpers.calculateFaithGeneration(playerCities, temples);
+      const faithGeneration = GameRuleHelpers.calculateFaithGeneration(playerCities, temples) +
+        cathedralFaith + shrineFaith + missionaryFaith;
 
       // Calculate star income based on city levels and production
       let starIncome = 0;
@@ -1972,7 +2018,13 @@ function handleEndTurn(
             id: construction.id,
             type: construction.type,
             ownerId: construction.playerId,
-            effects: structureDef?.effects || { starProduction: 0, defenseBonus: 0, unitProduction: 0 },
+            effects: {
+              starProduction: structureDef?.effects?.starProduction ?? 0,
+              unitProduction: structureDef?.effects?.unitProduction ?? 0,
+              defenseBonus: structureDef?.effects?.defenseBonus ?? 0,
+              populationGrowth: structureDef?.effects?.populationGrowth ?? 0,
+              faithProduction: structureDef?.effects?.faithProduction ?? 0,
+            },
             cityId: construction.cityId,
             constructionTurns: 0,
           };
@@ -2036,6 +2088,43 @@ function handleEndTurn(
     }
     return u;
   });
+
+  // === Faith Drain for Religious Factions ===
+  // Missionaries from NEPHITES or ANTI_NEPHI_LEHIES drain faith from adjacent enemy units' players
+  const currentPlayerData = updatedPlayers.find(p => p.id === currentPlayer.id);
+  const isReligiousFaction = currentPlayerData?.factionId === 'NEPHITES' || currentPlayerData?.factionId === 'ANTI_NEPHI_LEHIES';
+
+  if (isReligiousFaction) {
+    const myMissionaries = updatedUnits.filter(u => u.playerId === currentPlayer.id && u.type === 'missionary');
+    const faithDrainPerEnemy: Record<string, number> = {}; // Track drain per enemy player
+
+    myMissionaries.forEach(missionary => {
+      // Find enemy units adjacent to this missionary
+      const adjacentEnemyUnits = updatedUnits.filter(u =>
+        u.playerId !== currentPlayer.id &&
+        hexDistance(u.coordinate, missionary.coordinate) <= 1
+      );
+
+      // Drain faith once per enemy player per missionary (not per adjacent unit)
+      const enemyPlayerIds = new Set(adjacentEnemyUnits.map(u => u.playerId));
+      enemyPlayerIds.forEach(enemyPlayerId => {
+        const currentDrain = faithDrainPerEnemy[enemyPlayerId] || 0;
+        if (currentDrain < GAME_RULES.faithBonuses.maxFaithDrainPerTurn) {
+          faithDrainPerEnemy[enemyPlayerId] = currentDrain + GAME_RULES.faithBonuses.faithDrainPerMissionary;
+        }
+      });
+    });
+
+    // Apply faith drain to enemy players (capped at maxFaithDrainPerTurn)
+    Object.entries(faithDrainPerEnemy).forEach(([enemyPlayerId, drainAmount]) => {
+      const cappedDrain = Math.min(drainAmount, GAME_RULES.faithBonuses.maxFaithDrainPerTurn);
+      updatedPlayers = updatedPlayers.map(p =>
+        p.id === enemyPlayerId
+          ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - cappedDrain) } }
+          : p
+      );
+    });
+  }
 
   // Check for victory conditions
   const winner = checkVictoryConditions(state, updatedPlayers);

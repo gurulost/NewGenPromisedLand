@@ -17,6 +17,8 @@ export interface GameRules {
     starsPerCity: number;
     faithPerCity: number;
     faithPerTemple: number;
+    faithPerMissionary: number; // Faith bonus per missionary unit
+    maxMissionaryFaithBonus: number; // Cap on missionary faith bonus
   };
 
   // Unit Properties
@@ -108,6 +110,17 @@ export interface GameRules {
     terrainDefenseMultiplier: number;
   };
 
+  // Faith System Bonuses
+  faithBonuses: {
+    lowThreshold: number; // Faith level for defensive bonus
+    highThreshold: number; // Faith level for full combat bonus
+    lowDefenseBonus: number; // Defense bonus at lowThreshold+
+    highAttackBonus: number; // Attack bonus at highThreshold+
+    highDefenseBonus: number; // Defense bonus at highThreshold+
+    faithDrainPerMissionary: number; // Faith drained from enemies per adjacent missionary
+    maxFaithDrainPerTurn: number; // Max faith drain per enemy player per turn
+  };
+
   // Morale / Pride Cycle
   morale: {
     desertionFloorDissent: number; // below this, desertion cannot happen
@@ -134,6 +147,8 @@ export const GAME_RULES: GameRules = {
     starsPerCity: 2,
     faithPerCity: 2,
     faithPerTemple: 5,
+    faithPerMissionary: 1,
+    maxMissionaryFaithBonus: 5,
   },
 
   units: {
@@ -231,6 +246,16 @@ export const GAME_RULES: GameRules = {
     terrainDefenseMultiplier: 1.5,
   },
 
+  faithBonuses: {
+    lowThreshold: 50,
+    highThreshold: 70,
+    lowDefenseBonus: 1,
+    highAttackBonus: 2,
+    highDefenseBonus: 1,
+    faithDrainPerMissionary: 1,
+    maxFaithDrainPerTurn: 3,
+  },
+
   morale: {
     desertionFloorDissent: 55,
     unrestDurationTurns: 3,
@@ -252,16 +277,16 @@ export const GameRuleHelpers = {
    * Calculate faith generation for a player based on their cities and structures
    */
   calculateFaithGeneration: (cityCount: number, templeCount: number = 0): number => {
-    return (cityCount * GAME_RULES.resources.faithPerCity) + 
-           (templeCount * GAME_RULES.resources.faithPerTemple);
+    return (cityCount * GAME_RULES.resources.faithPerCity) +
+      (templeCount * GAME_RULES.resources.faithPerTemple);
   },
 
   /**
    * Calculate star income for a player based on their cities
    */
   calculateStarIncome: (cityCount: number): number => {
-    return GAME_RULES.resources.baseStarsPerTurn + 
-           (cityCount * GAME_RULES.resources.starsPerCity);
+    return GAME_RULES.resources.baseStarsPerTurn +
+      (cityCount * GAME_RULES.resources.starsPerCity);
   },
 
   /**
