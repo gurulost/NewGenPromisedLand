@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { ContentShell } from "../primitives/ContentShell";
 import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
-import { Users, Crown, Globe, FolderOpen, Loader2 } from "lucide-react";
+import { Users, Crown, Globe, FolderOpen } from "lucide-react";
 import { listSaves, type ServerSave } from "../../lib/saveApi";
 import SaveLoadMenu from "./SaveLoadMenu";
 import { loadAutosave } from "../../lib/autosaveStorage";
@@ -67,7 +66,6 @@ function HeroBackground() {
 export default function MainMenu() {
   const { setGamePhase, setGameState } = useLocalGame();
   const [savedGames, setSavedGames] = useState<ServerSave[]>([]);
-  const [isLoadingSaves, setIsLoadingSaves] = useState(true);
   const [showLoadMenu, setShowLoadMenu] = useState(false);
   const [autosaveInfo, setAutosaveInfo] = useState<{ timestamp: number; turn: number; playerCount: number } | null>(null);
   const [isLoadingAutosave, setIsLoadingAutosave] = useState(true);
@@ -79,8 +77,6 @@ export default function MainMenu() {
         setSavedGames(saves);
       } catch (err) {
         console.error('Failed to load saved games:', err);
-      } finally {
-        setIsLoadingSaves(false);
       }
     };
     loadSaves();
@@ -110,14 +106,6 @@ export default function MainMenu() {
       cancelled = true;
     };
   }, []);
-
-  const continueGame = () => {
-    if (savedGames.length > 0) {
-      const mostRecent = savedGames[0];
-      setGameState(mostRecent.gameState);
-      setGamePhase('playing');
-    }
-  };
 
   const resumeAutosave = async () => {
     const autosave = await loadAutosave();
@@ -150,34 +138,6 @@ export default function MainMenu() {
                     <span className="flex items-center justify-center gap-2">
                       <FolderOpen />
                       Resume Last Session (Turn {autosaveInfo.turn})
-                    </span>
-                  </GlowingButton>
-
-                  <div className="border-t border-amber-500/20 my-2" />
-                </>
-              )}
-              {!isLoadingSaves && savedGames.length > 0 && (
-                <>
-                  <GlowingButton
-                    onClick={continueGame}
-                    className="w-full"
-                    size="lg"
-                  >
-                    <span className="flex items-center justify-center gap-2">
-                      <FolderOpen />
-                      Continue Game
-                    </span>
-                  </GlowingButton>
-
-                  <GlowingButton
-                    onClick={() => setShowLoadMenu(true)}
-                    variant="secondary"
-                    className="w-full"
-                    size="lg"
-                  >
-                    <span className="flex items-center justify-center gap-2">
-                      <FolderOpen />
-                      Load Saved Game
                     </span>
                   </GlowingButton>
 
@@ -220,6 +180,20 @@ export default function MainMenu() {
                 <span className="flex items-center justify-center gap-2">
                   <Globe />
                   Online Multiplayer (Coming Soon)
+                </span>
+              </GlowingButton>
+
+              <div className="border-t border-amber-500/20 my-2" />
+
+              <GlowingButton
+                onClick={() => setShowLoadMenu(true)}
+                variant="secondary"
+                className="w-full"
+                size="lg"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <FolderOpen />
+                  Load Saved Game
                 </span>
               </GlowingButton>
             </div>
