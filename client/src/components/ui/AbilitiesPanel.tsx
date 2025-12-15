@@ -265,7 +265,6 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             id: 'convert',
             name: 'Convert Enemy',
             description: adjacentEnemyUnits.length > 0
-              : 'No adjacent enemy units to convert',
               ? (adjacentEnemyUnits.length === 1
                 ? `Convert nearby ${adjacentEnemyUnits[0].type}`
                 : `Convert a nearby enemy unit (${adjacentEnemyUnits.length} targets)`)
@@ -290,47 +289,48 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           return distance <= 1;
         });
 
-        if (adjacentCities && adjacentCities.length > 0) {
-          const targetCity = adjacentCities[0]; // Get first adjacent city
-          const cityName = targetCity.name || 'City';
-          const multipleNote = adjacentCities.length > 1 ? ` (${adjacentCities.length} available)` : '';
+	        if (adjacentCities && adjacentCities.length > 0) {
+	          const targetCity = adjacentCities[0]; // Get first adjacent city
+	          const cityName = targetCity.name || 'City';
+	          const multipleNote = adjacentCities.length > 1 ? ` (${adjacentCities.length} available)` : '';
+	          const canUseCityConversion = isPlayerTurn && unit.remainingMovement > 0 && !unit.hasAttacked;
 
-          actions.push(
-            {
-              id: 'convert_city_faith',
-              name: 'Convert City (Faith)',
-              description: `Convert ${cityName} through faith (${GAME_RULES.conversion.costs.cityFaith} Faith)${multipleNote}`,
-              icon: <Heart className="w-4 h-4" />,
-              cost: `${GAME_RULES.conversion.costs.cityFaith} Faith`,
-              faithCost: GAME_RULES.conversion.costs.cityFaith,
-              available: currentPlayer.stats.faith >= GAME_RULES.conversion.costs.cityFaith,
-              rangeType: 'ability',
-              range: 1
-            },
-            {
-              id: 'convert_city_pride',
-              name: 'Convert City (Pride)',
-              description: `Convert ${cityName} through pride (${GAME_RULES.conversion.costs.cityPride} Pride)${multipleNote}`,
-              icon: <Crown className="w-4 h-4" />,
-              cost: `${GAME_RULES.conversion.costs.cityPride} Pride`,
-              prideCost: GAME_RULES.conversion.costs.cityPride,
-              available: currentPlayer.stats.pride >= GAME_RULES.conversion.costs.cityPride,
-              rangeType: 'ability',
-              range: 1
-            },
-            {
-              id: 'convert_city_peace',
-              name: 'Convert City (Peace)',
-              description: `Peaceful conversion of ${cityName} (${GAME_RULES.conversion.costs.cityPeaceFaithCost} Faith → +${GAME_RULES.conversion.costs.cityPeaceFaithRefund} Faith, -${GAME_RULES.conversion.costs.cityPeaceDissentReduction} Dissent)${multipleNote}`,
-              icon: <Star className="w-4 h-4" />,
-              cost: `${GAME_RULES.conversion.costs.cityPeaceFaithCost} Faith`,
-              faithCost: GAME_RULES.conversion.costs.cityPeaceFaithCost,
-              available: currentPlayer.stats.faith >= GAME_RULES.conversion.costs.cityPeaceFaithCost,
-              rangeType: 'ability',
-              range: 1
-            }
-          );
-        }
+	          actions.push(
+	            {
+	              id: 'convert_city_faith',
+	              name: 'Convert City (Faith)',
+	              description: `Convert ${cityName} through faith (${GAME_RULES.conversion.costs.cityFaith} Faith)${multipleNote}`,
+	              icon: <Heart className="w-4 h-4" />,
+	              cost: `${GAME_RULES.conversion.costs.cityFaith} Faith`,
+	              faithCost: GAME_RULES.conversion.costs.cityFaith,
+	              available: canUseCityConversion && currentPlayer.stats.faith >= GAME_RULES.conversion.costs.cityFaith,
+	              rangeType: 'ability',
+	              range: 1
+	            },
+	            {
+	              id: 'convert_city_pride',
+	              name: 'Convert City (Pride)',
+	              description: `Convert ${cityName} through pride (${GAME_RULES.conversion.costs.cityPride} Pride)${multipleNote}`,
+	              icon: <Crown className="w-4 h-4" />,
+	              cost: `${GAME_RULES.conversion.costs.cityPride} Pride`,
+	              prideCost: GAME_RULES.conversion.costs.cityPride,
+	              available: canUseCityConversion && currentPlayer.stats.pride >= GAME_RULES.conversion.costs.cityPride,
+	              rangeType: 'ability',
+	              range: 1
+	            },
+	            {
+	              id: 'convert_city_peace',
+	              name: 'Convert City (Peace)',
+	              description: `Peaceful conversion of ${cityName} (${GAME_RULES.conversion.costs.cityPeaceFaithCost} Faith → +${GAME_RULES.conversion.costs.cityPeaceFaithRefund} Faith, -${GAME_RULES.conversion.costs.cityPeaceDissentReduction} Dissent)${multipleNote}`,
+	              icon: <Star className="w-4 h-4" />,
+	              cost: `${GAME_RULES.conversion.costs.cityPeaceFaithCost} Faith`,
+	              faithCost: GAME_RULES.conversion.costs.cityPeaceFaithCost,
+	              available: canUseCityConversion && currentPlayer.stats.faith >= GAME_RULES.conversion.costs.cityPeaceFaithCost,
+	              rangeType: 'ability',
+	              range: 1
+	            }
+	          );
+	        }
         break;
 
       case 'scout':
@@ -664,6 +664,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             type: 'CONVERT_CITY',
             payload: {
               playerId: currentPlayer.id,
+              unitId: unit.id,
               cityId: allAdjacentCities[0].id,
               conversionType
             }
@@ -1030,6 +1031,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                       type: 'CONVERT_CITY',
                       payload: {
                         playerId: currentPlayer.id,
+                        unitId: unit.id,
                         cityId: city.id,
                         conversionType: pendingConversionType
                       }
