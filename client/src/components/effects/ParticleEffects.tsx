@@ -124,14 +124,16 @@ function ParticleBurst({ event, onComplete }: ParticleBurstProps) {
     );
 }
 
-// Global particle event store
+// Global particle event store with bounded memory
 interface ParticleStore {
     events: ParticleEvent[];
     addEvent: (type: ParticleEventType, coordinate: { q: number; r: number }) => void;
     removeEvent: (id: string) => void;
+    cleanupStale: () => void;
 }
 
 import { create } from 'zustand';
+import { pushCapped, enforceCapAndTTL, MEMORY_LIMITS } from '../../lib/memoryUtils';
 
 export const useParticleStore = create<ParticleStore>((set) => ({
     events: [],
@@ -143,10 +145,22 @@ export const useParticleStore = create<ParticleStore>((set) => ({
             type,
             startTime: Date.now(),
         };
-        set((state) => ({ events: [...state.events, event] }));
+        set((state) => ({
+            events: pushCapped(state.events, event, MEMORY_LIMITS.PARTICLE_MAX_EVENTS)
+        }));
     },
     removeEvent: (id) => {
         set((state) => ({ events: state.events.filter((e) => e.id !== id) }));
+    },
+    cleanupStale: () => {
+        set((state) => ({
+            events: enforceCapAndTTL(
+                state.events,
+                (e) => e.startTime,
+                MEMORY_LIMITS.PARTICLE_TTL_MS,
+                MEMORY_LIMITS.PARTICLE_MAX_EVENTS
+            )
+        }));
     },
 }));
 

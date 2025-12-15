@@ -851,10 +851,22 @@ function MagicCastEffect({ position }: { position: { x: number; y: number } }) {
   );
 }
 
-// Hook for managing combat effects with enhanced orchestration
+// Hook for managing combat effects with enhanced orchestration and bounded memory
+import { pushCapped, MEMORY_LIMITS } from '../../lib/memoryUtils';
+
 export function useCombatEffects() {
   const [damageNumbers, setDamageNumbers] = useState<DamageNumber[]>([]);
   const [effects, setEffects] = useState<CombatEffect[]>([]);
+
+  // TTL cleanup for stale effects (in case animation callbacks fail)
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      setDamageNumbers(prev => prev.filter(d => now - d.timestamp < MEMORY_LIMITS.COMBAT_EFFECT_TTL_MS));
+      setEffects(prev => prev.filter(e => now - e.timestamp < MEMORY_LIMITS.COMBAT_EFFECT_TTL_MS));
+    }, 3000);
+    return () => clearInterval(cleanupInterval);
+  }, []);
 
   const addDamageNumber = (
     damage: number, 
@@ -862,7 +874,7 @@ export function useCombatEffects() {
     type: DamageNumber['type'] = 'damage'
   ) => {
     const id = `damage-${Date.now()}-${Math.random()}`;
-    setDamageNumbers(prev => [...prev, { id, damage, position, type, timestamp: Date.now() }]);
+    setDamageNumbers(prev => pushCapped(prev, { id, damage, position, type, timestamp: Date.now() }, MEMORY_LIMITS.COMBAT_EFFECT_MAX_ITEMS));
   };
 
   const addEffect = (
@@ -872,14 +884,14 @@ export function useCombatEffects() {
     unitType?: string
   ) => {
     const id = `effect-${Date.now()}-${Math.random()}`;
-    setEffects(prev => [...prev, { 
+    setEffects(prev => pushCapped(prev, { 
       id, 
       type, 
       position, 
       attackerPosition,
       unitType,
       timestamp: Date.now() 
-    }]);
+    }, MEMORY_LIMITS.COMBAT_EFFECT_MAX_ITEMS));
   };
 
   const removeEffect = (id: string) => {

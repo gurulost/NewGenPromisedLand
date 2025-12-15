@@ -183,7 +183,9 @@ export function GameLogPanel({
     );
 }
 
-// Hook for managing game log
+// Hook for managing game log with bounded memory
+import { pushCapped, MEMORY_LIMITS } from '../../lib/memoryUtils';
+
 export function useGameLog() {
     const [entries, setEntries] = useState<GameLogEntry[]>([]);
 
@@ -205,7 +207,7 @@ export function useGameLog() {
             timestamp: Date.now(),
             details,
         };
-        setEntries(prev => [...prev, entry]);
+        setEntries(prev => pushCapped(prev, entry, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
         return entry.id;
     };
 
