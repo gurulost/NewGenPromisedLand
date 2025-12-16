@@ -105,25 +105,44 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
   // Calculate total upgrades for visual indicators
   const totalUpgrades = getTotalUpgrades(unit);
 
-  // Calculate unit scale based on type - increased for better visibility
+  // Standardized unit scales - all units proportionally sized relative to each other
   const unitScale = useMemo(() => {
-    if (unit.type === 'worker') {
-      return 0.55; // Increased for civilian units
-    } else if (unit.type === 'scout' || unit.type === 'wilderness_hunter') {
-      return 0.6; // Increased for ranged units
-    } else if (
-      unit.type === 'missionary' ||
-      unit.type === 'royal_envoy' ||
-      unit.type === 'priestcraft_preacher' ||
-      unit.type === 'converted_missionary' ||
-      unit.type === 'scribe_teacher' ||
-      unit.type === 'prophet'
-    ) {
-      return 0.58; // Increased for religious units
-    } else if (unit.type === 'stripling_warrior') {
-      return 0.7; // Slightly larger for elite Nephite warriors
-    }
-    return 0.65; // Increased default scale for most units
+    const UNIT_SCALES: Record<string, number> = {
+      // Small/civilian units
+      worker: 0.55,
+      
+      // Scout-type units (medium-small, agile)
+      scout: 0.6,
+      wilderness_hunter: 0.6,
+      
+      // Religious/diplomatic units (medium)
+      missionary: 0.58,
+      royal_envoy: 0.58,
+      priestcraft_preacher: 0.58,
+      converted_missionary: 0.58,
+      scribe_teacher: 0.58,
+      prophet: 0.6,
+      
+      // Standard infantry (medium)
+      warrior: 0.65,
+      spearman: 0.65,
+      guard: 0.65,
+      peacekeeping_guard: 0.65,
+      commander: 0.7,
+      
+      // Elite/special infantry (medium-large)
+      stripling_warrior: 0.7,
+      
+      // Large units
+      ancient_giant: 0.85,
+      cavalry: 0.75,
+      catapult: 0.7,
+      
+      // Naval units
+      boat: 0.8,
+    };
+    
+    return UNIT_SCALES[unit.type] ?? 0.65;
   }, [unit.type]);
 
   // Clone and modify the scene for materials and status effects
