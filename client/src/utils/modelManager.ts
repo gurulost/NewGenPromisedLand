@@ -19,7 +19,7 @@ export const MODEL_PATHS = {
     peacekeeping_guard: '/models/warrior.glb', // Use warrior model
     ancient_giant: '/models/warrior.glb', // Use warrior model
     wilderness_hunter: '/models/scout.glb', // Use scout model
-    royal_envoy: '/models/scout.glb', // Use scout model
+    royal_envoy: '/models/royal_envoy.glb', // Dedicated royal envoy model
     missionary: '/models/missionary.glb', // Upgraded missionary model
     // Influence/support units use the missionary model for visual consistency
     priestcraft_preacher: '/models/missionary.glb',
