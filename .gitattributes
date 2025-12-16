@@ -53,3 +53,14 @@
 /client/public/sounds/jungle_warcry.mp3 filter=lfs diff=lfs merge=lfs -text
 /client/public/sounds/jungle_whispers.mp3 filter=lfs diff=lfs merge=lfs -text
 /client/public/models/royal_envoy.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/ancient_giant.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/catapult.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/commander.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/converted_missionary.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/guard.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/peacekeeping_guard.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/priestcraft_preacher.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/prophet.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/scribe_teacher.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/spearman.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/wilderness_hunter.glb filter=lfs diff=lfs merge=lfs -text
