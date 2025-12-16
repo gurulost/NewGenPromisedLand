@@ -5,30 +5,36 @@ import { useGLTF } from '@react-three/drei';
 
 // Define all model paths in one place for easy management
 export const MODEL_PATHS = {
-  // Upgraded unit models from attached assets
+  // Unit models - each unit type has its own unique model
   units: {
-    warrior: '/models/warrior.glb', // Upgraded warrior model
-    worker: '/models/settler.glb', // Upgraded settler model for worker units
+    // Core units
+    warrior: '/models/warrior.glb',
+    worker: '/models/settler.glb',
     scout: '/models/scout.glb',
-
-    // Use standard models for all unit types for consistency
-    spearman: '/models/warrior.glb', // Use warrior model
-    commander: '/models/warrior.glb', // Use warrior model  
-    stripling_warrior: '/models/stripling_warrior.glb', // Upgraded stripling warrior model
-    guard: '/models/warrior.glb', // Use warrior model
-    peacekeeping_guard: '/models/warrior.glb', // Use warrior model
-    ancient_giant: '/models/warrior.glb', // Use warrior model
-    wilderness_hunter: '/models/scout.glb', // Use scout model
-    royal_envoy: '/models/royal_envoy.glb', // Dedicated royal envoy model
-    missionary: '/models/missionary.glb', // Upgraded missionary model
-    // Influence/support units use the missionary model for visual consistency
-    priestcraft_preacher: '/models/missionary.glb',
-    converted_missionary: '/models/missionary.glb',
-    scribe_teacher: '/models/missionary.glb',
-    prophet: '/models/missionary.glb',
-    boat: '/models/boat.glb', // Upgraded boat model
-    catapult: '/models/warrior.glb', // Use warrior model
-    cavalry: '/models/cavalry.glb', // Upgraded cavalry model (war elephant)
+    
+    // Infantry units
+    spearman: '/models/spearman.glb',
+    commander: '/models/commander.glb',
+    guard: '/models/guard.glb',
+    peacekeeping_guard: '/models/peacekeeping_guard.glb',
+    stripling_warrior: '/models/stripling_warrior.glb',
+    
+    // Large/special units
+    ancient_giant: '/models/ancient_giant.glb',
+    cavalry: '/models/cavalry.glb',
+    catapult: '/models/catapult.glb',
+    boat: '/models/boat.glb',
+    
+    // Scout variants
+    wilderness_hunter: '/models/wilderness_hunter.glb',
+    royal_envoy: '/models/royal_envoy.glb',
+    
+    // Religious/influence units
+    missionary: '/models/missionary.glb',
+    priestcraft_preacher: '/models/priestcraft_preacher.glb',
+    converted_missionary: '/models/converted_missionary.glb',
+    scribe_teacher: '/models/scribe_teacher.glb',
+    prophet: '/models/prophet.glb',
   },
   // Village models
   village: '/models/village.glb', // Upgraded village model
