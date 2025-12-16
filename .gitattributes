@@ -52,3 +52,4 @@
 /client/public/sounds/jungle_echoes.mp3 filter=lfs diff=lfs merge=lfs -text
 /client/public/sounds/jungle_warcry.mp3 filter=lfs diff=lfs merge=lfs -text
 /client/public/sounds/jungle_whispers.mp3 filter=lfs diff=lfs merge=lfs -text
+/client/public/models/royal_envoy.glb filter=lfs diff=lfs merge=lfs -text
