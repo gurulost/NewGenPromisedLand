@@ -1,8 +1,10 @@
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { 
   users, type User, type InsertUser,
-  gameSaves, type GameSave, type InsertGameSave 
+  gameSaves, type GameSave, type InsertGameSave,
+  gameLobbies, type GameLobby, type InsertGameLobby,
+  playerSeats, type PlayerSeat, type InsertPlayerSeat
 } from "@shared/schema";
 
 export interface IStorage {
@@ -14,6 +16,22 @@ export interface IStorage {
   createGameSave(save: InsertGameSave): Promise<GameSave>;
   updateGameSave(id: number, save: Partial<InsertGameSave>): Promise<GameSave | undefined>;
   deleteGameSave(id: number): Promise<boolean>;
+  
+  // Lobby methods
+  createLobby(lobby: InsertGameLobby): Promise<GameLobby>;
+  getLobbyByCode(code: string): Promise<GameLobby | undefined>;
+  getLobbyById(id: number): Promise<GameLobby | undefined>;
+  getOpenLobbies(): Promise<GameLobby[]>;
+  updateLobby(id: number, lobby: Partial<InsertGameLobby>): Promise<GameLobby | undefined>;
+  deleteLobby(id: number): Promise<boolean>;
+  
+  // Seat methods
+  createSeat(seat: InsertPlayerSeat): Promise<PlayerSeat>;
+  getSeatsByLobbyId(lobbyId: number): Promise<PlayerSeat[]>;
+  getSeatById(id: number): Promise<PlayerSeat | undefined>;
+  updateSeat(id: number, seat: Partial<InsertPlayerSeat>): Promise<PlayerSeat | undefined>;
+  deleteSeat(id: number): Promise<boolean>;
+  deleteSeatsByUserId(lobbyId: number, userId: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -58,6 +76,78 @@ export class DatabaseStorage implements IStorage {
 
   async deleteGameSave(id: number): Promise<boolean> {
     const result = await db.delete(gameSaves).where(eq(gameSaves.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Lobby methods
+  async createLobby(lobby: InsertGameLobby): Promise<GameLobby> {
+    const [created] = await db.insert(gameLobbies).values(lobby).returning();
+    return created;
+  }
+
+  async getLobbyByCode(code: string): Promise<GameLobby | undefined> {
+    const [lobby] = await db.select().from(gameLobbies).where(eq(gameLobbies.code, code));
+    return lobby;
+  }
+
+  async getLobbyById(id: number): Promise<GameLobby | undefined> {
+    const [lobby] = await db.select().from(gameLobbies).where(eq(gameLobbies.id, id));
+    return lobby;
+  }
+
+  async getOpenLobbies(): Promise<GameLobby[]> {
+    return db.select().from(gameLobbies)
+      .where(eq(gameLobbies.status, "waiting"))
+      .orderBy(desc(gameLobbies.createdAt));
+  }
+
+  async updateLobby(id: number, lobby: Partial<InsertGameLobby>): Promise<GameLobby | undefined> {
+    const [updated] = await db.update(gameLobbies)
+      .set({ ...lobby, updatedAt: new Date() })
+      .where(eq(gameLobbies.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteLobby(id: number): Promise<boolean> {
+    const result = await db.delete(gameLobbies).where(eq(gameLobbies.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Seat methods
+  async createSeat(seat: InsertPlayerSeat): Promise<PlayerSeat> {
+    const [created] = await db.insert(playerSeats).values(seat).returning();
+    return created;
+  }
+
+  async getSeatsByLobbyId(lobbyId: number): Promise<PlayerSeat[]> {
+    return db.select().from(playerSeats)
+      .where(eq(playerSeats.lobbyId, lobbyId))
+      .orderBy(playerSeats.seatIndex);
+  }
+
+  async getSeatById(id: number): Promise<PlayerSeat | undefined> {
+    const [seat] = await db.select().from(playerSeats).where(eq(playerSeats.id, id));
+    return seat;
+  }
+
+  async updateSeat(id: number, seat: Partial<InsertPlayerSeat>): Promise<PlayerSeat | undefined> {
+    const [updated] = await db.update(playerSeats)
+      .set(seat)
+      .where(eq(playerSeats.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSeat(id: number): Promise<boolean> {
+    const result = await db.delete(playerSeats).where(eq(playerSeats.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async deleteSeatsByUserId(lobbyId: number, userId: number): Promise<boolean> {
+    const result = await db.delete(playerSeats)
+      .where(and(eq(playerSeats.lobbyId, lobbyId), eq(playerSeats.userId, userId)))
+      .returning();
     return result.length > 0;
   }
 }
