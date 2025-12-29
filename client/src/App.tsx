@@ -6,6 +6,8 @@ import { useLocalGame } from "./lib/stores/useLocalGame";
 import MainMenu from "./components/ui/MainMenu";
 import PlayerSetup from "./components/ui/PlayerSetup";
 import HandoffScreen from "./components/ui/HandoffScreen";
+import LobbyList from "./components/ui/LobbyList";
+import LobbyRoom from "./components/ui/LobbyRoom";
 import GameCanvas from "./components/game/GameCanvas";
 import GameUI from "./components/game/GameUI";
 import { CombatEffectsDemo } from "./components/effects/CombatEffectsDemo";
@@ -81,6 +83,10 @@ function App() {
                 {gamePhase === 'playerSetup' && <PlayerSetup />}
 
                 {gamePhase === 'handoff' && <HandoffScreen />}
+
+                {gamePhase === 'lobbies' && <LobbyList />}
+
+                {gamePhase === 'lobbyRoom' && <LobbyRoom />}
 
                 {(gamePhase === 'playing' || gamePhase === 'gameOver') && (
                   <ErrorBoundary>
