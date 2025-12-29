@@ -8,6 +8,7 @@ interface Lobby {
   maxPlayers: number;
   mapSize: string;
   status: string;
+  gameState: unknown;
   createdAt: string;
 }
 
@@ -42,6 +43,7 @@ interface LobbyStore {
   updateSeat: (lobbyId: number, seatIndex: number, updates: { factionId?: string; isReady?: boolean }) => Promise<boolean>;
   addAISeat: (lobbyId: number, seatIndex: number, factionId: string) => Promise<boolean>;
   leaveLobby: () => void;
+  startGame: () => Promise<LobbyWithSeats | null>;
 }
 
 export const useLobby = create<LobbyStore>((set, get) => ({
@@ -203,5 +205,27 @@ export const useLobby = create<LobbyStore>((set, get) => ({
 
   leaveLobby: () => {
     set({ currentLobby: null });
+  },
+
+  startGame: async () => {
+    const lobby = get().currentLobby;
+    if (!lobby) return null;
+    try {
+      const res = await fetch(`/api/lobbies/${lobby.code}/start`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (res.ok) {
+        const updatedLobby = await res.json();
+        set({ currentLobby: updatedLobby });
+        return updatedLobby;
+      }
+      const data = await res.json();
+      set({ error: data.error || "Failed to start game" });
+      return null;
+    } catch {
+      set({ error: "Network error" });
+      return null;
+    }
   },
 }));

@@ -5,8 +5,9 @@ import { useLobby } from "../../lib/stores/useLobby";
 import { ContentShell } from "../primitives/ContentShell";
 import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
-import { ArrowLeft, Users, Copy, Check, UserPlus, Bot, RefreshCw } from "lucide-react";
+import { ArrowLeft, Users, Copy, Check, UserPlus, Bot, RefreshCw, Loader2 } from "lucide-react";
 import { FACTIONS } from "@shared/data/factions";
+import type { MapSize } from "@shared/utils/mapGenerator";
 
 const FACTION_COLORS: Record<string, string> = {
   nephites: "bg-blue-600",
@@ -62,8 +63,8 @@ function SeatSlot({
 
   const handleAddAI = async () => {
     const factions = Object.keys(FACTIONS);
-    const randomFaction = factions[Math.floor(Math.random() * factions.length)];
-    await addAISeat(lobbyId, seatIndex, randomFaction);
+    const defaultFaction = factions[seatIndex % factions.length];
+    await addAISeat(lobbyId, seatIndex, defaultFaction);
   };
 
   return (
@@ -182,13 +183,13 @@ export default function LobbyRoom() {
   }, [currentLobby, setGamePhase]);
 
   useEffect(() => {
-    if (currentLobby) {
+    if (currentLobby && currentLobby.status !== "playing") {
       const interval = setInterval(() => {
         fetchLobby(currentLobby.id);
-      }, 3000);
+      }, 2000);
       return () => clearInterval(interval);
     }
-  }, [currentLobby?.id, fetchLobby]);
+  }, [currentLobby?.id, currentLobby?.status, fetchLobby]);
 
   if (!currentLobby || !user) {
     return null;
@@ -210,20 +211,45 @@ export default function LobbyRoom() {
   };
 
   const isHost = currentLobby.hostUserId === user.id;
-  const seatSlots = Array.from({ length: currentLobby.maxPlayers }, (_, i) => {
-    const seat = currentLobby.seats.find(s => s.seatIndex === i);
-    return { seatIndex: i, seat: seat || null };
-  });
+  const seatSlots = currentLobby.status === "waiting"
+    ? Array.from({ length: currentLobby.maxPlayers }, (_, i) => {
+        const seat = currentLobby.seats.find(s => s.seatIndex === i);
+        return { seatIndex: i, seat: seat || null };
+      })
+    : currentLobby.seats.map(s => ({ seatIndex: s.seatIndex, seat: s }));
 
-  const allSeatsReady = seatSlots.every(({ seat }) => {
-    if (!seat) return false;
-    return seat.isReady && seat.factionId;
-  });
-  const filledSeats = seatSlots.filter(({ seat }) => seat !== null).length;
-  const canStart = isHost && allSeatsReady && filledSeats >= 2;
+  const claimedSeats = seatSlots.filter(({ seat }) => seat && (seat.userId !== null || seat.isAI));
+  const allClaimedReady = claimedSeats.every(({ seat }) => seat!.isReady && seat!.factionId);
+  const canStart = isHost && allClaimedReady && claimedSeats.length >= 2;
 
-  const handleStartGame = () => {
-    console.log("Starting game... (not yet implemented)");
+  const [isStarting, setIsStarting] = useState(false);
+  const { startGame, error } = useLobby();
+  const { startLocalGame } = useLocalGame();
+
+  useEffect(() => {
+    if (currentLobby?.status === "playing" && currentLobby.gameState) {
+      console.log("Lobby status changed to playing, initializing game...", currentLobby.gameState);
+      const gameConfig = currentLobby.gameState as { players: Array<{ name: string; factionId: string; isAI: boolean; turnOrder: number }>; mapSize: string };
+      const playerSetup = gameConfig.players.map((p, i) => ({
+        id: `player-${i + 1}`,
+        name: p.name,
+        factionId: p.factionId,
+        turnOrder: p.turnOrder,
+        isAI: p.isAI,
+        aiDifficulty: 'normal' as const,
+      }));
+      const mapSize = gameConfig.mapSize as MapSize;
+      startLocalGame(playerSetup, mapSize);
+    }
+  }, [currentLobby?.status, currentLobby?.gameState, startLocalGame]);
+
+  const handleStartGame = async () => {
+    setIsStarting(true);
+    const result = await startGame();
+    setIsStarting(false);
+    if (!result) {
+      console.error("Failed to start game:", error);
+    }
   };
 
   return (
@@ -269,7 +295,7 @@ export default function LobbyRoom() {
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-amber-200 font-medium text-sm">Players ({filledSeats}/{currentLobby.maxPlayers})</h3>
+              <h3 className="text-amber-200 font-medium text-sm">Players ({claimedSeats.length}/{currentLobby.maxPlayers})</h3>
               {seatSlots.map(({ seatIndex, seat }) => (
                 <SeatSlot
                   key={seatIndex}
@@ -285,10 +311,15 @@ export default function LobbyRoom() {
             {isHost && (
               <GlowingButton
                 className="w-full"
-                disabled={!canStart}
+                disabled={!canStart || isStarting}
                 onClick={handleStartGame}
               >
-                {canStart ? "Start Game" : filledSeats < 2 ? "Need at least 2 players" : "Waiting for players to ready up..."}
+                {isStarting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Starting...
+                  </span>
+                ) : canStart ? "Start Game" : claimedSeats.length < 2 ? "Need at least 2 players" : "Waiting for players to ready up..."}
               </GlowingButton>
             )}
 
