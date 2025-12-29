@@ -472,6 +472,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Start game (host only)
+  app.post("/api/lobbies/:code/start", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.hostUserId !== req.session.userId) {
+        return res.status(403).json({ error: "Only host can start game" });
+      }
+      if (lobby.status !== "waiting") {
+        return res.status(400).json({ error: "Game already started" });
+      }
+      
+      const seats = await storage.getSeatsByLobbyId(lobby.id);
+      const claimedSeats = seats.filter(s => s.userId !== null || s.isAI);
+      const unclaimedSeats = seats.filter(s => s.userId === null && !s.isAI);
+      
+      if (claimedSeats.length < 2) {
+        return res.status(400).json({ error: "Need at least 2 players to start" });
+      }
+      
+      // Check all claimed seats are ready and have faction
+      for (const seat of claimedSeats) {
+        if (!seat.isReady) {
+          return res.status(400).json({ error: "All players must be ready" });
+        }
+        if (!seat.factionId) {
+          return res.status(400).json({ error: "All players must select a faction" });
+        }
+      }
+      
+      // Remove unclaimed seats before game start
+      for (const seat of unclaimedSeats) {
+        await storage.deleteSeat(seat.id);
+      }
+      
+      // Build player data from seats
+      const players = claimedSeats.map((seat, index) => ({
+        seatIndex: seat.seatIndex,
+        name: seat.playerName || `Player ${seat.seatIndex + 1}`,
+        factionId: seat.factionId!,
+        isAI: seat.isAI,
+        turnOrder: index,
+      }));
+      
+      // Update lobby status to playing and store player config (game state will be initialized client-side)
+      await storage.updateLobby(lobby.id, { 
+        status: "playing",
+        gameState: { players, mapSize: lobby.mapSize } as any,
+      });
+      
+      const updatedLobby = await storage.getLobbyById(lobby.id);
+      const updatedSeats = await storage.getSeatsByLobbyId(lobby.id);
+      res.json({ ...updatedLobby, seats: updatedSeats });
+    } catch (error) {
+      console.error("Failed to start game:", error);
+      res.status(500).json({ error: "Failed to start game" });
+    }
+  });
+
   // === GAME SAVES ROUTES ===
   
   app.get("/api/saves", async (req, res) => {
