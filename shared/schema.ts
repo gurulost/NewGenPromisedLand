@@ -56,6 +56,7 @@ export const playerSeats = pgTable("player_seats", {
   lobbyId: integer("lobby_id").notNull().references(() => gameLobbies.id, { onDelete: "cascade" }),
   seatIndex: integer("seat_index").notNull(),
   userId: integer("user_id").references(() => users.id),
+  playerName: text("player_name"),
   factionId: text("faction_id"),
   isReady: boolean("is_ready").notNull().default(false),
   isAI: boolean("is_ai").notNull().default(false),
