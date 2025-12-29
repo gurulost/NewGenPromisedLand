@@ -20,6 +20,7 @@ import { WorldElementPanel } from "../ui/WorldElementPanel";
 import { VillageCapturePanel } from "../ui/VillageCapturePanel";
 import { DiplomacyPanel } from "../ui/DiplomacyPanel";
 import { RuinsRewardPanel } from "../ui/RuinsRewardPanel";
+import { TileContextMenu } from "../ui/TileContextMenu";
 import { useVisualFeedback } from "../ui/VisualFeedback";
 import { GameLogPanel } from "../ui/GameLogPanel";
 import { SettingsMenu } from "../ui/SettingsMenu";
@@ -855,6 +856,7 @@ export default function GameUI() {
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10">
+      <TileContextMenu />
       {isDev && (
         <div className="fixed bottom-3 left-3 z-[300] rounded-md border border-white/10 bg-black/60 px-3 py-2 text-[11px] text-white/80 backdrop-blur pointer-events-auto">
           <div className="font-semibold text-white/90">Dev Memory</div>

@@ -2,6 +2,20 @@ import { create } from "zustand";
 import { Unit } from "@shared/types/unit";
 import { Tile } from "@shared/types/game";
 
+export interface TileContextMenuOption {
+  id: string;
+  label: string;
+  icon?: string;
+  action: () => void;
+}
+
+export interface TileContextMenuState {
+  isOpen: boolean;
+  screenPosition: { x: number; y: number };
+  tileCoordinate: { q: number; r: number } | null;
+  options: TileContextMenuOption[];
+}
+
 interface GameStateStore {
   selectedUnit: Unit | null;
   hoveredTile: { x: number; z: number; tile: Tile } | null;
@@ -37,6 +51,9 @@ interface GameStateStore {
   isRoadBuildMode: boolean;
   roadBuildUnitId: string | null;
 
+  // Tile context menu (for tiles with multiple interactable items)
+  tileContextMenu: TileContextMenuState;
+
   setSelectedUnit: (unit: Unit | null) => void;
   setHoveredTile: (tile: { x: number; z: number; tile: Tile } | null) => void;
   setReachableTiles: (tiles: string[]) => void;
@@ -65,6 +82,10 @@ interface GameStateStore {
   // Road building actions
   startRoadBuild: (unitId: string) => void;
   cancelRoadBuild: () => void;
+
+  // Tile context menu actions
+  openTileContextMenu: (screenPosition: { x: number; y: number }, tileCoordinate: { q: number; r: number }, options: TileContextMenuOption[]) => void;
+  closeTileContextMenu: () => void;
 }
 
 export const useGameState = create<GameStateStore>((set) => ({
@@ -97,6 +118,13 @@ export const useGameState = create<GameStateStore>((set) => ({
 
   isRoadBuildMode: false,
   roadBuildUnitId: null,
+
+  tileContextMenu: {
+    isOpen: false,
+    screenPosition: { x: 0, y: 0 },
+    tileCoordinate: null,
+    options: [],
+  },
 
   setSelectedUnit: (unit) =>
     set({
@@ -173,4 +201,21 @@ export const useGameState = create<GameStateStore>((set) => ({
 
   startRoadBuild: (unitId) => set({ isRoadBuildMode: true, roadBuildUnitId: unitId, isMovementMode: false, isAttackMode: false, attackableTargets: [] }),
   cancelRoadBuild: () => set({ isRoadBuildMode: false, roadBuildUnitId: null }),
+
+  openTileContextMenu: (screenPosition, tileCoordinate, options) => set({
+    tileContextMenu: {
+      isOpen: true,
+      screenPosition,
+      tileCoordinate,
+      options,
+    },
+  }),
+  closeTileContextMenu: () => set({
+    tileContextMenu: {
+      isOpen: false,
+      screenPosition: { x: 0, y: 0 },
+      tileCoordinate: null,
+      options: [],
+    },
+  }),
 }));

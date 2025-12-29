@@ -8,7 +8,7 @@ import { getUnitDefinition } from "@shared/data/units";
 import { getVisibleTilesInRange, calculateFogOfWarState } from "@shared/utils/lineOfSight";
 import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
-import { useGameState } from "../../lib/stores/useGameState";
+import { useGameState, TileContextMenuOption } from "../../lib/stores/useGameState";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
 import { createCloudShader } from './cloudShader';
 
@@ -113,7 +113,7 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
 
 export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const { gameState, moveUnit, attackUnit } = useLocalGame();
-  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction, isMovementMode, setMovementMode, isAttackMode, setAttackMode, attackableTargets, isRoadBuildMode, roadBuildUnitId, cancelRoadBuild } = useGameState();
+  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction, isMovementMode, setMovementMode, isAttackMode, setAttackMode, attackableTargets, isRoadBuildMode, roadBuildUnitId, cancelRoadBuild, openTileContextMenu, closeTileContextMenu } = useGameState();
   const { camera, raycaster, gl } = useThree();
   
   // Calculate valid construction tiles when in construction mode
@@ -450,107 +450,193 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             cancelConstruction();
           }
           
-	          return; // Exit early, don't handle unit clicks in construction mode
-	        }
+                  return; // Exit early, don't handle unit clicks in construction mode
+                }
 
-	        // Handle road building mode (worker places a road on a clicked tile)
-	        if (isRoadBuildMode && currentPlayer) {
-	          const builder = gameState?.units.find(u => u.id === roadBuildUnitId && u.playerId === currentPlayer.id);
-	          if (!builder) {
-	            cancelRoadBuild();
-	            return;
-	          }
+                // Handle road building mode (worker places a road on a clicked tile)
+                if (isRoadBuildMode && currentPlayer) {
+                  const builder = gameState?.units.find(u => u.id === roadBuildUnitId && u.playerId === currentPlayer.id);
+                  if (!builder) {
+                    cancelRoadBuild();
+                    return;
+                  }
 
-	          const isValidDistance = hexDistance(builder.coordinate, clickedTile.coordinate) <= 1;
-	          const isValidTerrain = clickedTile.terrain !== 'water' && clickedTile.terrain !== 'mountain';
+                  const isValidDistance = hexDistance(builder.coordinate, clickedTile.coordinate) <= 1;
+                  const isValidTerrain = clickedTile.terrain !== 'water' && clickedTile.terrain !== 'mountain';
 
-	          if (!isValidDistance || !isValidTerrain) {
-	            console.log('Invalid road tile selected');
-	            return;
-	          }
+                  if (!isValidDistance || !isValidTerrain) {
+                    console.log('Invalid road tile selected');
+                    return;
+                  }
 
-	          const { dispatch } = useLocalGame.getState();
-	          dispatch({
-	            type: 'BUILD_ROAD',
-	            payload: { unitId: builder.id, targetCoordinate: clickedTile.coordinate, playerId: currentPlayer.id },
-	          });
+                  const { dispatch } = useLocalGame.getState();
+                  dispatch({
+                    type: 'BUILD_ROAD',
+                    payload: { unitId: builder.id, targetCoordinate: clickedTile.coordinate, playerId: currentPlayer.id },
+                  });
 
-	          cancelRoadBuild();
-	          return;
-	        }
-	        
-	        if (unitOnTile && currentPlayer) {
-	          // If clicking on a unit
-	          if (unitOnTile.playerId === currentPlayer.id) {
-            // Select own unit (but don't show movement tiles yet)
-            console.log('Unit clicked:', unitOnTile.id, 'Current player:', currentPlayer.id, 'Unit player:', unitOnTile.playerId);
-            setSelectedUnit(unitOnTile);
-            // Exit any previous modes
-            setMovementMode(false);
-            setAttackMode(false);
-          } else if (selectedUnit && selectedUnit.playerId === currentPlayer.id) {
-            // Clicking on enemy unit
-            if (isAttackMode) {
-              // Check if target is in attackable range
-              const isValidTarget = attackableTargets.some(
-                target => target.q === unitOnTile.coordinate.q && target.r === unitOnTile.coordinate.r
-              );
-              
-              if (isValidTarget) {
-                console.log('Attacking target:', unitOnTile.id);
-                attackUnit(selectedUnit.id, unitOnTile.id);
-                setAttackMode(false);
-              } else {
-                console.log('Target not in range');
+                  cancelRoadBuild();
+                  return;
+                }
+                
+                if (unitOnTile && currentPlayer) {
+                  // If clicking on a unit
+                  if (unitOnTile.playerId === currentPlayer.id) {
+                    // Check if tile has both a unit AND resources - show context menu
+                    const hasResources = clickedTile.resources && clickedTile.resources.length > 0;
+                    
+                    if (hasResources) {
+                      // Build context menu options
+                      const unitDef = getUnitDefinition(unitOnTile.type);
+                      const unitName = unitDef?.name || unitOnTile.type;
+                      const resourceName = clickedTile.resources[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+                      
+                      const menuOptions: TileContextMenuOption[] = [
+                        {
+                          id: 'select-unit',
+                          label: `Select ${unitName}`,
+                          icon: '⚔️',
+                          action: () => {
+                            setSelectedUnit(unitOnTile);
+                            setMovementMode(false);
+                            setAttackMode(false);
+                          }
+                        },
+                        {
+                          id: 'interact-element',
+                          label: `Interact with ${resourceName}`,
+                          icon: '🏛️',
+                          action: () => {
+                            const worldElementEvent = new CustomEvent('worldElementClick', {
+                              detail: {
+                                coordinate: clickedTile.coordinate,
+                                resources: clickedTile.resources,
+                                terrain: clickedTile.terrain
+                              }
+                            });
+                            window.dispatchEvent(worldElementEvent);
+                          }
+                        }
+                      ];
+                      
+                      console.log('Tile has both unit and resources - showing context menu');
+                      event.stopPropagation();
+                      openTileContextMenu(
+                        { x: event.clientX, y: event.clientY },
+                        clickedTile.coordinate,
+                        menuOptions
+                      );
+                      return;
+                    }
+                    
+                    // Select own unit (but don't show movement tiles yet)
+                    console.log('Unit clicked:', unitOnTile.id, 'Current player:', currentPlayer.id, 'Unit player:', unitOnTile.playerId);
+                    closeTileContextMenu();
+                    setSelectedUnit(unitOnTile);
+                    // Exit any previous modes
+                    setMovementMode(false);
+                    setAttackMode(false);
+                  } else {
+                    // Clicking on enemy/neutral unit
+                    const hasResources = clickedTile.resources && clickedTile.resources.length > 0;
+                    
+                    if (hasResources && !isAttackMode) {
+                      // Enemy unit on tile with resources - show context menu to interact with resource
+                      const resourceName = clickedTile.resources[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+                      
+                      const menuOptions: TileContextMenuOption[] = [
+                        {
+                          id: 'interact-element',
+                          label: `Interact with ${resourceName}`,
+                          icon: '🏛️',
+                          action: () => {
+                            const worldElementEvent = new CustomEvent('worldElementClick', {
+                              detail: {
+                                coordinate: clickedTile.coordinate,
+                                resources: clickedTile.resources,
+                                terrain: clickedTile.terrain
+                              }
+                            });
+                            window.dispatchEvent(worldElementEvent);
+                          }
+                        }
+                      ];
+                      
+                      console.log('Enemy unit on tile with resources - showing context menu');
+                      event.stopPropagation();
+                      openTileContextMenu(
+                        { x: event.clientX, y: event.clientY },
+                        clickedTile.coordinate,
+                        menuOptions
+                      );
+                      return;
+                    }
+                    
+                    if (selectedUnit && selectedUnit.playerId === currentPlayer.id && isAttackMode) {
+                      // Check if target is in attackable range
+                      const isValidTarget = attackableTargets.some(
+                        target => target.q === unitOnTile.coordinate.q && target.r === unitOnTile.coordinate.r
+                      );
+                      
+                      if (isValidTarget) {
+                        console.log('Attacking target:', unitOnTile.id);
+                        closeTileContextMenu();
+                        attackUnit(selectedUnit.id, unitOnTile.id);
+                        setAttackMode(false);
+                      } else {
+                        console.log('Target not in range');
+                      }
+                    } else if (!isAttackMode) {
+                      console.log('Attack target clicked (not in attack mode):', unitOnTile.id);
+                    }
+                  }
+                } else if (selectedUnit && selectedUnit.playerId === currentPlayer?.id && isMovementMode) {
+                  // Move selected unit to empty tile only if in movement mode
+                  const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
+                  
+                  if (reachableTiles.includes(tileKey)) {
+                    console.log('Moving unit to:', clickedTile.coordinate);
+                    closeTileContextMenu();
+                    moveUnit(selectedUnit.id, clickedTile.coordinate);
+                    // Exit movement mode after moving
+                    setMovementMode(false);
+                  } else {
+                    console.log('Tile not reachable');
+                  }
+                } else if (!unitOnTile) {
+                  // Check for world elements on this tile first
+                  if (clickedTile.resources && clickedTile.resources.length > 0) {
+                    console.log('🎯 Tile clicked with resources:', clickedTile.resources, 'at coordinate:', clickedTile.coordinate);
+                    console.log('🔍 Tile terrain:', clickedTile.terrain, 'Tile details:', clickedTile);
+                    
+                    closeTileContextMenu();
+                    // Dispatch custom event for world element interaction
+                    const worldElementEvent = new CustomEvent('worldElementClick', {
+                      detail: {
+                        coordinate: clickedTile.coordinate,
+                        resources: clickedTile.resources,
+                        terrain: clickedTile.terrain
+                      }
+                    });
+                    
+                    console.log('📡 Dispatching worldElementClick event:', worldElementEvent.detail);
+                    window.dispatchEvent(worldElementEvent);
+                    return; // Don't deselect unit if clicking on world element
+                  } else {
+                    console.log('🔍 Clicked tile has no resources:', clickedTile);
+                  }
+                  
+                  // Clicked on empty tile - exit movement mode and deselect
+                  console.log('Clicked on empty tile - exiting movement mode');
+                  closeTileContextMenu();
+                  setMovementMode(false);
+                  if (!isMovementMode) {
+                    setSelectedUnit(null);
+                  }
+                }
               }
-            } else {
-              console.log('Attack target clicked (not in attack mode):', unitOnTile.id);
             }
-          }
-        } else if (selectedUnit && selectedUnit.playerId === currentPlayer?.id && isMovementMode) {
-          // Move selected unit to empty tile only if in movement mode
-          const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
-          
-          if (reachableTiles.includes(tileKey)) {
-            console.log('Moving unit to:', clickedTile.coordinate);
-            moveUnit(selectedUnit.id, clickedTile.coordinate);
-            // Exit movement mode after moving
-            setMovementMode(false);
-          } else {
-            console.log('Tile not reachable');
-          }
-        } else if (!unitOnTile) {
-          // Check for world elements on this tile first
-          if (clickedTile.resources && clickedTile.resources.length > 0) {
-            console.log('🎯 Tile clicked with resources:', clickedTile.resources, 'at coordinate:', clickedTile.coordinate);
-            console.log('🔍 Tile terrain:', clickedTile.terrain, 'Tile details:', clickedTile);
-            
-            // Dispatch custom event for world element interaction
-            const worldElementEvent = new CustomEvent('worldElementClick', {
-              detail: {
-                coordinate: clickedTile.coordinate,
-                resources: clickedTile.resources,
-                terrain: clickedTile.terrain
-              }
-            });
-            
-            console.log('📡 Dispatching worldElementClick event:', worldElementEvent.detail);
-            window.dispatchEvent(worldElementEvent);
-            return; // Don't deselect unit if clicking on world element
-          } else {
-            console.log('🔍 Clicked tile has no resources:', clickedTile);
-          }
-          
-          // Clicked on empty tile - exit movement mode and deselect
-          console.log('Clicked on empty tile - exiting movement mode');
-          setMovementMode(false);
-          if (!isMovementMode) {
-            setSelectedUnit(null);
-          }
-        }
-      }
-    }
-  };
+          };
 
   const handlePointerMove = (event: any) => {
     if (!meshRef.current) return;
