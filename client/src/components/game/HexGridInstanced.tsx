@@ -455,6 +455,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
 
                 // Handle road building mode (worker places a road on a clicked tile)
                 if (isRoadBuildMode && currentPlayer) {
+                  closeTileContextMenu();
                   const builder = gameState?.units.find(u => u.id === roadBuildUnitId && u.playerId === currentPlayer.id);
                   if (!builder) {
                     cancelRoadBuild();
@@ -585,9 +586,11 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
                         setAttackMode(false);
                       } else {
                         console.log('Target not in range');
+                        closeTileContextMenu();
                       }
                     } else if (!isAttackMode) {
                       console.log('Attack target clicked (not in attack mode):', unitOnTile.id);
+                      closeTileContextMenu();
                     }
                   }
                 } else if (selectedUnit && selectedUnit.playerId === currentPlayer?.id && isMovementMode) {
@@ -602,6 +605,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
                     setMovementMode(false);
                   } else {
                     console.log('Tile not reachable');
+                    closeTileContextMenu();
                   }
                 } else if (!unitOnTile) {
                   // Check for world elements on this tile first

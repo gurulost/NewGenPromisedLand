@@ -46,7 +46,7 @@ interface ActiveNotification {
 export default function GameUI() {
   const isDev = import.meta.env.DEV;
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
-  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates } = useGameState();
+  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates, closeTileContextMenu } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const { triggerFlash, showToast } = useVisualFeedback();
   const [showTechPanel, setShowTechPanel] = useState(false);
@@ -370,6 +370,9 @@ export default function GameUI() {
   // Enhanced end turn with transition  
   const handleEndTurn = () => {
     if (!gameState || !currentPlayer) return;
+
+    // Close any open context menu
+    closeTileContextMenu();
 
     const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
     const nextPlayer = gameState.players[nextPlayerIndex];
