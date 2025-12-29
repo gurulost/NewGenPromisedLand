@@ -171,14 +171,14 @@ export default function MainMenu() {
               </GlowingButton>
 
               <GlowingButton
-                disabled
+                onClick={() => setGamePhase('lobbies')}
                 variant="secondary"
                 className="w-full"
                 size="lg"
               >
                 <span className="flex items-center justify-center gap-2">
                   <Globe />
-                  Online Multiplayer (Coming Soon)
+                  Online Multiplayer
                 </span>
               </GlowingButton>
 

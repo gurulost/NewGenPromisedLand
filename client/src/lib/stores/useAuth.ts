@@ -1,0 +1,85 @@
+import { create } from "zustand";
+
+interface User {
+  id: number;
+  username: string;
+}
+
+interface AuthStore {
+  user: User | null;
+  loading: boolean;
+  
+  checkAuth: () => Promise<void>;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+}
+
+export const useAuth = create<AuthStore>((set) => ({
+  user: null,
+  loading: true,
+
+  checkAuth: async () => {
+    try {
+      const res = await fetch("/api/auth/me", { credentials: "include" });
+      if (res.ok) {
+        const user = await res.json();
+        set({ user, loading: false });
+      } else {
+        set({ user: null, loading: false });
+      }
+    } catch {
+      set({ user: null, loading: false });
+    }
+  },
+
+  login: async (username, password) => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+        credentials: "include",
+      });
+      if (res.ok) {
+        const user = await res.json();
+        set({ user });
+        return { success: true };
+      } else {
+        const data = await res.json();
+        return { success: false, error: data.error || "Login failed" };
+      }
+    } catch {
+      return { success: false, error: "Network error" };
+    }
+  },
+
+  signup: async (username, password) => {
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+        credentials: "include",
+      });
+      if (res.ok) {
+        const user = await res.json();
+        set({ user });
+        return { success: true };
+      } else {
+        const data = await res.json();
+        return { success: false, error: data.error || "Signup failed" };
+      }
+    } catch {
+      return { success: false, error: "Network error" };
+    }
+  },
+
+  logout: async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } finally {
+      set({ user: null });
+    }
+  },
+}));
