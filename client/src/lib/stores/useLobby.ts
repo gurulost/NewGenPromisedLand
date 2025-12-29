@@ -111,7 +111,7 @@ export const useLobby = create<LobbyStore>((set, get) => ({
   fetchLobby: async (id) => {
     set({ loading: true, error: null });
     try {
-      const res = await fetch(`/api/lobbies/${id}`, { credentials: "include" });
+      const res = await fetch(`/api/lobbies/id/${id}`, { credentials: "include" });
       if (res.ok) {
         const lobby = await res.json();
         set({ currentLobby: lobby, loading: false });
@@ -124,8 +124,10 @@ export const useLobby = create<LobbyStore>((set, get) => ({
   },
 
   claimSeat: async (lobbyId, seatIndex, playerName) => {
+    const lobby = get().currentLobby;
+    if (!lobby) return false;
     try {
-      const res = await fetch(`/api/lobbies/${lobbyId}/seats/${seatIndex}/claim`, {
+      const res = await fetch(`/api/lobbies/${lobby.code}/seats/${seatIndex}/claim`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ playerName }),
@@ -142,8 +144,10 @@ export const useLobby = create<LobbyStore>((set, get) => ({
   },
 
   releaseSeat: async (lobbyId, seatIndex) => {
+    const lobby = get().currentLobby;
+    if (!lobby) return false;
     try {
-      const res = await fetch(`/api/lobbies/${lobbyId}/seats/${seatIndex}/release`, {
+      const res = await fetch(`/api/lobbies/${lobby.code}/seats/${seatIndex}/release`, {
         method: "POST",
         credentials: "include",
       });
@@ -158,8 +162,10 @@ export const useLobby = create<LobbyStore>((set, get) => ({
   },
 
   updateSeat: async (lobbyId, seatIndex, updates) => {
+    const lobby = get().currentLobby;
+    if (!lobby) return false;
     try {
-      const res = await fetch(`/api/lobbies/${lobbyId}/seats/${seatIndex}`, {
+      const res = await fetch(`/api/lobbies/${lobby.code}/seats/${seatIndex}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
@@ -176,8 +182,10 @@ export const useLobby = create<LobbyStore>((set, get) => ({
   },
 
   addAISeat: async (lobbyId, seatIndex, factionId) => {
+    const lobby = get().currentLobby;
+    if (!lobby) return false;
     try {
-      const res = await fetch(`/api/lobbies/${lobbyId}/seats/${seatIndex}/ai`, {
+      const res = await fetch(`/api/lobbies/${lobby.code}/seats/${seatIndex}/ai`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ factionId }),

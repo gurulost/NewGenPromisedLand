@@ -177,7 +177,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Auto-claim first seat for host
       const seats = await storage.getSeatsByLobbyId(lobby.id);
       if (seats.length > 0) {
-        await storage.updateSeat(seats[0].id, { userId: req.session.userId! });
+        await storage.updateSeat(seats[0].id, { 
+          userId: req.session.userId!,
+          playerName: req.session.username || "Host"
+        });
       }
       
       const updatedSeats = await storage.getSeatsByLobbyId(lobby.id);
@@ -207,8 +210,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get lobby by id (for refreshing)
+  app.get("/api/lobbies/id/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const lobby = await storage.getLobbyById(id);
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      const seats = await storage.getSeatsByLobbyId(lobby.id);
+      res.json({ ...lobby, seats });
+    } catch (error) {
+      console.error("Failed to get lobby:", error);
+      res.status(500).json({ error: "Failed to get lobby" });
+    }
+  });
+
   // Get lobby by code (for joining)
-  app.get("/api/lobbies/:code", async (req, res) => {
+  app.get("/api/lobbies/code/:code", async (req, res) => {
     try {
       const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
       if (!lobby) {
@@ -244,8 +263,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Seat already claimed" });
       }
       
+      const { playerName } = req.body;
       await storage.updateSeat(seat.id, { 
         userId: req.session.userId!, 
+        playerName: playerName || req.session.username || "Player",
         isAI: false,
         isReady: false 
       });
@@ -279,6 +300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       await storage.updateSeat(seat.id, { 
         userId: null, 
+        playerName: null,
         factionId: null,
         isReady: false 
       });
