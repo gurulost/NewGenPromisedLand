@@ -1,6 +1,7 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -34,3 +35,72 @@ export const insertGameSaveSchema = createInsertSchema(gameSaves).omit({
 
 export type InsertGameSave = z.infer<typeof insertGameSaveSchema>;
 export type GameSave = typeof gameSaves.$inferSelect;
+
+// Multiplayer game lobbies
+export const gameLobbies = pgTable("game_lobbies", {
+  id: serial("id").primaryKey(),
+  code: varchar("code", { length: 8 }).notNull().unique(),
+  name: text("name").notNull(),
+  hostUserId: integer("host_user_id").notNull().references(() => users.id),
+  maxPlayers: integer("max_players").notNull().default(6),
+  mapSize: text("map_size").notNull().default("medium"),
+  status: text("status").notNull().default("waiting"),
+  gameState: jsonb("game_state"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Player seats in a lobby - one user can claim multiple seats
+export const playerSeats = pgTable("player_seats", {
+  id: serial("id").primaryKey(),
+  lobbyId: integer("lobby_id").notNull().references(() => gameLobbies.id, { onDelete: "cascade" }),
+  seatIndex: integer("seat_index").notNull(),
+  userId: integer("user_id").references(() => users.id),
+  factionId: text("faction_id"),
+  isReady: boolean("is_ready").notNull().default(false),
+  isAI: boolean("is_ai").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  lobbySeatUnique: uniqueIndex("lobby_seat_unique_idx").on(table.lobbyId, table.seatIndex),
+}));
+
+// Relations defined after all tables
+export const gameLobbyRelations = relations(gameLobbies, ({ one, many }) => ({
+  host: one(users, {
+    fields: [gameLobbies.hostUserId],
+    references: [users.id],
+  }),
+  seats: many(playerSeats),
+}));
+
+export const playerSeatRelations = relations(playerSeats, ({ one }) => ({
+  lobby: one(gameLobbies, {
+    fields: [playerSeats.lobbyId],
+    references: [gameLobbies.id],
+  }),
+  user: one(users, {
+    fields: [playerSeats.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userRelations = relations(users, ({ many }) => ({
+  hostedLobbies: many(gameLobbies),
+  seats: many(playerSeats),
+}));
+
+export const insertGameLobbySchema = createInsertSchema(gameLobbies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPlayerSeatSchema = createInsertSchema(playerSeats).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertGameLobby = z.infer<typeof insertGameLobbySchema>;
+export type GameLobby = typeof gameLobbies.$inferSelect;
+export type InsertPlayerSeat = z.infer<typeof insertPlayerSeatSchema>;
+export type PlayerSeat = typeof playerSeats.$inferSelect;
