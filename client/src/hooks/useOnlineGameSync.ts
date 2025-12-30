@@ -6,8 +6,11 @@ export function useOnlineGameSync() {
   const applyRemoteAction = useLocalGame((state) => state.applyRemoteAction);
   const setOnlineActionVersion = useLocalGame((state) => state.setOnlineActionVersion);
   const setOnlineQueueVersion = useLocalGame((state) => state.setOnlineQueueVersion);
+  const setOnlineHost = useLocalGame((state) => state.setOnlineHost);
+  const setHostLeaseStatus = useLocalGame((state) => state.setHostLeaseStatus);
   const syncingRef = useRef(false);
   const processedQueueRef = useRef<Map<string, boolean>>(new Map());
+  const lastHeartbeatRef = useRef(0);
 
   useEffect(() => {
     if (!onlineSession) return;
@@ -23,8 +26,48 @@ export function useOnlineGameSync() {
         const session = useLocalGame.getState().onlineSession;
         if (!session) return;
 
-        if (session.userId === session.hostUserId) {
-          const pendingRes = await fetch(`/api/lobbies/${session.lobbyCode}/actions/queue?since=${session.queueVersion}`, {
+        try {
+          const statusRes = await fetch(`/api/lobbies/${session.lobbyCode}/host`, {
+            credentials: "include",
+          });
+          if (statusRes.ok) {
+            const status = await statusRes.json();
+            if (typeof status.hostUserId === "number" && typeof status.hostEpoch === "number") {
+              setOnlineHost(status.hostUserId, status.hostEpoch);
+            }
+            if (typeof status.leaseExpired === "boolean") {
+              setHostLeaseStatus(
+                typeof status.hostLastSeen === "number" ? status.hostLastSeen : null,
+                status.leaseExpired
+              );
+            }
+          }
+        } catch {
+          // Ignore host status errors; next poll will retry.
+        }
+
+        const latestSession = useLocalGame.getState().onlineSession;
+        if (!latestSession) return;
+
+        if (latestSession.userId === latestSession.hostUserId) {
+          const now = Date.now();
+          if (now - lastHeartbeatRef.current >= 5000) {
+            lastHeartbeatRef.current = now;
+            try {
+              await fetch(`/api/lobbies/${latestSession.lobbyCode}/host/heartbeat`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ hostEpoch: latestSession.hostEpoch }),
+                credentials: "include",
+              });
+            } catch {
+              // Ignore heartbeat errors; next poll will retry.
+            }
+          }
+        }
+
+        if (latestSession.userId === latestSession.hostUserId) {
+          const pendingRes = await fetch(`/api/lobbies/${latestSession.lobbyCode}/actions/queue?since=${latestSession.queueVersion}`, {
             credentials: "include",
           });
           if (pendingRes.ok) {
@@ -59,7 +102,7 @@ export function useOnlineGameSync() {
                 processedQueueRef.current.set(entry.id, true);
               }
 
-              const commitRes = await fetch(`/api/lobbies/${session.lobbyCode}/actions/commit`, {
+              const commitRes = await fetch(`/api/lobbies/${latestSession.lobbyCode}/actions/commit`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -67,6 +110,7 @@ export function useOnlineGameSync() {
                   actorId: entry.actorId,
                   id: entry.id,
                   queueVersion: entry.queueVersion,
+                  hostEpoch: latestSession.hostEpoch,
                 }),
                 credentials: "include",
               });
@@ -84,10 +128,14 @@ export function useOnlineGameSync() {
                 if (entry.action?.type === "END_TURN") {
                   const latestState = useLocalGame.getState().gameState;
                   if (latestState && typeof commitData.actionVersion === "number") {
-                    await fetch(`/api/lobbies/${session.lobbyCode}/state`, {
+                    await fetch(`/api/lobbies/${latestSession.lobbyCode}/state`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ state: latestState, version: commitData.actionVersion }),
+                      body: JSON.stringify({
+                        state: latestState,
+                        version: commitData.actionVersion,
+                        hostEpoch: latestSession.hostEpoch,
+                      }),
                       credentials: "include",
                     });
                   }
@@ -96,9 +144,6 @@ export function useOnlineGameSync() {
             }
           }
         }
-
-        const latestSession = useLocalGame.getState().onlineSession;
-        if (!latestSession) return;
 
         const committedRes = await fetch(`/api/lobbies/${latestSession.lobbyCode}/actions?since=${latestSession.actionVersion}`, {
           credentials: "include",
@@ -130,5 +175,14 @@ export function useOnlineGameSync() {
       isActive = false;
       clearInterval(interval);
     };
-  }, [onlineSession?.lobbyCode, onlineSession?.userId, onlineSession?.hostUserId, applyRemoteAction, setOnlineActionVersion, setOnlineQueueVersion]);
+  }, [
+    onlineSession?.lobbyCode,
+    onlineSession?.userId,
+    onlineSession?.hostUserId,
+    applyRemoteAction,
+    setOnlineActionVersion,
+    setOnlineQueueVersion,
+    setOnlineHost,
+    setHostLeaseStatus,
+  ]);
 }
