@@ -171,9 +171,9 @@ function SeatSlot({
 }
 
 export default function LobbyRoom() {
-  const { setGamePhase } = useLocalGame();
+  const { setGamePhase, setOnlineSession, clearOnlineSession, startLocalGame, loadGameState } = useLocalGame();
   const { user } = useAuth();
-  const { currentLobby, leaveLobby, fetchLobby, releaseSeat } = useLobby();
+  const { currentLobby, leaveLobby, fetchLobby } = useLobby();
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -191,6 +191,22 @@ export default function LobbyRoom() {
     }
   }, [currentLobby?.id, currentLobby?.status, fetchLobby]);
 
+  useEffect(() => {
+    if (!currentLobby || currentLobby.status !== "waiting") return;
+
+    const handleBeforeUnload = () => {
+      const url = `/api/lobbies/${currentLobby.code}/leave`;
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url, "");
+      } else {
+        fetch(url, { method: "POST", credentials: "include", keepalive: true });
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [currentLobby?.code, currentLobby?.status]);
+
   if (!currentLobby || !user) {
     return null;
   }
@@ -201,16 +217,17 @@ export default function LobbyRoom() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const isHost = currentLobby.hostUserId === user.id;
+
   const handleBack = async () => {
-    const mySeats = currentLobby.seats.filter(s => s.userId === user.id);
-    for (const seat of mySeats) {
-      await releaseSeat(currentLobby.id, seat.seatIndex);
+    if (isHost && !window.confirm("Leave this lobby? This will end the game for everyone.")) {
+      return;
     }
-    leaveLobby();
+    await leaveLobby();
+    clearOnlineSession();
     setGamePhase('lobbies');
   };
 
-  const isHost = currentLobby.hostUserId === user.id;
   const seatSlots = currentLobby.status === "waiting"
     ? Array.from({ length: currentLobby.maxPlayers }, (_, i) => {
         const seat = currentLobby.seats.find(s => s.seatIndex === i);
@@ -224,24 +241,56 @@ export default function LobbyRoom() {
 
   const [isStarting, setIsStarting] = useState(false);
   const { startGame, error } = useLobby();
-  const { startLocalGame } = useLocalGame();
 
   useEffect(() => {
     if (currentLobby?.status === "playing" && currentLobby.gameState) {
       console.log("Lobby status changed to playing, initializing game...", currentLobby.gameState);
-      const gameConfig = currentLobby.gameState as { players: Array<{ name: string; factionId: string; isAI: boolean; turnOrder: number }>; mapSize: string };
+      const gameConfig = currentLobby.gameState as {
+        players: Array<{ playerId?: string; userId?: number | null; name: string; factionId: string; isAI: boolean; turnOrder: number }>;
+        mapSize?: string;
+        seed?: number;
+        actionVersion?: number;
+        pendingVersion?: number;
+        snapshotVersion?: number;
+        snapshot?: unknown;
+      };
       const playerSetup = gameConfig.players.map((p, i) => ({
-        id: `player-${i + 1}`,
+        id: p.playerId || `player-${i + 1}`,
         name: p.name,
         factionId: p.factionId,
         turnOrder: p.turnOrder,
         isAI: p.isAI,
         aiDifficulty: 'normal' as const,
       }));
-      const mapSize = gameConfig.mapSize as MapSize;
-      startLocalGame(playerSetup, mapSize);
+      const rawMapSize = gameConfig.mapSize || "normal";
+      const mapSize = (rawMapSize === "medium" ? "normal" : rawMapSize) as MapSize;
+      const assignments = gameConfig.players.map((p, i) => ({
+        playerId: p.playerId || `player-${i + 1}`,
+        userId: p.userId ?? null,
+        isAI: p.isAI,
+      }));
+      const myPlayerIds = assignments
+        .filter((assignment) => assignment.userId === user.id)
+        .map((assignment) => assignment.playerId);
+      const snapshotVersion = gameConfig.snapshotVersion ?? 0;
+      const initialActionVersion = gameConfig.snapshot ? snapshotVersion : 0;
+      const isHostSession = currentLobby.hostUserId === user.id;
+      setOnlineSession({
+        lobbyCode: currentLobby.code,
+        userId: user.id,
+        hostUserId: currentLobby.hostUserId,
+        myPlayerIds,
+        actionVersion: initialActionVersion,
+        queueVersion: isHostSession ? 0 : (gameConfig.pendingVersion ?? 0),
+      });
+
+      if (gameConfig.snapshot) {
+        loadGameState(gameConfig.snapshot as any);
+      } else {
+        startLocalGame(playerSetup, mapSize, gameConfig.seed);
+      }
     }
-  }, [currentLobby?.status, currentLobby?.gameState, startLocalGame]);
+  }, [currentLobby?.status, currentLobby?.gameState, currentLobby?.code, currentLobby?.hostUserId, loadGameState, setOnlineSession, startLocalGame, user.id]);
 
   const handleStartGame = async () => {
     setIsStarting(true);

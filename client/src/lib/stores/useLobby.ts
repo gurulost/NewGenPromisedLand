@@ -42,7 +42,7 @@ interface LobbyStore {
   releaseSeat: (lobbyId: number, seatIndex: number) => Promise<boolean>;
   updateSeat: (lobbyId: number, seatIndex: number, updates: { factionId?: string; isReady?: boolean }) => Promise<boolean>;
   addAISeat: (lobbyId: number, seatIndex: number, factionId: string) => Promise<boolean>;
-  leaveLobby: () => void;
+  leaveLobby: () => Promise<void>;
   startGame: () => Promise<LobbyWithSeats | null>;
 }
 
@@ -117,6 +117,8 @@ export const useLobby = create<LobbyStore>((set, get) => ({
       if (res.ok) {
         const lobby = await res.json();
         set({ currentLobby: lobby, loading: false });
+      } else if (res.status === 404) {
+        set({ currentLobby: null, error: "Lobby not found", loading: false });
       } else {
         set({ error: "Lobby not found", loading: false });
       }
@@ -203,8 +205,20 @@ export const useLobby = create<LobbyStore>((set, get) => ({
     }
   },
 
-  leaveLobby: () => {
-    set({ currentLobby: null });
+  leaveLobby: async () => {
+    const lobby = get().currentLobby;
+    if (!lobby) {
+      set({ currentLobby: null });
+      return;
+    }
+    try {
+      await fetch(`/api/lobbies/${lobby.code}/leave`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } finally {
+      set({ currentLobby: null });
+    }
   },
 
   startGame: async () => {

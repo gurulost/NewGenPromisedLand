@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { GameState, PlayerState, TerrainType } from "@shared/types/game";
+import { GameState, PlayerState } from "@shared/types/game";
 import { HexCoordinate } from "@shared/types/coordinates";
 import { hexDistance } from "@shared/utils/hex";
 import { gameReducer } from "@shared/logic/gameReducer";
@@ -30,12 +30,38 @@ const applyPlayerDefaults = (player: PlayerState): PlayerState => {
 
 type GamePhase = 'menu' | 'playerSetup' | 'handoff' | 'playing' | 'gameOver' | 'lobbies' | 'lobbyRoom';
 
+interface OnlineSession {
+  lobbyCode: string;
+  userId: number;
+  hostUserId: number;
+  myPlayerIds: string[];
+  actionVersion: number;
+  queueVersion: number;
+}
+
+const canAct = (gameState: GameState | null, onlineSession: OnlineSession | null): boolean => {
+  if (!onlineSession) return true;
+  if (!gameState) return false;
+  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  if (!currentPlayer) return false;
+  if (currentPlayer.isAI) {
+    return onlineSession.userId === onlineSession.hostUserId;
+  }
+  return onlineSession.myPlayerIds.includes(currentPlayer.id);
+};
+
 interface LocalGameStore {
   gamePhase: GamePhase;
   gameState: GameState | null;
+  onlineSession: OnlineSession | null;
 
   setGamePhase: (phase: GamePhase) => void;
   setGameState: (state: GameState | null) => void;
+  setOnlineSession: (session: OnlineSession) => void;
+  clearOnlineSession: () => void;
+  setOnlineActionVersion: (version: number) => void;
+  setOnlineQueueVersion: (version: number) => void;
+  applyRemoteAction: (action: any) => boolean;
   startLocalGame: (playerSetup: Array<{
     id: string;
     name: string;
@@ -43,7 +69,7 @@ interface LocalGameStore {
     turnOrder: number;
     isAI?: boolean;
     aiDifficulty?: 'easy' | 'normal' | 'hard';
-  }>, mapSize?: MapSize) => void;
+  }>, mapSize?: MapSize, seed?: number) => void;
   endTurn: (playerId: string) => void;
   moveUnit: (unitId: string, targetCoordinate: any) => void;
   attackUnit: (attackerId: string, targetId: string) => void;
@@ -54,24 +80,158 @@ interface LocalGameStore {
   harvestResource: (unitId: string, resourceCoordinate: any, cityId: string) => void;
 }
 
-export const useLocalGame = create<LocalGameStore>((set, get) => ({
-  gamePhase: 'menu',
-  gameState: null,
+export const useLocalGame = create<LocalGameStore>((set, get) => {
+  const applyActionToState = (action: any): { applied: boolean; state?: GameState } => {
+    const { gameState } = get();
+    if (!gameState) return { applied: false };
+    const newGameState = gameReducer(gameState, action);
+    if (newGameState === gameState) return { applied: false };
+    set({ gameState: newGameState });
+    markAutosaveDirty();
+    return { applied: true, state: newGameState };
+  };
 
-  setGamePhase: (phase) => {
-    gameDebugger.trackGamePhase(phase);
-    gameDebugger.logUIInteraction(`Game phase changed to: ${phase}`, { phase });
-    set({ gamePhase: phase });
-  },
+  const createActionId = (): string => {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+    return `action_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  };
 
-  setGameState: (state) => {
-    gameDebugger.logUIInteraction(`Game state updated`, { hasState: !!state });
-    set({ gameState: state });
-  },
+  let onlineActionChain = Promise.resolve();
 
-  startLocalGame: (playerSetup, mapSize = 'normal') => {
-    // Starting a new game invalidates any previous autosave resume target.
-    void clearAutosave().catch(() => undefined);
+  const enqueueOnlineRequest = (task: () => Promise<void>): void => {
+    onlineActionChain = onlineActionChain.then(task).catch(() => undefined);
+  };
+
+  const submitAction = async (action: any): Promise<void> => {
+    const { onlineSession, gameState } = get();
+    if (!onlineSession) {
+      const result = applyActionToState(action);
+      if (result.applied && action.type === 'END_TURN') {
+        useGameState.getState().setSelectedUnit(null);
+        set({ gamePhase: 'handoff' });
+        if (result.state) {
+          requestAutosave(result.state, 'endTurn');
+        }
+      }
+      return;
+    }
+
+    if (!gameState) return;
+    if (!canAct(gameState, onlineSession)) return;
+
+    const actorId = gameState.players[gameState.currentPlayerIndex]?.id;
+    if (!actorId) return;
+
+    const actionId = createActionId();
+
+    if (onlineSession.userId === onlineSession.hostUserId) {
+      const result = applyActionToState(action);
+      if (!result.applied) return;
+      if (action.type === 'END_TURN') {
+        useGameState.getState().setSelectedUnit(null);
+      }
+
+      const lobbyCode = onlineSession.lobbyCode;
+      const snapshotState = action.type === "END_TURN" ? result.state : undefined;
+      enqueueOnlineRequest(async () => {
+        try {
+          const res = await fetch(`/api/lobbies/${lobbyCode}/actions/commit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action, actorId, id: actionId }),
+            credentials: "include",
+          });
+          if (res.ok) {
+            const data = await res.json();
+            set((state) => state.onlineSession
+              ? { onlineSession: { ...state.onlineSession, actionVersion: data.actionVersion } }
+              : {}
+            );
+
+            if (action.type === "END_TURN" && snapshotState) {
+              await fetch(`/api/lobbies/${lobbyCode}/state`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ state: snapshotState, version: data.actionVersion }),
+                credentials: "include",
+              });
+            }
+          }
+        } catch {
+          // Ignore network errors; sync polling will reconcile.
+        }
+      });
+      return;
+    }
+
+    const lobbyCode = onlineSession.lobbyCode;
+    enqueueOnlineRequest(async () => {
+      try {
+        await fetch(`/api/lobbies/${lobbyCode}/actions/queue`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, actorId, id: actionId }),
+          credentials: "include",
+        });
+      } catch {
+        // Ignore queue errors; player can retry.
+      }
+    });
+  };
+
+  return {
+    gamePhase: 'menu',
+    gameState: null,
+    onlineSession: null,
+
+    setGamePhase: (phase) => {
+      gameDebugger.trackGamePhase(phase);
+      gameDebugger.logUIInteraction(`Game phase changed to: ${phase}`, { phase });
+      set({ gamePhase: phase });
+    },
+
+    setGameState: (state) => {
+      gameDebugger.logUIInteraction(`Game state updated`, { hasState: !!state });
+      set({ gameState: state });
+    },
+
+    setOnlineSession: (session) => {
+      set({ onlineSession: session });
+    },
+
+    clearOnlineSession: () => {
+      set({ onlineSession: null });
+    },
+
+    setOnlineActionVersion: (version) => {
+      set((state) => state.onlineSession
+        ? { onlineSession: { ...state.onlineSession, actionVersion: version } }
+        : {}
+      );
+    },
+
+    setOnlineQueueVersion: (version) => {
+      set((state) => state.onlineSession
+        ? { onlineSession: { ...state.onlineSession, queueVersion: version } }
+        : {}
+      );
+    },
+
+    applyRemoteAction: (action) => {
+      const result = applyActionToState(action);
+      if (result.applied && (action.type === 'END_TURN' || action.type === 'END_TURN_RESOLUTION')) {
+        useGameState.getState().setSelectedUnit(null);
+      }
+      return result.applied;
+    },
+
+    startLocalGame: (playerSetup, mapSize = 'normal', seed) => {
+      const resolvedSeed = seed ?? Date.now();
+      const isOnline = !!get().onlineSession;
+      // Starting a new game invalidates any previous autosave resume target.
+      void clearAutosave().catch(() => undefined);
 
     // Create initial game state
     const players: PlayerState[] = playerSetup.map(setup => applyPlayerDefaults({
@@ -109,15 +269,16 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
     const playerFactions = playerSetup.map(p => p.factionId);
 
     // Get map configuration based on selected size
-    const mapConfig = MAP_SIZE_CONFIGS[mapSize];
+    const resolvedMapSize = MAP_SIZE_CONFIGS[mapSize] ? mapSize : "normal";
+    const mapConfig = MAP_SIZE_CONFIGS[resolvedMapSize];
 
     // Generate balanced map with faction-biased terrain generation
     const mapGenerator = new MapGenerator({
       width: mapConfig.dimensions,
       height: mapConfig.dimensions,
-      seed: Date.now(),
+      seed: resolvedSeed,
       playerCount: players.length,
-      mapSize: mapSize,
+      mapSize: resolvedMapSize,
       minResourceDistance: 2,
       maxResourcesPerPlayer: 3
     }, playerFactions);
@@ -260,12 +421,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
       };
     });
 
-            const gameState: GameState = {
-              id: `local-${Date.now()}`,
-              rngSeed: Date.now() >>> 0,
-              players: updatedPlayers,
-              currentPlayerIndex: 0,
-              turn: 1,
+    const gameState: GameState = {
+      id: `local-${resolvedSeed}`,
+      rngSeed: resolvedSeed >>> 0,
+      players: updatedPlayers,
+      currentPlayerIndex: 0,
+      turn: 1,
       phase: 'playing',
       map,
       units,
@@ -278,124 +439,73 @@ export const useLocalGame = create<LocalGameStore>((set, get) => ({
 
     set({
       gameState,
-      gamePhase: 'handoff'
+      gamePhase: isOnline ? 'playing' : 'handoff'
     });
 
     markAutosaveDirty();
     requestAutosave(gameState, 'startLocalGame');
-  },
+    },
 
-  endTurn: (playerId) => {
-    const { gameState } = get();
-    if (!gameState) return;
+    endTurn: (playerId) => {
+      void submitAction({
+        type: 'END_TURN' as const,
+        payload: { playerId }
+      });
+    },
 
-    const action = {
-      type: 'END_TURN' as const,
-      payload: { playerId }
-    };
+    moveUnit: (unitId, targetCoordinate) => {
+      if (import.meta.env.DEV) console.log('Moving unit:', unitId, 'to:', targetCoordinate);
+      void submitAction({
+        type: 'MOVE_UNIT' as const,
+        payload: { unitId, targetCoordinate }
+      });
+    },
 
-    const newGameState = gameReducer(gameState, action);
+    attackUnit: (attackerId: string, targetId: string) => {
+      if (import.meta.env.DEV) console.log('Unit attacking:', attackerId, 'target:', targetId);
+      void submitAction({
+        type: 'ATTACK_UNIT' as const,
+        payload: { attackerId, targetId }
+      });
+    },
 
-    // Clear selected unit when turn changes
-    useGameState.getState().setSelectedUnit(null);
+    useAbility: (playerId, abilityId) => {
+      void submitAction({
+        type: 'USE_ABILITY' as const,
+        payload: { playerId, abilityId }
+      });
+    },
 
-    set({
-      gameState: newGameState,
-      gamePhase: 'handoff'
-    });
+    dispatch: (action) => {
+      void submitAction(action);
+    },
 
-    markAutosaveDirty();
-    requestAutosave(newGameState, 'endTurn');
-  },
+    resetGame: () => {
+      set({
+        gamePhase: 'menu',
+        gameState: null,
+        onlineSession: null,
+      });
 
-  moveUnit: (unitId, targetCoordinate) => {
-    const { gameState } = get();
-    if (!gameState) return;
+      void clearAutosave().catch(() => undefined);
+    },
 
-    if (import.meta.env.DEV) console.log('Moving unit:', unitId, 'to:', targetCoordinate);
+    loadGameState: (state: GameState) => {
+      const normalizedPlayers = state.players.map(applyPlayerDefaults);
+      const normalizedState = { ...state, players: normalizedPlayers };
+      set({
+        gameState: normalizedState,
+        gamePhase: 'playing'
+      });
+      markAutosaveDirty();
+      requestAutosave(normalizedState, 'loadGameState');
+    },
 
-    const action = {
-      type: 'MOVE_UNIT' as const,
-      payload: { unitId, targetCoordinate }
-    };
-
-    const newGameState = gameReducer(gameState, action);
-    if (import.meta.env.DEV) console.log('Game state updated:', newGameState);
-    set({ gameState: newGameState });
-    markAutosaveDirty();
-  },
-
-  attackUnit: (attackerId: string, targetId: string) => {
-    const { gameState } = get();
-    if (!gameState) return;
-
-    if (import.meta.env.DEV) console.log('Unit attacking:', attackerId, 'target:', targetId);
-
-    const action = {
-      type: 'ATTACK_UNIT' as const,
-      payload: { attackerId, targetId }
-    };
-
-    const newGameState = gameReducer(gameState, action);
-    if (import.meta.env.DEV) console.log('Combat result:', newGameState);
-    set({ gameState: newGameState });
-    markAutosaveDirty();
-  },
-
-  useAbility: (playerId, abilityId) => {
-    const { gameState } = get();
-    if (!gameState) return;
-
-    const action = {
-      type: 'USE_ABILITY' as const,
-      payload: { playerId, abilityId }
-    };
-
-    const newGameState = gameReducer(gameState, action);
-    set({ gameState: newGameState });
-    markAutosaveDirty();
-  },
-
-  dispatch: (action) => {
-    const { gameState } = get();
-    if (!gameState) return;
-
-    const newGameState = gameReducer(gameState, action);
-    set({ gameState: newGameState });
-    markAutosaveDirty();
-  },
-
-  resetGame: () => {
-    set({
-      gamePhase: 'menu',
-      gameState: null,
-    });
-
-    void clearAutosave().catch(() => undefined);
-  },
-
-  loadGameState: (state: GameState) => {
-    const normalizedPlayers = state.players.map(applyPlayerDefaults);
-    const normalizedState = { ...state, players: normalizedPlayers };
-    set({
-      gameState: normalizedState,
-      gamePhase: 'playing'
-    });
-    markAutosaveDirty();
-    requestAutosave(normalizedState, 'loadGameState');
-  },
-
-  harvestResource: (unitId, resourceCoordinate, cityId) => {
-    const { gameState } = get();
-    if (!gameState) return;
-
-    const action = {
-      type: 'HARVEST_RESOURCE' as const,
-      payload: { unitId, resourceCoordinate, cityId }
-    };
-
-    const newGameState = gameReducer(gameState, action);
-    set({ gameState: newGameState });
-    markAutosaveDirty();
-  },
-}));
+    harvestResource: (unitId, resourceCoordinate, cityId) => {
+      void submitAction({
+        type: 'HARVEST_RESOURCE' as const,
+        payload: { unitId, resourceCoordinate, cityId }
+      });
+    },
+  };
+});

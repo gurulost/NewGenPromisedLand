@@ -23,6 +23,7 @@ import {
 import { applyPopulationGain } from "./cityGrowth";
 import { attemptUnitConversion } from "./conversion";
 import { computeUnitPassiveEffectsForPlayer } from "./unitPassiveEffects";
+import { nextFloat, nextId, nextInt } from "./rng";
 
 function getUnitSpawnCoordinate(state: GameState, unitType: UnitType, cityCoordinate: HexCoordinate): HexCoordinate | null {
   if (unitType !== 'boat') return cityCoordinate;
@@ -275,8 +276,11 @@ function handleStartConstruction(
   console.log(`Starting construction of ${buildingType} (${category}) for player ${playerId}`);
   console.log(`Construction details:`, { buildingType, category, coordinate, cityId, cost, buildTime });
 
-  // Create construction item
-  const constructionId = `${buildingType}_${cityId}_${Date.now()}`;
+  // Create construction item deterministically
+  let rngSeed = state.rngSeed ?? 0;
+  const constructionIdResult = nextId(rngSeed, `${buildingType}_${cityId}`);
+  rngSeed = constructionIdResult.seed;
+  const constructionId = constructionIdResult.id;
   const constructionItem = {
     id: constructionId,
     type: buildingType,
@@ -303,6 +307,7 @@ function handleStartConstruction(
         }
         : p
     ),
+    rngSeed,
   };
 }
 
@@ -344,9 +349,13 @@ function handleBuildImprovement(
   );
   if (existingImprovement) return state;
 
+  let rngSeed = state.rngSeed ?? 0;
+  const improvementIdResult = nextId(rngSeed, `${improvementType}_${coordinate.q}_${coordinate.r}`);
+  rngSeed = improvementIdResult.seed;
+
   // Create new improvement with proper typing
   const newImprovement = {
-    id: `${improvementType}_${coordinate.q}_${coordinate.r}_${Date.now()}`,
+    id: improvementIdResult.id,
     type: improvementType as keyof typeof IMPROVEMENT_DEFINITIONS,
     coordinate,
     ownerId: playerId,
@@ -362,7 +371,8 @@ function handleBuildImprovement(
         ? { ...p, stars: p.stars - improvementDef.cost }
         : p
     ),
-    improvements: [...(state.improvements || []), newImprovement]
+    improvements: [...(state.improvements || []), newImprovement],
+    rngSeed,
   };
 }
 
@@ -398,9 +408,13 @@ function handleBuildStructure(
   );
   if (existingStructure) return state;
 
+  let rngSeed = state.rngSeed ?? 0;
+  const structureIdResult = nextId(rngSeed, `${structureType}_${cityId}`);
+  rngSeed = structureIdResult.seed;
+
   // Create new structure with proper typing
   const newStructure = {
-    id: `${structureType}_${cityId}_${Date.now()}`,
+    id: structureIdResult.id,
     type: structureType as keyof typeof STRUCTURE_DEFINITIONS,
     cityId,
     ownerId: playerId,
@@ -418,7 +432,8 @@ function handleBuildStructure(
         ? { ...p, stars: p.stars - structureDef.cost }
         : p
     ),
-    structures: [...(state.structures || []), newStructure]
+    structures: [...(state.structures || []), newStructure],
+    rngSeed,
   };
 }
 
@@ -750,7 +765,7 @@ function handleExploreRuins(
   state: GameState,
   payload: { unitId: string; playerId: string; coordinate: any; randomSeed?: number }
 ): GameState {
-  const { unitId, playerId, coordinate, randomSeed } = payload;
+  const { unitId, playerId, coordinate } = payload;
 
   // Find the unit
   const unit = state.units.find(u => u.id === unitId);
@@ -778,9 +793,10 @@ function handleExploreRuins(
   // In a real build system we'd use top-level import, but for this patching it's safer
   const { getRandomRuinsReward } = require('../data/ruinsRewards');
 
-  // Use provided seed or simple fallback (should be provided by action for determinism)
-  const seed = randomSeed !== undefined ? randomSeed : ((Date.now() % 1000) / 1000);
-  const reward = getRandomRuinsReward(seed);
+  let rngSeed = state.rngSeed ?? 0;
+  const rewardRoll = nextFloat(rngSeed);
+  rngSeed = rewardRoll.seed;
+  const reward = getRandomRuinsReward(rewardRoll.value);
 
   // Find the player
   const player = state.players.find(p => p.id === playerId);
@@ -818,8 +834,10 @@ function handleExploreRuins(
 
   // Spawn unit if applicable
   if (reward.unitType) {
+    const unitIdResult = nextId(rngSeed, "unit");
+    rngSeed = unitIdResult.seed;
     const newUnit = {
-      id: `unit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: unitIdResult.id,
       type: reward.unitType,
       playerId: playerId,
       coordinate: { ...coordinate },
@@ -868,7 +886,8 @@ function handleExploreRuins(
       tiles: updatedMapTiles
     },
     players: updatedPlayers,
-    units: updatedUnits
+    units: updatedUnits,
+    rngSeed
   };
 }
 
@@ -999,9 +1018,13 @@ function handleRecruitUnit(
     spawnCoordinate = targetCity.coordinate;
   }
 
+  let rngSeed = state.rngSeed ?? 0;
+  const unitIdResult = nextId(rngSeed, `${unitType}_${playerId}`);
+  rngSeed = unitIdResult.seed;
+
   // Create new unit with proper typing
   const newUnit = {
-    id: `${unitType}_${playerId}_${Date.now()}`,
+    id: unitIdResult.id,
     type: unitTypeTyped,
     playerId,
     coordinate: spawnCoordinate,
@@ -1027,7 +1050,8 @@ function handleRecruitUnit(
         ? { ...p, stars: p.stars - unitDef.cost }
         : p
     ),
-    units: [...state.units, newUnit]
+    units: [...state.units, newUnit],
+    rngSeed,
   };
 }
 
@@ -2012,8 +2036,10 @@ function handleEndTurn(
             const unitDef = getUnitDefinition(construction.type as any);
             const spawnCoordinate = getUnitSpawnCoordinate(state, construction.type as UnitType, city.coordinate);
             if (!spawnCoordinate) return;
+            const unitIdResult = nextId(rngSeed, "unit");
+            rngSeed = unitIdResult.seed;
             const newUnit = {
-              id: `unit_${Date.now()}_${Math.random()}`,
+              id: unitIdResult.id,
               status: 'active' as const,
               type: construction.type,
               playerId: construction.playerId,
@@ -2407,8 +2433,11 @@ function handleBuildRoad(
 
   if (existingRoad) return state;
 
+  let rngSeed = state.rngSeed ?? 0;
+  const roadIdResult = nextId(rngSeed, `road_${targetCoordinate.q}_${targetCoordinate.r}`);
+  rngSeed = roadIdResult.seed;
   const roadImprovement = {
-    id: `road_${targetCoordinate.q}_${targetCoordinate.r}_${Date.now()}`,
+    id: roadIdResult.id,
     type: 'road' as const,
     coordinate: targetCoordinate,
     ownerId: playerId,
@@ -2429,7 +2458,8 @@ function handleBuildRoad(
       u.id === unitId
         ? { ...u, remainingMovement: 0 } // Exhaust unit after building
         : u
-    )
+    ),
+    rngSeed,
   };
 }
 
@@ -2771,8 +2801,11 @@ function handleBuildUnit(
   const spawnCoordinate = getUnitSpawnCoordinate(state, unitType as UnitType, targetCity.coordinate);
   if (!spawnCoordinate) return state;
 
+  let rngSeed = state.rngSeed ?? 0;
+  const unitIdResult = nextId(rngSeed, `${unitType}_${playerId}`);
+  rngSeed = unitIdResult.seed;
   const newUnit = {
-    id: `${unitType}_${playerId}_${Date.now()}`,
+    id: unitIdResult.id,
     type: unitType as UnitType,
     playerId,
     coordinate: spawnCoordinate,
@@ -2796,7 +2829,8 @@ function handleBuildUnit(
     players: state.players.map(p =>
       p.id === playerId ? { ...p, stars: p.stars - unitDef.cost } : p
     ),
-    units: [...state.units, newUnit]
+    units: [...state.units, newUnit],
+    rngSeed,
   };
 }
 
@@ -3078,7 +3112,10 @@ function applyAncientKnowledge(state: GameState, payload: any): GameState {
   );
 
   if (availableTechs.length > 0) {
-    const randomTech = availableTechs[Math.floor(Math.random() * availableTechs.length)];
+    let rngSeed = state.rngSeed ?? 0;
+    const techRoll = nextInt(rngSeed, availableTechs.length);
+    rngSeed = techRoll.seed;
+    const randomTech = availableTechs[techRoll.value];
     return {
       ...state,
       players: state.players.map(p =>
@@ -3089,7 +3126,8 @@ function applyAncientKnowledge(state: GameState, payload: any): GameState {
             stats: { ...p.stats, faith: Math.max(0, p.stats.faith - 25) }
           }
           : p
-      )
+      ),
+      rngSeed,
     };
   }
   return state;

@@ -108,7 +108,7 @@ function CreateLobbyForm({ onCreated }: { onCreated: (id: number) => void }) {
           onChange={(e) => setMaxPlayers(Number(e.target.value))}
           className="w-full px-3 py-2 bg-slate-800 border border-amber-500/30 rounded text-amber-100 focus:outline-none focus:border-amber-500"
         >
-          {[2, 3, 4, 5, 6].map((n) => (
+          {[2, 3, 4, 5, 6, 7, 8].map((n) => (
             <option key={n} value={n}>{n} Players</option>
           ))}
         </select>
@@ -133,7 +133,7 @@ function CreateLobbyForm({ onCreated }: { onCreated: (id: number) => void }) {
   );
 }
 
-function JoinByCodeForm({ onJoined }: { onJoined: (code: string) => void }) {
+function JoinByCodeForm({ onJoined }: { onJoined: (id: number) => void }) {
   const { joinLobby, error: storeError } = useLobby();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -146,7 +146,7 @@ function JoinByCodeForm({ onJoined }: { onJoined: (code: string) => void }) {
     const lobby = await joinLobby(code.toUpperCase());
     setLoading(false);
     if (lobby) {
-      onJoined(lobby.code);
+      onJoined(lobby.id);
     } else {
       setError(storeError || "Lobby not found");
     }
@@ -267,7 +267,7 @@ export default function LobbyList() {
 
                   <div className="border-t border-amber-500/20 pt-3">
                     <label className="block text-sm text-amber-200 mb-2">Join by Code</label>
-                    <JoinByCodeForm onJoined={handleJoinByCode} />
+                    <JoinByCodeForm onJoined={setSelectedLobbyId} />
                   </div>
                 </div>
 

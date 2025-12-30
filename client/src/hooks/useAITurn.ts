@@ -7,13 +7,14 @@ import { useToastContext } from '../components/ui/ToastProvider';
  * Hook to handle AI turns automatically
  */
 export function useAITurn() {
-  const { gameState, dispatch } = useLocalGame();
+  const { gameState, dispatch, onlineSession } = useLocalGame();
   const toast = useToastContext();
   const aiTurnManagerRef = useRef<AITurnManager | null>(null);
   const isExecutingRef = useRef(false);
 
   useEffect(() => {
     if (!gameState || isExecutingRef.current) return;
+    if (onlineSession && onlineSession.userId !== onlineSession.hostUserId) return;
 
     // Check if current player is AI and needs to take a turn
     if (AITurnManager.shouldExecuteAITurn(gameState)) {
@@ -50,7 +51,7 @@ export function useAITurn() {
         isExecutingRef.current = false;
       };
     }
-  }, [gameState?.currentPlayerIndex, gameState?.turn, dispatch]);
+  }, [gameState?.currentPlayerIndex, gameState?.turn, dispatch, onlineSession?.userId, onlineSession?.hostUserId]);
 
   // Update AI turn manager when game state changes
   useEffect(() => {

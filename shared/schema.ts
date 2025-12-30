@@ -43,7 +43,7 @@ export const gameLobbies = pgTable("game_lobbies", {
   name: text("name").notNull(),
   hostUserId: integer("host_user_id").notNull().references(() => users.id),
   maxPlayers: integer("max_players").notNull().default(6),
-  mapSize: text("map_size").notNull().default("medium"),
+  mapSize: text("map_size").notNull().default("normal"),
   status: text("status").notNull().default("waiting"),
   gameState: jsonb("game_state"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
