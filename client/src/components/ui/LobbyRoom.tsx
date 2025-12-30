@@ -249,6 +249,7 @@ export default function LobbyRoom() {
         players: Array<{ playerId?: string; userId?: number | null; name: string; factionId: string; isAI: boolean; turnOrder: number }>;
         mapSize?: string;
         seed?: number;
+        hostEpoch?: number;
         actionVersion?: number;
         pendingVersion?: number;
         snapshotVersion?: number;
@@ -282,6 +283,7 @@ export default function LobbyRoom() {
         myPlayerIds,
         actionVersion: initialActionVersion,
         queueVersion: isHostSession ? 0 : (gameConfig.pendingVersion ?? 0),
+        hostEpoch: gameConfig.hostEpoch ?? 0,
       });
 
       if (gameConfig.snapshot) {

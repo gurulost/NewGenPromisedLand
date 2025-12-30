@@ -49,12 +49,17 @@ export default function GameUI() {
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
   const actionError = useLocalGame((state) => state.actionError);
   const clearActionError = useLocalGame((state) => state.clearActionError);
+  const onlineSession = useLocalGame((state) => state.onlineSession);
+  const hostLeaseExpired = useLocalGame((state) => state.hostLeaseExpired);
+  const setOnlineHost = useLocalGame((state) => state.setOnlineHost);
+  const setHostLeaseStatus = useLocalGame((state) => state.setHostLeaseStatus);
   const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates, closeTileContextMenu } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const { triggerFlash, showToast } = useVisualFeedback();
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [showConstructionHall, setShowConstructionHall] = useState(false);
+  const [isClaimingHost, setIsClaimingHost] = useState(false);
 
   useOnlineGameSync();
   const { toasts: mapToasts } = useMapToastStore();
@@ -87,6 +92,44 @@ export default function GameUI() {
     showToast(actionError.message, type);
     clearActionError();
   }, [actionError, clearActionError, showToast]);
+
+  const handleClaimHost = async () => {
+    if (!onlineSession || isClaimingHost) return;
+    setIsClaimingHost(true);
+    try {
+      const res = await fetch(`/api/lobbies/${onlineSession.lobbyCode}/host/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hostEpoch: onlineSession.hostEpoch }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        let errorMessage = "Host transfer failed";
+        try {
+          const data = await res.json();
+          errorMessage = data?.error || errorMessage;
+        } catch {
+          // Ignore parsing errors.
+        }
+        showToast(errorMessage, "warning");
+        return;
+      }
+      const data = await res.json();
+      if (typeof data.hostUserId === "number" && typeof data.hostEpoch === "number") {
+        setOnlineHost(data.hostUserId, data.hostEpoch);
+        setHostLeaseStatus(typeof data.hostLastSeen === "number" ? data.hostLastSeen : Date.now(), false);
+        if (data.hostUserId === onlineSession.userId) {
+          showToast("You are now the host.", "success");
+        } else {
+          showToast("Host transfer complete.", "info");
+        }
+      }
+    } catch {
+      showToast("Network error while claiming host.", "error");
+    } finally {
+      setIsClaimingHost(false);
+    }
+  };
 
   // Best-effort autosave on lifecycle events (helps avoid catastrophic loss on tab reclaim).
   useEffect(() => {
@@ -872,6 +915,20 @@ export default function GameUI() {
   return (
     <div className="absolute inset-0 pointer-events-none z-10">
       <TileContextMenu />
+      {onlineSession && hostLeaseExpired && onlineSession.userId !== onlineSession.hostUserId && (
+        <div className="absolute top-4 left-1/2 z-50 -translate-x-1/2 pointer-events-auto">
+          <div className="flex items-center gap-3 rounded-lg border border-amber-400/50 bg-black/80 px-4 py-2 text-amber-100 shadow-lg backdrop-blur-sm">
+            <span className="text-sm">Host disconnected. You can claim host to continue.</span>
+            <button
+              onClick={handleClaimHost}
+              className="rounded bg-amber-500 px-3 py-1 text-xs font-semibold text-black transition hover:bg-amber-400 disabled:opacity-60"
+              disabled={isClaimingHost}
+            >
+              {isClaimingHost ? "Claiming..." : "Take Host"}
+            </button>
+          </div>
+        </div>
+      )}
       {isDev && (
         <div className="fixed bottom-3 left-3 z-[300] rounded-md border border-white/10 bg-black/60 px-3 py-2 text-[11px] text-white/80 backdrop-blur pointer-events-auto">
           <div className="font-semibold text-white/90">Dev Memory</div>

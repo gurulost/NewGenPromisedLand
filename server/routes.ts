@@ -7,6 +7,14 @@ import bcrypt from "bcryptjs";
 
 const MemoryStoreSession = MemoryStore(session);
 const VALID_MAP_SIZES = new Set(["tiny", "small", "normal", "large", "huge"]);
+const HOST_LEASE_MS = 30000;
+
+function getHostMeta(lobbyState: any) {
+  const hostEpoch = Number(lobbyState?.hostEpoch ?? 0);
+  const hostLastSeen = Number(lobbyState?.hostLastSeen ?? 0);
+  const leaseExpired = !hostLastSeen || Date.now() - hostLastSeen > HOST_LEASE_MS;
+  return { hostEpoch, hostLastSeen, leaseExpired };
+}
 
 // Password hashing with bcrypt (salted)
 async function hashPassword(password: string): Promise<string> {
@@ -559,6 +567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
 
       const seed = Math.floor(Math.random() * 2 ** 32);
+      const hostLastSeen = Date.now();
 
       // Update lobby status to playing and store player config (game state will be initialized client-side)
       await storage.updateLobby(lobby.id, { 
@@ -567,6 +576,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           players,
           mapSize: lobby.mapSize,
           seed,
+          hostEpoch: 1,
+          hostLastSeen,
           actionVersion: 0,
           actions: [],
           pendingVersion: 0,
@@ -582,6 +593,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to start game:", error);
       res.status(500).json({ error: "Failed to start game" });
+    }
+  });
+
+  // Get host status for a lobby
+  app.get("/api/lobbies/:code/host", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.status !== "playing") {
+        return res.status(409).json({ error: "Game not in progress" });
+      }
+
+      const seats = await storage.getSeatsByLobbyId(lobby.id);
+      const userId = req.session.userId!;
+      const isParticipant = lobby.hostUserId === userId || seats.some((seat) => seat.userId === userId);
+      if (!isParticipant) {
+        return res.status(403).json({ error: "Not a participant" });
+      }
+
+      const lobbyState = (lobby.gameState as any) || {};
+      const { hostEpoch, hostLastSeen, leaseExpired } = getHostMeta(lobbyState);
+
+      res.json({
+        hostUserId: lobby.hostUserId,
+        hostEpoch,
+        hostLastSeen: hostLastSeen || null,
+        leaseExpired,
+        leaseMs: HOST_LEASE_MS,
+      });
+    } catch (error) {
+      console.error("Failed to get host status:", error);
+      res.status(500).json({ error: "Failed to get host status" });
+    }
+  });
+
+  // Host heartbeat to keep lease active
+  app.post("/api/lobbies/:code/host/heartbeat", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.status !== "playing") {
+        return res.status(409).json({ error: "Game not in progress" });
+      }
+      if (lobby.hostUserId !== req.session.userId) {
+        return res.status(403).json({ error: "Only host can heartbeat" });
+      }
+
+      const lobbyState = (lobby.gameState as any) || {};
+      const { hostEpoch } = getHostMeta(lobbyState);
+      const { hostEpoch: bodyEpoch } = req.body || {};
+      if (typeof bodyEpoch !== "number" || bodyEpoch !== hostEpoch) {
+        return res.status(409).json({ error: "Host epoch mismatch", hostEpoch });
+      }
+
+      const hostLastSeen = Date.now();
+      await storage.updateLobby(lobby.id, {
+        gameState: { ...lobbyState, hostLastSeen } as any,
+      });
+
+      res.json({ hostEpoch, hostLastSeen });
+    } catch (error) {
+      console.error("Failed to heartbeat host:", error);
+      res.status(500).json({ error: "Failed to heartbeat host" });
+    }
+  });
+
+  // Claim host role if lease expired
+  app.post("/api/lobbies/:code/host/claim", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.status !== "playing") {
+        return res.status(409).json({ error: "Game not in progress" });
+      }
+
+      const seats = await storage.getSeatsByLobbyId(lobby.id);
+      const userId = req.session.userId!;
+      const isParticipant = lobby.hostUserId === userId || seats.some((seat) => seat.userId === userId);
+      if (!isParticipant) {
+        return res.status(403).json({ error: "Not a participant" });
+      }
+
+      const lobbyState = (lobby.gameState as any) || {};
+      const { hostEpoch, leaseExpired } = getHostMeta(lobbyState);
+
+      if (lobby.hostUserId === userId) {
+        const hostLastSeen = Date.now();
+        await storage.updateLobby(lobby.id, {
+          gameState: { ...lobbyState, hostLastSeen } as any,
+        });
+        return res.json({ hostUserId: userId, hostEpoch, hostLastSeen });
+      }
+
+      if (!leaseExpired) {
+        return res.status(409).json({ error: "Host still active", hostUserId: lobby.hostUserId });
+      }
+
+      const nextEpoch = hostEpoch + 1;
+      const hostLastSeen = Date.now();
+      await storage.updateLobby(lobby.id, {
+        hostUserId: userId,
+        gameState: { ...lobbyState, hostEpoch: nextEpoch, hostLastSeen } as any,
+      });
+
+      res.json({ hostUserId: userId, hostEpoch: nextEpoch, hostLastSeen });
+    } catch (error) {
+      console.error("Failed to claim host:", error);
+      res.status(500).json({ error: "Failed to claim host" });
     }
   });
 
@@ -634,9 +759,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const lobbyState = (lobby.gameState as any) || {};
-      const { state, version } = req.body;
-      if (!state || typeof version !== "number") {
-        return res.status(400).json({ error: "State and version required" });
+      const { state, version, hostEpoch } = req.body;
+      if (!state || typeof version !== "number" || typeof hostEpoch !== "number") {
+        return res.status(400).json({ error: "State, version, and hostEpoch required" });
+      }
+
+      const { hostEpoch: currentHostEpoch } = getHostMeta(lobbyState);
+      if (hostEpoch !== currentHostEpoch) {
+        return res.status(409).json({ error: "Host epoch mismatch", hostEpoch: currentHostEpoch });
       }
 
       const currentActionVersion = Number(lobbyState.actionVersion ?? 0);
@@ -650,7 +780,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.updateLobby(lobby.id, {
-        gameState: { ...lobbyState, snapshot: state, snapshotVersion: version } as any,
+        gameState: {
+          ...lobbyState,
+          snapshot: state,
+          snapshotVersion: version,
+          hostLastSeen: Date.now(),
+        } as any,
       });
 
       res.json({ snapshotVersion: version, actionVersion: currentActionVersion });
@@ -754,9 +889,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const lobbyState = (lobby.gameState as any) || {};
-      const { action, actorId, id, queueVersion } = req.body;
-      if (!action || !actorId || !id) {
-        return res.status(400).json({ error: "Action, actorId, and id required" });
+      const { action, actorId, id, queueVersion, hostEpoch } = req.body;
+      if (!action || !actorId || !id || typeof hostEpoch !== "number") {
+        return res.status(400).json({ error: "Action, actorId, id, and hostEpoch required" });
+      }
+
+      const { hostEpoch: currentHostEpoch } = getHostMeta(lobbyState);
+      if (hostEpoch !== currentHostEpoch) {
+        return res.status(409).json({ error: "Host epoch mismatch", hostEpoch: currentHostEpoch });
       }
 
       const playerMeta = (lobbyState.players || []).find((player: any) => player.playerId === actorId);
@@ -781,6 +921,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           actionVersion: nextActionVersion,
           actions,
           pendingActions,
+          hostLastSeen: Date.now(),
         } as any,
       });
 

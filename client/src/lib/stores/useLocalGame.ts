@@ -37,6 +37,7 @@ interface OnlineSession {
   myPlayerIds: string[];
   actionVersion: number;
   queueVersion: number;
+  hostEpoch: number;
 }
 
 interface ActionError {
@@ -61,12 +62,16 @@ interface LocalGameStore {
   gameState: GameState | null;
   onlineSession: OnlineSession | null;
   actionError: ActionError | null;
+  hostLeaseExpired: boolean;
+  hostLastSeen: number | null;
 
   setGamePhase: (phase: GamePhase) => void;
   setGameState: (state: GameState | null) => void;
   setOnlineSession: (session: OnlineSession) => void;
   clearOnlineSession: () => void;
   clearActionError: () => void;
+  setOnlineHost: (hostUserId: number, hostEpoch: number) => void;
+  setHostLeaseStatus: (lastSeen: number | null, leaseExpired: boolean) => void;
   setOnlineActionVersion: (version: number) => void;
   setOnlineQueueVersion: (version: number) => void;
   applyRemoteAction: (action: any) => boolean;
@@ -177,13 +182,14 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       }
 
       const lobbyCode = onlineSession.lobbyCode;
+      const hostEpoch = onlineSession.hostEpoch;
       const snapshotState = action.type === "END_TURN" ? result.state : undefined;
       enqueueOnlineRequest(async () => {
         try {
           const res = await fetch(`/api/lobbies/${lobbyCode}/actions/commit`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action, actorId, id: actionId }),
+            body: JSON.stringify({ action, actorId, id: actionId, hostEpoch }),
             credentials: "include",
           });
           if (!res.ok) {
@@ -197,13 +203,13 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
             : {}
           );
 
-          if (action.type === "END_TURN" && snapshotState) {
-            const snapshotRes = await fetch(`/api/lobbies/${lobbyCode}/state`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ state: snapshotState, version: data.actionVersion }),
-              credentials: "include",
-            });
+            if (action.type === "END_TURN" && snapshotState) {
+              const snapshotRes = await fetch(`/api/lobbies/${lobbyCode}/state`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ state: snapshotState, version: data.actionVersion, hostEpoch }),
+                credentials: "include",
+              });
             if (!snapshotRes.ok) {
               reportActionError(await getResponseError(snapshotRes), "error");
             }
@@ -238,6 +244,8 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     gameState: null,
     onlineSession: null,
     actionError: null,
+    hostLeaseExpired: false,
+    hostLastSeen: null,
 
     setGamePhase: (phase) => {
       gameDebugger.trackGamePhase(phase);
@@ -251,15 +259,35 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     },
 
     setOnlineSession: (session) => {
-      set({ onlineSession: session });
+      set({ onlineSession: session, hostLeaseExpired: false, hostLastSeen: null });
     },
 
     clearOnlineSession: () => {
-      set({ onlineSession: null });
+      set({ onlineSession: null, hostLeaseExpired: false, hostLastSeen: null });
     },
 
     clearActionError: () => {
       set({ actionError: null });
+    },
+
+    setOnlineHost: (hostUserId, hostEpoch) => {
+      set((state) => {
+        if (!state.onlineSession) return {};
+        const wasHost = state.onlineSession.userId === state.onlineSession.hostUserId;
+        const isHost = state.onlineSession.userId === hostUserId;
+        return {
+          onlineSession: {
+            ...state.onlineSession,
+            hostUserId,
+            hostEpoch,
+            queueVersion: isHost && !wasHost ? 0 : state.onlineSession.queueVersion,
+          }
+        };
+      });
+    },
+
+    setHostLeaseStatus: (lastSeen, leaseExpired) => {
+      set({ hostLastSeen: lastSeen, hostLeaseExpired: leaseExpired });
     },
 
     setOnlineActionVersion: (version) => {
@@ -290,37 +318,37 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       // Starting a new game invalidates any previous autosave resume target.
       void clearAutosave().catch(() => undefined);
 
-    // Create initial game state
-    const players: PlayerState[] = playerSetup.map(setup => applyPlayerDefaults({
-      id: setup.id,
-      name: setup.name,
-      factionId: setup.factionId,
-      modifiers: [],
-      stats: {
-        faith: 50,
-        pride: 30,
-        internalDissent: 10,
-      },
-      visibilityMask: [],
-      exploredTiles: [],
-      isEliminated: false,
-      isAI: setup.isAI ?? false,
-      aiDifficulty: setup.aiDifficulty ?? 'normal',
-      turnOrder: setup.turnOrder,
-      stars: 10, // Starting currency
-      researchedTechs: [], // No starting technologies
-      researchProgress: 0,
-      researchInspiration: 0,
-      abilityCooldowns: {},
-      constructionQueue: [],
-      citiesOwned: [],
-      currentResearch: undefined,
-      // Diplomatic relations - start with none
-      atWarWith: [],
-      alliedWith: [],
-      tradeRoutes: [],
-      diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 },
-    }));
+      // Create initial game state
+      const players: PlayerState[] = playerSetup.map(setup => applyPlayerDefaults({
+        id: setup.id,
+        name: setup.name,
+        factionId: setup.factionId,
+        modifiers: [],
+        stats: {
+          faith: 50,
+          pride: 30,
+          internalDissent: 10,
+        },
+        visibilityMask: [],
+        exploredTiles: [],
+        isEliminated: false,
+        isAI: setup.isAI ?? false,
+        aiDifficulty: setup.aiDifficulty ?? 'normal',
+        turnOrder: setup.turnOrder,
+        stars: 10, // Starting currency
+        researchedTechs: [], // No starting technologies
+        researchProgress: 0,
+        researchInspiration: 0,
+        abilityCooldowns: {},
+        constructionQueue: [],
+        citiesOwned: [],
+        currentResearch: undefined,
+        // Diplomatic relations - start with none
+        atWarWith: [],
+        alliedWith: [],
+        tradeRoutes: [],
+        diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 },
+      }));
 
     // Extract faction IDs for terrain generation
     const playerFactions = playerSetup.map(p => p.factionId);
@@ -542,6 +570,8 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         gamePhase: 'menu',
         gameState: null,
         onlineSession: null,
+        hostLeaseExpired: false,
+        hostLastSeen: null,
       });
 
       void clearAutosave().catch(() => undefined);
