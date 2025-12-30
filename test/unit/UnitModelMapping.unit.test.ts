@@ -7,12 +7,12 @@ vi.mock('@react-three/drei', () => {
 });
 
 describe('Unit model mapping', () => {
-  it('maps influence units to the missionary model', async () => {
+  it('maps influence units to their specific models', async () => {
     const { getUnitModelPath } = await import('../../client/src/utils/modelManager');
-    expect(getUnitModelPath('priestcraft_preacher')).toBe('/models/missionary.glb');
-    expect(getUnitModelPath('converted_missionary')).toBe('/models/missionary.glb');
-    expect(getUnitModelPath('scribe_teacher')).toBe('/models/missionary.glb');
-    expect(getUnitModelPath('prophet')).toBe('/models/missionary.glb');
+    expect(getUnitModelPath('missionary')).toBe('/models/missionary.glb');
+    expect(getUnitModelPath('priestcraft_preacher')).toBe('/models/priestcraft_preacher.glb');
+    expect(getUnitModelPath('converted_missionary')).toBe('/models/converted_missionary.glb');
+    expect(getUnitModelPath('scribe_teacher')).toBe('/models/scribe_teacher.glb');
+    expect(getUnitModelPath('prophet')).toBe('/models/prophet.glb');
   });
 });
-

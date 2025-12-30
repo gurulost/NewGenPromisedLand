@@ -7,6 +7,17 @@ interface GameStateStore {
   hoveredTile: { x: number; z: number; tile: Tile } | null;
   reachableTiles: string[];
   reachableCoordinates: Array<{ q: number; r: number; s: number }>;
+
+  // Ability targeting mode
+  abilityTargetMode: {
+    isActive: boolean;
+    abilityId: string | null;
+    title: string | null;
+    instructions: string | null;
+    eligibleUnitIds: string[];
+    selectedUnitId: string | null;
+    onSelectUnit?: (unitId: string) => void;
+  };
   
   // Construction mode
   constructionMode: {
@@ -30,6 +41,17 @@ interface GameStateStore {
   setHoveredTile: (tile: { x: number; z: number; tile: Tile } | null) => void;
   setReachableTiles: (tiles: string[]) => void;
   setReachableCoordinates: (coordinates: Array<{ q: number; r: number; s: number }>) => void;
+
+  // Ability targeting actions
+  startAbilityTargeting: (params: {
+    abilityId: string;
+    title: string;
+    instructions: string;
+    eligibleUnitIds: string[];
+    onSelectUnit?: (unitId: string) => void;
+  }) => void;
+  setAbilityTargetSelection: (unitId: string | null) => void;
+  cancelAbilityTargeting: () => void;
   
   // Construction actions
   startConstruction: (buildingType: string, category: 'improvements' | 'structures' | 'units', cityId: string, playerId: string) => void;
@@ -50,6 +72,16 @@ export const useGameState = create<GameStateStore>((set) => ({
   hoveredTile: null,
   reachableTiles: [],
   reachableCoordinates: [],
+
+  abilityTargetMode: {
+    isActive: false,
+    abilityId: null,
+    title: null,
+    instructions: null,
+    eligibleUnitIds: [],
+    selectedUnitId: null,
+    onSelectUnit: undefined,
+  },
   
   constructionMode: {
     isActive: false,
@@ -78,6 +110,37 @@ export const useGameState = create<GameStateStore>((set) => ({
   setHoveredTile: (tile) => set({ hoveredTile: tile }),
   setReachableTiles: (tiles) => set({ reachableTiles: tiles }),
   setReachableCoordinates: (coordinates) => set({ reachableCoordinates: coordinates }),
+
+  startAbilityTargeting: ({ abilityId, title, instructions, eligibleUnitIds, onSelectUnit }) => set({
+    abilityTargetMode: {
+      isActive: true,
+      abilityId,
+      title,
+      instructions,
+      eligibleUnitIds,
+      selectedUnitId: null,
+      onSelectUnit,
+    },
+    isMovementMode: false,
+    isAttackMode: false,
+  }),
+  setAbilityTargetSelection: (unitId) => set((state) => ({
+    abilityTargetMode: {
+      ...state.abilityTargetMode,
+      selectedUnitId: unitId,
+    },
+  })),
+  cancelAbilityTargeting: () => set({
+    abilityTargetMode: {
+      isActive: false,
+      abilityId: null,
+      title: null,
+      instructions: null,
+      eligibleUnitIds: [],
+      selectedUnitId: null,
+      onSelectUnit: undefined,
+    },
+  }),
   
   startConstruction: (buildingType, category, cityId, playerId) => set({
     constructionMode: {

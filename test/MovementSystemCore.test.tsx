@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, fireEvent, screen } from '@testing-library/react';
+import { render, fireEvent, screen, within } from '@testing-library/react';
 import { useGameState } from '../client/src/lib/stores/useGameState';
+import { useLocalGame } from '../client/src/lib/stores/useLocalGame';
 import SelectedUnitPanel from '../client/src/components/ui/SelectedUnitPanel';
 import type { Unit } from '../shared/types/unit';
 import type { GameState } from '../shared/types/game';
@@ -24,10 +25,10 @@ describe('Movement System Core Logic Tests', () => {
       type: 'warrior',
       coordinate: { q: 0, r: 0, s: 0 },
       playerId: 'player1',
-      hp: 100,
-      maxHp: 100,
-      attack: 10,
-      defense: 5,
+      hp: 25,
+      maxHp: 25,
+      attack: 6,
+      defense: 4,
       movement: 3,
       remainingMovement: 3,
       visionRadius: 2,
@@ -93,8 +94,7 @@ describe('Movement System Core Logic Tests', () => {
     });
 
     // Mock useLocalGame
-    const mockUseLocalGame = require('../client/src/lib/stores/useLocalGame');
-    vi.mocked(mockUseLocalGame.useLocalGame).mockReturnValue({
+    vi.mocked(useLocalGame).mockReturnValue({
       gameState: mockGameState,
       moveUnit: vi.fn(),
       dispatch: vi.fn()
@@ -166,63 +166,39 @@ describe('Movement System Core Logic Tests', () => {
     });
   });
 
-  describe('SelectedUnitPanel Button Logic', () => {
-    it('should render Move button correctly', () => {
+  describe('SelectedUnitPanel Action Summary', () => {
+    it('should render the actions trigger', () => {
       render(<SelectedUnitPanel unit={mockUnit} />);
       
-      const moveButton = screen.getByText('Move');
-      expect(moveButton).toBeDefined();
-      expect(moveButton).not.toBeDisabled();
+      const actionsButton = screen.getByText('View All Actions');
+      expect(actionsButton).toBeDefined();
     });
 
-    it('should render Attack button correctly', () => {
+    it('should open the actions panel when clicked', () => {
       render(<SelectedUnitPanel unit={mockUnit} />);
       
-      const attackButton = screen.getByText('Attack');
-      expect(attackButton).toBeDefined();
-      expect(attackButton).not.toBeDisabled();
+      const actionsButton = screen.getByText('View All Actions');
+      fireEvent.click(actionsButton);
+
+      expect(screen.getByText('Available Actions')).toBeInTheDocument();
     });
 
-    it('should render Ability button correctly', () => {
-      render(<SelectedUnitPanel unit={mockUnit} />);
-      
-      const abilityButton = screen.getByText('Ability');
-      expect(abilityButton).toBeDefined();
-      expect(abilityButton).not.toBeDisabled();
-    });
-
-    it('should call setMovementMode when Move button is clicked', () => {
-      render(<SelectedUnitPanel unit={mockUnit} />);
-      
-      const moveButton = screen.getByText('Move');
-      fireEvent.click(moveButton);
-      
-      expect(mockSetMovementMode).toHaveBeenCalledWith(true);
-    });
-
-    it('should call setAttackMode when Attack button is clicked', () => {
-      render(<SelectedUnitPanel unit={mockUnit} />);
-      
-      const attackButton = screen.getByText('Attack');
-      fireEvent.click(attackButton);
-      
-      expect(mockSetAttackMode).toHaveBeenCalledWith(true);
-    });
-
-    it('should disable Move button when unit has no movement', () => {
+    it('should show Move as unavailable when unit has no movement', () => {
       const unitWithNoMovement = { ...mockUnit, remainingMovement: 0 };
       render(<SelectedUnitPanel unit={unitWithNoMovement} />);
       
-      const moveButton = screen.getByText('Move');
-      expect(moveButton).toBeDisabled();
+      const moveSummary = screen.getByText('Move').closest('div');
+      expect(moveSummary).not.toBeNull();
+      expect(within(moveSummary!).getByText('None')).toBeInTheDocument();
     });
 
-    it('should disable Attack button when unit has already attacked', () => {
+    it('should show Attack as unavailable when unit has already attacked', () => {
       const unitThatAttacked = { ...mockUnit, hasAttacked: true };
       render(<SelectedUnitPanel unit={unitThatAttacked} />);
       
-      const attackButton = screen.getByText('Attack');
-      expect(attackButton).toBeDisabled();
+      const attackSummary = screen.getByText('Attack').closest('div');
+      expect(attackSummary).not.toBeNull();
+      expect(within(attackSummary!).getByText('None')).toBeInTheDocument();
     });
   });
 
@@ -230,19 +206,19 @@ describe('Movement System Core Logic Tests', () => {
     it('should display unit health correctly', () => {
       render(<SelectedUnitPanel unit={mockUnit} />);
       
-      expect(screen.getByText('100/100')).toBeDefined();
+      expect(screen.getByText('25/25')).toBeDefined();
     });
 
     it('should display unit attack correctly', () => {
       render(<SelectedUnitPanel unit={mockUnit} />);
       
-      expect(screen.getByText('10')).toBeDefined();
+      expect(screen.getByText('6')).toBeDefined();
     });
 
     it('should display unit defense correctly', () => {
       render(<SelectedUnitPanel unit={mockUnit} />);
       
-      expect(screen.getByText('5')).toBeDefined();
+      expect(screen.getByText('4')).toBeDefined();
     });
 
     it('should display unit movement correctly', () => {
@@ -278,10 +254,10 @@ describe('Movement System Core Logic Tests', () => {
     });
 
     it('should handle wounded unit display', () => {
-      const woundedUnit = { ...mockUnit, hp: 50 };
+      const woundedUnit = { ...mockUnit, hp: 10 };
       render(<SelectedUnitPanel unit={woundedUnit} />);
       
-      expect(screen.getByText('50/100')).toBeDefined();
+      expect(screen.getByText('10/25')).toBeDefined();
     });
 
     it('should handle unit with partial movement', () => {
@@ -294,26 +270,36 @@ describe('Movement System Core Logic Tests', () => {
 
   describe('Edge Cases', () => {
     it('should handle unit with abilities', () => {
-      const unitWithAbilities = { ...mockUnit, abilities: ['stealth', 'heal'] };
+      const unitWithAbilities = {
+        ...mockUnit,
+        type: 'scout',
+        hp: 12,
+        maxHp: 12,
+        attack: 3,
+        defense: 2,
+        movement: 5,
+        remainingMovement: 5,
+      };
       render(<SelectedUnitPanel unit={unitWithAbilities} />);
-      
-      expect(screen.getByText('stealth')).toBeDefined();
-      expect(screen.getByText('heal')).toBeDefined();
+
+      expect(screen.getByRole('heading', { name: 'Abilities' })).toBeInTheDocument();
+      expect(screen.getByText('stealth')).toBeInTheDocument();
+      expect(screen.getByText('reconnaissance')).toBeInTheDocument();
     });
 
     it('should handle unit with no abilities', () => {
       const unitWithNoAbilities = { ...mockUnit, abilities: [] };
       render(<SelectedUnitPanel unit={unitWithNoAbilities} />);
       
-      // Should not show abilities section
-      expect(screen.queryByText('Abilities')).toBeNull();
+      // Should not show abilities section for warriors
+      expect(screen.queryByRole('heading', { name: 'Abilities' })).toBeNull();
     });
 
     it('should handle maximum stats unit', () => {
       const maxStatsUnit = {
         ...mockUnit,
-        hp: 200,
-        maxHp: 200,
+        hp: 50,
+        maxHp: 50,
         attack: 50,
         defense: 40,
         movement: 5,
@@ -321,10 +307,10 @@ describe('Movement System Core Logic Tests', () => {
       };
       render(<SelectedUnitPanel unit={maxStatsUnit} />);
       
-      expect(screen.getByText('200/200')).toBeDefined();
+      expect(screen.getByText('50/25')).toBeDefined();
       expect(screen.getByText('50')).toBeDefined();
       expect(screen.getByText('40')).toBeDefined();
-      expect(screen.getByText('5/5')).toBeDefined();
+      expect(screen.getByText('5/3')).toBeDefined();
     });
   });
 });

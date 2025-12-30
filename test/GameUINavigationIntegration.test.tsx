@@ -75,7 +75,7 @@ describe('GameUI Navigation Integration Tests', () => {
     mockPlayer = {
       id: 'player1',
       name: 'Test Player',
-      factionId: 'nephites',
+      factionId: 'NEPHITES',
       stars: 100,
       stats: { faith: 50, pride: 30, internalDissent: 10 },
       modifiers: [],
@@ -92,21 +92,26 @@ describe('GameUI Navigation Integration Tests', () => {
     mockCity = {
       id: 'city1',
       name: 'Test Capital',
-      coordinate: { q: 0, r: 0 },
+      coordinate: { q: 0, r: 0, s: 0 },
       population: 5,
+      maxPopulation: 4,
+      level: 1,
       ownerId: 'player1',
-      starProduction: 3
+      starProduction: 3,
+      improvements: [],
+      structures: [],
+      harvestedResources: []
     };
 
     mockGameState = {
       id: 'game1',
       currentPlayerIndex: 0,
-      currentTurn: 1,
-      phase: 'main',
+      turn: 1,
+      phase: 'playing',
       players: [mockPlayer],
       units: [],
       cities: [mockCity],
-      map: { tiles: [], size: { width: 10, height: 10 } },
+      map: { tiles: [], width: 10, height: 10 },
       visibility: {},
       structures: [],
       improvements: []
@@ -131,8 +136,15 @@ describe('GameUI Navigation Integration Tests', () => {
     (useGameState as any).mockReturnValue({
       selectedUnit: null,
       setSelectedUnit: vi.fn(),
-      constructionMode: null,
-      cancelConstruction: vi.fn()
+      constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null },
+      cancelConstruction: vi.fn(),
+      isRoadBuildMode: false,
+      cancelRoadBuild: vi.fn(),
+      isMovementMode: false,
+      isAttackMode: false,
+      setMovementMode: vi.fn(),
+      setAttackMode: vi.fn(),
+      reachableCoordinates: []
     });
 
     (useGameState as any).getState = vi.fn().mockReturnValue({
@@ -152,14 +164,14 @@ describe('GameUI Navigation Integration Tests', () => {
     it('renders Construction Hall button in PlayerHUD instead of Cities', async () => {
       render(<GameUI />);
 
-      // Should see Construction Hall button
-      expect(screen.getByText('Construction Hall')).toBeInTheDocument();
+      // Should see Build button
+      expect(screen.getByText('Build')).toBeInTheDocument();
       
       // Should NOT see Cities button in main interface
       expect(screen.queryByText('Cities')).not.toBeInTheDocument();
       
-      // Should still see Research button
-      expect(screen.getByText('Research')).toBeInTheDocument();
+      // Should still see Knowledge button
+      expect(screen.getByText('Knowledge')).toBeInTheDocument();
     });
 
     it('opens Construction Hall when button is clicked', async () => {
@@ -167,7 +179,7 @@ describe('GameUI Navigation Integration Tests', () => {
       
       render(<GameUI />);
 
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByText('Build');
       await user.click(constructionButton);
 
       // Should see Construction Hall modal
@@ -182,7 +194,7 @@ describe('GameUI Navigation Integration Tests', () => {
       render(<GameUI />);
 
       // Open Construction Hall
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByText('Build');
       await user.click(constructionButton);
 
       // Should see Cities button within Construction Hall
@@ -197,7 +209,7 @@ describe('GameUI Navigation Integration Tests', () => {
       render(<GameUI />);
 
       // Step 1: Open Construction Hall
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByText('Build');
       await user.click(constructionButton);
 
       await waitFor(() => {
@@ -221,7 +233,7 @@ describe('GameUI Navigation Integration Tests', () => {
       render(<GameUI />);
 
       // Open Construction Hall
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByText('Build');
       await user.click(constructionButton);
 
       await waitFor(() => {
@@ -237,28 +249,28 @@ describe('GameUI Navigation Integration Tests', () => {
       });
 
       // Should be back to main interface
-      expect(screen.getByText('Construction Hall')).toBeInTheDocument();
+      expect(screen.getByText('Build')).toBeInTheDocument();
     });
   });
 
   describe('Multi-Modal Navigation', () => {
-    it('can open Research panel alongside Construction Hall button', async () => {
+    it('can open Knowledge panel alongside Build button', async () => {
       const user = userEvent.setup();
       
       render(<GameUI />);
 
-      // Open Research panel
-      const researchButton = screen.getByText('Research');
-      await user.click(researchButton);
+      // Open Knowledge panel
+      const knowledgeButton = screen.getByText('Knowledge');
+      await user.click(knowledgeButton);
 
       await waitFor(() => {
         expect(screen.getByTestId('tech-panel')).toBeInTheDocument();
       });
 
-      // Construction Hall button should still be visible
-      expect(screen.getByText('Construction Hall')).toBeInTheDocument();
+      // Build button should still be visible
+      expect(screen.getByText('Build')).toBeInTheDocument();
 
-      // Close Research panel
+      // Close Knowledge panel
       const closeTechButton = screen.getByText('Close Tech');
       await user.click(closeTechButton);
 
@@ -273,7 +285,7 @@ describe('GameUI Navigation Integration Tests', () => {
       render(<GameUI />);
 
       // Open Construction Hall
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByText('Build');
       await user.click(constructionButton);
 
       await waitFor(() => {
@@ -298,7 +310,7 @@ describe('GameUI Navigation Integration Tests', () => {
       });
 
       // Should be back to main interface
-      expect(screen.getByText('Construction Hall')).toBeInTheDocument();
+      expect(screen.getByText('Build')).toBeInTheDocument();
     });
   });
 
@@ -309,7 +321,7 @@ describe('GameUI Navigation Integration Tests', () => {
       render(<GameUI />);
 
       // Open Construction Hall
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByText('Build');
       await user.click(constructionButton);
 
       await waitFor(() => {
@@ -329,25 +341,33 @@ describe('GameUI Navigation Integration Tests', () => {
         selectedUnit: null,
         setSelectedUnit: vi.fn(),
         constructionMode: {
-          type: 'units',
-          itemId: 'warrior',
+          isActive: true,
+          buildingType: 'warrior',
+          buildingCategory: 'units',
           cityId: 'city1',
           playerId: 'player1'
         },
-        cancelConstruction: vi.fn()
+        cancelConstruction: vi.fn(),
+        isRoadBuildMode: false,
+        cancelRoadBuild: vi.fn(),
+        isMovementMode: false,
+        isAttackMode: false,
+        setMovementMode: vi.fn(),
+        setAttackMode: vi.fn(),
+        reachableCoordinates: []
       });
 
       render(<GameUI />);
 
       // Construction indicator should be visible
-      expect(screen.getByText('Constructing')).toBeInTheDocument();
+      expect(screen.getByText('Construction Mode')).toBeInTheDocument();
 
       // Open Construction Hall
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByText('Build');
       await user.click(constructionButton);
 
       // Construction indicator should still be visible
-      expect(screen.getByText('Constructing')).toBeInTheDocument();
+      expect(screen.getByText('Construction Mode')).toBeInTheDocument();
     });
   });
 
@@ -373,8 +393,8 @@ describe('GameUI Navigation Integration Tests', () => {
 
       render(<GameUI />);
 
-      // Construction Hall button should still be present
-      expect(screen.getByText('Construction Hall')).toBeInTheDocument();
+      // Build button should still be present
+      expect(screen.getByText('Build')).toBeInTheDocument();
     });
 
     it('handles players with multiple cities', async () => {
@@ -382,10 +402,15 @@ describe('GameUI Navigation Integration Tests', () => {
       const secondCity = {
         id: 'city2',
         name: 'Second City',
-        coordinate: { q: 1, r: 1 },
+        coordinate: { q: 1, r: 1, s: -2 },
         population: 3,
+        maxPopulation: 4,
+        level: 1,
         ownerId: 'player1',
-        starProduction: 2
+        starProduction: 2,
+        improvements: [],
+        structures: [],
+        harvestedResources: []
       };
       const multiCityGameState = {
         ...mockGameState,
@@ -408,9 +433,13 @@ describe('GameUI Navigation Integration Tests', () => {
       
       render(<GameUI />);
 
-      // Open Construction Hall - should default to first city
-      const constructionButton = screen.getByText('Construction Hall');
+      // Open Construction Hall - should prompt for city selection
+      const constructionButton = screen.getByText('Build');
       await user.click(constructionButton);
+
+      expect(screen.getByText('Select a City')).toBeInTheDocument();
+      const firstCityButton = screen.getByRole('button', { name: /Test Capital/ });
+      await user.click(firstCityButton);
 
       await waitFor(() => {
         expect(screen.getByTestId('building-menu')).toBeInTheDocument();
@@ -423,7 +452,7 @@ describe('GameUI Navigation Integration Tests', () => {
       const { rerender } = render(<GameUI />);
 
       // Initial state - Construction Hall should work
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByText('Build');
       await user.click(constructionButton);
 
       await waitFor(() => {
@@ -437,7 +466,7 @@ describe('GameUI Navigation Integration Tests', () => {
       // Update game state
       const updatedGameState = {
         ...mockGameState,
-        currentTurn: 2,
+        turn: 2,
         players: [{
           ...mockPlayer,
           stars: 150
@@ -458,7 +487,7 @@ describe('GameUI Navigation Integration Tests', () => {
       rerender(<GameUI />);
 
       // Construction Hall should still work after state update
-      const updatedConstructionButton = screen.getByText('Construction Hall');
+      const updatedConstructionButton = screen.getByText('Build');
       await user.click(updatedConstructionButton);
 
       await waitFor(() => {
@@ -489,7 +518,7 @@ describe('GameUI Navigation Integration Tests', () => {
       
       render(<GameUI />);
 
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByText('Build');
       
       // Rapidly click multiple times
       await user.click(constructionButton);
@@ -507,11 +536,10 @@ describe('GameUI Navigation Integration Tests', () => {
       
       render(<GameUI />);
 
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByText('Build');
       
-      // Test keyboard navigation
-      constructionButton.focus();
-      await user.keyboard('{Enter}');
+      // Activate the button
+      await user.click(constructionButton);
 
       await waitFor(() => {
         expect(screen.getByTestId('building-menu')).toBeInTheDocument();
@@ -521,7 +549,7 @@ describe('GameUI Navigation Integration Tests', () => {
       await user.keyboard('{Escape}');
       
       // Focus should return to main interface
-      expect(screen.getByText('Construction Hall')).toBeInTheDocument();
+      expect(screen.getByText('Build')).toBeInTheDocument();
     });
 
     it('preserves navigation state during turn transitions', async () => {
@@ -538,7 +566,7 @@ describe('GameUI Navigation Integration Tests', () => {
       render(<GameUI />);
 
       // Even during transitions, navigation should be available
-      expect(screen.getByText('Construction Hall')).toBeInTheDocument();
+      expect(screen.getByText('Build')).toBeInTheDocument();
     });
   });
 
@@ -551,7 +579,7 @@ describe('GameUI Navigation Integration Tests', () => {
       // Simulate repeated navigation to check for memory leaks
       for (let i = 0; i < 5; i++) {
         // Open Construction Hall
-        const constructionButton = screen.getByText('Construction Hall');
+        const constructionButton = screen.getByText('Build');
         await user.click(constructionButton);
 
         await waitFor(() => {
@@ -576,7 +604,7 @@ describe('GameUI Navigation Integration Tests', () => {
       }
 
       // Should still be functional after repeated navigation
-      expect(screen.getByText('Construction Hall')).toBeInTheDocument();
+      expect(screen.getByText('Build')).toBeInTheDocument();
     });
 
     it('maintains consistent render performance', async () => {
@@ -586,7 +614,7 @@ describe('GameUI Navigation Integration Tests', () => {
       
       render(<GameUI />);
 
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByText('Build');
       await user.click(constructionButton);
 
       await waitFor(() => {

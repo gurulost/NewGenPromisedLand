@@ -1,3 +1,4 @@
+import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -8,7 +9,6 @@ import CityPanel from '../client/src/components/ui/CityPanel';
 import { useLocalGame } from '../client/src/lib/stores/useLocalGame';
 import { useGameState } from '../client/src/lib/stores/useGameState';
 import type { GameState, PlayerState, City } from '../shared/types/game';
-import type { Faction } from '../shared/types/faction';
 
 // Mock the stores
 vi.mock('../client/src/lib/stores/useLocalGame');
@@ -39,14 +39,13 @@ describe('UI Navigation Flow Tests', () => {
   let mockGameState: GameState;
   let mockPlayer: PlayerState;
   let mockCity: City;
-  let mockFaction: Faction;
   let mockDispatch: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     mockPlayer = {
       id: 'player1',
       name: 'Test Player',
-      factionId: 'nephites',
+      factionId: 'NEPHITES',
       stars: 100,
       stats: {
         faith: 50,
@@ -67,33 +66,29 @@ describe('UI Navigation Flow Tests', () => {
     mockCity = {
       id: 'city1',
       name: 'Test Capital',
-      coordinate: { q: 0, r: 0 },
+      coordinate: { q: 0, r: 0, s: 0 },
       population: 5,
+      maxPopulation: 4,
+      level: 1,
       ownerId: 'player1',
-      starProduction: 3
+      starProduction: 3,
+      improvements: [],
+      structures: [],
+      harvestedResources: []
     };
 
     mockGameState = {
       id: 'game1',
       currentPlayerIndex: 0,
-      currentTurn: 1,
-      phase: 'main',
+      turn: 1,
+      phase: 'playing',
       players: [mockPlayer],
       units: [],
       cities: [mockCity],
-      map: { tiles: [], size: { width: 10, height: 10 } },
+      map: { tiles: [], width: 10, height: 10 },
       visibility: {},
       structures: [],
       improvements: []
-    };
-
-    mockFaction = {
-      id: 'nephites',
-      name: 'Nephites',
-      description: 'Test faction',
-      color: '#3B82F6',
-      abilities: [],
-      startingUnits: []
     };
 
     mockDispatch = vi.fn();
@@ -114,8 +109,15 @@ describe('UI Navigation Flow Tests', () => {
     (useGameState as any).mockReturnValue({
       selectedUnit: null,
       setSelectedUnit: vi.fn(),
-      constructionMode: null,
-      cancelConstruction: vi.fn()
+      constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null },
+      cancelConstruction: vi.fn(),
+      isRoadBuildMode: false,
+      cancelRoadBuild: vi.fn(),
+      isMovementMode: false,
+      isAttackMode: false,
+      setMovementMode: vi.fn(),
+      setAttackMode: vi.fn(),
+      reachableCoordinates: []
     });
 
     (useGameState as any).getState = vi.fn().mockReturnValue({
@@ -127,45 +129,49 @@ describe('UI Navigation Flow Tests', () => {
     it('displays Construction Hall button instead of Cities button', () => {
       const mockOnShowTechPanel = vi.fn();
       const mockOnShowConstructionHall = vi.fn();
+      const mockOnShowDiplomacy = vi.fn();
       const mockOnEndTurn = vi.fn();
 
       render(
         <PlayerHUD
           player={mockPlayer}
-          faction={mockFaction}
+          gameState={mockGameState}
           onShowTechPanel={mockOnShowTechPanel}
           onShowConstructionHall={mockOnShowConstructionHall}
+          onShowDiplomacy={mockOnShowDiplomacy}
           onEndTurn={mockOnEndTurn}
         />
       );
 
-      // Should have Construction Hall button
-      expect(screen.getByText('Construction Hall')).toBeInTheDocument();
+      // Should have Build button
+      expect(screen.getByText('Build')).toBeInTheDocument();
       
       // Should NOT have Cities button
       expect(screen.queryByText('Cities')).not.toBeInTheDocument();
       
-      // Should still have Research button
-      expect(screen.getByText('Research')).toBeInTheDocument();
+      // Should still have Knowledge button
+      expect(screen.getByText('Knowledge')).toBeInTheDocument();
     });
 
     it('calls Construction Hall handler when button is clicked', async () => {
       const mockOnShowTechPanel = vi.fn();
       const mockOnShowConstructionHall = vi.fn();
+      const mockOnShowDiplomacy = vi.fn();
       const mockOnEndTurn = vi.fn();
       const user = userEvent.setup();
 
       render(
         <PlayerHUD
           player={mockPlayer}
-          faction={mockFaction}
+          gameState={mockGameState}
           onShowTechPanel={mockOnShowTechPanel}
           onShowConstructionHall={mockOnShowConstructionHall}
+          onShowDiplomacy={mockOnShowDiplomacy}
           onEndTurn={mockOnEndTurn}
         />
       );
 
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByRole('button', { name: 'Build' });
       await user.click(constructionButton);
 
       expect(mockOnShowConstructionHall).toHaveBeenCalledTimes(1);
@@ -174,22 +180,24 @@ describe('UI Navigation Flow Tests', () => {
     it('maintains proper button styling and icons', () => {
       const mockOnShowTechPanel = vi.fn();
       const mockOnShowConstructionHall = vi.fn();
+      const mockOnShowDiplomacy = vi.fn();
       const mockOnEndTurn = vi.fn();
 
       render(
         <PlayerHUD
           player={mockPlayer}
-          faction={mockFaction}
+          gameState={mockGameState}
           onShowTechPanel={mockOnShowTechPanel}
           onShowConstructionHall={mockOnShowConstructionHall}
+          onShowDiplomacy={mockOnShowDiplomacy}
           onEndTurn={mockOnEndTurn}
         />
       );
 
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByRole('button', { name: 'Build' });
       
       // Check button has proper styling classes
-      expect(constructionButton).toHaveClass('bg-green-600/20', 'border-green-400', 'text-green-100');
+      expect(constructionButton).toHaveClass('from-amber-600/20', 'border-amber-400/60', 'text-amber-100');
     });
   });
 
@@ -295,9 +303,10 @@ describe('UI Navigation Flow Tests', () => {
             {/* Main PlayerHUD */}
             <PlayerHUD
               player={mockPlayer}
-              faction={mockFaction}
+              gameState={mockGameState}
               onShowTechPanel={() => {}}
               onShowConstructionHall={() => setShowConstructionHall(true)}
+              onShowDiplomacy={() => {}}
               onEndTurn={() => {}}
             />
             
@@ -331,7 +340,7 @@ describe('UI Navigation Flow Tests', () => {
       render(<TestNavigationFlow />);
 
       // Step 1: Click Construction Hall from main interface
-      const constructionHallButton = screen.getByText('Construction Hall');
+      const constructionHallButton = screen.getByRole('button', { name: 'Build' });
       await user.click(constructionHallButton);
       
       // Should see Construction Hall
@@ -345,7 +354,7 @@ describe('UI Navigation Flow Tests', () => {
       
       // Should see City Panel and Construction Hall should be closed
       await waitFor(() => {
-        expect(screen.getByText('City Management')).toBeInTheDocument();
+        expect(screen.getByText('Test Capital')).toBeInTheDocument();
       });
     });
 
@@ -358,10 +367,15 @@ describe('UI Navigation Flow Tests', () => {
       const secondCity = {
         id: 'city2',
         name: 'Second City',
-        coordinate: { q: 1, r: 1 },
+        coordinate: { q: 1, r: 1, s: -2 },
         population: 3,
+        maxPopulation: 4,
+        level: 1,
         ownerId: 'player1',
-        starProduction: 2
+        starProduction: 2,
+        improvements: [],
+        structures: [],
+        harvestedResources: []
       };
 
       const multiCityGameState = {
@@ -386,15 +400,16 @@ describe('UI Navigation Flow Tests', () => {
       render(
         <PlayerHUD
           player={multiCityPlayer}
-          faction={mockFaction}
+          gameState={multiCityGameState}
           onShowTechPanel={() => {}}
           onShowConstructionHall={() => {}}
+          onShowDiplomacy={() => {}}
           onEndTurn={() => {}}
         />
       );
 
       // Should still work with multiple cities
-      expect(screen.getByText('Construction Hall')).toBeInTheDocument();
+      expect(screen.getByText('Build')).toBeInTheDocument();
     });
 
     it('handles edge case with no cities owned', () => {
@@ -412,15 +427,16 @@ describe('UI Navigation Flow Tests', () => {
       render(
         <PlayerHUD
           player={noCitiesPlayer}
-          faction={mockFaction}
+          gameState={noCitiesGameState}
           onShowTechPanel={() => {}}
           onShowConstructionHall={() => {}}
+          onShowDiplomacy={() => {}}
           onEndTurn={() => {}}
         />
       );
 
       // Button should still be present even with no cities
-      expect(screen.getByText('Construction Hall')).toBeInTheDocument();
+      expect(screen.getByText('Build')).toBeInTheDocument();
     });
   });
 
@@ -432,14 +448,15 @@ describe('UI Navigation Flow Tests', () => {
       render(
         <PlayerHUD
           player={mockPlayer}
-          faction={mockFaction}
+          gameState={mockGameState}
           onShowTechPanel={() => {}}
           onShowConstructionHall={mockOnShowConstructionHall}
+          onShowDiplomacy={() => {}}
           onEndTurn={() => {}}
         />
       );
 
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByRole('button', { name: 'Build' });
       
       // Test keyboard activation
       constructionButton.focus();
@@ -459,28 +476,30 @@ describe('UI Navigation Flow Tests', () => {
       const { rerender } = render(
         <PlayerHUD
           player={mockPlayer}
-          faction={mockFaction}
+          gameState={mockGameState}
           onShowTechPanel={() => {}}
           onShowConstructionHall={() => {}}
+          onShowDiplomacy={() => {}}
           onEndTurn={() => {}}
         />
       );
 
-      const initialButton = screen.getByText('Construction Hall');
+      const initialButton = screen.getByRole('button', { name: 'Build' });
       const initialRect = initialButton.getBoundingClientRect();
 
       // Rerender with different player state
       rerender(
         <PlayerHUD
           player={lowResourcesPlayer}
-          faction={mockFaction}
+          gameState={mockGameState}
           onShowTechPanel={() => {}}
           onShowConstructionHall={() => {}}
+          onShowDiplomacy={() => {}}
           onEndTurn={() => {}}
         />
       );
 
-      const updatedButton = screen.getByText('Construction Hall');
+      const updatedButton = screen.getByRole('button', { name: 'Build' });
       const updatedRect = updatedButton.getBoundingClientRect();
 
       // Button position should remain consistent
@@ -494,17 +513,18 @@ describe('UI Navigation Flow Tests', () => {
       render(
         <PlayerHUD
           player={mockPlayer}
-          faction={mockFaction}
+          gameState={mockGameState}
           onShowTechPanel={() => {}}
           onShowConstructionHall={() => {}}
+          onShowDiplomacy={() => {}}
           onEndTurn={() => {}}
         />
       );
 
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByRole('button', { name: 'Build' });
       
       // Check initial state
-      expect(constructionButton).toHaveClass('hover:bg-green-600/40');
+      expect(constructionButton).toHaveClass('from-amber-600/20');
       
       // Test hover state (simulated through classes)
       await user.hover(constructionButton);
@@ -532,9 +552,10 @@ describe('UI Navigation Flow Tests', () => {
         render(
           <PlayerHUD
             player={mockPlayer}
-            faction={mockFaction}
+            gameState={null}
             onShowTechPanel={() => {}}
             onShowConstructionHall={() => {}}
+            onShowDiplomacy={() => {}}
             onEndTurn={() => {}}
           />
         );
@@ -548,14 +569,15 @@ describe('UI Navigation Flow Tests', () => {
       render(
         <PlayerHUD
           player={mockPlayer}
-          faction={mockFaction}
+          gameState={mockGameState}
           onShowTechPanel={() => {}}
           onShowConstructionHall={mockOnShowConstructionHall}
+          onShowDiplomacy={() => {}}
           onEndTurn={() => {}}
         />
       );
 
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByRole('button', { name: 'Build' });
       
       // Rapidly click the button multiple times
       await user.click(constructionButton);
@@ -573,9 +595,10 @@ describe('UI Navigation Flow Tests', () => {
       const { rerender } = render(
         <PlayerHUD
           player={mockPlayer}
-          faction={mockFaction}
+          gameState={mockGameState}
           onShowTechPanel={() => {}}
           onShowConstructionHall={mockOnShowConstructionHall}
+          onShowDiplomacy={() => {}}
           onEndTurn={() => {}}
         />
       );
@@ -586,14 +609,15 @@ describe('UI Navigation Flow Tests', () => {
       rerender(
         <PlayerHUD
           player={updatedPlayer}
-          faction={mockFaction}
+          gameState={mockGameState}
           onShowTechPanel={() => {}}
           onShowConstructionHall={mockOnShowConstructionHall}
+          onShowDiplomacy={() => {}}
           onEndTurn={() => {}}
         />
       );
 
-      const constructionButton = screen.getByText('Construction Hall');
+      const constructionButton = screen.getByRole('button', { name: 'Build' });
       await user.click(constructionButton);
       
       // Button should still work after state updates

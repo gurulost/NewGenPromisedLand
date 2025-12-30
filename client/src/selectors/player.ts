@@ -15,7 +15,19 @@ export interface PlayerStats {
   starProductionBreakdown: Array<{ source: string; amount: number }>;
 }
 
-export function getPlayerStats(player: PlayerState, gameState: GameState): PlayerStats {
+export function getPlayerStats(player: PlayerState, gameState?: GameState | null): PlayerStats {
+  if (!gameState) {
+    const fallback = GameRuleHelpers.calculateStarIncome(player.citiesOwned.length);
+    return {
+      faithPercentage: player.stats?.faith ?? 0,
+      pridePercentage: player.stats?.pride ?? 0,
+      dissentPercentage: player.stats?.internalDissent ?? 0,
+      cityCount: player.citiesOwned.length,
+      techCount: player.researchedTechs.length,
+      starProduction: fallback,
+      starProductionBreakdown: [{ source: 'Base', amount: fallback }],
+    };
+  }
   const breakdown: Array<{ source: string; amount: number }> = [];
   let totalStarProduction = 0;
 
