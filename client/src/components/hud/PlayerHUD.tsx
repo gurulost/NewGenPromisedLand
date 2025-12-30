@@ -26,7 +26,7 @@ function formatRelativeTime(ts: number): string {
 
 interface PlayerHUDProps {
   player: PlayerState;
-  gameState: GameState;
+  gameState: GameState | null;
   onShowTechPanel: () => void;
   onShowConstructionHall: () => void;
   onShowDiplomacy: () => void;
@@ -37,6 +37,7 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
   const faction = getFaction(player.factionId as any);
   const handleEndTurn = onEndTurn ?? (() => { });
   const autosaveStatus = useAutosaveStatus();
+  if (!gameState) return null;
 
   // Moved expensive calculations to selector
   const playerStats = useMemo(() =>

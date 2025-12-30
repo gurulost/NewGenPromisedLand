@@ -305,7 +305,8 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   useEffect(() => {
     if (!meshRef.current || tileInstanceData.length === 0) return;
 
-    const mesh = meshRef.current;
+    const mesh = meshRef.current as any;
+    if (typeof mesh.setMatrixAt !== 'function' || !mesh.geometry || !mesh.instanceMatrix) return;
     const count = tileInstanceData.length;
     
     // Set up instance attributes

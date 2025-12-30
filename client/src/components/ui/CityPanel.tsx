@@ -197,14 +197,33 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           
           {/* Tab Navigation */}
           <div className="flex gap-2 mt-4 justify-between">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
-                variant="default"
+                variant={selectedTab === 'overview' ? "default" : "outline"}
                 size="sm"
                 className="flex items-center gap-2"
+                onClick={() => setSelectedTab('overview')}
               >
                 <Building className="w-4 h-4" />
                 Overview
+              </Button>
+              <Button
+                variant={selectedTab === 'structures' ? "default" : "outline"}
+                size="sm"
+                className="flex items-center gap-2"
+                onClick={() => setSelectedTab('structures')}
+              >
+                <Hammer className="w-4 h-4" />
+                Structures
+              </Button>
+              <Button
+                variant={selectedTab === 'units' ? "default" : "outline"}
+                size="sm"
+                className="flex items-center gap-2"
+                onClick={() => setSelectedTab('units')}
+              >
+                <Sword className="w-4 h-4" />
+                Units
               </Button>
             </div>
             
