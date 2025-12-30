@@ -47,6 +47,8 @@ interface ActiveNotification {
 export default function GameUI() {
   const isDev = import.meta.env.DEV;
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
+  const actionError = useLocalGame((state) => state.actionError);
+  const clearActionError = useLocalGame((state) => state.clearActionError);
   const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates, closeTileContextMenu } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const { triggerFlash, showToast } = useVisualFeedback();
@@ -78,6 +80,13 @@ export default function GameUI() {
   useEffect(() => {
     visualRef.current = { triggerFlash, showToast };
   }, [triggerFlash, showToast]);
+
+  useEffect(() => {
+    if (!actionError) return;
+    const type = actionError.level === 'error' ? 'error' : 'warning';
+    showToast(actionError.message, type);
+    clearActionError();
+  }, [actionError, clearActionError, showToast]);
 
   // Best-effort autosave on lifecycle events (helps avoid catastrophic loss on tab reclaim).
   useEffect(() => {

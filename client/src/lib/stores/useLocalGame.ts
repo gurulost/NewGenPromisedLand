@@ -39,6 +39,12 @@ interface OnlineSession {
   queueVersion: number;
 }
 
+interface ActionError {
+  id: string;
+  message: string;
+  level: 'warning' | 'error';
+}
+
 const canAct = (gameState: GameState | null, onlineSession: OnlineSession | null): boolean => {
   if (!onlineSession) return true;
   if (!gameState) return false;
@@ -54,11 +60,13 @@ interface LocalGameStore {
   gamePhase: GamePhase;
   gameState: GameState | null;
   onlineSession: OnlineSession | null;
+  actionError: ActionError | null;
 
   setGamePhase: (phase: GamePhase) => void;
   setGameState: (state: GameState | null) => void;
   setOnlineSession: (session: OnlineSession) => void;
   clearOnlineSession: () => void;
+  clearActionError: () => void;
   setOnlineActionVersion: (version: number) => void;
   setOnlineQueueVersion: (version: number) => void;
   applyRemoteAction: (action: any) => boolean;
@@ -104,6 +112,28 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     onlineActionChain = onlineActionChain.then(task).catch(() => undefined);
   };
 
+  const reportActionError = (message: string, level: ActionError['level'] = 'warning'): void => {
+    set({
+      actionError: {
+        id: createActionId(),
+        message,
+        level,
+      },
+    });
+  };
+
+  const getResponseError = async (res: Response): Promise<string> => {
+    try {
+      const data = await res.json();
+      if (data && typeof data.error === "string") {
+        return data.error;
+      }
+    } catch {
+      // Ignore parsing errors.
+    }
+    return `Request failed (${res.status})`;
+  };
+
   const submitAction = async (action: any): Promise<void> => {
     const { onlineSession, gameState } = get();
     if (!onlineSession) {
@@ -118,8 +148,18 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       return;
     }
 
-    if (!gameState) return;
-    if (!canAct(gameState, onlineSession)) return;
+    if (!gameState) {
+      reportActionError("Game state is not ready yet.", "warning");
+      return;
+    }
+    if (!canAct(gameState, onlineSession)) {
+      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+      const message = currentPlayer?.isAI
+        ? "AI turn in progress. Please wait for the host to finish."
+        : "It is not your turn yet.";
+      reportActionError(message, "warning");
+      return;
+    }
 
     const actorId = gameState.players[gameState.currentPlayerIndex]?.id;
     if (!actorId) return;
@@ -128,7 +168,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     if (onlineSession.userId === onlineSession.hostUserId) {
       const result = applyActionToState(action);
-      if (!result.applied) return;
+      if (!result.applied) {
+        reportActionError("Action rejected by game rules.", "warning");
+        return;
+      }
       if (action.type === 'END_TURN') {
         useGameState.getState().setSelectedUnit(null);
       }
@@ -143,24 +186,30 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
             body: JSON.stringify({ action, actorId, id: actionId }),
             credentials: "include",
           });
-          if (res.ok) {
-            const data = await res.json();
-            set((state) => state.onlineSession
-              ? { onlineSession: { ...state.onlineSession, actionVersion: data.actionVersion } }
-              : {}
-            );
+          if (!res.ok) {
+            reportActionError(await getResponseError(res), "error");
+            return;
+          }
 
-            if (action.type === "END_TURN" && snapshotState) {
-              await fetch(`/api/lobbies/${lobbyCode}/state`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ state: snapshotState, version: data.actionVersion }),
-                credentials: "include",
-              });
+          const data = await res.json();
+          set((state) => state.onlineSession
+            ? { onlineSession: { ...state.onlineSession, actionVersion: data.actionVersion } }
+            : {}
+          );
+
+          if (action.type === "END_TURN" && snapshotState) {
+            const snapshotRes = await fetch(`/api/lobbies/${lobbyCode}/state`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ state: snapshotState, version: data.actionVersion }),
+              credentials: "include",
+            });
+            if (!snapshotRes.ok) {
+              reportActionError(await getResponseError(snapshotRes), "error");
             }
           }
         } catch {
-          // Ignore network errors; sync polling will reconcile.
+          reportActionError("Network error while sending action.", "error");
         }
       });
       return;
@@ -169,14 +218,17 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     const lobbyCode = onlineSession.lobbyCode;
     enqueueOnlineRequest(async () => {
       try {
-        await fetch(`/api/lobbies/${lobbyCode}/actions/queue`, {
+        const res = await fetch(`/api/lobbies/${lobbyCode}/actions/queue`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action, actorId, id: actionId }),
           credentials: "include",
         });
+        if (!res.ok) {
+          reportActionError(await getResponseError(res), "error");
+        }
       } catch {
-        // Ignore queue errors; player can retry.
+        reportActionError("Network error while sending action.", "error");
       }
     });
   };
@@ -185,6 +237,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     gamePhase: 'menu',
     gameState: null,
     onlineSession: null,
+    actionError: null,
 
     setGamePhase: (phase) => {
       gameDebugger.trackGamePhase(phase);
@@ -203,6 +256,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     clearOnlineSession: () => {
       set({ onlineSession: null });
+    },
+
+    clearActionError: () => {
+      set({ actionError: null });
     },
 
     setOnlineActionVersion: (version) => {
