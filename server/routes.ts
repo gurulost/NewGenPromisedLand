@@ -16,6 +16,34 @@ function getHostMeta(lobbyState: any) {
   return { hostEpoch, hostLastSeen, leaseExpired };
 }
 
+function selectNextHost(lobbyState: any, currentHostUserId: number): number | null {
+  const playersMeta = Array.isArray(lobbyState?.players) ? lobbyState.players : [];
+  const byPlayerId = new Map(playersMeta.map((p: any) => [p.playerId, p]));
+  const snapshot = lobbyState?.snapshot;
+
+  if (snapshot && Array.isArray(snapshot.players)) {
+    const currentIndex = Number(snapshot.currentPlayerIndex ?? 0);
+    const total = snapshot.players.length;
+    for (let offset = 0; offset < total; offset += 1) {
+      const idx = (currentIndex + offset) % total;
+      const snapPlayer = snapshot.players[idx];
+      const meta = byPlayerId.get(snapPlayer?.id);
+      if (!meta || meta.isAI || meta.userId == null) continue;
+      if (meta.userId === currentHostUserId) continue;
+      return meta.userId;
+    }
+  }
+
+  const ordered = [...playersMeta].sort((a: any, b: any) => (a.turnOrder ?? 0) - (b.turnOrder ?? 0));
+  for (const meta of ordered) {
+    if (meta?.isAI || meta?.userId == null) continue;
+    if (meta.userId === currentHostUserId) continue;
+    return meta.userId;
+  }
+
+  return null;
+}
+
 // Password hashing with bcrypt (salted)
 async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
@@ -615,10 +643,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const lobbyState = (lobby.gameState as any) || {};
-      const { hostEpoch, hostLastSeen, leaseExpired } = getHostMeta(lobbyState);
+      let { hostEpoch, hostLastSeen, leaseExpired } = getHostMeta(lobbyState);
+      let hostUserId = lobby.hostUserId;
+
+      if (leaseExpired) {
+        const nextHostUserId = selectNextHost(lobbyState, lobby.hostUserId);
+        if (typeof nextHostUserId === "number") {
+          const nextEpoch = hostEpoch + 1;
+          const nextLastSeen = Date.now();
+          const updatedState = {
+            ...lobbyState,
+            hostEpoch: nextEpoch,
+            hostLastSeen: nextLastSeen,
+            pendingVersion: 0,
+            pendingActions: [],
+          };
+          await storage.updateLobby(lobby.id, {
+            hostUserId: nextHostUserId,
+            gameState: updatedState as any,
+          });
+          hostEpoch = nextEpoch;
+          hostLastSeen = nextLastSeen;
+          leaseExpired = false;
+          hostUserId = nextHostUserId;
+        }
+      }
 
       res.json({
-        hostUserId: lobby.hostUserId,
+        hostUserId,
         hostEpoch,
         hostLastSeen: hostLastSeen || null,
         leaseExpired,
@@ -700,7 +752,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hostLastSeen = Date.now();
       await storage.updateLobby(lobby.id, {
         hostUserId: userId,
-        gameState: { ...lobbyState, hostEpoch: nextEpoch, hostLastSeen } as any,
+        gameState: {
+          ...lobbyState,
+          hostEpoch: nextEpoch,
+          hostLastSeen,
+          pendingVersion: 0,
+          pendingActions: [],
+        } as any,
       });
 
       res.json({ hostUserId: userId, hostEpoch: nextEpoch, hostLastSeen });

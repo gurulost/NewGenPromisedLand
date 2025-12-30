@@ -918,7 +918,7 @@ export default function GameUI() {
       {onlineSession && hostLeaseExpired && onlineSession.userId !== onlineSession.hostUserId && (
         <div className="absolute top-4 left-1/2 z-50 -translate-x-1/2 pointer-events-auto">
           <div className="flex items-center gap-3 rounded-lg border border-amber-400/50 bg-black/80 px-4 py-2 text-amber-100 shadow-lg backdrop-blur-sm">
-            <span className="text-sm">Host disconnected. You can claim host to continue.</span>
+            <span className="text-sm">Host disconnected. Attempting transfer...</span>
             <button
               onClick={handleClaimHost}
               className="rounded bg-amber-500 px-3 py-1 text-xs font-semibold text-black transition hover:bg-amber-400 disabled:opacity-60"
