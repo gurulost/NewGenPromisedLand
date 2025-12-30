@@ -218,7 +218,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
 
   return (
     <div 
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto"
       onClick={(e) => {
         // Close system if clicking on backdrop
         if (e.target === e.currentTarget) {

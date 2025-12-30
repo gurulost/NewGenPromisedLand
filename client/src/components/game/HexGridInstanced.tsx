@@ -375,6 +375,11 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         );
         
         const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+        const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
+        if (currentPlayer && !currentPlayer.exploredTiles?.includes(tileKey)) {
+          closeTileContextMenu();
+          return;
+        }
         
         // Handle construction mode - tile selection for building
         if (constructionMode.isActive && currentPlayer) {
@@ -663,6 +668,12 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       
       if (instanceId !== undefined && instanceId < map.tiles.length) {
         const hoveredTile = map.tiles[instanceId];
+        const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+        const tileKey = `${hoveredTile.coordinate.q},${hoveredTile.coordinate.r}`;
+        if (currentPlayer && !currentPlayer.exploredTiles?.includes(tileKey)) {
+          setHoveredTile(null);
+          return;
+        }
         const pixelPos = hexToPixel(hoveredTile.coordinate, HEX_SIZE);
         setHoveredTile({
           x: pixelPos.x,

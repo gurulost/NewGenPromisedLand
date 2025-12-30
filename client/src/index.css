@@ -90,6 +90,95 @@ canvas {
     background-size: 600px 600px;
     animation: sparkle-slow 12s linear infinite;
   }
+
+  /* Mesoamerican-themed animations */
+  @keyframes gold-shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  
+  @keyframes stone-glow {
+    0%, 100% { text-shadow: 0 2px 8px rgba(251, 191, 36, 0.3), 0 0 0 transparent; }
+    50% { text-shadow: 0 2px 12px rgba(251, 191, 36, 0.5), 0 0 20px rgba(251, 191, 36, 0.2); }
+  }
+
+  @keyframes subtle-pulse {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.05); }
+  }
+
+  .animate-gold-shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(251, 191, 36, 0.3) 25%,
+      rgba(253, 230, 138, 0.5) 50%,
+      rgba(251, 191, 36, 0.3) 75%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: gold-shimmer 3s ease-in-out infinite;
+  }
+
+  .animate-stone-glow {
+    animation: stone-glow 4s ease-in-out infinite;
+  }
+
+  .animate-subtle-pulse {
+    animation: subtle-pulse 2s ease-in-out infinite;
+  }
+
+  /* Jade green accent for AI players */
+  .jade-accent {
+    --accent-color: rgb(34, 197, 94);
+    --accent-glow: rgba(34, 197, 94, 0.4);
+    background: linear-gradient(135deg, rgba(20, 83, 45, 0.5), rgba(22, 101, 52, 0.7));
+    border-color: rgba(34, 197, 94, 0.6);
+  }
+
+  /* Obsidian dark accent for human players */
+  .obsidian-accent {
+    --accent-color: rgb(71, 85, 105);
+    --accent-glow: rgba(251, 191, 36, 0.3);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(51, 65, 85, 0.5));
+    border-color: rgba(100, 116, 139, 0.5);
+  }
+
+  /* Step-fret corner ornament base */
+  .step-fret-corner {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    opacity: 0.6;
+  }
+  
+  .step-fret-corner::before,
+  .step-fret-corner::after {
+    content: '';
+    position: absolute;
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.6), rgba(217, 119, 6, 0.4));
+  }
+  
+  .step-fret-corner::before {
+    width: 100%;
+    height: 3px;
+  }
+  
+  .step-fret-corner::after {
+    width: 3px;
+    height: 100%;
+  }
+
+  /* Glassmorphism panel */
+  .glass-panel {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.85));
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      inset 0 0 20px rgba(251, 191, 36, 0.05);
+  }
 }
 
 /* Touch Mode Styles */
