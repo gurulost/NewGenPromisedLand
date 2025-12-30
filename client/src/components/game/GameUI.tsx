@@ -60,6 +60,7 @@ export default function GameUI() {
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [showConstructionHall, setShowConstructionHall] = useState(false);
   const [isClaimingHost, setIsClaimingHost] = useState(false);
+  const prevHostRef = useRef<number | null>(null);
 
   useOnlineGameSync();
   const { toasts: mapToasts } = useMapToastStore();
@@ -92,6 +93,30 @@ export default function GameUI() {
     showToast(actionError.message, type);
     clearActionError();
   }, [actionError, clearActionError, showToast]);
+
+  useEffect(() => {
+    if (!onlineSession) {
+      prevHostRef.current = null;
+      return;
+    }
+
+    const nextHostId = onlineSession.hostUserId;
+    if (!nextHostId) return;
+
+    if (prevHostRef.current === null) {
+      prevHostRef.current = nextHostId;
+      return;
+    }
+
+    if (prevHostRef.current !== nextHostId) {
+      if (nextHostId === onlineSession.userId) {
+        showToast("You are now the host.", "success");
+      } else {
+        showToast("A new host has taken over.", "info");
+      }
+      prevHostRef.current = nextHostId;
+    }
+  }, [onlineSession?.hostUserId, onlineSession?.userId, onlineSession, showToast]);
 
   const handleClaimHost = async () => {
     if (!onlineSession || isClaimingHost) return;
