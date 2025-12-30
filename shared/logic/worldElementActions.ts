@@ -1,4 +1,3 @@
-import { nanoid } from 'nanoid';
 import { GameState } from '../types/game';
 import { HexCoordinate } from '../types/coordinates';
 import { Unit } from '../types/unit';
@@ -11,6 +10,10 @@ import { applyPopulationGain } from './cityGrowth';
 import { emitTelemetry } from './telemetry';
 
 type WeightedRuinReward = RuinReward & { weight: number };
+
+function createRngId(rng: () => number, prefix: string): string {
+  return `${prefix}_${Math.floor(rng() * 1e9).toString(36)}`;
+}
 
 function pickWeightedRuinReward(rewards: WeightedRuinReward[], roll: number): RuinReward {
   if (rewards.length === 0) {
@@ -556,7 +559,7 @@ function executeRuinExploration(
       message += ` and awakened ${label}!`;
 
       const newUnit: Unit = {
-        id: nanoid(),
+        id: createRngId(rng, "unit"),
         type: unitType,
         playerId,
         coordinate: { ...coordinate },

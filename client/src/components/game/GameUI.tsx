@@ -3,6 +3,7 @@ import { useKeyboardControls } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useAITurn } from "../../hooks/useAITurn";
+import { useOnlineGameSync } from "../../hooks/useOnlineGameSync";
 import { getFaction } from "@shared/data/factions";
 import { PlayerHUD } from "../hud/PlayerHUD";
 import SelectedUnitPanel from "../ui/SelectedUnitPanel";
@@ -52,6 +53,8 @@ export default function GameUI() {
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [showConstructionHall, setShowConstructionHall] = useState(false);
+
+  useOnlineGameSync();
   const { toasts: mapToasts } = useMapToastStore();
   const addToast = useMapToastStore(state => state.addToast);
   const [activeNotification, setActiveNotification] = useState<ActiveNotification | null>(null);

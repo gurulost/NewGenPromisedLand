@@ -6,6 +6,7 @@ import MemoryStore from "memorystore";
 import bcrypt from "bcryptjs";
 
 const MemoryStoreSession = MemoryStore(session);
+const VALID_MAP_SIZES = new Set(["tiny", "small", "normal", "large", "huge"]);
 
 // Password hashing with bcrypt (salted)
 async function hashPassword(password: string): Promise<string> {
@@ -141,9 +142,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new lobby
   app.post("/api/lobbies", requireAuth, async (req, res) => {
     try {
-      const { name, maxPlayers = 6, mapSize = "medium" } = req.body;
+      const { name, maxPlayers = 6, mapSize = "normal" } = req.body;
       if (!name) {
         return res.status(400).json({ error: "Lobby name required" });
+      }
+      const normalizedMapSize = String(mapSize).toLowerCase();
+      const parsedMaxPlayers = Number(maxPlayers);
+      if (!Number.isInteger(parsedMaxPlayers) || parsedMaxPlayers < 2 || parsedMaxPlayers > 8) {
+        return res.status(400).json({ error: "Max players must be between 2 and 8" });
+      }
+      if (!VALID_MAP_SIZES.has(normalizedMapSize)) {
+        return res.status(400).json({ error: "Invalid map size" });
       }
       
       let code = generateLobbyCode();
@@ -157,13 +166,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         code,
         name,
         hostUserId: req.session.userId!,
-        maxPlayers,
-        mapSize,
+        maxPlayers: parsedMaxPlayers,
+        mapSize: normalizedMapSize,
         status: "waiting",
       });
       
       // Create empty seats for the lobby
-      for (let i = 0; i < maxPlayers; i++) {
+      for (let i = 0; i < parsedMaxPlayers; i++) {
         await storage.createSeat({
           lobbyId: lobby.id,
           seatIndex: i,
@@ -211,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get lobby by id (for refreshing)
-  app.get("/api/lobbies/id/:id", async (req, res) => {
+  app.get("/api/lobbies/id/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const lobby = await storage.getLobbyById(id);
@@ -219,6 +228,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Lobby not found" });
       }
       const seats = await storage.getSeatsByLobbyId(lobby.id);
+      const userId = req.session.userId!;
+      const isParticipant = lobby.hostUserId === userId || seats.some((seat) => seat.userId === userId);
+      if (lobby.status !== "waiting" && !isParticipant) {
+        return res.status(409).json({ error: "Game already in progress" });
+      }
       res.json({ ...lobby, seats });
     } catch (error) {
       console.error("Failed to get lobby:", error);
@@ -227,13 +241,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get lobby by code (for joining)
-  app.get("/api/lobbies/code/:code", async (req, res) => {
+  app.get("/api/lobbies/code/:code", requireAuth, async (req, res) => {
     try {
       const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
       if (!lobby) {
         return res.status(404).json({ error: "Lobby not found" });
       }
       const seats = await storage.getSeatsByLobbyId(lobby.id);
+      const userId = req.session.userId!;
+      const isParticipant = lobby.hostUserId === userId || seats.some((seat) => seat.userId === userId);
+      if (lobby.status !== "waiting" && !isParticipant) {
+        return res.status(409).json({ error: "Game already in progress" });
+      }
       res.json({ ...lobby, seats });
     } catch (error) {
       console.error("Failed to get lobby:", error);
@@ -286,6 +305,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!lobby) {
         return res.status(404).json({ error: "Lobby not found" });
       }
+      if (lobby.status !== "waiting") {
+        return res.status(400).json({ error: "Lobby is not in waiting state" });
+      }
       
       const seatIndex = parseInt(req.params.seatIndex);
       const seats = await storage.getSeatsByLobbyId(lobby.id);
@@ -320,6 +342,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!lobby) {
         return res.status(404).json({ error: "Lobby not found" });
       }
+      if (lobby.status !== "waiting") {
+        return res.status(400).json({ error: "Lobby is not in waiting state" });
+      }
       
       const seatIndex = parseInt(req.params.seatIndex);
       const seats = await storage.getSeatsByLobbyId(lobby.id);
@@ -353,6 +378,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
       if (!lobby) {
         return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.status !== "waiting") {
+        return res.status(400).json({ error: "Lobby is not in waiting state" });
       }
       if (lobby.hostUserId !== req.session.userId) {
         return res.status(403).json({ error: "Only host can add AI" });
@@ -391,6 +419,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!lobby) {
         return res.status(404).json({ error: "Lobby not found" });
       }
+      if (lobby.status !== "waiting") {
+        return res.status(400).json({ error: "Lobby is not in waiting state" });
+      }
       if (lobby.hostUserId !== req.session.userId) {
         return res.status(403).json({ error: "Only host can remove AI" });
       }
@@ -426,6 +457,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
       if (!lobby) {
         return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.status !== "waiting") {
+        return res.status(400).json({ error: "Lobby is not in waiting state" });
+      }
+      if (lobby.hostUserId === req.session.userId) {
+        await storage.deleteLobby(lobby.id);
+        return res.json({ success: true, deleted: true });
       }
       
       await storage.deleteSeatsByUserId(lobby.id, req.session.userId!);
@@ -511,17 +549,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Build player data from seats
       const players = claimedSeats.map((seat, index) => ({
+        playerId: `player-${index + 1}`,
         seatIndex: seat.seatIndex,
+        userId: seat.userId,
         name: seat.playerName || `Player ${seat.seatIndex + 1}`,
         factionId: seat.factionId!,
         isAI: seat.isAI,
         turnOrder: index,
       }));
-      
+
+      const seed = Math.floor(Math.random() * 2 ** 32);
+
       // Update lobby status to playing and store player config (game state will be initialized client-side)
       await storage.updateLobby(lobby.id, { 
         status: "playing",
-        gameState: { players, mapSize: lobby.mapSize } as any,
+        gameState: {
+          players,
+          mapSize: lobby.mapSize,
+          seed,
+          actionVersion: 0,
+          actions: [],
+          pendingVersion: 0,
+          pendingActions: [],
+          snapshotVersion: 0,
+          snapshot: null,
+        } as any,
       });
       
       const updatedLobby = await storage.getLobbyById(lobby.id);
@@ -530,6 +582,250 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to start game:", error);
       res.status(500).json({ error: "Failed to start game" });
+    }
+  });
+
+  // Get latest game state snapshot for a lobby
+  app.get("/api/lobbies/:code/state", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.status !== "playing") {
+        return res.status(409).json({ error: "Game not in progress" });
+      }
+
+      const seats = await storage.getSeatsByLobbyId(lobby.id);
+      const userId = req.session.userId!;
+      const isParticipant = lobby.hostUserId === userId || seats.some((seat) => seat.userId === userId);
+      if (!isParticipant) {
+        return res.status(403).json({ error: "Not a participant" });
+      }
+
+      const lobbyState = (lobby.gameState as any) || {};
+      const snapshotVersion = Number(lobbyState.snapshotVersion ?? 0);
+      const actionVersion = Number(lobbyState.actionVersion ?? 0);
+      const since = Number(req.query.since ?? 0);
+
+      if (Number.isFinite(since) && since >= snapshotVersion) {
+        return res.json({ snapshotVersion, actionVersion, state: null });
+      }
+
+      res.json({ snapshotVersion, actionVersion, state: lobbyState.snapshot ?? null });
+    } catch (error) {
+      console.error("Failed to get game state:", error);
+      res.status(500).json({ error: "Failed to get game state" });
+    }
+  });
+
+  // Update game state snapshot (host only, end-of-turn only)
+  app.put("/api/lobbies/:code/state", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.status !== "playing") {
+        return res.status(409).json({ error: "Game not in progress" });
+      }
+      if (lobby.hostUserId !== req.session.userId) {
+        return res.status(403).json({ error: "Only host can update snapshots" });
+      }
+
+      const lobbyState = (lobby.gameState as any) || {};
+      const { state, version } = req.body;
+      if (!state || typeof version !== "number") {
+        return res.status(400).json({ error: "State and version required" });
+      }
+
+      const currentActionVersion = Number(lobbyState.actionVersion ?? 0);
+      if (version !== currentActionVersion) {
+        return res.status(409).json({ error: "Out of date", version: currentActionVersion });
+      }
+
+      const lastAction = state.lastAction;
+      if (!lastAction || (lastAction.type !== "END_TURN" && lastAction.type !== "END_TURN_RESOLUTION")) {
+        return res.status(400).json({ error: "Only end-of-turn updates allowed" });
+      }
+
+      await storage.updateLobby(lobby.id, {
+        gameState: { ...lobbyState, snapshot: state, snapshotVersion: version } as any,
+      });
+
+      res.json({ snapshotVersion: version, actionVersion: currentActionVersion });
+    } catch (error) {
+      console.error("Failed to update game state:", error);
+      res.status(500).json({ error: "Failed to update game state" });
+    }
+  });
+
+  // Queue player action for host processing
+  app.post("/api/lobbies/:code/actions/queue", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.status !== "playing") {
+        return res.status(409).json({ error: "Game not in progress" });
+      }
+
+      const lobbyState = (lobby.gameState as any) || {};
+      const { action, actorId, id } = req.body;
+      if (!action || !actorId || !id) {
+        return res.status(400).json({ error: "Action, actorId, and id required" });
+      }
+
+      const playerMeta = (lobbyState.players || []).find((player: any) => player.playerId === actorId);
+      if (!playerMeta) {
+        return res.status(400).json({ error: "Unknown player" });
+      }
+
+      if (playerMeta.isAI) {
+        return res.status(403).json({ error: "AI actions must be submitted by host" });
+      }
+
+      if (playerMeta.userId !== req.session.userId) {
+        return res.status(403).json({ error: "Not your player" });
+      }
+
+      const pendingVersion = Number(lobbyState.pendingVersion ?? 0) + 1;
+      const pendingActions = Array.isArray(lobbyState.pendingActions) ? [...lobbyState.pendingActions] : [];
+      pendingActions.push({ queueVersion: pendingVersion, id, actorId, action });
+
+      await storage.updateLobby(lobby.id, {
+        gameState: { ...lobbyState, pendingVersion, pendingActions } as any,
+      });
+
+      res.json({ queueVersion: pendingVersion });
+    } catch (error) {
+      console.error("Failed to queue action:", error);
+      res.status(500).json({ error: "Failed to queue action" });
+    }
+  });
+
+  // Host fetches pending actions
+  app.get("/api/lobbies/:code/actions/queue", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.status !== "playing") {
+        return res.status(409).json({ error: "Game not in progress" });
+      }
+      if (lobby.hostUserId !== req.session.userId) {
+        return res.status(403).json({ error: "Only host can fetch pending actions" });
+      }
+
+      const lobbyState = (lobby.gameState as any) || {};
+      const pendingActions = Array.isArray(lobbyState.pendingActions) ? lobbyState.pendingActions : [];
+      const pendingVersion = Number(lobbyState.pendingVersion ?? 0);
+      const since = Number(req.query.since ?? 0);
+
+      if (Number.isFinite(since) && since >= pendingVersion) {
+        return res.json({ pendingVersion, actions: [] });
+      }
+
+      const actions = Number.isFinite(since)
+        ? pendingActions.filter((entry: any) => entry.queueVersion > since)
+        : pendingActions;
+
+      res.json({ pendingVersion, actions });
+    } catch (error) {
+      console.error("Failed to fetch pending actions:", error);
+      res.status(500).json({ error: "Failed to fetch pending actions" });
+    }
+  });
+
+  // Host commits an action to the log
+  app.post("/api/lobbies/:code/actions/commit", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.status !== "playing") {
+        return res.status(409).json({ error: "Game not in progress" });
+      }
+      if (lobby.hostUserId !== req.session.userId) {
+        return res.status(403).json({ error: "Only host can commit actions" });
+      }
+
+      const lobbyState = (lobby.gameState as any) || {};
+      const { action, actorId, id, queueVersion } = req.body;
+      if (!action || !actorId || !id) {
+        return res.status(400).json({ error: "Action, actorId, and id required" });
+      }
+
+      const playerMeta = (lobbyState.players || []).find((player: any) => player.playerId === actorId);
+      if (!playerMeta) {
+        return res.status(400).json({ error: "Unknown player" });
+      }
+
+      const nextActionVersion = Number(lobbyState.actionVersion ?? 0) + 1;
+      const actions = Array.isArray(lobbyState.actions) ? [...lobbyState.actions] : [];
+      actions.push({ version: nextActionVersion, id, actorId, action });
+
+      let pendingActions = Array.isArray(lobbyState.pendingActions) ? [...lobbyState.pendingActions] : [];
+      if (queueVersion) {
+        pendingActions = pendingActions.filter((entry: any) => entry.queueVersion !== queueVersion);
+      } else {
+        pendingActions = pendingActions.filter((entry: any) => entry.id !== id);
+      }
+
+      await storage.updateLobby(lobby.id, {
+        gameState: {
+          ...lobbyState,
+          actionVersion: nextActionVersion,
+          actions,
+          pendingActions,
+        } as any,
+      });
+
+      res.json({ actionVersion: nextActionVersion });
+    } catch (error) {
+      console.error("Failed to commit action:", error);
+      res.status(500).json({ error: "Failed to commit action" });
+    }
+  });
+
+  // Fetch committed actions
+  app.get("/api/lobbies/:code/actions", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.status !== "playing") {
+        return res.status(409).json({ error: "Game not in progress" });
+      }
+
+      const seats = await storage.getSeatsByLobbyId(lobby.id);
+      const userId = req.session.userId!;
+      const isParticipant = lobby.hostUserId === userId || seats.some((seat) => seat.userId === userId);
+      if (!isParticipant) {
+        return res.status(403).json({ error: "Not a participant" });
+      }
+
+      const lobbyState = (lobby.gameState as any) || {};
+      const actionVersion = Number(lobbyState.actionVersion ?? 0);
+      const actions = Array.isArray(lobbyState.actions) ? lobbyState.actions : [];
+      const since = Number(req.query.since ?? 0);
+
+      if (Number.isFinite(since) && since >= actionVersion) {
+        return res.json({ actionVersion, actions: [] });
+      }
+
+      const newActions = Number.isFinite(since)
+        ? actions.filter((entry: any) => entry.version > since)
+        : actions;
+
+      res.json({ actionVersion, actions: newActions });
+    } catch (error) {
+      console.error("Failed to fetch actions:", error);
+      res.status(500).json({ error: "Failed to fetch actions" });
     }
   });
 

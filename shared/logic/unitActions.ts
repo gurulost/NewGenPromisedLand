@@ -7,6 +7,7 @@ import { getUnitDefinition } from "../data/units";
 import { GAME_RULES } from "../data/gameRules";
 import { ABILITIES } from "../data/abilities";
 import { attemptUnitConversion, getUnitConversionFaithCost } from "./conversion";
+import { nextId } from "./rng";
 
 /**
  * Unit Action System - Handles special unit abilities and actions
@@ -231,8 +232,11 @@ function executeBuildRoadAction(
     return { success: false, message: "Need 3 stars to build road" };
   }
 
+  let rngSeed = state.rngSeed ?? 0;
+  const roadIdResult = nextId(rngSeed, `road_${hex.coordinate.q}_${hex.coordinate.r}`);
+  rngSeed = roadIdResult.seed;
   const roadImprovement = {
-    id: `road_${hex.coordinate.q}_${hex.coordinate.r}_${Date.now()}`,
+    id: roadIdResult.id,
     type: 'road' as const,
     coordinate: hex.coordinate,
     ownerId: player.id,
@@ -248,7 +252,8 @@ function executeBuildRoadAction(
         ? { ...p, stars: p.stars - 3 }
         : p
     ),
-    improvements: [...(state.improvements || []), roadImprovement]
+    improvements: [...(state.improvements || []), roadImprovement],
+    rngSeed,
   };
 
   return {
