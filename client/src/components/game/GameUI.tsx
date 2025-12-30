@@ -114,6 +114,7 @@ export default function GameUI() {
       } else {
         showToast("A new host has taken over.", "info");
       }
+      showToast("Pending actions were cleared after host transfer. Re-submit if needed.", "warning");
       prevHostRef.current = nextHostId;
     }
   }, [onlineSession?.hostUserId, onlineSession?.userId, onlineSession, showToast]);

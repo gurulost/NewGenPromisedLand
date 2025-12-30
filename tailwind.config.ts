@@ -13,6 +13,8 @@ export default {
       animation: {
         'sparkle-slow': 'sparkle 4s ease-in-out infinite',
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
       },
       keyframes: {
         sparkle: {
@@ -23,11 +25,25 @@ export default {
           '0%, 100%': { boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)' },
           '50%': { boxShadow: '0 0 40px rgba(59, 130, 246, 0.6)' },
         },
+        "accordion-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
       },
       backgroundImage: {
         'panel': 'linear-gradient(135deg, rgb(15 23 42 / 0.95), rgb(30 41 59 / 0.9), rgb(15 23 42 / 0.95))',
       },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
       colors: {
+        // Custom game colors
         'gold': {
           '100': 'rgb(254 243 199)',
           '200': 'rgb(253 230 138)',
@@ -36,13 +52,13 @@ export default {
           '500': 'rgb(245 158 11)',
           '600': 'rgb(217 119 6)',
         },
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-      },
-      colors: {
+        'jade': {
+          '400': 'rgb(74 222 128)',
+          '500': 'rgb(34 197 94)',
+          '600': 'rgb(22 163 74)',
+          '700': 'rgb(21 128 61)',
+        },
+        // shadcn/ui colors
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {
@@ -94,29 +110,8 @@ export default {
           ring: "hsl(var(--sidebar-ring))",
         },
       },
-      keyframes: {
-        "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
-        },
-        "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
-        },
-      },
-      animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-      },
     },
   },
   plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
 } satisfies Config;
+

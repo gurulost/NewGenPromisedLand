@@ -126,16 +126,33 @@ export default function PlayerSetup() {
                     initial={{ x: -20, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ delay: index * 0.1 }}
-                    className={`border rounded-lg p-4 ${player.isAI ? 'bg-purple-900/30 border-purple-500/50' : 'bg-slate-800/50 border-slate-600'}`}
+                    className={clsx(
+                      "border rounded-lg p-4 relative overflow-hidden transition-all duration-300",
+                      player.isAI
+                        ? "jade-accent border-jade-500/50 hover:shadow-[0_0_20px_rgba(34,197,94,0.3)]"
+                        : "obsidian-accent border-slate-500/50 hover:shadow-[0_0_20px_rgba(251,191,36,0.2)]"
+                    )}
                   >
-                    <div className="flex items-center gap-4">
+                    {/* Animated shimmer border for AI players */}
+                    {player.isAI && (
+                      <div
+                        className="pointer-events-none absolute inset-0 rounded-lg overflow-hidden"
+                        aria-hidden="true"
+                      >
+                        <div className="absolute inset-[-1px] rounded-lg animate-gold-shimmer opacity-40" />
+                      </div>
+                    )}
+
+                    <div className="relative z-10 flex items-center gap-4">
                       {/* AI Toggle Button */}
                       <button
                         onClick={() => togglePlayerType(player.id)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${player.isAI
-                            ? 'bg-purple-600 text-white hover:bg-purple-500'
+                        className={clsx(
+                          "flex items-center gap-2 px-3 py-2 rounded-lg transition-all",
+                          player.isAI
+                            ? 'bg-jade-600 text-white hover:bg-jade-500 shadow-[0_0_12px_rgba(34,197,94,0.3)]'
                             : 'bg-slate-600 text-white hover:bg-slate-500'
-                          }`}
+                        )}
                         title={player.isAI ? 'Switch to Human' : 'Switch to AI'}
                       >
                         {player.isAI ? <Bot className="w-5 h-5" /> : <User className="w-5 h-5" />}
@@ -143,23 +160,23 @@ export default function PlayerSetup() {
                       </button>
 
                       <div className="flex-1 space-y-2">
-                        <Label htmlFor={`name-${player.id}`} className="text-amber-100">Player Name</Label>
+                        <Label htmlFor={`name-${player.id}`} className={player.isAI ? "text-jade-200" : "text-amber-100"}>Player Name</Label>
                         <Input
                           id={`name-${player.id}`}
                           value={player.name}
                           onChange={(e) => updatePlayer(player.id, 'name', e.target.value)}
-                          className="bg-slate-700 border-slate-600 text-white"
+                          className="bg-slate-700/80 border-slate-600 text-white"
                           placeholder="Enter player name"
                         />
                       </div>
 
                       <div className="flex-1 space-y-2">
-                        <Label htmlFor={`faction-${player.id}`} className="text-amber-100">Faction</Label>
+                        <Label htmlFor={`faction-${player.id}`} className={player.isAI ? "text-jade-200" : "text-amber-100"}>Faction</Label>
                         <Select
                           value={player.factionId || ""}
                           onValueChange={(value) => updatePlayer(player.id, 'factionId', value)}
                         >
-                          <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                          <SelectTrigger className="bg-slate-700/80 border-slate-600 text-white">
                             <SelectValue placeholder="Choose faction" />
                           </SelectTrigger>
                           <SelectContent className="bg-slate-800 border-slate-600">
@@ -186,18 +203,18 @@ export default function PlayerSetup() {
                       {/* AI Difficulty Selector (only for AI players) */}
                       {player.isAI && (
                         <div className="w-28 space-y-2">
-                          <Label className="text-purple-200">Difficulty</Label>
+                          <Label className="text-jade-200">Difficulty</Label>
                           <Select
                             value={player.aiDifficulty}
                             onValueChange={(value) => updatePlayer(player.id, 'aiDifficulty', value as AIDifficulty)}
                           >
-                            <SelectTrigger className="bg-purple-800/50 border-purple-500 text-white">
+                            <SelectTrigger className="bg-jade-800/50 border-jade-500 text-white">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="bg-purple-900 border-purple-500">
-                              <SelectItem value="easy" className="text-green-300 hover:bg-purple-800">Easy</SelectItem>
-                              <SelectItem value="normal" className="text-yellow-300 hover:bg-purple-800">Normal</SelectItem>
-                              <SelectItem value="hard" className="text-red-300 hover:bg-purple-800">Hard</SelectItem>
+                            <SelectContent className="bg-jade-900 border-jade-500">
+                              <SelectItem value="easy" className="text-green-300 hover:bg-jade-800">Easy</SelectItem>
+                              <SelectItem value="normal" className="text-yellow-300 hover:bg-jade-800">Normal</SelectItem>
+                              <SelectItem value="hard" className="text-red-300 hover:bg-jade-800">Hard</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
