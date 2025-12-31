@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Save, Trash2, Download, Upload, Calendar, Clock, Users } from 'lucide-react';
 import { GameState } from '@shared/types/game';
@@ -27,10 +27,73 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
   const [saveName, setSaveName] = useState('');
   const [selectedSave, setSelectedSave] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadSaveSlots();
   }, []);
+
+  useEffect(() => {
+    const container = modalRef.current;
+    if (!container) return;
+
+    const focusables = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((element) => element.offsetParent !== null);
+
+    if (focusables.length > 0) {
+      focusables[0].focus();
+    } else {
+      container.focus();
+    }
+  }, []);
+
+  const getFocusableElements = () => {
+    const container = modalRef.current;
+    if (!container) return [];
+
+    return Array.from(
+      container.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((element) => element.offsetParent !== null);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const key = event.key ? event.key.toLowerCase() : '';
+    const isEscape = event.key === 'Escape';
+    const isB = event.code === 'KeyB' || key === 'b';
+
+    if (event.key === 'Tab') {
+      const focusables = getFocusableElements();
+      if (focusables.length === 0) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      const currentIndex = focusables.indexOf(document.activeElement as HTMLElement);
+      const nextIndex = event.shiftKey
+        ? (currentIndex <= 0 ? focusables.length - 1 : currentIndex - 1)
+        : (currentIndex === focusables.length - 1 ? 0 : currentIndex + 1);
+
+      focusables[nextIndex].focus();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    if (isEscape || isB) {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+      return;
+    }
+
+    event.stopPropagation();
+  };
 
   const loadSaveSlots = () => {
     try {
@@ -227,7 +290,12 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
       }}
     >
       <motion.div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
         className="bg-slate-900 rounded-xl border border-slate-600 w-[800px] max-h-[80vh] overflow-hidden shadow-2xl"
+        onKeyDown={handleKeyDown}
         onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

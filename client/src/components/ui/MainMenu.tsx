@@ -118,12 +118,13 @@ export default function MainMenu() {
       <HeroBackground />
 
       <div className="relative z-10 w-full max-w-md">
-        <ContentShell size="md">
+        <ContentShell size="md" shimmerBorder showCornerOrnaments>
           <div className="p-6 space-y-6">
             <PanelHeader
               icon={<Crown />}
               title="Chronicles of the Promised Land"
               description="A Book of Mormon Strategy Game"
+              animated
             />
 
             <div className="space-y-4">
@@ -207,8 +208,8 @@ export default function MainMenu() {
       </div>
 
       {showLoadMenu && (
-        <SaveLoadMenu 
-          onClose={() => setShowLoadMenu(false)} 
+        <SaveLoadMenu
+          onClose={() => setShowLoadMenu(false)}
           onLoadFromMenu={true}
         />
       )}

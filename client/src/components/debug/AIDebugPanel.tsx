@@ -78,7 +78,7 @@ export function AIDebugPanel({ visible, onClose, currentPlayerId }: AIDebugPanel
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 pointer-events-auto">
       <Card className="w-full max-w-6xl h-full max-h-[90vh] bg-slate-900 border-amber-500/30 overflow-hidden">
         <CardHeader className="border-b border-slate-700">
           <div className="flex items-center justify-between">
