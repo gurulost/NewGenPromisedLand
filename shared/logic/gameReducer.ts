@@ -9,6 +9,8 @@ import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "../types/city";
 import { ABILITIES, AbilityDefinition } from "../data/abilities";
 import { getFaction } from "../data/factions";
 import { getWorldElement } from "../data/worldElements";
+import type { RuinReward } from "../data/worldElements";
+import type { RuinsReward } from "../data/ruinsRewards";
 import { executeUnitAction } from "./unitActions";
 import { executeAbility } from "./abilitySystem";
 import { executeElementHarvest, executeElementBuild } from "./worldElementActions";
@@ -873,8 +875,11 @@ function handleExploreRuins(
 
   // Store the reward in a temporary location for UI to display
   if (typeof window !== 'undefined') {
+    const rewardForUi = reward.unitType
+      ? { ...reward, unitName: getUnitDefinition(reward.unitType as UnitType)?.name }
+      : reward;
     const rewardEvent = new CustomEvent('ruinsReward', {
-      detail: { reward, coordinate }
+      detail: { reward: rewardForUi, coordinate }
     });
     window.dispatchEvent(rewardEvent);
   }
@@ -889,6 +894,91 @@ function handleExploreRuins(
     units: updatedUnits,
     rngSeed
   };
+}
+
+function buildRuinsUiRewardFromWorldElement(
+  reward: RuinReward,
+  resourceDeltas: { stars: number; faith: number; population?: number }
+): RuinsReward {
+  const stars = resourceDeltas.stars || 0;
+  const faith = resourceDeltas.faith || 0;
+  const population = resourceDeltas.population || 0;
+  const techName = reward.techId ? TECHNOLOGIES[reward.techId]?.name : undefined;
+  const unitName = reward.unitType ? getUnitDefinition(reward.unitType as UnitType)?.name : undefined;
+
+  const idParts = [reward.type, reward.techId, reward.unitType, reward.value]
+    .filter(Boolean)
+    .join('_')
+    .replace(/[^a-z0-9_]+/gi, '_');
+
+  const base = {
+    id: `jaredite_${idParts || 'reward'}`,
+    description: reward.description || 'Ancient secrets emerge from the ruins.',
+    weight: 1,
+    faith: faith || undefined,
+  };
+
+  switch (reward.type) {
+    case 'stars':
+      return {
+        ...base,
+        type: 'stars',
+        name: stars >= 20 ? 'Hidden Cache' : 'Forgotten Treasure',
+        rarity: stars >= 20 ? 'uncommon' : 'common',
+        stars: stars || undefined,
+      };
+    case 'population':
+      return {
+        ...base,
+        type: 'population',
+        name: 'Ancient Census',
+        rarity: 'uncommon',
+        description: population > 0
+          ? `Ancient records swell a nearby city by ${population} population.`
+          : base.description,
+        population: population || undefined,
+      };
+    case 'tech':
+      return {
+        ...base,
+        type: 'tech_boost',
+        name: techName ? `${techName} Discovered` : 'Ancient Scrolls',
+        rarity: 'rare',
+        description: techName
+          ? `Ancient scrolls unlock ${techName}.`
+          : base.description,
+        techName,
+      };
+    case 'unit':
+      return {
+        ...base,
+        type: 'unit_spawn',
+        name: unitName ? `${unitName} Awakens` : 'Ancient Ally',
+        rarity: reward.unitType === 'ancient_giant' ? 'legendary' : 'rare',
+        description: unitName
+          ? `A slumbering ${unitName} rises to join your cause.`
+          : base.description,
+        unitType: reward.unitType,
+        unitName,
+      };
+    case 'reveal':
+      return {
+        ...base,
+        type: 'reveal',
+        name: 'Forgotten Map',
+        rarity: 'uncommon',
+        description: 'Ancient charts reveal an enemy settlement.',
+        reveal: 'Enemy city revealed',
+      };
+    default:
+      return {
+        ...base,
+        type: 'stars',
+        name: 'Jaredite Relic',
+        rarity: 'common',
+        stars: stars || undefined,
+      };
+  }
 }
 
 // World Element Action Handlers
@@ -926,6 +1016,16 @@ function handleWorldElementHarvest(
   const result = executeElementHarvest(state, payload.playerId, payload.elementId, payload.coordinate, rand);
 
   if (result.success && result.newState) {
+    if (typeof window !== 'undefined' && result.effects?.ruinReward) {
+      const uiReward = buildRuinsUiRewardFromWorldElement(
+        result.effects.ruinReward,
+        result.resourceDeltas
+      );
+      window.dispatchEvent(new CustomEvent('ruinsReward', {
+        detail: { reward: uiReward, coordinate: payload.coordinate }
+      }));
+    }
+
     return {
       ...result.newState,
       rngSeed,

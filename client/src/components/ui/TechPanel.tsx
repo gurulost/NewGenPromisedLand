@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 import { Badge } from "./badge";
@@ -6,9 +6,10 @@ import { Progress } from "./progress";
 import { Input } from "./input";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { TECHNOLOGIES, calculateResearchCost, getAvailableTechnologies, type Technology } from "@shared/data/technologies";
-import { Star, Book, Swords, Church, Lock, CheckCircle, Clock, Sparkles, ArrowUpRight, Search, XCircle, Home, ChevronDown } from "lucide-react";
-import { TECH_LAYOUT, CELL_WIDTH, CELL_HEIGHT, COL_GAP, ROW_GAP, CANVAS_PADDING } from "../tech/techLayout";
+import { Star, Book, Lock, CheckCircle, Clock, Sparkles, ArrowUpRight, Search, XCircle, Home, ChevronDown } from "lucide-react";
+import { TECH_LAYOUT, CELL_WIDTH, CELL_HEIGHT, COL_GAP, ROW_GAP, CANVAS_PADDING, CATEGORY_LANES } from "../tech/techLayout";
 import { useHaptic } from "../../hooks/useHaptic";
+import { usePerformanceMode } from "../../hooks/usePerformanceMode";
 import { StepFretDivider } from "../primitives/StepFretDivider";
 import { SunDiskIcon, WarriorShieldIcon, SerpentIcon } from "../primitives/ThematicIcons";
 
@@ -23,6 +24,7 @@ type CategoryFilter = "all" | Technology["category"];
 export default function TechPanel({ open, onClose }: TechPanelProps) {
   const { gameState, dispatch } = useLocalGame();
   const vibrate = useHaptic();
+  const perfMode = usePerformanceMode();
   const [selectedTech, setSelectedTech] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<CategoryFilter>("all");
@@ -93,6 +95,24 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
 
     return dependents;
   }, [selectedTech]);
+
+  // Handler for researching a tech - must be before useEffect that references it
+  const handleResearchTech = useCallback((techId: string) => {
+    const tech = TECHNOLOGIES[techId];
+    if (!tech || !currentPlayer) return;
+    const status = techStatuses[techId] || "locked";
+    const cost = calculateResearchCost(tech, researchedCount);
+    const prerequisitesMet = tech.prerequisites.every(pr => currentPlayer.researchedTechs.includes(pr));
+    if (status === "available" && prerequisitesMet && currentPlayer.stars >= cost) {
+      vibrate('success');
+      dispatch({
+        type: "RESEARCH_TECHNOLOGY",
+        payload: { playerId: currentPlayer.id, technologyId: techId },
+      });
+    } else {
+      vibrate('error');
+    }
+  }, [techStatuses, researchedCount, currentPlayer, vibrate, dispatch]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -165,7 +185,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, selectedTech, onClose, techStatuses, vibrate]);
+  }, [open, selectedTech, onClose, techStatuses, vibrate, handleResearchTech]);
 
   if (!open || !gameState || !currentPlayer) return null;
 
@@ -177,23 +197,6 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
       tech.name.toLowerCase().includes(normalizedSearch) ||
       tech.description.toLowerCase().includes(normalizedSearch)
     );
-  };
-
-  const handleResearchTech = (techId: string) => {
-    const tech = TECHNOLOGIES[techId];
-    if (!tech) return;
-    const status = techStatuses[techId] || "locked";
-    const cost = calculateResearchCost(tech, researchedCount);
-    const prerequisitesMet = tech.prerequisites.every(pr => currentPlayer.researchedTechs.includes(pr));
-    if (status === "available" && prerequisitesMet && currentPlayer.stars >= cost) {
-      vibrate('success'); // Tactical vibration on research
-      dispatch({
-        type: "RESEARCH_TECHNOLOGY",
-        payload: { playerId: currentPlayer.id, technologyId: techId },
-      });
-    } else {
-      vibrate('error'); // Feedback for failed actions
-    }
   };
 
   const getTechStatusIcon = (status: TechStatus) => {
@@ -291,22 +294,25 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     const x = pos.column * (CELL_WIDTH + COL_GAP) + CANVAS_PADDING;
     const y = pos.row * (CELL_HEIGHT + ROW_GAP) + CANVAS_PADDING;
 
-    const isMatch = matchesFilter(techId);
-    if (!isMatch) return null;
-
     const isSelected = selectedTech === techId;
     const isInPath = highlightedTechs.has(techId);
     const isDependent = dependentTechs.has(techId);
 
-    // Build class string with visual hierarchy
+    // Check if matches current filter
+    const isMatch = matchesFilter(techId);
+    // Keep visible if: matches filter OR is selected OR in prerequisite chain OR is a dependent
+    if (!isMatch && !isSelected && !isInPath && !isDependent) return null;
+
+    // Build class string with visual hierarchy (animations only in high-power mode)
+    const enableAnimations = perfMode === 'high';
     const nodeClasses = [
       "h-full relative overflow-hidden border-2 cursor-pointer hover:-translate-y-1 hover:shadow-xl transition-all",
       getTechStatusStyles(status),
       isSelected && "ring-2 ring-white scale-105 z-10",
       isInPath && "tech-path-highlight",
       isDependent && "ring-1 ring-amber-400/50",
-      status === "available" && "tech-node-available",
-      status === "researched" && "tech-node-researched",
+      status === "available" && enableAnimations && "tech-node-available",
+      status === "researched" && enableAnimations && "tech-node-researched",
     ].filter(Boolean).join(" ");
 
     return (
@@ -665,15 +671,29 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             />
 
             {/* The Tree Layout */}
-            <div className="relative w-[1500px] h-[1000px]">
+            <div className="relative w-[1500px] h-[1200px]">
+              {/* Category Lane Backgrounds */}
+              {Object.entries(CATEGORY_LANES).map(([category, lane]) => (
+                <div
+                  key={category}
+                  className="absolute left-0 right-0 pointer-events-none"
+                  style={{
+                    top: lane.startRow * (CELL_HEIGHT + ROW_GAP) + CANVAS_PADDING - 10,
+                    height: (lane.endRow - lane.startRow + 1) * (CELL_HEIGHT + ROW_GAP) + 10,
+                    background: lane.color,
+                    borderTop: '1px solid rgba(255,255,255,0.03)',
+                    borderBottom: '1px solid rgba(255,255,255,0.03)',
+                  }}
+                />
+              ))}
               <Connections />
               {Object.keys(TECH_LAYOUT).map(techId => (
                 <TechNode key={techId} techId={techId} />
               ))}
             </div>
 
-            {/* Minimap */}
-            <div className="fixed bottom-4 left-4 w-48 h-32 bg-slate-900/90 border border-slate-700 rounded-lg overflow-hidden shadow-xl z-30">
+            {/* Minimap - positioned within the scrollable area */}
+            <div className="absolute bottom-4 left-4 w-48 h-32 bg-slate-900/90 border border-slate-700 rounded-lg overflow-hidden shadow-xl z-30">
               <div className="relative w-full h-full">
                 {Object.keys(TECH_LAYOUT).map(techId => {
                   const pos = TECH_LAYOUT[techId];
@@ -690,9 +710,10 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                   return (
                     <div
                       key={techId}
-                      className={`absolute w-2 h-2 rounded-full ${colors[status]} ${selectedTech === techId ? 'ring-2 ring-white' : ''}`}
+                      className={`absolute w-3 h-3 rounded-full cursor-pointer hover:scale-125 transition-transform ${colors[status]} ${selectedTech === techId ? 'ring-2 ring-white scale-125' : ''}`}
                       style={{ left: x, top: y }}
                       onClick={() => {
+                        setSelectedTech(techId);
                         if (containerRef.current) {
                           const targetX = pos.column * (CELL_WIDTH + COL_GAP);
                           const targetY = pos.row * (CELL_HEIGHT + ROW_GAP);
@@ -715,13 +736,12 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             <ChevronDown className={`w-6 h-6 transition-transform ${showMobileSidebar ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* Right: Detail Sidebar - Responsive */}
+          {/* Right: Detail Sidebar - CSS-only responsive */}
           <div className={`
             bg-slate-900 border-l border-slate-800 shrink-0 flex flex-col shadow-2xl z-20
-            lg:w-96 lg:relative lg:translate-x-0
-            fixed inset-y-0 right-0 w-80 transition-transform duration-300
-
-            ${showMobileSidebar || window.innerWidth >= 1024 ? 'translate-x-0' : 'translate-x-full'}
+            w-80 lg:w-96 lg:relative lg:translate-x-0
+            fixed inset-y-0 right-0 transition-transform duration-300
+            ${showMobileSidebar ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
           `}>
             {detailTech ? (
               <div className="flex flex-col h-full animate-in slide-in-from-right duration-300">

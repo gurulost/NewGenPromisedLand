@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useKeyboardControls } from "@react-three/drei";
+import { AnimatePresence, motion } from "framer-motion";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useAITurn } from "../../hooks/useAITurn";
@@ -26,6 +27,7 @@ import { useVisualFeedback } from "../ui/VisualFeedback";
 import { GameLogPanel } from "../ui/GameLogPanel";
 import { SettingsMenu } from "../ui/SettingsMenu";
 import MovementControls from "../game/MovementControls";
+import { useSfxEngine } from "../../hooks/useSfx";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
 import { getWorldElement, WORLD_ELEMENTS } from "@shared/data/worldElements";
@@ -56,11 +58,14 @@ export default function GameUI() {
   const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates, closeTileContextMenu } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const { triggerFlash, showToast } = useVisualFeedback();
+  const playSfx = useSfxEngine();
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [showConstructionHall, setShowConstructionHall] = useState(false);
   const [isClaimingHost, setIsClaimingHost] = useState(false);
   const prevHostRef = useRef<number | null>(null);
+  const ruinsOpenTimeoutRef = useRef<number | null>(null);
+  const shimmerTimeoutRef = useRef<number | null>(null);
 
   useOnlineGameSync();
   const { toasts: mapToasts } = useMapToastStore();
@@ -86,6 +91,17 @@ export default function GameUI() {
   useEffect(() => {
     visualRef.current = { triggerFlash, showToast };
   }, [triggerFlash, showToast]);
+
+  useEffect(() => {
+    return () => {
+      if (ruinsOpenTimeoutRef.current) {
+        window.clearTimeout(ruinsOpenTimeoutRef.current);
+      }
+      if (shimmerTimeoutRef.current) {
+        window.clearTimeout(shimmerTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!actionError) return;
@@ -410,6 +426,7 @@ export default function GameUI() {
 
   const [showDiplomacy, setShowDiplomacy] = useState(false);
   const [ruinsReward, setRuinsReward] = useState<any | null>(null);
+  const [showLegendaryShimmer, setShowLegendaryShimmer] = useState(false);
   const [showGameLog, setShowGameLog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   // Local screenFlash state removed in favor of VisualFeedbackProvider
@@ -733,78 +750,149 @@ export default function GameUI() {
     };
   }, [isDev]);
 
+  const triggerLegendaryShimmer = () => {
+    if (shimmerTimeoutRef.current) {
+      window.clearTimeout(shimmerTimeoutRef.current);
+    }
+    setShowLegendaryShimmer(true);
+    shimmerTimeoutRef.current = window.setTimeout(() => {
+      setShowLegendaryShimmer(false);
+    }, 1200);
+  };
+
+  const playRuinsRewardSfx = (reward: any) => {
+    if (reward.type === 'curse') {
+      playSfx('ruins-curse');
+      return;
+    }
+
+    switch (reward.rarity) {
+      case 'legendary':
+        playSfx('ruins-legendary');
+        break;
+      case 'rare':
+        playSfx('ruins-rare');
+        break;
+      case 'uncommon':
+        playSfx('ruins-uncommon');
+        break;
+      default:
+        playSfx('ruins-common');
+        break;
+    }
+  };
+
+  const presentRuinsReward = (reward: any, coordinate?: { q: number; r: number }) => {
+    setRuinsReward(reward);
+
+    const { triggerFlash: flash, showToast: toast } = visualRef.current;
+    if (reward.type === 'curse') {
+      flash('red');
+      toast('Cursed!', 'combat');
+    } else if (reward.rarity === 'legendary') {
+      flash('gold');
+      toast('Legendary Find!', 'reward');
+    } else if (reward.type === 'faith') {
+      flash('blue');
+      toast('Divine Inspiration', 'info');
+    } else {
+      flash('gold');
+      toast('Ruins Explored', 'reward');
+    }
+
+    playRuinsRewardSfx(reward);
+    if (reward.rarity === 'legendary') {
+      triggerLegendaryShimmer();
+    }
+
+    // Trigger floating map toasts with actual reward values
+    if (coordinate) {
+      const worldPos = hexToWorldPos(coordinate.q, coordinate.r);
+      const { addToast } = useMapToastStore.getState();
+      const { addEvent: addParticle } = useParticleStore.getState();
+
+      // Trigger particle burst
+      const particleType = reward.type === 'curse' ? 'combat' :
+        reward.type === 'faith' ? 'faith' :
+          reward.rarity === 'legendary' ? 'discovery' : 'reward';
+      addParticle(particleType, coordinate);
+
+      if (reward.stars) {
+        addToast(`+${reward.stars} Stars`, 'stars', worldPos);
+      }
+      if (reward.faith) {
+        addToast(`+${reward.faith} Faith`, 'faith', { ...worldPos, y: worldPos.y + 0.3 });
+      }
+      if (reward.techBoost) {
+        addToast(`+${reward.techBoost} Research`, 'tech', { ...worldPos, y: worldPos.y + 0.6 });
+      }
+      if (reward.techName) {
+        addToast(`Tech: ${reward.techName}`, 'tech', { ...worldPos, y: worldPos.y + 0.6 });
+      }
+      if (reward.population) {
+        addToast(`+${reward.population} Population`, 'population', { ...worldPos, y: worldPos.y + 0.9 });
+      }
+      if (reward.healAmount) {
+        addToast(`+${reward.healAmount} HP`, 'heal', worldPos);
+      }
+      if (reward.unitType) {
+        const unitLabel = reward.unitName || reward.unitType;
+        addToast(`${unitLabel} Recruited!`, 'unit', worldPos);
+      }
+      if (reward.dissent) {
+        addToast(`+${reward.dissent} Dissent`, 'dissent', worldPos);
+      }
+      if (reward.reveal) {
+        addToast(reward.reveal, 'reveal', { ...worldPos, y: worldPos.y + 1.2 });
+      }
+    }
+
+    // Add to game log
+    const gs = useLocalGame.getState().gameState;
+    const current = gs?.players?.[gs?.currentPlayerIndex ?? 0];
+    if (current && gs) {
+      const rewardLabel = reward.description
+        ? `${reward.name} — ${reward.description}`
+        : reward.name;
+      const newEntry = {
+        id: `log_${Date.now()}`,
+        turn: gs.turn,
+        playerId: current.id,
+        playerName: current.name,
+        type: 'resource',
+        message: `Explored ruins and found: ${rewardLabel}`,
+        timestamp: Date.now(),
+      };
+      setGameLogEntries(prev => pushCapped(prev, newEntry, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
+    }
+  };
+
   // Handle ruins rewards
   useEffect(() => {
     const handleRuinsReward = (event: CustomEvent) => {
-      if (event.detail?.reward) {
-        setRuinsReward(event.detail.reward);
-        // Trigger screen flash based on reward type
-        const reward = event.detail.reward;
-        const coordinate = event.detail.coordinate;
+      if (!event.detail?.reward) return;
 
-        const { triggerFlash: flash, showToast: toast } = visualRef.current;
-        if (reward.type === 'curse') {
-          flash('red');
-          toast('Cursed!', 'combat');
-        } else if (reward.rarity === 'legendary') {
-          flash('gold');
-          toast('Legendary Find!', 'reward');
-        } else if (reward.type === 'faith') {
-          flash('blue');
-          toast('Divine Inspiration', 'info');
-        } else {
-          flash('gold');
-          toast('Ruins Explored', 'reward');
-        }
+      const reward = event.detail.reward;
+      const coordinate = event.detail.coordinate;
 
-        // Trigger floating map toasts with actual reward values
-        if (coordinate) {
-          const worldPos = hexToWorldPos(coordinate.q, coordinate.r);
-          const { addToast } = useMapToastStore.getState();
-          const { addEvent: addParticle } = useParticleStore.getState();
-
-          // Trigger particle burst
-          const particleType = reward.type === 'curse' ? 'combat' :
-            reward.type === 'faith' ? 'faith' :
-              reward.rarity === 'legendary' ? 'discovery' : 'reward';
-          addParticle(particleType, coordinate);
-
-          if (reward.stars) {
-            addToast(`+${reward.stars} Stars`, 'stars', worldPos);
-          }
-          if (reward.faith) {
-            addToast(`+${reward.faith} Faith`, 'faith', { ...worldPos, y: worldPos.y + 0.3 });
-          }
-          if (reward.techBoost) {
-            addToast(`+${reward.techBoost} Research`, 'tech', { ...worldPos, y: worldPos.y + 0.6 });
-          }
-          if (reward.healAmount) {
-            addToast(`+${reward.healAmount} HP`, 'heal', worldPos);
-          }
-          if (reward.unitType) {
-            addToast(`${reward.unitType} Recruited!`, 'unit', worldPos);
-          }
-          if (reward.dissent) {
-            addToast(`+${reward.dissent} Dissent`, 'dissent', worldPos);
-          }
-        }
-
-        // Add to game log
-        const gs = useLocalGame.getState().gameState;
-        const current = gs?.players?.[gs?.currentPlayerIndex ?? 0];
-        if (current && gs) {
-          const newEntry = {
-            id: `log_${Date.now()}`,
-            turn: gs.turn,
-            playerId: current.id,
-            playerName: current.name,
-            type: 'resource',
-            message: `Explored ruins and found: ${reward.name}`,
-            timestamp: Date.now(),
-          };
-          setGameLogEntries(prev => pushCapped(prev, newEntry, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
-        }
+      if (ruinsOpenTimeoutRef.current) {
+        window.clearTimeout(ruinsOpenTimeoutRef.current);
       }
+
+      const focusMs = 280;
+      const holdMs = 320;
+      const returnMs = 320;
+
+      if (coordinate) {
+        window.dispatchEvent(new CustomEvent('ruinsCinematic', {
+          detail: { coordinate, focusMs, holdMs, returnMs }
+        }));
+      }
+
+      const delay = coordinate ? focusMs + holdMs + returnMs : 0;
+      ruinsOpenTimeoutRef.current = window.setTimeout(() => {
+        presentRuinsReward(reward, coordinate);
+      }, delay);
     };
 
     window.addEventListener('ruinsReward', handleRuinsReward as EventListener);
@@ -1230,6 +1318,28 @@ export default function GameUI() {
           />
         </div>
       )}
+
+      {/* Legendary Ruins Shimmer */}
+      <AnimatePresence>
+        {showLegendaryShimmer && (
+          <motion.div
+            key="legendary-ruins-shimmer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[180] pointer-events-none"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-200/10 via-transparent to-yellow-400/10" />
+            <div className="absolute inset-0 animate-gold-shimmer opacity-80 mix-blend-screen" />
+            <motion.div
+              className="absolute inset-0 bg-amber-300/20"
+              animate={{ opacity: [0.15, 0.6, 0] }}
+              transition={{ duration: 0.9, ease: 'easeOut' }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Ruins Reward Panel */}
       <RuinsRewardPanel

@@ -32,6 +32,11 @@ export function useSfxEngine() {
     'notification': { frequency: 560, duration: 0.08, type: 'triangle' as OscillatorType },
     'warning': { frequency: 200, duration: 0.18, type: 'sawtooth' as OscillatorType },
     'achievement': { frequency: 700, duration: 0.14, type: 'sine' as OscillatorType },
+    'ruins-common': { frequency: 520, duration: 0.12, type: 'triangle' as OscillatorType },
+    'ruins-uncommon': { frequency: 600, duration: 0.14, type: 'triangle' as OscillatorType },
+    'ruins-rare': { frequency: 720, duration: 0.18, type: 'sine' as OscillatorType },
+    'ruins-legendary': { frequency: 880, duration: 0.24, type: 'sine' as OscillatorType },
+    'ruins-curse': { frequency: 180, duration: 0.22, type: 'sawtooth' as OscillatorType },
   }), []);
 
   const playSound = useCallback((type: SfxType) => {
