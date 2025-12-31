@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 import { Badge } from "./badge";
@@ -7,9 +7,11 @@ import { Separator } from "./separator";
 import { Input } from "./input";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { TECHNOLOGIES, calculateResearchCost, getAvailableTechnologies, type Technology } from "@shared/data/technologies";
-import { Star, Book, Swords, Church, Map, Lock, CheckCircle, Clock, Sparkles, Filter, ArrowUpRight, Search, XCircle, Link as LinkIcon, Home } from "lucide-react";
+import { Star, Book, Swords, Church, Lock, CheckCircle, Clock, Sparkles, ArrowUpRight, Search, XCircle, Home, ChevronDown } from "lucide-react";
 import { TECH_LAYOUT, CELL_WIDTH, CELL_HEIGHT, COL_GAP, ROW_GAP, CANVAS_PADDING } from "../tech/techLayout";
 import { useHaptic } from "../../hooks/useHaptic";
+import { StepFretDivider } from "../primitives/StepFretDivider";
+import { TempleIcon, SunDiskIcon, WarriorShieldIcon, SerpentIcon } from "../primitives/ThematicIcons";
 
 interface TechPanelProps {
   open: boolean;
@@ -25,7 +27,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const [selectedTech, setSelectedTech] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<CategoryFilter>("all");
-  
+
   // Drag to scroll state - must be before any early returns
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -34,6 +36,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const [startY, setStartY] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const DRAG_THRESHOLD = 5; // Pixels moved before drag starts
 
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
@@ -57,6 +60,113 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     });
     return statuses;
   }, [currentPlayer, availableTechs]);
+
+  // Compute path highlighting - all prerequisites leading to selected tech
+  const highlightedTechs = useMemo(() => {
+    if (!selectedTech) return new Set<string>();
+    const highlighted = new Set<string>();
+
+    const addPrerequisites = (techId: string) => {
+      const tech = TECHNOLOGIES[techId];
+      if (!tech) return;
+      tech.prerequisites.forEach(prereqId => {
+        if (!highlighted.has(prereqId)) {
+          highlighted.add(prereqId);
+          addPrerequisites(prereqId);
+        }
+      });
+    };
+
+    addPrerequisites(selectedTech);
+    return highlighted;
+  }, [selectedTech]);
+
+  // Compute dependents - techs that require the selected tech
+  const dependentTechs = useMemo(() => {
+    if (!selectedTech) return new Set<string>();
+    const dependents = new Set<string>();
+
+    Object.keys(TECHNOLOGIES).forEach(techId => {
+      if (TECHNOLOGIES[techId].prerequisites.includes(selectedTech)) {
+        dependents.add(techId);
+      }
+    });
+
+    return dependents;
+  }, [selectedTech]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!open) return;
+
+    const techIds = Object.keys(TECH_LAYOUT);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape closes the panel
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      // Enter researches the selected tech
+      if (e.key === 'Enter' && selectedTech) {
+        handleResearchTech(selectedTech);
+        return;
+      }
+
+      // Arrow key navigation
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        e.preventDefault();
+
+        if (!selectedTech) {
+          // If nothing selected, select first available tech
+          const firstAvailable = techIds.find(id => techStatuses[id] === 'available');
+          if (firstAvailable) setSelectedTech(firstAvailable);
+          return;
+        }
+
+        const currentPos = TECH_LAYOUT[selectedTech];
+        if (!currentPos) return;
+
+        // Find best adjacent tech based on direction
+        let bestMatch: string | null = null;
+        let bestDistance = Infinity;
+
+        techIds.forEach(id => {
+          if (id === selectedTech) return;
+          const pos = TECH_LAYOUT[id];
+          if (!pos) return;
+
+          const dx = pos.column - currentPos.column;
+          const dy = pos.row - currentPos.row;
+          let isValidDirection = false;
+
+          switch (e.key) {
+            case 'ArrowRight': isValidDirection = dx > 0; break;
+            case 'ArrowLeft': isValidDirection = dx < 0; break;
+            case 'ArrowDown': isValidDirection = dy > 0.5; break;
+            case 'ArrowUp': isValidDirection = dy < -0.5; break;
+          }
+
+          if (isValidDirection) {
+            const distance = Math.abs(dx) + Math.abs(dy);
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              bestMatch = id;
+            }
+          }
+        });
+
+        if (bestMatch) {
+          setSelectedTech(bestMatch);
+          vibrate('light');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, selectedTech, onClose, techStatuses, vibrate]);
 
   if (!open || !gameState || !currentPlayer) return null;
 
@@ -112,9 +222,9 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const getCategoryIcon = (category: Technology["category"]) => {
     switch (category) {
       case "economic": return <Star className="w-4 h-4" />;
-      case "military": return <Swords className="w-4 h-4" />;
-      case "religious": return <Church className="w-4 h-4" />;
-      case "exploration": return <Map className="w-4 h-4" />;
+      case "military": return <WarriorShieldIcon size="sm" />;
+      case "religious": return <SunDiskIcon size="sm" />;
+      case "exploration": return <SerpentIcon size="sm" />;
     }
   };
 
@@ -186,10 +296,24 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     if (!isMatch) return null;
 
     const isSelected = selectedTech === techId;
+    const isInPath = highlightedTechs.has(techId);
+    const isDependent = dependentTechs.has(techId);
+
+    // Build class string with visual hierarchy
+    const nodeClasses = [
+      "h-full relative overflow-hidden border-2 cursor-pointer hover:-translate-y-1 hover:shadow-xl transition-all",
+      getTechStatusStyles(status),
+      isSelected && "ring-2 ring-white scale-105 z-10",
+      isInPath && "tech-path-highlight",
+      isDependent && "ring-1 ring-amber-400/50",
+      status === "available" && "tech-node-available",
+      status === "researched" && "tech-node-researched",
+    ].filter(Boolean).join(" ");
 
     return (
       <div
         data-tech-node="true"
+        data-tech-id={techId}
         className="absolute transition-all duration-300"
         style={{
           left: x,
@@ -205,9 +329,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           }
         }}
       >
-        <Card
-          className={`h-full relative overflow-hidden border-2 ${getTechStatusStyles(status)} cursor-pointer hover:-translate-y-1 hover:shadow-xl transition-all ${isSelected ? 'ring-2 ring-white scale-105 z-10' : ''}`}
-        >
+        <Card className={nodeClasses}>
           {/* Connecting Nodes (dots) for visual connections */}
           <div className="absolute top-1/2 -left-1 w-2 h-2 bg-current rounded-full opacity-50" />
           <div className="absolute top-1/2 -right-1 w-2 h-2 bg-current rounded-full opacity-50" />
@@ -249,11 +371,18 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             <stop offset="0%" stopColor="#3b82f6" />
             <stop offset="100%" stopColor="#22c55e" />
           </linearGradient>
+          <linearGradient id="line-gradient-highlight" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#fbbf24" />
+            <stop offset="100%" stopColor="#f59e0b" />
+          </linearGradient>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
             <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
           </marker>
           <marker id="arrowhead-active" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
             <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+          </marker>
+          <marker id="arrowhead-highlight" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
           </marker>
         </defs>
         {Object.keys(TECH_LAYOUT).map(techId => {
@@ -274,10 +403,22 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             // Tech Status
             const isPrereqMet = currentPlayer.researchedTechs.includes(prereqId);
             const isDestinationResearched = currentPlayer.researchedTechs.includes(techId);
-            const strokeColor = isDestinationResearched ? "url(#line-gradient-active)" : isPrereqMet ? "#3b82f6" : "#475569";
-            const opacity = isPrereqMet ? 0.8 : 0.3;
-            const width = isPrereqMet ? 3 : 2;
-            const marker = isPrereqMet ? "url(#arrowhead-active)" : "url(#arrowhead)";
+            const isAvailableConnection = isPrereqMet && !isDestinationResearched;
+
+            // Path highlighting for selected tech
+            const isInHighlightPath = selectedTech === techId ||
+              (highlightedTechs.has(techId) && highlightedTechs.has(prereqId));
+
+            let strokeColor = isDestinationResearched ? "url(#line-gradient-active)" : isPrereqMet ? "#3b82f6" : "#475569";
+            let marker = isPrereqMet ? "url(#arrowhead-active)" : "url(#arrowhead)";
+
+            if (isInHighlightPath) {
+              strokeColor = "url(#line-gradient-highlight)";
+              marker = "url(#arrowhead-highlight)";
+            }
+
+            const opacity = isInHighlightPath ? 1 : isPrereqMet ? 0.8 : 0.3;
+            const width = isInHighlightPath ? 4 : isPrereqMet ? 3 : 2;
 
             // Curvy path (Bezier)
             const controlPoint1X = startX + (COL_GAP / 2);
@@ -296,6 +437,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                 fill="none"
                 opacity={opacity}
                 markerEnd={marker}
+                className={isAvailableConnection ? "tech-connection-available" : ""}
               />
             );
           });
@@ -312,7 +454,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     // Ignore if clicking on a tech node - let the node handle its own events
     const target = e.target as HTMLElement;
     if (target.closest('[data-tech-node]')) return;
-    
+
     // Don't start dragging yet, just record the starting position
     setIsMouseDown(true);
     setIsDragging(false);
@@ -334,17 +476,17 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isMouseDown || !containerRef.current) return;
-    
+
     const x = e.pageX - containerRef.current.offsetLeft;
     const y = e.pageY - containerRef.current.offsetTop;
     const moveX = Math.abs(x - startX);
     const moveY = Math.abs(y - startY);
-    
+
     // Only start dragging if moved past threshold
     if (!isDragging && (moveX > DRAG_THRESHOLD || moveY > DRAG_THRESHOLD)) {
       setIsDragging(true);
     }
-    
+
     if (isDragging) {
       e.preventDefault();
       const walkX = (x - startX) * 1.5; // Scroll speed multiplier
@@ -365,7 +507,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     if (!containerRef.current) return;
     // Ignore if touching a tech node - let the node handle its own events
     if (isTechNodeEvent(e)) return;
-    
+
     // Don't start dragging yet, just record the starting position
     setIsMouseDown(true);
     setIsDragging(false);
@@ -377,17 +519,17 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isMouseDown || !containerRef.current) return;
-    
+
     const x = e.touches[0].pageX - containerRef.current.offsetLeft;
     const y = e.touches[0].pageY - containerRef.current.offsetTop;
     const moveX = Math.abs(x - startX);
     const moveY = Math.abs(y - startY);
-    
+
     // Only start dragging if moved past threshold
     if (!isDragging && (moveX > DRAG_THRESHOLD || moveY > DRAG_THRESHOLD)) {
       setIsDragging(true);
     }
-    
+
     if (isDragging) {
       // Prevent default to stop page swipe-back or scaling behavior
       e.preventDefault();
@@ -440,10 +582,10 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             <div className="w-64">
               <ProgressSummary />
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={handleResetView} 
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleResetView}
               className="hover:bg-slate-800 rounded-full"
               title="Reset View"
             >
@@ -452,6 +594,49 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-slate-800 rounded-full">
               <XCircle className="w-8 h-8 text-slate-500 hover:text-white transition" />
             </Button>
+          </div>
+        </div>
+
+        {/* Filter Bar & Search */}
+        <div className="h-14 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between px-6 shrink-0 z-10">
+          {/* Category Filter Tabs */}
+          <div className="flex items-center gap-1">
+            {(['all', 'economic', 'military', 'religious', 'exploration'] as const).map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setFilter(cat)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${filter === cat
+                  ? 'bg-amber-600 text-white shadow-lg'
+                  : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700 hover:text-white'
+                  }`}
+              >
+                {cat === 'all' ? (
+                  <Sparkles className="w-4 h-4" />
+                ) : (
+                  getCategoryIcon(cat)
+                )}
+                <span className="capitalize">{cat}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Search Input */}
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Input
+              placeholder="Search technologies..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 h-9"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -487,10 +672,58 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                 <TechNode key={techId} techId={techId} />
               ))}
             </div>
+
+            {/* Minimap */}
+            <div className="fixed bottom-4 left-4 w-48 h-32 bg-slate-900/90 border border-slate-700 rounded-lg overflow-hidden shadow-xl z-30">
+              <div className="relative w-full h-full">
+                {Object.keys(TECH_LAYOUT).map(techId => {
+                  const pos = TECH_LAYOUT[techId];
+                  if (!pos) return null;
+                  const status = techStatuses[techId] || "locked";
+                  const x = (pos.column * 30) + 8;
+                  const y = (pos.row * 10) + 8;
+                  const colors = {
+                    researched: "bg-green-500",
+                    available: "bg-blue-500",
+                    researching: "bg-amber-500",
+                    locked: "bg-slate-600",
+                  };
+                  return (
+                    <div
+                      key={techId}
+                      className={`absolute w-2 h-2 rounded-full ${colors[status]} ${selectedTech === techId ? 'ring-2 ring-white' : ''}`}
+                      style={{ left: x, top: y }}
+                      onClick={() => {
+                        if (containerRef.current) {
+                          const targetX = pos.column * (CELL_WIDTH + COL_GAP);
+                          const targetY = pos.row * (CELL_HEIGHT + ROW_GAP);
+                          containerRef.current.scrollTo({ left: targetX, top: targetY, behavior: 'smooth' });
+                        }
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              <div className="absolute bottom-1 left-1 text-[10px] text-slate-500">Minimap</div>
+            </div>
           </div>
 
-          {/* Right: Detail Sidebar */}
-          <div className="w-96 bg-slate-900 border-l border-slate-800 shrink-0 flex flex-col shadow-2xl z-20">
+          {/* Mobile Toggle Button */}
+          <button
+            onClick={() => setShowMobileSidebar(!showMobileSidebar)}
+            className="lg:hidden fixed bottom-4 right-4 z-40 bg-amber-600 text-white p-3 rounded-full shadow-xl hover:bg-amber-500 transition-all"
+          >
+            <ChevronDown className={`w-6 h-6 transition-transform ${showMobileSidebar ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Right: Detail Sidebar - Responsive */}
+          <div className={`
+            bg-slate-900 border-l border-slate-800 shrink-0 flex flex-col shadow-2xl z-20
+            lg:w-96 lg:relative lg:translate-x-0
+            fixed inset-y-0 right-0 w-80 transition-transform duration-300
+
+            ${showMobileSidebar || window.innerWidth >= 1024 ? 'translate-x-0' : 'translate-x-full'}
+          `}>
             {detailTech ? (
               <div className="flex flex-col h-full animate-in slide-in-from-right duration-300">
                 {/* Hero Image / Banner */}
@@ -526,6 +759,39 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                       </div>
                     </div>
                   </div>
+
+                  {/* Prerequisites Section */}
+                  {detailTech.prerequisites.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-amber-500" /> Prerequisites
+                      </h3>
+                      <div className="space-y-2">
+                        {detailTech.prerequisites.map(prereqId => {
+                          const prereq = TECHNOLOGIES[prereqId];
+                          const isCompleted = currentPlayer.researchedTechs.includes(prereqId);
+                          return (
+                            <div
+                              key={prereqId}
+                              className={`flex items-center gap-2 p-2 rounded border ${isCompleted
+                                ? 'bg-green-900/30 border-green-500/30 text-green-300'
+                                : 'bg-slate-800 border-slate-700 text-slate-400'
+                                }`}
+                            >
+                              {isCompleted ? (
+                                <CheckCircle className="w-4 h-4 text-green-500" />
+                              ) : (
+                                <Lock className="w-4 h-4 text-slate-500" />
+                              )}
+                              <span className="text-sm font-medium">{prereq?.name || prereqId}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <StepFretDivider size="sm" />
 
                   {/* Unlocks Section - The "Reward" Area */}
                   <div>
