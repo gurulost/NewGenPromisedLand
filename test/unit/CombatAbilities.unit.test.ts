@@ -529,4 +529,221 @@ describe('Combat ability interactions', () => {
     const movedUnit = movedState.units.find(u => u.id === 'hunter');
     expect(movedUnit?.defense).toBe(getUnitDefinition('wilderness_hunter').baseStats.defense);
   });
+
+  it('applies anti-cavalry bonus against fast units', () => {
+    const attacker = createUnit({
+      id: 'spearman',
+      type: 'spearman',
+      attack: 7,
+      abilities: ['ANTI_CAVALRY'],
+    });
+    const defender = createUnit({
+      id: 'scout',
+      type: 'scout',
+      playerId: 'player2',
+      defense: 4,
+      movement: 5,
+      coordinate: { q: 1, r: 0, s: -1 },
+    });
+
+    const player1 = createPlayer({ stats: { faith: 20, pride: 20, internalDissent: 10 } });
+    const player2 = createPlayer({
+      id: 'player2',
+      name: 'Fast Defender',
+      factionId: 'NEPHITES',
+      stats: { faith: 20, pride: 20, internalDissent: 10 },
+      turnOrder: 1,
+    });
+
+    const withBonus = gameReducer(baseState([player1, player2], [attacker, defender]), {
+      type: 'ATTACK_UNIT',
+      payload: { attackerId: 'spearman', targetId: 'scout' },
+    });
+    const defenderAfterBonus = withBonus.units.find(unit => unit.id === 'scout');
+
+    const noBonusAttacker = { ...attacker, abilities: [] };
+    const withoutBonus = gameReducer(baseState([player1, player2], [noBonusAttacker, defender]), {
+      type: 'ATTACK_UNIT',
+      payload: { attackerId: 'spearman', targetId: 'scout' },
+    });
+    const defenderAfterNoBonus = withoutBonus.units.find(unit => unit.id === 'scout');
+
+    expect(defenderAfterBonus?.hp).toBeLessThan(defenderAfterNoBonus?.hp);
+  });
+
+  it('applies leadership aura to adjacent allies for attack and defense', () => {
+    const attacker = createUnit({ id: 'attacker', attack: 6, defense: 3 });
+    const defender = createUnit({
+      id: 'defender',
+      playerId: 'player2',
+      attack: 6,
+      defense: 3,
+      coordinate: { q: 1, r: 0, s: -1 },
+    });
+    const commander = createUnit({
+      id: 'commander',
+      type: 'commander',
+      abilities: ['LEADERSHIP'],
+      coordinate: { q: 0, r: 1, s: -1 },
+    });
+
+    const player1 = createPlayer({ stats: { faith: 20, pride: 20, internalDissent: 10 } });
+    const player2 = createPlayer({
+      id: 'player2',
+      name: 'Defender',
+      factionId: 'NEPHITES',
+      stats: { faith: 20, pride: 20, internalDissent: 10 },
+      turnOrder: 1,
+    });
+
+    const withoutLeader = gameReducer(baseState([player1, player2], [attacker, defender]), {
+      type: 'ATTACK_UNIT',
+      payload: { attackerId: 'attacker', targetId: 'defender' },
+    });
+    const withoutLeaderDefender = withoutLeader.units.find(unit => unit.id === 'defender');
+    const withoutLeaderAttacker = withoutLeader.units.find(unit => unit.id === 'attacker');
+
+    const withLeader = gameReducer(baseState([player1, player2], [attacker, defender, commander]), {
+      type: 'ATTACK_UNIT',
+      payload: { attackerId: 'attacker', targetId: 'defender' },
+    });
+    const withLeaderDefender = withLeader.units.find(unit => unit.id === 'defender');
+    const withLeaderAttacker = withLeader.units.find(unit => unit.id === 'attacker');
+
+    expect(withLeaderDefender?.hp).toBeLessThan(withoutLeaderDefender?.hp);
+    expect(withLeaderAttacker?.hp).toBeGreaterThan(withoutLeaderAttacker?.hp);
+  });
+
+  it('applies fortify defense bonus when a fortified unit defends', () => {
+    const attacker = createUnit({ id: 'attacker', attack: 12 });
+    const defender = createUnit({
+      id: 'defender',
+      playerId: 'player2',
+      type: 'guard',
+      defense: 4,
+      abilities: ['FORTIFY'],
+      status: 'defending',
+      coordinate: { q: 1, r: 0, s: -1 },
+    });
+
+    const player1 = createPlayer({ stats: { faith: 20, pride: 20, internalDissent: 10 } });
+    const player2 = createPlayer({
+      id: 'player2',
+      name: 'Fortified Defender',
+      factionId: 'NEPHITES',
+      stats: { faith: 20, pride: 20, internalDissent: 10 },
+      turnOrder: 1,
+    });
+
+    const fortifiedResult = gameReducer(baseState([player1, player2], [attacker, defender]), {
+      type: 'ATTACK_UNIT',
+      payload: { attackerId: 'attacker', targetId: 'defender' },
+    });
+    const fortifiedDefender = fortifiedResult.units.find(unit => unit.id === 'defender');
+
+    const unfortifiedDefender = { ...defender, status: 'active' as const };
+    const unfortifiedResult = gameReducer(baseState([player1, player2], [attacker, unfortifiedDefender]), {
+      type: 'ATTACK_UNIT',
+      payload: { attackerId: 'attacker', targetId: 'defender' },
+    });
+    const unfortifiedDefenderAfter = unfortifiedResult.units.find(unit => unit.id === 'defender');
+
+    expect(fortifiedDefender?.hp).toBeGreaterThan(unfortifiedDefenderAfter?.hp);
+  });
+
+  it('applies terrain defense bonus based on defender tile', () => {
+    const attacker = createUnit({ id: 'attacker', attack: 10 });
+    const defender = createUnit({
+      id: 'defender',
+      playerId: 'player2',
+      defense: 2,
+      coordinate: { q: 1, r: 0, s: -1 },
+    });
+
+    const player1 = createPlayer({ stats: { faith: 20, pride: 20, internalDissent: 10 } });
+    const player2 = createPlayer({
+      id: 'player2',
+      name: 'Terrain Defender',
+      factionId: 'NEPHITES',
+      stats: { faith: 20, pride: 20, internalDissent: 10 },
+      turnOrder: 1,
+    });
+
+    const mountainState = baseState([player1, player2], [attacker, defender]);
+    const mountainTile = mountainState.map.tiles.find(tile => tile.coordinate.q === 1 && tile.coordinate.r === 0);
+    if (mountainTile) {
+      mountainTile.terrain = 'mountain';
+    } else {
+      mountainState.map.tiles.push({
+        coordinate: { q: 1, r: 0, s: -1 },
+        terrain: 'mountain',
+        resources: [],
+        hasCity: false,
+        exploredBy: ['player1'],
+      });
+    }
+    const mountainResult = gameReducer(mountainState, {
+      type: 'ATTACK_UNIT',
+      payload: { attackerId: 'attacker', targetId: 'defender' },
+    });
+    const mountainDefender = mountainResult.units.find(unit => unit.id === 'defender');
+
+    const plainsState = baseState([player1, player2], [attacker, defender]);
+    const plainsResult = gameReducer(plainsState, {
+      type: 'ATTACK_UNIT',
+      payload: { attackerId: 'attacker', targetId: 'defender' },
+    });
+    const plainsDefender = plainsResult.units.find(unit => unit.id === 'defender');
+
+    expect(mountainDefender?.hp).toBeGreaterThan(plainsDefender?.hp);
+  });
+
+  it('triggers blood feud when the attacker dies in combat', () => {
+    const attacker = createUnit({
+      id: 'attacker',
+      playerId: 'player1',
+      attack: 4,
+      defense: 2,
+      hp: 6,
+      maxHp: 6,
+    });
+    const defender = createUnit({
+      id: 'defender',
+      playerId: 'player2',
+      attack: 10,
+      defense: 6,
+      hp: 20,
+      coordinate: { q: 1, r: 0, s: -1 },
+    });
+    const ally = createUnit({
+      id: 'ally',
+      playerId: 'player1',
+      attack: 3,
+      coordinate: { q: 0, r: 1, s: -1 },
+    });
+
+    const player1 = createPlayer({
+      factionId: 'LAMANITES',
+      stats: { faith: 20, pride: 20, internalDissent: 10 },
+    });
+    const player2 = createPlayer({
+      id: 'player2',
+      name: 'Defender',
+      factionId: 'NEPHITES',
+      stats: { faith: 20, pride: 20, internalDissent: 10 },
+      turnOrder: 1,
+    });
+
+    const state = baseState([player1, player2], [attacker, defender, ally]);
+    const result = gameReducer(state, {
+      type: 'ATTACK_UNIT',
+      payload: { attackerId: 'attacker', targetId: 'defender' },
+    });
+
+    const attackerAfter = result.units.find(unit => unit.id === 'attacker');
+    const allyAfter = result.units.find(unit => unit.id === 'ally');
+
+    expect(attackerAfter).toBeUndefined();
+    expect(allyAfter?.attack).toBe(5);
+  });
 });

@@ -1559,6 +1559,7 @@ function handleAttackUnit(
 
   const applyDeathEffects = (units: Unit[], killedUnit: Unit, killedPlayer: PlayerState | undefined) => {
     let nextUnits = units;
+    let bloodFeudApplied = false;
 
     // Apply data-driven death modifiers
     if (killedPlayer) {
@@ -1571,6 +1572,10 @@ function handleAttackUnit(
               const distance = hexDistance(unit.coordinate, killedUnit.coordinate);
               return distance <= effect.radius!;
             });
+
+            if (modifier.id === 'lamanite_blood_feud' && affectedUnits.length > 0) {
+              bloodFeudApplied = true;
+            }
 
             affectedUnits.forEach(unit => {
               const unitIndex = nextUnits.findIndex(u => u.id === unit.id);
@@ -1587,19 +1592,13 @@ function handleAttackUnit(
       });
     }
 
-    // Blood Feud (Lamanites): nearby allies gain +2 attack when an allied unit dies.
-    if (killedPlayer?.factionId === 'LAMANITES') {
-      nextUnits = nextUnits.map(u => {
-        if (u.playerId !== killedPlayer.id) return u;
-        if (hexDistance(u.coordinate, killedUnit.coordinate) > 1) return u;
-        return { ...u, attack: u.attack + 2 };
-      });
+    if (bloodFeudApplied) {
       emitTelemetry({
         channel: 'combat',
         status: 'success',
         reason: 'blood_feud_triggered',
         defenderId: killedUnit.id,
-        playerId: killedPlayer.id
+        playerId: killedPlayer?.id
       });
     }
 
