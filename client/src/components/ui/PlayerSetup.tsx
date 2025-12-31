@@ -15,6 +15,7 @@ import { GlowingButton } from "../primitives/GlowingButton";
 import { StepFretDivider } from "../primitives/StepFretDivider";
 import { getFactionIcon, TempleIcon } from "../primitives/ThematicIcons";
 import { useHotkeys } from "../../hooks/useHotkeys";
+import { usePerformanceMode } from "../../hooks/usePerformanceMode";
 
 export type AIDifficulty = 'easy' | 'normal' | 'hard';
 
@@ -36,6 +37,7 @@ export default function PlayerSetup() {
 
   const factions = getAllFactions();
   const usedFactions = players.map(p => p.factionId).filter(Boolean);
+  const perfMode = usePerformanceMode();
 
   useHotkeys('Escape', () => setGamePhase('menu'));
 
@@ -137,8 +139,8 @@ export default function PlayerSetup() {
                         : "obsidian-accent border-slate-500/50 hover:shadow-[0_0_20px_rgba(251,191,36,0.2)]"
                     )}
                   >
-                    {/* Animated shimmer border for AI players */}
-                    {player.isAI && (
+                    {/* Animated shimmer border for AI players (only in high-power mode) */}
+                    {player.isAI && perfMode === 'high' && (
                       <div
                         className="pointer-events-none absolute inset-0 rounded-lg overflow-hidden"
                         aria-hidden="true"

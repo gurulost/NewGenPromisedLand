@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
@@ -26,6 +26,10 @@ export default function GameCanvas() {
   const { camera } = useThree();
   const controlsRef = useRef<any>();
   const debug = useGameDebugger();
+  const [ruinsSpotlight, setRuinsSpotlight] = useState<{ x: number; z: number } | null>(null);
+  const spotlightRef = useRef<THREE.PointLight>(null);
+  const spotlightTimelineRef = useRef<gsap.core.Timeline | null>(null);
+  const cinematicTimelineRef = useRef<gsap.core.Timeline | null>(null);
 
   console.log('[GameCanvas] Rendering, gameState exists:', !!gameState, 'map tiles:', gameState?.map?.tiles?.length);
 
@@ -194,6 +198,103 @@ export default function GameCanvas() {
     }
   });
 
+  useEffect(() => {
+    const handleRuinsCinematic = (event: CustomEvent) => {
+      if (!controlsRef.current) return;
+
+      const coordinate = event.detail?.coordinate;
+      if (!coordinate) return;
+
+      const focusMs = Number(event.detail?.focusMs ?? 280);
+      const holdMs = Number(event.detail?.holdMs ?? 320);
+      const returnMs = Number(event.detail?.returnMs ?? 320);
+
+      const pixelPos = hexToPixel(coordinate, 1);
+      const target = new THREE.Vector3(pixelPos.x, 0, pixelPos.y);
+
+      const controls = controlsRef.current;
+      const currentTarget = controls.target.clone();
+      const currentPosition = camera.position.clone();
+      const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
+      const focusPosition = new THREE.Vector3().addVectors(target, offset);
+
+      cinematicTimelineRef.current?.kill();
+      controls.enabled = false;
+
+      const timeline = gsap.timeline({
+        onComplete: () => {
+          controls.enabled = true;
+        }
+      });
+
+      timeline.to(controls.target, {
+        x: target.x,
+        y: 0,
+        z: target.z,
+        duration: focusMs / 1000,
+        ease: "power2.out"
+      }, 0);
+      timeline.to(camera.position, {
+        x: focusPosition.x,
+        y: focusPosition.y,
+        z: focusPosition.z,
+        duration: focusMs / 1000,
+        ease: "power2.out"
+      }, 0);
+      timeline.to({}, { duration: holdMs / 1000 });
+      timeline.to(controls.target, {
+        x: currentTarget.x,
+        y: currentTarget.y,
+        z: currentTarget.z,
+        duration: returnMs / 1000,
+        ease: "power2.inOut"
+      });
+      timeline.to(camera.position, {
+        x: currentPosition.x,
+        y: currentPosition.y,
+        z: currentPosition.z,
+        duration: returnMs / 1000,
+        ease: "power2.inOut"
+      }, "<");
+
+      cinematicTimelineRef.current = timeline;
+
+      setRuinsSpotlight({ x: target.x, z: target.z });
+    };
+
+    window.addEventListener('ruinsCinematic', handleRuinsCinematic as EventListener);
+
+    return () => {
+      window.removeEventListener('ruinsCinematic', handleRuinsCinematic as EventListener);
+      cinematicTimelineRef.current?.kill();
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true;
+      }
+    };
+  }, [camera]);
+
+  useEffect(() => {
+    if (!ruinsSpotlight || !spotlightRef.current) return;
+
+    const light = spotlightRef.current;
+    light.intensity = 0;
+    light.color.set('#f5e0a3');
+
+    spotlightTimelineRef.current?.kill();
+    const timeline = gsap.timeline({
+      onComplete: () => setRuinsSpotlight(null)
+    });
+
+    timeline.to(light, { intensity: 2.2, duration: 0.2, ease: "power2.out" });
+    timeline.to(light, { intensity: 0.0, duration: 0.45, ease: "power2.in" }, "+=0.35");
+
+    spotlightTimelineRef.current = timeline;
+
+    return () => {
+      spotlightTimelineRef.current?.kill();
+    };
+  }, [ruinsSpotlight]);
+
   if (!gameState) {
     return null;
   }
@@ -219,6 +320,17 @@ export default function GameCanvas() {
           TWO: THREE.TOUCH.DOLLY_PAN
         }}
       />
+
+      {ruinsSpotlight && (
+        <pointLight
+          ref={spotlightRef}
+          position={[ruinsSpotlight.x, 12, ruinsSpotlight.z]}
+          intensity={2.0}
+          distance={18}
+          decay={2}
+          color="#f5e0a3"
+        />
+      )}
 
       {/* Fog for atmosphere - adjusted for map size to prevent darkening on zoom */}
       <fog attach="fog" args={["#0f172a", mapSize * 3, mapSize * 12]} />

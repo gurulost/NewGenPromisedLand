@@ -2,7 +2,19 @@ import { create } from 'zustand';
 import { pushCapped, enforceCapAndTTL, MEMORY_LIMITS } from '../memoryUtils';
 
 // Toast types - duplicated here to avoid circular imports
-export type MapToastType = 'stars' | 'faith' | 'pride' | 'dissent' | 'tech' | 'unit' | 'damage' | 'heal' | 'combat' | 'reward';
+export type MapToastType =
+    | 'stars'
+    | 'faith'
+    | 'pride'
+    | 'dissent'
+    | 'tech'
+    | 'unit'
+    | 'population'
+    | 'reveal'
+    | 'damage'
+    | 'heal'
+    | 'combat'
+    | 'reward';
 
 export interface MapToast {
     id: string;

@@ -636,6 +636,15 @@ function executeRuinExploration(
           closestCity = city;
         }
       });
+    } else {
+      // No cities to grow - convert population reward into a small star cache.
+      const fallbackStars = 10;
+      starGain += fallbackStars;
+      popGain = 0;
+      reward.type = 'stars';
+      reward.value = fallbackStars;
+      reward.description = `Ancient records offer no city to bless; you recover ${fallbackStars} stars instead.`;
+      message += ` With no city to grow, you instead recover ${fallbackStars} stars.`;
     }
   }
 

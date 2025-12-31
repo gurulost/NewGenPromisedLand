@@ -12,7 +12,9 @@ export type RuinsRewardType =
     | 'unit_spawn'
     | 'vision_boost'
     | 'heal'
-    | 'curse';
+    | 'curse'
+    | 'population'
+    | 'reveal';
 
 export interface RuinsReward {
     id: string;
@@ -25,9 +27,13 @@ export interface RuinsReward {
     stars?: number;
     faith?: number;
     techBoost?: number; // Research progress
+    techName?: string;
     unitType?: string;
+    unitName?: string;
     visionTurns?: number; // Temporary vision boost duration
     healAmount?: number;
+    population?: number;
+    reveal?: string;
 
     // Curse effects (negative)
     dissent?: number;
@@ -225,5 +231,7 @@ export function getRewardIcon(type: RuinsRewardType): string {
         case 'vision_boost': return '👁️';
         case 'heal': return '💚';
         case 'curse': return '💀';
+        case 'population': return '👥';
+        case 'reveal': return '🗺️';
     }
 }

@@ -229,7 +229,7 @@ canvas {
 
   .tech-connection-available {
     stroke-dasharray: 8 4;
-    animation: flow-pulse 1.5s ease-in-out infinite;
+    animation: flow-pulse 4s ease-in-out infinite;
   }
 
   /* Tech node glow ring for available techs */

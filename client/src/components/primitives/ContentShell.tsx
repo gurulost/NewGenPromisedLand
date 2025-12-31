@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import clsx from 'clsx';
 
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { usePerformanceMode } from '../../hooks/usePerformanceMode';
 
 interface ContentShellProps {
   children: React.ReactNode;
@@ -48,6 +49,10 @@ export function ContentShell({
   shimmerBorder = false,
 }: ContentShellProps) {
   const reducedMotion = useReducedMotion();
+  const perfMode = usePerformanceMode();
+
+  // Disable heavy effects in low-power mode
+  const enableEffects = perfMode === 'high';
 
   const motionProps = reducedMotion
     ? {
@@ -68,8 +73,8 @@ export function ContentShell({
       className={clsx(
         "relative w-full text-amber-100",
         "max-h-[90vh] overflow-y-auto rounded-2xl",
-        // Glassmorphism effect
-        "glass-panel",
+        // Glassmorphism effect (disabled in low-power mode)
+        enableEffects ? "glass-panel" : "bg-slate-900/95",
         "border border-amber-600/40",
         // Layered shadows for depth
         "shadow-2xl shadow-black/60",
@@ -78,8 +83,8 @@ export function ContentShell({
         className
       )}
     >
-      {/* Animated gold shimmer border overlay */}
-      {shimmerBorder && !reducedMotion && (
+      {/* Animated gold shimmer border overlay (only in high-power mode) */}
+      {shimmerBorder && enableEffects && !reducedMotion && (
         <div
           className="pointer-events-none absolute inset-0 rounded-2xl overflow-hidden"
           aria-hidden="true"

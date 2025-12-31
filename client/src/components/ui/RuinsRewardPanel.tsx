@@ -111,14 +111,27 @@ export function RuinsRewardPanel({ reward, onClose }: RuinsRewardPanelProps) {
                                                 {reward.techBoost && (
                                                     <RewardBadge label="Knowledge" value={`+${reward.techBoost}`} color="text-cyan-400 bg-cyan-900/20 border-cyan-600/30" />
                                                 )}
+                                                {reward.techName && (
+                                                    <RewardBadge label="Technology" value={reward.techName} color="text-cyan-300 bg-cyan-900/20 border-cyan-600/30" />
+                                                )}
+                                                {reward.population && (
+                                                    <RewardBadge label="Population" value={`+${reward.population}`} color="text-emerald-400 bg-emerald-900/20 border-emerald-600/30" />
+                                                )}
                                                 {reward.unitType && (
-                                                    <RewardBadge label="Unit" value="Recruited" color="text-red-400 bg-red-900/20 border-red-600/30" />
+                                                    <RewardBadge
+                                                        label="Unit"
+                                                        value={reward.unitName || reward.unitType || 'Recruited'}
+                                                        color="text-red-400 bg-red-900/20 border-red-600/30"
+                                                    />
                                                 )}
                                                 {reward.healAmount && (
                                                     <RewardBadge label="Healing" value={`+${reward.healAmount} HP`} color="text-green-400 bg-green-900/20 border-green-600/30" />
                                                 )}
                                                 {reward.visionTurns && (
                                                     <RewardBadge label="Vision" value={`+${reward.visionTurns} Turns`} color="text-purple-400 bg-purple-900/20 border-purple-600/30" />
+                                                )}
+                                                {reward.reveal && (
+                                                    <RewardBadge label="Revelation" value={reward.reveal} color="text-indigo-300 bg-indigo-900/20 border-indigo-600/30" />
                                                 )}
                                                 {/* Curses */}
                                                 {reward.dissent && (
