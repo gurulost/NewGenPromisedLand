@@ -342,20 +342,27 @@ export default function GameUI() {
       return onlineSession.myPlayerIds.includes(playerId);
     };
 
-    const isTileCurrentlyVisible = (coordinate: { q: number; r: number }) => {
+    const normalizeHex = (coordinate: { q: number; r: number; s?: number }) => ({
+      q: coordinate.q,
+      r: coordinate.r,
+      s: typeof coordinate.s === "number" ? coordinate.s : -coordinate.q - coordinate.r,
+    });
+
+    const isTileCurrentlyVisible = (coordinate: { q: number; r: number; s?: number }) => {
       if (!currentPlayerId) return true;
       const tileKey = `${coordinate.q},${coordinate.r}`;
+      const normalizedCoordinate = normalizeHex(coordinate);
 
       const ownedCities = gameState.cities.filter(city => city.ownerId === currentPlayerId);
       const CITY_VISION_RADIUS = 2;
-      if (ownedCities.some(city => hexDistance(city.coordinate, coordinate) <= CITY_VISION_RADIUS)) {
+      if (ownedCities.some(city => hexDistance(city.coordinate, normalizedCoordinate) <= CITY_VISION_RADIUS)) {
         return true;
       }
 
       const friendlyUnits = gameState.units.filter(unit => unit.playerId === currentPlayerId);
       for (const unit of friendlyUnits) {
         const visionRadius = UNIT_DEFINITIONS[unit.type]?.baseStats.visionRadius ?? 2;
-        if (hexDistance(unit.coordinate, coordinate) > visionRadius) continue;
+        if (hexDistance(unit.coordinate, normalizedCoordinate) > visionRadius) continue;
         const visibleTiles = getVisibleTilesInRange(unit.coordinate, visionRadius, gameState.map, true);
         if (visibleTiles.has(tileKey)) return true;
       }

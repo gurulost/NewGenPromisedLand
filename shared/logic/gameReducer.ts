@@ -1155,6 +1155,33 @@ function handleRecruitUnit(
   };
 }
 
+// Rename City Handler
+function handleRenameCity(
+  state: GameState,
+  payload: { playerId: string; cityId: string; newName: string }
+): GameState {
+  const { playerId, cityId, newName } = payload;
+
+  if (!newName || newName.trim().length === 0) return state;
+  const trimmedName = newName.trim().substring(0, 24); // Limit length
+
+  // Find the player
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return state;
+
+  // Verify ownership
+  if (!player.citiesOwned.includes(cityId)) return state;
+
+  return {
+    ...state,
+    cities: state.cities?.map(city =>
+      city.id === cityId
+        ? { ...city, name: trimmedName }
+        : city
+    )
+  };
+}
+
 export function gameReducer(state: GameState, action: GameAction): GameState {
   const nextState = (() => {
     switch (action.type) {
@@ -1166,6 +1193,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       case 'USE_ABILITY':
         return handleUseAbility(state, action.payload);
+
+      case 'RENAME_CITY':
+        return handleRenameCity(state, action.payload);
 
       case 'END_TURN':
         return handleEndTurn(state, action.payload);
@@ -2275,13 +2305,13 @@ function handleEndTurn(
   const currentPlayerData = updatedPlayers.find(p => p.id === currentPlayer.id);
   const isTestimonyFaction = currentPlayerData?.factionId === 'NEPHITES' || currentPlayerData?.factionId === 'ANTI_NEPHI_LEHIES';
 
-	  if (isTestimonyFaction) {
-	    const isEligibleEnemyUnit = (u: Unit): boolean => {
-	      // Exclude civilian/influence units (prevents weird non-combat clumps and future drift).
-	      const def = getUnitDefinition(u.type as any);
-	      const tags = def?.tags ?? [];
-	      return !tags.includes('civilian') && !tags.includes('influence') && !tags.includes('diplomat');
-	    };
+  if (isTestimonyFaction) {
+    const isEligibleEnemyUnit = (u: Unit): boolean => {
+      // Exclude civilian/influence units (prevents weird non-combat clumps and future drift).
+      const def = getUnitDefinition(u.type as any);
+      const tags = def?.tags ?? [];
+      return !tags.includes('civilian') && !tags.includes('influence') && !tags.includes('diplomat');
+    };
 
     const myMissionaries = updatedUnits.filter(u => u.playerId === currentPlayer.id && u.type === 'missionary');
     const affectedUnitIds = new Set<string>();

@@ -73,12 +73,12 @@ function FloatingToast({ toast, onComplete }: MapToastProps) {
                 distanceFactor={10}
                 style={{
                     pointerEvents: 'none',
-                    transition: 'opacity 0.1s ease-out',
                 }}
             >
                 <div
                     ref={containerRef}
                     style={{
+                        opacity: 1,
                         display: 'flex',
                         alignItems: 'center',
                         gap: '6px',
@@ -90,6 +90,7 @@ function FloatingToast({ toast, onComplete }: MapToastProps) {
                         backdropFilter: 'blur(4px)',
                         whiteSpace: 'nowrap',
                         transform: 'scale(1.2)',
+                        transition: 'opacity 0.1s ease-out',
                     }}
                 >
                     <span style={{ fontSize: '18px' }}>{style.icon}</span>

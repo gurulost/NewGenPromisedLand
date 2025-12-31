@@ -134,44 +134,44 @@ export const GameStateSchema = z.object({
   cities: z.array(CitySchema).default([]),
   improvements: z.array(ImprovementSchema).default([]),
   structures: z.array(StructureSchema).default([]),
-	  lastAction: z.union([
-	    z.object({ type: z.literal('MOVE_UNIT'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema }) }),
-	    z.object({ type: z.literal('ATTACK_UNIT'), payload: z.object({ attackerId: z.string(), targetId: z.string() }) }),
-	    z.object({ type: z.literal('END_TURN'), payload: z.object({ playerId: z.string() }) }),
-      z.object({
-        type: z.literal('END_TURN_RESOLUTION'),
-        payload: z.object({
-          endingPlayerId: z.string(),
-          nextPlayerId: z.string(),
-          events: z.array(z.object({ type: z.string(), payload: z.unknown() })),
-        })
-      }),
-	    z.object({ type: z.literal('CONVERT_UNIT'), payload: z.object({ playerId: z.string(), unitId: z.string(), targetUnitId: z.string() }) }),
-      z.object({
-        type: z.literal('TESTIMONY_PRESSURE'),
-        payload: z.object({
-          sourcePlayerId: z.string(),
-          attackPenalty: z.number(),
-          durationTurns: z.number(),
-          affected: z.array(z.object({ playerId: z.string(), unitIds: z.array(z.string()) })),
-        })
-      }),
-      z.object({
-        type: z.literal('MORALE_EVENT'),
-        payload: z.object({
-          playerId: z.string(),
-          kind: z.string(),
-          starsDelta: z.number().optional(),
-          cityId: z.string().optional(),
-          unitId: z.string().optional(),
-        })
-      }),
-	    z.object({ type: z.literal('HARVEST_RESOURCE'), payload: z.object({ unitId: z.string(), resourceCoordinate: HexCoordinateSchema, cityId: z.string() }) }),
-	    z.object({ type: z.literal('HEAL_UNIT'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
-	    z.object({ type: z.literal('APPLY_STEALTH'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
-	    z.object({ type: z.literal('RECONNAISSANCE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
-	    z.object({ type: z.literal('FORMATION_FIGHTING'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
-	    z.object({ type: z.literal('SIEGE_MODE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+  lastAction: z.union([
+    z.object({ type: z.literal('MOVE_UNIT'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema }) }),
+    z.object({ type: z.literal('ATTACK_UNIT'), payload: z.object({ attackerId: z.string(), targetId: z.string() }) }),
+    z.object({ type: z.literal('END_TURN'), payload: z.object({ playerId: z.string() }) }),
+    z.object({
+      type: z.literal('END_TURN_RESOLUTION'),
+      payload: z.object({
+        endingPlayerId: z.string(),
+        nextPlayerId: z.string(),
+        events: z.array(z.object({ type: z.string(), payload: z.unknown() })),
+      })
+    }),
+    z.object({ type: z.literal('CONVERT_UNIT'), payload: z.object({ playerId: z.string(), unitId: z.string(), targetUnitId: z.string() }) }),
+    z.object({
+      type: z.literal('TESTIMONY_PRESSURE'),
+      payload: z.object({
+        sourcePlayerId: z.string(),
+        attackPenalty: z.number(),
+        durationTurns: z.number(),
+        affected: z.array(z.object({ playerId: z.string(), unitIds: z.array(z.string()) })),
+      })
+    }),
+    z.object({
+      type: z.literal('MORALE_EVENT'),
+      payload: z.object({
+        playerId: z.string(),
+        kind: z.string(),
+        starsDelta: z.number().optional(),
+        cityId: z.string().optional(),
+        unitId: z.string().optional(),
+      })
+    }),
+    z.object({ type: z.literal('HARVEST_RESOURCE'), payload: z.object({ unitId: z.string(), resourceCoordinate: HexCoordinateSchema, cityId: z.string() }) }),
+    z.object({ type: z.literal('HEAL_UNIT'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+    z.object({ type: z.literal('APPLY_STEALTH'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+    z.object({ type: z.literal('RECONNAISSANCE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+    z.object({ type: z.literal('FORMATION_FIGHTING'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
+    z.object({ type: z.literal('SIEGE_MODE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
     z.object({ type: z.literal('RALLY_TROOPS'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
     z.object({ type: z.literal('RESEARCH_TECHNOLOGY'), payload: z.object({ playerId: z.string(), technologyId: z.string() }) }),
     z.object({ type: z.literal('CLEAR_FOREST'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema, playerId: z.string() }) }),
@@ -184,7 +184,7 @@ export const GameStateSchema = z.object({
 export type GameState = z.infer<typeof GameStateSchema>;
 
 // Game actions
-	export const GameActionSchema = z.discriminatedUnion('type', [
+export const GameActionSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('MOVE_UNIT'),
     payload: z.object({
@@ -212,20 +212,20 @@ export type GameState = z.infer<typeof GameStateSchema>;
       ]).optional(),
     }),
   }),
-	  z.object({
-	    type: z.literal('END_TURN'),
-	    payload: z.object({
-	      playerId: z.string(),
-	    }),
-	  }),
-	  z.object({
-	    type: z.literal('CONVERT_UNIT'),
-	    payload: z.object({
-	      playerId: z.string(),
-	      unitId: z.string(),
-	      targetUnitId: z.string(),
-	    }),
-	  }),
+  z.object({
+    type: z.literal('END_TURN'),
+    payload: z.object({
+      playerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('CONVERT_UNIT'),
+    payload: z.object({
+      playerId: z.string(),
+      unitId: z.string(),
+      targetUnitId: z.string(),
+    }),
+  }),
   z.object({
     type: z.literal('BUILD_UNIT'),
     payload: z.object({
@@ -427,15 +427,15 @@ export type GameState = z.infer<typeof GameStateSchema>;
       targetPlayerId: z.string(),
     }),
   }),
-	  z.object({
-	    type: z.literal('CONVERT_CITY'),
-	    payload: z.object({
-	      playerId: z.string(),
-	      unitId: z.string().optional(),
-	      cityId: z.string(),
-	      conversionType: z.enum(['faith', 'pride', 'peace']),
-	    }),
-	  }),
+  z.object({
+    type: z.literal('CONVERT_CITY'),
+    payload: z.object({
+      playerId: z.string(),
+      unitId: z.string().optional(),
+      cityId: z.string(),
+      conversionType: z.enum(['faith', 'pride', 'peace']),
+    }),
+  }),
   z.object({
     type: z.literal('UPGRADE_UNIT'),
     payload: z.object({
@@ -455,6 +455,14 @@ export type GameState = z.infer<typeof GameStateSchema>;
         z.object({ unitId: z.string() }),
         z.object({ coordinate: HexCoordinateSchema }),
       ]).optional(),
+    }),
+  }),
+  z.object({
+    type: z.literal('RENAME_CITY'),
+    payload: z.object({
+      playerId: z.string(),
+      cityId: z.string(),
+      newName: z.string(),
     }),
   }),
 ]);

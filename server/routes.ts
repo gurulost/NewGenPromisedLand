@@ -16,9 +16,22 @@ function getHostMeta(lobbyState: any) {
   return { hostEpoch, hostLastSeen, leaseExpired };
 }
 
+type LobbyPlayerMeta = {
+  playerId?: string;
+  userId?: number | null;
+  isAI?: boolean;
+  turnOrder?: number;
+};
+
 function selectNextHost(lobbyState: any, currentHostUserId: number): number | null {
-  const playersMeta = Array.isArray(lobbyState?.players) ? lobbyState.players : [];
-  const byPlayerId = new Map(playersMeta.map((p: any) => [p.playerId, p]));
+  const playersMeta = (Array.isArray(lobbyState?.players) ? lobbyState.players : []) as LobbyPlayerMeta[];
+  const byPlayerId = new Map<string, LobbyPlayerMeta>();
+
+  for (const player of playersMeta) {
+    if (player.playerId) {
+      byPlayerId.set(player.playerId, player);
+    }
+  }
   const snapshot = lobbyState?.snapshot;
 
   if (snapshot && Array.isArray(snapshot.players)) {
