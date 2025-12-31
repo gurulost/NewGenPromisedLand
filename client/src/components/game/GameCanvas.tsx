@@ -407,6 +407,52 @@ export default function GameCanvas() {
         />
       )}
 
+      {/* Attack Range Overlay - Red tiles for valid attack targets */}
+      {isAttackMode && selectedUnit && attackableTargets.length > 0 && (
+        <group>
+          {attackableTargets.map((coord, index) => {
+            const pixelPos = hexToPixel(coord, 1);
+            return (
+              <group key={`attack-${index}`} position={[pixelPos.x, 0.05, pixelPos.y]}>
+                {/* Red attack target ring */}
+                <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                  <ringGeometry args={[0.7, 0.85, 6]} />
+                  <meshBasicMaterial
+                    color="#ef4444"
+                    transparent
+                    opacity={0.7}
+                    side={THREE.DoubleSide}
+                    depthWrite={false}
+                    blending={THREE.AdditiveBlending}
+                  />
+                </mesh>
+                {/* Inner target indicator */}
+                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+                  <circleGeometry args={[0.3, 6]} />
+                  <meshBasicMaterial
+                    color="#dc2626"
+                    transparent
+                    opacity={0.5}
+                    depthWrite={false}
+                    blending={THREE.AdditiveBlending}
+                  />
+                </mesh>
+                {/* Crosshair indicator */}
+                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+                  <ringGeometry args={[0.1, 0.15, 8]} />
+                  <meshBasicMaterial
+                    color="#fca5a5"
+                    transparent
+                    opacity={0.8}
+                    depthWrite={false}
+                  />
+                </mesh>
+              </group>
+            );
+          })}
+        </group>
+      )}
+
       {/* Floating Map Toasts for rewards/combat feedback */}
       <MapToastContainer />
 
