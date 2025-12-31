@@ -1,6 +1,4 @@
 
-import { Technology } from "@shared/data/technologies";
-
 export interface TechPosition {
   column: number;
   row: number;
@@ -10,7 +8,7 @@ export interface TechPosition {
 // Rows 0-3: Economic (★)
 // Rows 4-5: Military (⚔)
 // Row 6: Religious (☀)
-// Rows 7-8: Exploration (🐍)
+// Row 7: Exploration (🐍)
 
 export const TECH_LAYOUT: Record<string, TechPosition> = {
   // ═══════════════════════════════════════════════════════════════
