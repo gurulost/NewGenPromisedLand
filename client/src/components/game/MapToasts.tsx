@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -30,28 +30,34 @@ const typeStyles: Record<MapToast['type'], { color: string; icon: string; bgColo
 // Individual floating toast in 3D space
 function FloatingToast({ toast, onComplete }: MapToastProps) {
     const groupRef = useRef<THREE.Group>(null);
-    const [opacity, setOpacity] = useState(1);
-    const startTime = useRef(Date.now());
+    const containerRef = useRef<HTMLDivElement>(null);
+    const elapsedRef = useRef(0);
+    const opacityRef = useRef(1);
+    const completedRef = useRef(false);
     const duration = toast.duration || 2000;
 
     // Animate float up and fade
-    useFrame(() => {
-        if (groupRef.current) {
-            const elapsed = Date.now() - startTime.current;
-            const progress = Math.min(elapsed / duration, 1);
+    useFrame((_state, delta) => {
+        if (completedRef.current) return;
+        if (!groupRef.current) return;
 
-            // Float upward
-            groupRef.current.position.y = toast.position.y + progress * 2;
+        elapsedRef.current += delta * 1000;
+        const progress = Math.min(elapsedRef.current / duration, 1);
 
-            // Fade out in last 30%
-            if (progress > 0.7) {
-                setOpacity(1 - ((progress - 0.7) / 0.3));
-            }
+        // Float upward
+        groupRef.current.position.y = toast.position.y + progress * 2;
 
-            // Remove when complete
-            if (progress >= 1) {
-                onComplete(toast.id);
-            }
+        // Fade out in last 30%
+        const nextOpacity = progress > 0.7 ? 1 - ((progress - 0.7) / 0.3) : 1;
+        if (containerRef.current && Math.abs(opacityRef.current - nextOpacity) > 0.01) {
+            opacityRef.current = nextOpacity;
+            containerRef.current.style.opacity = nextOpacity.toFixed(3);
+        }
+
+        // Remove when complete
+        if (progress >= 1) {
+            completedRef.current = true;
+            onComplete(toast.id);
         }
     });
 
@@ -66,12 +72,12 @@ function FloatingToast({ toast, onComplete }: MapToastProps) {
                 center
                 distanceFactor={10}
                 style={{
-                    opacity,
                     pointerEvents: 'none',
                     transition: 'opacity 0.1s ease-out',
                 }}
             >
                 <div
+                    ref={containerRef}
                     style={{
                         display: 'flex',
                         alignItems: 'center',

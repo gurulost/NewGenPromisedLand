@@ -84,7 +84,6 @@ export default function GameUI() {
   const completionSignatureRef = useRef<string | null>(null);
 
   useOnlineGameSync();
-  const { toasts: mapToasts } = useMapToastStore();
   const addToast = useMapToastStore(state => state.addToast);
   const addPulse = useMapPulseStore(state => state.addPulse);
   const [activeNotification, setActiveNotification] = useState<ActiveNotification | null>(null);
