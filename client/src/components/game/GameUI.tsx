@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useKeyboardControls } from "@react-three/drei";
 import { AnimatePresence, motion } from "framer-motion";
+import { Sparkles, Swords } from "lucide-react";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useAITurn } from "../../hooks/useAITurn";
@@ -22,22 +23,28 @@ import { WorldElementPanel } from "../ui/WorldElementPanel";
 import { VillageCapturePanel } from "../ui/VillageCapturePanel";
 import { DiplomacyPanel } from "../ui/DiplomacyPanel";
 import { RuinsRewardPanel } from "../ui/RuinsRewardPanel";
+import { TechDiscoveryPanel } from "../ui/TechDiscoveryPanel";
 import { TileContextMenu } from "../ui/TileContextMenu";
 import { useVisualFeedback } from "../ui/VisualFeedback";
 import { GameLogPanel } from "../ui/GameLogPanel";
 import { SettingsMenu } from "../ui/SettingsMenu";
+import { AITurnIndicator } from "../ui/AITurnIndicator";
 import MovementControls from "../game/MovementControls";
 import { useSfxEngine } from "../../hooks/useSfx";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
+import { TECHNOLOGIES } from "@shared/data/technologies";
 import { getWorldElement, WORLD_ELEMENTS } from "@shared/data/worldElements";
 import { useMapToastStore, hexToWorldPos } from "../../lib/stores/useMapToasts";
 import { useParticleStore } from "../effects/ParticleEffects";
+import { useMapPulseStore } from "../effects/MapPulseEffects";
 import { pushCapped, MEMORY_LIMITS } from "../../lib/memoryUtils";
 import { useMemoryCleanup, useTurnEndCleanup } from "../../hooks/useMemoryCleanup";
 import { requestAutosaveIfDirty } from "../../lib/autosaveManager";
 import { useAutosaveStatus } from "../../lib/stores/useAutosaveStatus";
+import { isUnitVisibleToPlayer } from "@shared/logic/unitLogic";
 import type { Unit } from "@shared/types/unit";
+import type { GameState } from "@shared/types/game";
 
 interface ActiveNotification {
   id: string;
@@ -62,14 +69,21 @@ export default function GameUI() {
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [showConstructionHall, setShowConstructionHall] = useState(false);
+  const [techRevealQueue, setTechRevealQueue] = useState<string[]>([]);
+  const [activeTechReveal, setActiveTechReveal] = useState<string | null>(null);
+  const [conquestBanner, setConquestBanner] = useState<{ type: 'capture' | 'conversion'; cityName: string } | null>(null);
   const [isClaimingHost, setIsClaimingHost] = useState(false);
   const prevHostRef = useRef<number | null>(null);
   const ruinsOpenTimeoutRef = useRef<number | null>(null);
   const shimmerTimeoutRef = useRef<number | null>(null);
+  const conquestTimeoutRef = useRef<number | null>(null);
+  const prevGameStateRef = useRef<GameState | null>(null);
+  const activeTechRevealRef = useRef<string | null>(null);
 
   useOnlineGameSync();
   const { toasts: mapToasts } = useMapToastStore();
   const addToast = useMapToastStore(state => state.addToast);
+  const addPulse = useMapPulseStore(state => state.addPulse);
   const [activeNotification, setActiveNotification] = useState<ActiveNotification | null>(null);
   const gameLogRef = useRef<any[]>([]);
   const [gameLogEntries, setGameLogEntries] = useState<Array<{
@@ -99,6 +113,9 @@ export default function GameUI() {
       }
       if (shimmerTimeoutRef.current) {
         window.clearTimeout(shimmerTimeoutRef.current);
+      }
+      if (conquestTimeoutRef.current) {
+        window.clearTimeout(conquestTimeoutRef.current);
       }
     };
   }, []);
@@ -134,6 +151,33 @@ export default function GameUI() {
       prevHostRef.current = nextHostId;
     }
   }, [onlineSession?.hostUserId, onlineSession?.userId, onlineSession, showToast]);
+
+  useEffect(() => {
+    if (activeTechReveal || techRevealQueue.length === 0) return;
+    setActiveTechReveal(techRevealQueue[0]);
+    setTechRevealQueue((prev) => prev.slice(1));
+  }, [activeTechReveal, techRevealQueue]);
+
+  useEffect(() => {
+    activeTechRevealRef.current = activeTechReveal;
+  }, [activeTechReveal]);
+
+  const enqueueTechReveal = useCallback((techId: string) => {
+    setTechRevealQueue((prev) => {
+      if (prev.includes(techId) || activeTechRevealRef.current === techId) return prev;
+      return [...prev, techId];
+    });
+  }, []);
+
+  const triggerConquestBanner = useCallback((type: 'capture' | 'conversion', cityName: string) => {
+    if (conquestTimeoutRef.current) {
+      window.clearTimeout(conquestTimeoutRef.current);
+    }
+    setConquestBanner({ type, cityName });
+    conquestTimeoutRef.current = window.setTimeout(() => {
+      setConquestBanner(null);
+    }, 2200);
+  }, []);
 
   const handleClaimHost = async () => {
     if (!onlineSession || isClaimingHost) return;
@@ -292,23 +336,52 @@ export default function GameUI() {
     const handleAction = (action: any) => {
       if (!action) return;
 
-      if (action.type === 'CAPTURE_CITY') {
+      if (action.type === 'RESEARCH_TECH' || action.type === 'RESEARCH_TECHNOLOGY') {
+        const playerId = action.payload?.playerId;
+        const techId = action.payload?.techId || action.payload?.technologyId;
+        const isCurrentPlayer = playerId === gameState.players[gameState.currentPlayerIndex].id;
+
+        if (playerId && techId && isCurrentPlayer) {
+          const tech = TECHNOLOGIES[techId];
+          const player = gameState.players.find(p => p.id === playerId);
+          const ownedCities = player
+            ? gameState.cities.filter(c => player.citiesOwned.includes(c.id))
+            : [];
+          const focusCity = ownedCities.reduce((best, city) =>
+            !best || city.population > best.population ? city : best, ownedCities[0]);
+
+          enqueueTechReveal(techId);
+          triggerFlash('gold');
+
+          if (focusCity) {
+            addParticle('discovery', focusCity.coordinate);
+            addPulse('tech', focusCity.coordinate);
+            addToast(`Tech Unlocked: ${tech?.name || techId}`, 'tech', hexToWorldPos(focusCity.coordinate.q, focusCity.coordinate.r), 2600);
+          }
+        }
+      } else if (action.type === 'CAPTURE_CITY') {
         const city = gameState.cities.find(c => c.id === action.payload.cityId);
         if (city) {
           addParticle('combat', city.coordinate);
+          addPulse('capture', city.coordinate);
           // Also show toast if it was the current player
           if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
-            addToast('City Captured!', 'combat', hexToWorldPos(city.coordinate.q, city.coordinate.r));
+            addToast(`${city.name} Captured!`, 'combat', hexToWorldPos(city.coordinate.q, city.coordinate.r));
             triggerFlash('red');
+            playSfx('city-conquest');
+            triggerConquestBanner('capture', city.name);
           }
         }
       } else if (action.type === 'CONVERT_CITY') {
         const city = gameState.cities.find(c => c.id === action.payload.cityId);
         if (city) {
           addParticle('faith', city.coordinate);
+          addPulse('conversion', city.coordinate);
           if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
-            addToast('City Converted!', 'faith', hexToWorldPos(city.coordinate.q, city.coordinate.r));
+            addToast(`${city.name} Converted!`, 'faith', hexToWorldPos(city.coordinate.q, city.coordinate.r));
             triggerFlash('blue');
+            playSfx('city-conversion');
+            triggerConquestBanner('conversion', city.name);
           }
         }
       } else if (action.type === 'CONVERT_UNIT') {
@@ -326,6 +399,17 @@ export default function GameUI() {
           } else {
             addToast('Conversion Failed', 'dissent', worldPos);
             triggerFlash('red');
+          }
+        }
+      } else if (action.type === 'UPGRADE_UNIT') {
+        const unit = gameState.units.find(u => u.id === action.payload.unitId);
+        if (unit && action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+          if (isUnitVisibleToPlayer(unit, action.payload.playerId, gameState)) {
+            addParticle('discovery', unit.coordinate);
+            addPulse('levelup', unit.coordinate);
+            addToast('Veteran!', 'levelup', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
+            triggerFlash('gold');
+            playSfx('unit-veteran');
           }
         }
       } else if (action.type === 'CONQUER_VILLAGE') {
@@ -405,7 +489,84 @@ export default function GameUI() {
     }
 
     handleAction(rootAction);
-  }, [gameState?.lastAction, gameState?.cities, gameState?.units, addToast, triggerFlash, showToast, gameState?.players, gameState?.currentPlayerIndex]);
+  }, [
+    gameState?.lastAction,
+    gameState?.cities,
+    gameState?.units,
+    gameState?.players,
+    gameState?.currentPlayerIndex,
+    addToast,
+    addPulse,
+    triggerFlash,
+    showToast,
+    playSfx,
+    enqueueTechReveal,
+    triggerConquestBanner,
+  ]);
+
+  useEffect(() => {
+    if (!gameState) return;
+    const prevState = prevGameStateRef.current;
+    prevGameStateRef.current = gameState;
+    if (!prevState) return;
+
+    const currentPlayerId = gameState.players[gameState.currentPlayerIndex]?.id;
+    if (!currentPlayerId) return;
+
+    const prevUnits = prevState.units || [];
+    const prevImprovements = prevState.improvements || [];
+    const prevStructures = prevState.structures || [];
+
+    const newUnits = gameState.units.filter(
+      (unit) => unit.playerId === currentPlayerId && !prevUnits.some((prevUnit) => prevUnit.id === unit.id)
+    );
+    const newImprovements = (gameState.improvements || []).filter(
+      (improvement) =>
+        improvement.ownerId === currentPlayerId &&
+        !prevImprovements.some((prevImprovement) => prevImprovement.id === improvement.id)
+    );
+    const newStructures = (gameState.structures || []).filter(
+      (structure) =>
+        structure.ownerId === currentPlayerId &&
+        !prevStructures.some((prevStructure) => prevStructure.id === structure.id)
+    );
+
+    if (newUnits.length === 0 && newImprovements.length === 0 && newStructures.length === 0) return;
+
+    const { addEvent: addParticle } = useParticleStore.getState();
+
+    if (newImprovements.length > 0 || newStructures.length > 0) {
+      playSfx('construction-complete');
+    }
+    if (newUnits.length > 0) {
+      playSfx('unit-ready');
+    }
+
+    newImprovements.forEach((improvement) => {
+      const name = IMPROVEMENT_DEFINITIONS[improvement.type]?.name || improvement.type;
+      const city = gameState.cities.find(c => c.id === improvement.cityId);
+      const coordinate = city?.coordinate || improvement.coordinate;
+      addParticle('reward', coordinate);
+      addPulse('construction', coordinate);
+      addToast(`${name} Complete`, 'construction', hexToWorldPos(coordinate.q, coordinate.r));
+    });
+
+    newStructures.forEach((structure) => {
+      const name = STRUCTURE_DEFINITIONS[structure.type]?.name || structure.type;
+      const city = gameState.cities.find(c => c.id === structure.cityId);
+      if (!city) return;
+      addParticle('reward', city.coordinate);
+      addPulse('construction', city.coordinate);
+      addToast(`${name} Complete`, 'construction', hexToWorldPos(city.coordinate.q, city.coordinate.r));
+    });
+
+    newUnits.forEach((unit) => {
+      const unitName = UNIT_DEFINITIONS[unit.type]?.name || unit.type;
+      addParticle('discovery', unit.coordinate);
+      addPulse('unit', unit.coordinate);
+      addToast(`${unitName} Ready`, 'unit', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
+    });
+  }, [gameState, addToast, addPulse, playSfx]);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
   const [showAdvancedSaveSystem, setShowAdvancedSaveSystem] = useState(false);
@@ -452,8 +613,8 @@ export default function GameUI() {
 
   const heapMb = heapBytes ? Math.round(heapBytes / (1024 * 1024)) : null;
 
-  // Enable AI opponents
-  useAITurn();
+  // Enable AI opponents with visual indicator
+  const { isAIProcessing, currentAIPlayer } = useAITurn();
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
 
@@ -599,11 +760,11 @@ export default function GameUI() {
         const maybeSelectedUnit = useGameState.getState().selectedUnit;
         const preferredUnitId =
           maybeSelectedUnit &&
-          maybeSelectedUnit.playerId === player.id &&
-          maybeSelectedUnit.coordinate.q === coordinate.q &&
-          maybeSelectedUnit.coordinate.r === coordinate.r &&
-          !maybeSelectedUnit.hasAttacked &&
-          maybeSelectedUnit.remainingMovement > 0
+            maybeSelectedUnit.playerId === player.id &&
+            maybeSelectedUnit.coordinate.q === coordinate.q &&
+            maybeSelectedUnit.coordinate.r === coordinate.r &&
+            !maybeSelectedUnit.hasAttacked &&
+            maybeSelectedUnit.remainingMovement > 0
             ? maybeSelectedUnit.id
             : unitsOnTile[0]?.id;
 
@@ -1029,6 +1190,14 @@ export default function GameUI() {
   return (
     <div className="absolute inset-0 pointer-events-none z-10">
       <TileContextMenu />
+
+      {/* AI Turn Indicator - Shows during AI player turns */}
+      <AITurnIndicator
+        isVisible={isAIProcessing}
+        aiName={currentAIPlayer?.name}
+        factionId={currentAIPlayer?.factionId}
+      />
+
       {onlineSession && hostLeaseExpired && onlineSession.userId !== onlineSession.hostUserId && (
         <div className="absolute top-4 left-1/2 z-50 -translate-x-1/2 pointer-events-auto">
           <div className="flex items-center gap-3 rounded-lg border border-amber-400/50 bg-black/80 px-4 py-2 text-amber-100 shadow-lg backdrop-blur-sm">
@@ -1054,6 +1223,54 @@ export default function GameUI() {
           {autosave.lastFailureAt && <div className="text-red-200">Autosave failed</div>}
         </div>
       )}
+
+      {/* Conquest Banner */}
+      <AnimatePresence>
+        {conquestBanner && (
+          <motion.div
+            key={`${conquestBanner.type}-${conquestBanner.cityName}`}
+            className="fixed top-6 left-1/2 z-[170] -translate-x-1/2 pointer-events-none"
+            initial={{ opacity: 0, y: -20, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.96 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+          >
+            <div
+              className={`relative overflow-hidden rounded-full border px-8 py-3 shadow-2xl ${conquestBanner.type === 'conversion'
+                ? 'border-sky-200/40 bg-gradient-to-r from-sky-600/90 via-indigo-500/80 to-sky-700/90 shadow-sky-500/40'
+                : 'border-amber-200/40 bg-gradient-to-r from-red-600/90 via-amber-500/80 to-red-700/90 shadow-amber-500/40'
+                }`}
+            >
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.35),_transparent_60%)]" />
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                initial={{ x: '-120%' }}
+                animate={{ x: '120%' }}
+                transition={{ duration: 1.4, ease: 'easeInOut' }}
+              />
+              <div className="relative flex items-center gap-4 text-left">
+                <div
+                  className={`flex h-11 w-11 items-center justify-center rounded-full border ${conquestBanner.type === 'conversion'
+                    ? 'border-sky-100/40 bg-sky-200/20 text-sky-50'
+                    : 'border-amber-100/40 bg-amber-200/20 text-amber-50'
+                    }`}
+                >
+                  {conquestBanner.type === 'conversion' ? <Sparkles className="h-5 w-5" /> : <Swords className="h-5 w-5" />}
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.3em] text-white/70">
+                    {conquestBanner.type === 'conversion' ? 'Sacred Victory' : 'Conquest'}
+                  </div>
+                  <div className="text-lg font-cinzel font-semibold text-white">
+                    {conquestBanner.type === 'conversion' ? 'City Converted' : 'City Captured'}
+                  </div>
+                  <div className="text-sm text-white/80">{conquestBanner.cityName}</div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Construction Mode Indicator - Positioned in top-right corner */}
       {constructionMode.isActive && (
         <div className="absolute top-4 right-4 pointer-events-auto z-50">
@@ -1121,6 +1338,12 @@ export default function GameUI() {
       <TechPanel
         open={showTechPanel}
         onClose={() => setShowTechPanel(false)}
+      />
+
+      {/* Tech Discovery Reveal */}
+      <TechDiscoveryPanel
+        techId={activeTechReveal}
+        onClose={() => setActiveTechReveal(null)}
       />
 
       {/* City Panel Modal */}

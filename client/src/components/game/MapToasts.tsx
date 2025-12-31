@@ -17,6 +17,8 @@ const typeStyles: Record<MapToast['type'], { color: string; icon: string; bgColo
     dissent: { color: '#F87171', icon: '⚠️', bgColor: 'rgba(248, 113, 113, 0.2)' },
     tech: { color: '#34D399', icon: '📜', bgColor: 'rgba(52, 211, 153, 0.2)' },
     unit: { color: '#FB923C', icon: '⚔️', bgColor: 'rgba(251, 146, 60, 0.2)' },
+    construction: { color: '#FBBF24', icon: '🏗️', bgColor: 'rgba(251, 191, 36, 0.2)' },
+    levelup: { color: '#FDE68A', icon: '🛡️', bgColor: 'rgba(253, 230, 138, 0.2)' },
     population: { color: '#22C55E', icon: '👥', bgColor: 'rgba(34, 197, 94, 0.2)' },
     reveal: { color: '#818CF8', icon: '🗺️', bgColor: 'rgba(129, 140, 248, 0.2)' },
     damage: { color: '#EF4444', icon: '💥', bgColor: 'rgba(239, 68, 68, 0.2)' },

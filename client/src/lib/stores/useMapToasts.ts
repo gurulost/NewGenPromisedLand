@@ -11,6 +11,8 @@ export type MapToastType =
     | 'unit'
     | 'population'
     | 'reveal'
+    | 'construction'
+    | 'levelup'
     | 'damage'
     | 'heal'
     | 'combat'
