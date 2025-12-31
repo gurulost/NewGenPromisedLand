@@ -10,6 +10,7 @@ import { usePathfindingWorker } from "../../hooks/usePathfindingWorker";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { UnitModel } from "./UnitModel";
+import { usePerformanceMode } from "../../hooks/usePerformanceMode";
 
 function StatusIcon({ icon, color, label }: { icon: string; color: string; label: string }) {
   const ref = useRef<THREE.Group>(null);
@@ -46,6 +47,78 @@ function StatusIcon({ icon, color, label }: { icon: string; color: string; label
         </Text>
       </Billboard>
     </group>
+  );
+}
+
+// Action Badge - shows remaining actions as bobbing number
+function ActionBadge({ count, color, animate }: { count: number; color: string; animate: boolean }) {
+  const ref = useRef<THREE.Group>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    if (!animate) return;
+
+    // Bob animation
+    if (ref.current) {
+      ref.current.position.y = 1.6 + Math.sin(state.clock.elapsedTime * 2.5) * 0.08;
+    }
+
+    // Ring pulse animation
+    if (ringRef.current) {
+      const pulse = 0.5 + Math.sin(state.clock.elapsedTime * 3) * 0.2;
+      (ringRef.current.material as THREE.MeshBasicMaterial).opacity = pulse;
+      const scale = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.08;
+      ringRef.current.scale.set(scale, scale, 1);
+    }
+  });
+
+  return (
+    <>
+      {/* Bobbing action count badge */}
+      <group ref={ref} position={[0, 1.6, 0]}>
+        <Billboard follow={true} lockX={false} lockY={false} lockZ={false}>
+          {/* Badge background */}
+          <mesh position={[0, 0, -0.01]}>
+            <circleGeometry args={[0.18, 16]} />
+            <meshBasicMaterial color={color} transparent opacity={0.85} />
+          </mesh>
+          {/* Badge border */}
+          <mesh position={[0, 0, -0.005]}>
+            <ringGeometry args={[0.16, 0.2, 16]} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={0.5} />
+          </mesh>
+          {/* Action count number */}
+          <Text
+            fontSize={0.16}
+            color="#ffffff"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.015}
+            outlineColor="#000000"
+            fontWeight="bold"
+          >
+            {count}
+          </Text>
+        </Billboard>
+      </group>
+
+      {/* Enhanced pulsing ring at base */}
+      <mesh
+        ref={ringRef}
+        position={[0, 0.04, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <ringGeometry args={[0.52, 0.6, 24]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.5}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+    </>
   );
 }
 
@@ -152,9 +225,43 @@ export default function Unit({ unit, isSelected }: UnitProps) {
 
   const healthPercent = unit.hp / unit.maxHp;
   const healthColor = healthPercent > 0.6 ? "#22c55e" : healthPercent > 0.3 ? "#f59e0b" : "#ef4444";
+  const factionColor = faction?.color || "#ffffff";
+  const hasActionsRemaining = unit.remainingMovement > 0 && !unit.hasAttacked;
+  const isPlayerUnit = currentPlayer?.id === unit.playerId;
+  const perfMode = usePerformanceMode();
+  const animationsEnabled = perfMode === 'high';
 
   return (
     <group position={[pixelPos.x, 0, pixelPos.y]}>
+      {/* Faction Color Ownership Ring */}
+      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.35, 0.45, 24]} />
+        <meshBasicMaterial
+          color={factionColor}
+          transparent
+          opacity={hasActionsRemaining ? 0.9 : 0.5}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      {/* Inner glow for visibility */}
+      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.35, 24]} />
+        <meshBasicMaterial
+          color={factionColor}
+          transparent
+          opacity={0.15}
+        />
+      </mesh>
+
+      {/* Action Badge - only shown for player's units with actions remaining */}
+      {hasActionsRemaining && isPlayerUnit && !isSelected && (
+        <ActionBadge
+          count={unit.remainingMovement}
+          color={factionColor}
+          animate={animationsEnabled}
+        />
+      )}
+
       <group
         ref={meshRef}
         position={[0, UNIT_HEIGHT, 0]}

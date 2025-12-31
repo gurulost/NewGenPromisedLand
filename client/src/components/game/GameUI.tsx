@@ -43,6 +43,8 @@ import { useMemoryCleanup, useTurnEndCleanup } from "../../hooks/useMemoryCleanu
 import { requestAutosaveIfDirty } from "../../lib/autosaveManager";
 import { useAutosaveStatus } from "../../lib/stores/useAutosaveStatus";
 import { isUnitVisibleToPlayer } from "@shared/logic/unitLogic";
+import { hexDistance } from "@shared/utils/hex";
+import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
 import type { Unit } from "@shared/types/unit";
 import type { GameState } from "@shared/types/game";
 
@@ -79,6 +81,7 @@ export default function GameUI() {
   const conquestTimeoutRef = useRef<number | null>(null);
   const prevGameStateRef = useRef<GameState | null>(null);
   const activeTechRevealRef = useRef<string | null>(null);
+  const completionSignatureRef = useRef<string | null>(null);
 
   useOnlineGameSync();
   const { toasts: mapToasts } = useMapToastStore();
@@ -332,6 +335,47 @@ export default function GameUI() {
     // Explicitly type the action to avoid 'unknown' errors
     const rootAction: any = gameState.lastAction;
     const { addEvent: addParticle } = useParticleStore.getState();
+    const currentPlayerId = gameState.players[gameState.currentPlayerIndex]?.id;
+
+    const isLocalPlayerAction = (playerId?: string) => {
+      if (!playerId) return false;
+      if (!onlineSession) return playerId === currentPlayerId;
+      return onlineSession.myPlayerIds.includes(playerId);
+    };
+
+    const isTileCurrentlyVisible = (coordinate: { q: number; r: number }) => {
+      if (!currentPlayerId) return true;
+      const tileKey = `${coordinate.q},${coordinate.r}`;
+
+      const ownedCities = gameState.cities.filter(city => city.ownerId === currentPlayerId);
+      const CITY_VISION_RADIUS = 2;
+      if (ownedCities.some(city => hexDistance(city.coordinate, coordinate) <= CITY_VISION_RADIUS)) {
+        return true;
+      }
+
+      const friendlyUnits = gameState.units.filter(unit => unit.playerId === currentPlayerId);
+      for (const unit of friendlyUnits) {
+        const visionRadius = UNIT_DEFINITIONS[unit.type]?.baseStats.visionRadius ?? 2;
+        if (hexDistance(unit.coordinate, coordinate) > visionRadius) continue;
+        const visibleTiles = getVisibleTilesInRange(unit.coordinate, visionRadius, gameState.map, true);
+        if (visibleTiles.has(tileKey)) return true;
+      }
+
+      return false;
+    };
+
+    const shouldRevealTileEvent = (coordinate: { q: number; r: number }, actorId?: string) => {
+      if (!currentPlayerId) return true;
+      if (isLocalPlayerAction(actorId)) return true;
+      return isTileCurrentlyVisible(coordinate);
+    };
+
+    const shouldRevealUnitEvent = (unit: Unit | undefined, actorId?: string) => {
+      if (!currentPlayerId) return true;
+      if (!unit) return false;
+      if (isLocalPlayerAction(actorId)) return true;
+      return isUnitVisibleToPlayer(unit, currentPlayerId, gameState);
+    };
 
     const handleAction = (action: any) => {
       if (!action) return;
@@ -339,9 +383,9 @@ export default function GameUI() {
       if (action.type === 'RESEARCH_TECH' || action.type === 'RESEARCH_TECHNOLOGY') {
         const playerId = action.payload?.playerId;
         const techId = action.payload?.techId || action.payload?.technologyId;
-        const isCurrentPlayer = playerId === gameState.players[gameState.currentPlayerIndex].id;
+        const isLocalAction = isLocalPlayerAction(playerId);
 
-        if (playerId && techId && isCurrentPlayer) {
+        if (playerId && techId && isLocalAction) {
           const tech = TECHNOLOGIES[techId];
           const player = gameState.players.find(p => p.id === playerId);
           const ownedCities = player
@@ -362,10 +406,13 @@ export default function GameUI() {
       } else if (action.type === 'CAPTURE_CITY') {
         const city = gameState.cities.find(c => c.id === action.payload.cityId);
         if (city) {
-          addParticle('combat', city.coordinate);
-          addPulse('capture', city.coordinate);
+          const canReveal = shouldRevealTileEvent(city.coordinate, action.payload.playerId);
+          if (canReveal) {
+            addParticle('combat', city.coordinate);
+            addPulse('capture', city.coordinate);
+          }
           // Also show toast if it was the current player
-          if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+          if (isLocalPlayerAction(action.payload.playerId)) {
             addToast(`${city.name} Captured!`, 'combat', hexToWorldPos(city.coordinate.q, city.coordinate.r));
             triggerFlash('red');
             playSfx('city-conquest');
@@ -375,9 +422,12 @@ export default function GameUI() {
       } else if (action.type === 'CONVERT_CITY') {
         const city = gameState.cities.find(c => c.id === action.payload.cityId);
         if (city) {
-          addParticle('faith', city.coordinate);
-          addPulse('conversion', city.coordinate);
-          if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+          const canReveal = shouldRevealTileEvent(city.coordinate, action.payload.playerId);
+          if (canReveal) {
+            addParticle('faith', city.coordinate);
+            addPulse('conversion', city.coordinate);
+          }
+          if (isLocalPlayerAction(action.payload.playerId)) {
             addToast(`${city.name} Converted!`, 'faith', hexToWorldPos(city.coordinate.q, city.coordinate.r));
             triggerFlash('blue');
             playSfx('city-conversion');
@@ -389,10 +439,10 @@ export default function GameUI() {
         const success = targetUnit?.playerId === action.payload.playerId;
         const coord = targetUnit?.coordinate;
         const worldPos = coord ? hexToWorldPos(coord.q, coord.r) : { x: 0, y: 0.5, z: 0 };
-        if (coord) {
+        if (coord && shouldRevealUnitEvent(targetUnit, action.payload.playerId)) {
           addParticle('faith', coord);
         }
-        if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+        if (isLocalPlayerAction(action.payload.playerId)) {
           if (success) {
             addToast('Unit Converted!', 'faith', worldPos);
             triggerFlash('blue');
@@ -403,21 +453,23 @@ export default function GameUI() {
         }
       } else if (action.type === 'UPGRADE_UNIT') {
         const unit = gameState.units.find(u => u.id === action.payload.unitId);
-        if (unit && action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
-          if (isUnitVisibleToPlayer(unit, action.payload.playerId, gameState)) {
-            addParticle('discovery', unit.coordinate);
-            addPulse('levelup', unit.coordinate);
-            addToast('Veteran!', 'levelup', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
-            triggerFlash('gold');
-            playSfx('unit-veteran');
-          }
+        if (!unit) return;
+        if (!isLocalPlayerAction(action.payload.playerId)) return;
+        if (shouldRevealUnitEvent(unit, action.payload.playerId)) {
+          addParticle('discovery', unit.coordinate);
+          addPulse('levelup', unit.coordinate);
+          addToast('Veteran!', 'levelup', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
+          triggerFlash('gold');
+          playSfx('unit-veteran');
         }
       } else if (action.type === 'CONQUER_VILLAGE') {
         // Find unit to get location
         const unit = gameState.units.find(u => u.id === action.payload.unitId);
         if (unit) {
-          addParticle('capture', unit.coordinate);
-          if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+          if (shouldRevealTileEvent(unit.coordinate, action.payload.playerId)) {
+            addParticle('capture', unit.coordinate);
+          }
+          if (isLocalPlayerAction(action.payload.playerId)) {
             addToast('Village Conquered', 'reward', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
             triggerFlash('gold');
           }
@@ -425,8 +477,10 @@ export default function GameUI() {
       } else if (action.type === 'CONVERT_VILLAGE') {
         const unit = gameState.units.find(u => u.id === action.payload.unitId);
         if (unit) {
-          addParticle('faith', unit.coordinate);
-          if (action.payload.playerId === gameState.players[gameState.currentPlayerIndex].id) {
+          if (shouldRevealTileEvent(unit.coordinate, action.payload.playerId)) {
+            addParticle('faith', unit.coordinate);
+          }
+          if (isLocalPlayerAction(action.payload.playerId)) {
             addToast('Village Converted', 'faith', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
             triggerFlash('blue');
           }
@@ -470,7 +524,7 @@ export default function GameUI() {
           }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
         }
       } else if (action.type === 'TESTIMONY_PRESSURE') {
-        const currentPlayerId = gameState.players[gameState.currentPlayerIndex].id;
+        if (!currentPlayerId) return;
         const affected: Array<{ playerId: string; unitIds: string[] }> = action.payload?.affected || [];
         const myAffected = affected.find(a => a.playerId === currentPlayerId);
         if (myAffected?.unitIds?.length) {
@@ -502,6 +556,7 @@ export default function GameUI() {
     playSfx,
     enqueueTechReveal,
     triggerConquestBanner,
+    onlineSession,
   ]);
 
   useEffect(() => {
@@ -509,25 +564,41 @@ export default function GameUI() {
     const prevState = prevGameStateRef.current;
     prevGameStateRef.current = gameState;
     if (!prevState) return;
+    if (prevState.id !== gameState.id) return;
 
-    const currentPlayerId = gameState.players[gameState.currentPlayerIndex]?.id;
-    if (!currentPlayerId) return;
+    const lastAction: any = gameState.lastAction;
+    const isTurnCompletion =
+      lastAction?.type === 'END_TURN' || lastAction?.type === 'END_TURN_RESOLUTION';
+    if (!isTurnCompletion) return;
+
+    const completionPlayerId =
+      lastAction?.type === 'END_TURN_RESOLUTION'
+        ? lastAction?.payload?.endingPlayerId
+        : lastAction?.payload?.playerId;
+    if (!completionPlayerId) return;
+    if (onlineSession && !onlineSession.myPlayerIds.includes(completionPlayerId)) return;
+
+    const completionSignature = `${gameState.id}:${lastAction.type}:${completionPlayerId}:${gameState.turn}:${gameState.currentPlayerIndex}`;
+    if (completionSignatureRef.current === completionSignature) return;
+    completionSignatureRef.current = completionSignature;
 
     const prevUnits = prevState.units || [];
     const prevImprovements = prevState.improvements || [];
     const prevStructures = prevState.structures || [];
 
+    const ownedCities = gameState.cities.filter(city => city.ownerId === completionPlayerId);
+
     const newUnits = gameState.units.filter(
-      (unit) => unit.playerId === currentPlayerId && !prevUnits.some((prevUnit) => prevUnit.id === unit.id)
+      (unit) => unit.playerId === completionPlayerId && !prevUnits.some((prevUnit) => prevUnit.id === unit.id)
     );
     const newImprovements = (gameState.improvements || []).filter(
       (improvement) =>
-        improvement.ownerId === currentPlayerId &&
+        improvement.ownerId === completionPlayerId &&
         !prevImprovements.some((prevImprovement) => prevImprovement.id === improvement.id)
     );
     const newStructures = (gameState.structures || []).filter(
       (structure) =>
-        structure.ownerId === currentPlayerId &&
+        structure.ownerId === completionPlayerId &&
         !prevStructures.some((prevStructure) => prevStructure.id === structure.id)
     );
 
@@ -562,11 +633,18 @@ export default function GameUI() {
 
     newUnits.forEach((unit) => {
       const unitName = UNIT_DEFINITIONS[unit.type]?.name || unit.type;
-      addParticle('discovery', unit.coordinate);
-      addPulse('unit', unit.coordinate);
-      addToast(`${unitName} Ready`, 'unit', hexToWorldPos(unit.coordinate.q, unit.coordinate.r));
+      const anchorCity = ownedCities.reduce((best, city) => {
+        if (!best) return city;
+        const bestDist = hexDistance(unit.coordinate, best.coordinate);
+        const nextDist = hexDistance(unit.coordinate, city.coordinate);
+        return nextDist < bestDist ? city : best;
+      }, ownedCities[0]);
+      const anchorCoordinate = anchorCity?.coordinate || unit.coordinate;
+      addParticle('discovery', anchorCoordinate);
+      addPulse('unit', anchorCoordinate);
+      addToast(`${unitName} Ready`, 'unit', hexToWorldPos(anchorCoordinate.q, anchorCoordinate.r));
     });
-  }, [gameState, addToast, addPulse, playSfx]);
+  }, [gameState, addToast, addPulse, playSfx, onlineSession]);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
   const [showAdvancedSaveSystem, setShowAdvancedSaveSystem] = useState(false);
