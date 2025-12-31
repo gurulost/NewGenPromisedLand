@@ -1,9 +1,8 @@
-import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 import { Badge } from "./badge";
 import { Progress } from "./progress";
-import { Separator } from "./separator";
 import { Input } from "./input";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { TECHNOLOGIES, calculateResearchCost, getAvailableTechnologies, type Technology } from "@shared/data/technologies";
@@ -11,7 +10,7 @@ import { Star, Book, Swords, Church, Lock, CheckCircle, Clock, Sparkles, ArrowUp
 import { TECH_LAYOUT, CELL_WIDTH, CELL_HEIGHT, COL_GAP, ROW_GAP, CANVAS_PADDING } from "../tech/techLayout";
 import { useHaptic } from "../../hooks/useHaptic";
 import { StepFretDivider } from "../primitives/StepFretDivider";
-import { TempleIcon, SunDiskIcon, WarriorShieldIcon, SerpentIcon } from "../primitives/ThematicIcons";
+import { SunDiskIcon, WarriorShieldIcon, SerpentIcon } from "../primitives/ThematicIcons";
 
 interface TechPanelProps {
   open: boolean;
