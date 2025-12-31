@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useParticleStore } from '../components/effects/ParticleEffects';
+import { useMapPulseStore } from '../components/effects/MapPulseEffects';
 import { useMapToastStore } from '../lib/stores/useMapToasts';
 
 /**
@@ -17,6 +18,9 @@ export function useMemoryCleanup(intervalMs: number = 10000) {
       
       // Clean up map toasts that are stale
       useMapToastStore.getState().cleanupStale();
+
+      // Clean up map pulses that are stale
+      useMapPulseStore.getState().cleanupStale();
     };
 
     const intervalId = setInterval(cleanup, intervalMs);
@@ -45,5 +49,6 @@ export function useTurnEndCleanup(currentTurn: number) {
     // Run cleanup on turn change
     useParticleStore.getState().cleanupStale();
     useMapToastStore.getState().cleanupStale();
+    useMapPulseStore.getState().cleanupStale();
   }, [currentTurn]);
 }

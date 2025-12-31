@@ -19,6 +19,7 @@ import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import MovementOverlay from "./MovementOverlay";
 import { getReachableTiles } from "@shared/logic/pathfinding";
 import { ParticleEffectsContainer } from "../effects/ParticleEffects";
+import { MapPulseEffects } from "../effects/MapPulseEffects";
 
 export default function GameCanvas() {
   const { gameState, dispatch } = useLocalGame();
@@ -411,6 +412,9 @@ export default function GameCanvas() {
 
       {/* Particle Effects for captures and rewards */}
       <ParticleEffectsContainer />
+
+      {/* Map pulse rings for major events */}
+      <MapPulseEffects />
 
       {/* Combat Effects - Note: Moved to GameUI to avoid HTML in R3F */}
 
