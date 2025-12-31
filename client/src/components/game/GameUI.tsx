@@ -126,7 +126,9 @@ export default function GameUI() {
     if (!actionError) return;
     const type = actionError.level === 'error' ? 'error' : 'warning';
     showToast(actionError.message, type);
-    clearActionError();
+    if (typeof clearActionError === 'function') {
+      clearActionError();
+    }
   }, [actionError, clearActionError, showToast]);
 
   useEffect(() => {

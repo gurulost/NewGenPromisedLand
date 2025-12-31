@@ -1,8 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useGameState } from "@/lib/stores/useGameState";
 
+const EMPTY_MENU = {
+  isOpen: false,
+  screenPosition: { x: 0, y: 0 },
+  tileCoordinate: null,
+  options: [],
+} as const;
+
 export function TileContextMenu() {
   const { tileContextMenu, closeTileContextMenu } = useGameState();
+  const safeMenu = tileContextMenu ?? EMPTY_MENU;
+  const safeClose = typeof closeTileContextMenu === "function" ? closeTileContextMenu : () => {};
   const menuRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
@@ -22,17 +31,17 @@ export function TileContextMenu() {
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        closeTileContextMenu();
+        safeClose();
       }
     }
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        closeTileContextMenu();
+        safeClose();
       }
     }
 
-    if (tileContextMenu.isOpen) {
+    if (safeMenu.isOpen) {
       const timer = setTimeout(() => {
         document.addEventListener("mousedown", handleClickOutside);
         document.addEventListener("keydown", handleEscape);
@@ -49,9 +58,9 @@ export function TileContextMenu() {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [tileContextMenu.isOpen, closeTileContextMenu]);
+  }, [safeMenu.isOpen, safeClose]);
 
-  if (!tileContextMenu.isOpen || tileContextMenu.options.length === 0) {
+  if (!safeMenu.isOpen || safeMenu.options.length === 0) {
     return null;
   }
 
@@ -60,8 +69,8 @@ export function TileContextMenu() {
   const viewportWidth = viewport.width || 800;
   const viewportHeight = viewport.height || 600;
 
-  let left = tileContextMenu.screenPosition.x;
-  let top = tileContextMenu.screenPosition.y;
+  let left = safeMenu.screenPosition.x;
+  let top = safeMenu.screenPosition.y;
 
   if (left + menuWidth + menuPadding > viewportWidth) {
     left = viewportWidth - menuWidth - menuPadding;
@@ -70,7 +79,7 @@ export function TileContextMenu() {
     left = menuPadding;
   }
 
-  const estimatedMenuHeight = tileContextMenu.options.length * 44 + 40;
+  const estimatedMenuHeight = safeMenu.options.length * 44 + 40;
   if (top + estimatedMenuHeight + menuPadding > viewportHeight) {
     top = viewportHeight - estimatedMenuHeight - menuPadding;
   }
@@ -80,7 +89,7 @@ export function TileContextMenu() {
 
   const handleOptionClick = (action: () => void) => {
     action();
-    closeTileContextMenu();
+    safeClose();
   };
 
   return (
@@ -97,7 +106,7 @@ export function TileContextMenu() {
         Select Action
       </div>
       <div className="py-1">
-        {tileContextMenu.options.map((option) => (
+        {safeMenu.options.map((option) => (
           <button
             key={option.id}
             onClick={() => handleOptionClick(option.action)}
