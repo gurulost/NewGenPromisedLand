@@ -11,7 +11,6 @@ import LobbyRoom from "./components/ui/LobbyRoom";
 import GameCanvas from "./components/game/GameCanvas";
 import GameUI from "./components/game/GameUI";
 import { CombatEffectsDemo } from "./components/effects/CombatEffectsDemo";
-import { ToastProvider } from "./components/ui/ToastProvider";
 import { VisualFeedbackProvider } from "./components/ui/VisualFeedback";
 import { FloatingTextManager } from "./components/ui/FloatingText";
 import { AudioProvider } from "./components/ui/AudioProvider";
@@ -74,8 +73,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TouchModeProvider>
         <AudioProvider>
-          <ToastProvider>
-            <VisualFeedbackProvider>
+          <VisualFeedbackProvider>
               <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
                 <KeyboardControls map={controls}>
                 {gamePhase === 'menu' && <MainMenu />}
@@ -130,8 +128,7 @@ function App() {
                 )}
               </KeyboardControls>
             </div>
-            </VisualFeedbackProvider>
-          </ToastProvider>
+          </VisualFeedbackProvider>
           <FloatingTextManager />
         </AudioProvider>
       </TouchModeProvider>

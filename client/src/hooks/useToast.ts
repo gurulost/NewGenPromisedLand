@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { pushCapped, MEMORY_LIMITS } from '../lib/memoryUtils';
 
 // Extended toast types including game-themed variants
@@ -14,6 +14,23 @@ interface ToastData {
 
 export function useToast() {
   const [toasts, setToasts] = useState<ToastData[]>([]);
+  const timeoutsRef = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    return () => {
+      timeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      timeoutsRef.current.clear();
+    };
+  }, []);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(toast => toast.id !== id));
+    const timeoutId = timeoutsRef.current.get(id);
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+      timeoutsRef.current.delete(id);
+    }
+  }, []);
 
   const addToast = useCallback((toast: Omit<ToastData, 'id'>) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -23,17 +40,14 @@ export function useToast() {
 
     // Auto-remove after duration
     if (toast.duration !== 0) {
-      setTimeout(() => {
+      const timeoutId = window.setTimeout(() => {
         removeToast(id);
       }, toast.duration || 4000);
+      timeoutsRef.current.set(id, timeoutId);
     }
 
     return id;
-  }, []);
-
-  const removeToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(toast => toast.id !== id));
-  }, []);
+  }, [removeToast]);
 
   const success = useCallback((title: string, message?: string, duration?: number) => {
     return addToast({ type: 'success', title, message, duration });
