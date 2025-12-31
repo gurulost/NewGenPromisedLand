@@ -5,6 +5,7 @@ import { hexDistance } from "../utils/hex";
 import { getUnitDefinition } from "../data/units";
 import { GAME_RULES } from "../data/gameRules";
 import { canAttemptUnitConversion, computeUnitConversionChance, getUnitConversionFaithCost } from "./conversion";
+import { resolveCombat } from "./combatResolver";
 
 /**
  * Advanced Combat System - Handles all unit combat mechanics
@@ -13,6 +14,9 @@ import { canAttemptUnitConversion, computeUnitConversionChance, getUnitConversio
 
 export interface CombatResult {
   success: boolean;
+  canAttack?: boolean;
+  reason?: string;
+  reasonCode?: string;
   attackerDamage: number;
   defenderDamage: number;
   attackerHp: number;
@@ -21,6 +25,10 @@ export interface CombatResult {
   defenderKilled: boolean;
   specialEffects: string[];
   message: string;
+  modifiers?: {
+    attacker: string[];
+    defender: string[];
+  };
 }
 
 /**
@@ -32,174 +40,7 @@ export function calculateCombatDamage(
   state: GameState,
   terrain?: string
 ): CombatResult {
-  const attackerDef = getUnitDefinition(attacker.type);
-  const defenderDef = getUnitDefinition(defender.type);
-
-  let attackerAttack = attacker.attack;
-  let defenderDefense = defender.defense;
-  const specialEffects: string[] = [];
-
-  // === UNIT-SPECIFIC COMBAT BONUSES ===
-
-  // Spearman vs Fast Units (Anti-Cavalry)
-  if (attacker.type === 'spearman' && attackerDef.abilities.includes('ANTI_CAVALRY')) {
-    if (defender.movement >= 4 || defender.type === 'scout') {
-      attackerAttack += 4;
-      specialEffects.push("Spearman anti-cavalry bonus (+4 attack)");
-    }
-  }
-
-  // Formation Fighting (Spearmen near each other)
-  if (attacker.type === 'spearman' && attackerDef.abilities.includes('FORMATION_FIGHTING')) {
-    const nearbySpearmen = state.units.filter(u =>
-      u.playerId === attacker.playerId &&
-      u.type === 'spearman' &&
-      u.id !== attacker.id &&
-      hexDistance(u.coordinate, attacker.coordinate) === 1
-    ).length;
-
-    if (nearbySpearmen > 0) {
-      const formationBonus = nearbySpearmen * 2;
-      attackerAttack += formationBonus;
-      specialEffects.push(`Formation fighting bonus (+${formationBonus} attack)`);
-    }
-  }
-
-  // Catapult Siege Warfare
-  if (attacker.type === 'catapult' && attackerDef.abilities.includes('SIEGE_WEAPON')) {
-    // Must be setup (defending status) to attack
-    if (attacker.status !== 'defending') {
-      return {
-        success: false,
-        attackerDamage: 0,
-        defenderDamage: 0,
-        attackerHp: attacker.hp,
-        defenderHp: defender.hp,
-        attackerKilled: false,
-        defenderKilled: false,
-        specialEffects: [],
-        message: "Catapult must be setup before attacking"
-      };
-    }
-
-    // Extra damage to structures and cities
-    if (defender.type === 'guard') { // Representing city defenders
-      attackerAttack *= 2;
-      specialEffects.push("Siege weapon vs fortification (double damage)");
-    }
-  }
-
-  // Scout Stealth Advantage
-  if (attacker.type === 'scout' && attackerDef.abilities.includes('STEALTH')) {
-    if (attacker.status === 'defending') { // Stealth mode
-      attackerAttack += 3;
-      specialEffects.push("Stealth attack bonus (+3 attack)");
-    }
-  }
-
-  // Commander Leadership Bonus
-  if (attacker.type === 'commander' && attackerDef.abilities.includes('LEADERSHIP')) {
-    attackerAttack += 2;
-    specialEffects.push("Commander leadership (+2 attack)");
-  }
-
-  // Missionary Peaceful Nature (reduced combat effectiveness)
-  if (attacker.type === 'missionary') {
-    attackerAttack = Math.max(1, attackerAttack - 2);
-    specialEffects.push("Missionary peaceful nature (-2 attack)");
-  }
-
-  // === DEFENSIVE BONUSES ===
-
-  // Guard Defensive Stance
-  if (defender.type === 'guard' && defenderDef.abilities.includes('FORTIFY')) {
-    if (defender.status === 'defending') {
-      defenderDefense += 4;
-      specialEffects.push("Guard fortified defense (+4 defense)");
-    }
-  }
-
-  // Terrain Defense Bonuses
-  if (terrain) {
-    const terrainBonus = GAME_RULES.terrain.defenseBonus[terrain] || 0;
-    if (terrainBonus > 0) {
-      defenderDefense += terrainBonus;
-      specialEffects.push(`Terrain defense bonus (+${terrainBonus} from ${terrain})`);
-    }
-  }
-
-  // === FACTION-SPECIFIC BONUSES ===
-  const attackerPlayer = state.players.find(p => p.id === attacker.playerId);
-  const defenderPlayer = state.players.find(p => p.id === defender.playerId);
-
-  // Faith-based combat bonuses (tiered system)
-  if (attackerPlayer) {
-    const { lowThreshold, highThreshold, lowDefenseBonus, highAttackBonus, highDefenseBonus } = GAME_RULES.faithBonuses;
-    const attackerFaith = attackerPlayer.stats.faith;
-
-    if (attackerFaith >= highThreshold) {
-      // High faith: +2 attack AND +1 defense
-      attackerAttack += highAttackBonus;
-      specialEffects.push(`High faith combat bonus (+${highAttackBonus} attack)`);
-      // Note: defense bonus applies to attacker when defending in counterattack
-    } else if (attackerFaith >= lowThreshold) {
-      // Moderate faith: +1 defense only (applied to attack calculation as morale)
-      specialEffects.push(`Moderate faith morale (+${lowDefenseBonus} defense)`);
-    }
-  }
-
-  // Defender faith-based defense bonuses
-  if (defenderPlayer) {
-    const { lowThreshold, highThreshold, lowDefenseBonus, highDefenseBonus } = GAME_RULES.faithBonuses;
-    const defenderFaith = defenderPlayer.stats.faith;
-
-    if (defenderFaith >= highThreshold) {
-      defenderDefense += highDefenseBonus;
-      specialEffects.push(`Defender high faith (+${highDefenseBonus} defense)`);
-    } else if (defenderFaith >= lowThreshold) {
-      defenderDefense += lowDefenseBonus;
-      specialEffects.push(`Defender faith bonus (+${lowDefenseBonus} defense)`);
-    }
-  }
-
-  // Pride-based combat bonuses
-  if (attackerPlayer && attackerPlayer.stats.pride >= 70) {
-    attackerAttack += 1;
-    specialEffects.push("High pride combat bonus (+1 attack)");
-  }
-
-  // Calculate final damage
-  const attackerDamage = Math.max(1, attackerAttack - defenderDefense);
-  const defenderDamage = Math.max(1, defender.attack - attacker.defense);
-
-  // Apply damage
-  const newDefenderHp = Math.max(0, defender.hp - attackerDamage);
-  const newAttackerHp = Math.max(0, attacker.hp - defenderDamage);
-
-  const defenderKilled = newDefenderHp <= 0;
-  const attackerKilled = newAttackerHp <= 0;
-
-  // Generate combat message
-  let message = `${attacker.type} attacks ${defender.type}`;
-  if (defenderKilled) {
-    message += ` and destroys it!`;
-  } else if (attackerKilled) {
-    message += ` but is destroyed in the counterattack!`;
-  } else {
-    message += ` (${attackerDamage} damage dealt, ${defenderDamage} received)`;
-  }
-
-  return {
-    success: true,
-    attackerDamage,
-    defenderDamage,
-    attackerHp: newAttackerHp,
-    defenderHp: newDefenderHp,
-    attackerKilled,
-    defenderKilled,
-    specialEffects,
-    message
-  };
+  return resolveCombat(attacker, defender, state, { terrainOverride: terrain });
 }
 
 /**

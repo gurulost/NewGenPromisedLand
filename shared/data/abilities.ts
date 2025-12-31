@@ -189,6 +189,14 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
     effect: 'DEFENSIVE_STANCE',
   },
 
+  ANTI_CAVALRY: {
+    id: 'ANTI_CAVALRY',
+    name: 'Anti-Cavalry',
+    description: 'Deals bonus damage to fast or mounted units',
+    type: 'unit',
+    effect: 'ANTI_CAVALRY_BONUS',
+  },
+
   STEALTH: {
     id: 'STEALTH',
     name: 'Stealth',
@@ -200,7 +208,7 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
   LEADERSHIP: {
     id: 'LEADERSHIP',
     name: 'Leadership',
-    description: 'Nearby units gain +1 to all stats',
+    description: 'Adjacent allies gain +1 attack and defense in combat',
     type: 'unit',
     effect: 'AREA_BUFF',
   },

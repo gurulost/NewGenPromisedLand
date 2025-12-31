@@ -26,6 +26,7 @@ import { applyPopulationGain } from "./cityGrowth";
 import { attemptUnitConversion } from "./conversion";
 import { computeUnitPassiveEffectsForPlayer } from "./unitPassiveEffects";
 import { nextFloat, nextId, nextInt } from "./rng";
+import { resolveCombat } from "./combatResolver";
 
 function getUnitSpawnCoordinate(state: GameState, unitType: UnitType, cityCoordinate: HexCoordinate): HexCoordinate | null {
   if (unitType !== 'boat') return cityCoordinate;
@@ -1460,14 +1461,7 @@ function handleAttackUnit(
   // Check if unit has already attacked this turn
   if (attacker.hasAttacked) return state;
 
-  // Check if units are within attack range
   const distance = hexDistance(attacker.coordinate, target.coordinate);
-  if (distance > attacker.attackRange) return state;
-
-  // Cannot target stealthed units unless adjacent
-  if (target.status === 'stealthed' && distance > 1) {
-    return state;
-  }
 
   const normalizeAbility = (abilityId: string) => abilityId.toUpperCase();
   const unitHasAbility = (unit: Unit, abilityId: string) =>
@@ -1478,34 +1472,25 @@ function handleAttackUnit(
     unitHasAbility(attacker, 'BOMBARDMENT') ||
     unitHasAbility(attacker, 'bombardment');
 
-  // Catapult bombardment requires siege_mode when firing at range.
-  if (attackerHasBombardment && distance > 1 && attacker.status !== 'siege_mode') {
-    emitTelemetry({
-      channel: 'combat',
-      status: 'blocked',
-      attackerId: attacker.id,
-      defenderId: target.id,
-      reason: 'catapult_not_deployed'
-    });
-    return state;
-  }
-
-  // Siege artillery must be stationary when firing at range.
-  if (attackerHasBombardment && distance > 1 && attacker.remainingMovement !== attacker.movement) {
-    emitTelemetry({
-      channel: 'combat',
-      status: 'blocked',
-      attackerId: attacker.id,
-      defenderId: target.id,
-      reason: 'catapult_moved_this_turn'
-    });
-    return state;
-  }
-
-  // Diplomacy: avoid combat when defender is an envoy-type with strong faith backing.
-  if (unitHasAbility(target, 'DIPLOMACY')) {
-    const defenderPlayer = state.players.find(p => p.id === target.playerId);
-    if (defenderPlayer && defenderPlayer.stats.faith >= 80) {
+  const combatResult = resolveCombat(attacker, target, state);
+  if (!combatResult.canAttack) {
+    if (combatResult.reasonCode === 'catapult_not_deployed') {
+      emitTelemetry({
+        channel: 'combat',
+        status: 'blocked',
+        attackerId: attacker.id,
+        defenderId: target.id,
+        reason: 'catapult_not_deployed'
+      });
+    } else if (combatResult.reasonCode === 'catapult_moved_this_turn') {
+      emitTelemetry({
+        channel: 'combat',
+        status: 'blocked',
+        attackerId: attacker.id,
+        defenderId: target.id,
+        reason: 'catapult_moved_this_turn'
+      });
+    } else if (combatResult.reasonCode === 'diplomacy_avoided') {
       emitTelemetry({
         channel: 'combat',
         status: 'info',
@@ -1531,93 +1516,16 @@ function handleAttackUnit(
         units: state.units.map(u => u.id === attacker.id ? { ...u, hasAttacked: true } : u)
       };
     }
-  }
 
-  // Calculate damage using data-driven modifier system with status effects
-  let attackPower = attacker.attack;
-  let defensePower = target.defense;
-
-  // Testimony pressure: temporary attack penalty (applied via statusEffects).
-  const testimonyPressurePenalty = (() => {
-    const effects = Array.isArray((attacker as any).statusEffects) ? (attacker as any).statusEffects : [];
-    const pressure = effects.find((e: any) => e?.type === 'TESTIMONY_PRESSURE');
-    return typeof pressure?.attackPenalty === 'number' ? pressure.attackPenalty : 0;
-  })();
-  if (testimonyPressurePenalty > 0) {
-    attackPower = Math.max(0, attackPower - testimonyPressurePenalty);
-  }
-
-  // Apply status effect bonuses
-  if (attacker.status === 'rallied') {
-    attackPower += 2; // Rally bonus
-  }
-  if (attacker.status === 'siege_mode') {
-    attackPower += 3; // Siege mode bonus
-  }
-  if (target.status === 'formation') {
-    defensePower += 2; // Formation defense bonus
+    return state;
   }
 
   const attackerPlayer = state.players.find(p => p.id === attacker.playerId);
   const targetPlayer = state.players.find(p => p.id === target.playerId);
+  const newHp = combatResult.defenderHp;
+  const newAttackerHp = combatResult.attackerHp;
 
-  // Apply attacker's combat modifiers
-  if (attackerPlayer) {
-    const attackModifiers = getActiveModifiers(attackerPlayer, 'on_attack');
-    attackModifiers.forEach(modifier => {
-      modifier.effect.forEach(effect => {
-        if (effect.stat === 'attack' && effect.target === 'self') {
-          attackPower += effect.value;
-          console.log(`Applied ${modifier.name}: +${effect.value} attack`);
-        }
-      });
-    });
-  }
-
-  // Apply target's defense modifiers
-  if (targetPlayer) {
-    const defenseModifiers = getActiveModifiers(targetPlayer, 'on_defend');
-    defenseModifiers.forEach(modifier => {
-      modifier.effect.forEach(effect => {
-        if (effect.stat === 'defense' && effect.target === 'self') {
-          defensePower += effect.value;
-          console.log(`Applied ${modifier.name}: +${effect.value} defense`);
-        }
-      });
-    });
-  }
-
-  // Faith synergy combat bonuses (tiered)
-  const faithCfg = GAME_RULES.faithBonuses;
-  if (attackerPlayer && attackerPlayer.stats.faith >= faithCfg.highThreshold) {
-    attackPower += faithCfg.highAttackBonus;
-  }
-  if (targetPlayer) {
-    const defenderFaith = targetPlayer.stats.faith;
-    if (defenderFaith >= faithCfg.highThreshold) {
-      defensePower += faithCfg.highDefenseBonus;
-    } else if (defenderFaith >= faithCfg.lowThreshold) {
-      defensePower += faithCfg.lowDefenseBonus;
-    }
-  }
-
-  // Calculate final damage
-  let damage = Math.max(1, attackPower - defensePower);
-
-  // Protective aura: allied guardian adjacent to defender reduces incoming damage.
-  const hasProtectiveAura = state.units.some(u =>
-    u.playerId === target.playerId &&
-    u.id !== target.id &&
-    unitHasAbility(u, 'PROTECTIVE_AURA') &&
-    hexDistance(u.coordinate, target.coordinate) <= 1
-  );
-  if (hasProtectiveAura) {
-    damage = Math.max(1, damage - 1);
-  }
-
-  const newHp = Math.max(0, target.hp - damage);
-
-  console.log(`Combat: ${attacker.type} (${attackPower} attack) vs ${target.type} (${defensePower} defense) = ${damage} damage`);
+  console.log(`Combat: ${attacker.type} (${combatResult.attackerDamage} dmg) vs ${target.type} (${combatResult.defenderDamage} counter)`);
 
   let updatedUnits = state.units.map((u: Unit) => {
     if (u.id === payload.targetId) {
@@ -1627,14 +1535,20 @@ function handleAttackUnit(
       // Remove stealth when attacking
       const newStatus = u.status === 'stealthed' ? 'active' : u.status;
       const isRangedBombardment = attackerHasBombardment && distance > 1;
-      return { ...u, hasAttacked: true, status: newStatus, remainingMovement: isRangedBombardment ? 0 : u.remainingMovement };
+      return {
+        ...u,
+        hp: newAttackerHp,
+        hasAttacked: true,
+        status: newStatus,
+        remainingMovement: isRangedBombardment ? 0 : u.remainingMovement
+      };
     }
     return u;
   });
 
   // Splash damage during bombardment (adjacent to target).
   if (attackerHasBombardment && attacker.status === 'siege_mode' && distance > 1) {
-    const splashDamage = Math.max(1, Math.floor(damage / 2));
+    const splashDamage = Math.max(1, Math.floor(combatResult.attackerDamage / 2));
     updatedUnits = updatedUnits.map(u => {
       if (u.playerId !== target.playerId) return u;
       if (u.id === target.id) return u;
@@ -1643,44 +1557,27 @@ function handleAttackUnit(
     });
   }
 
-  // Counter damage: defender retaliates if alive and in range.
-  const attackerAfter = updatedUnits.find(u => u.id === attacker.id);
-  const targetAfter = updatedUnits.find(u => u.id === target.id);
-  if (attackerAfter && targetAfter && targetAfter.hp > 0) {
-    const retaliateDistance = hexDistance(targetAfter.coordinate, attackerAfter.coordinate);
-    if (retaliateDistance <= targetAfter.attackRange && targetAfter.attack > 0) {
-      const counterDamage = Math.max(1, targetAfter.attack - attackerAfter.defense);
-      updatedUnits = updatedUnits.map(u =>
-        u.id === attackerAfter.id ? { ...u, hp: Math.max(0, u.hp - counterDamage) } : u
-      );
-    }
-  }
-
-  // Remove unit if killed
-  if (newHp <= 0) {
-    const killedUnit = target;
-    updatedUnits = updatedUnits.filter((u: Unit) => u.id !== payload.targetId);
+  const applyDeathEffects = (units: Unit[], killedUnit: Unit, killedPlayer: PlayerState | undefined) => {
+    let nextUnits = units;
 
     // Apply data-driven death modifiers
-    if (targetPlayer) {
-      const deathModifiers = getActiveModifiers(targetPlayer, 'on_death');
+    if (killedPlayer) {
+      const deathModifiers = getActiveModifiers(killedPlayer, 'on_death');
       deathModifiers.forEach(modifier => {
         modifier.effect.forEach(effect => {
           if (effect.target === 'nearby' && effect.radius) {
-            // Find units within radius
-            const affectedUnits = updatedUnits.filter(unit => {
-              if (unit.playerId !== target.playerId) return false;
-              const distance = hexDistance(unit.coordinate, target.coordinate);
+            const affectedUnits = nextUnits.filter(unit => {
+              if (unit.playerId !== killedPlayer.id) return false;
+              const distance = hexDistance(unit.coordinate, killedUnit.coordinate);
               return distance <= effect.radius!;
             });
 
-            // Apply effect to nearby units
             affectedUnits.forEach(unit => {
-              const unitIndex = updatedUnits.findIndex(u => u.id === unit.id);
+              const unitIndex = nextUnits.findIndex(u => u.id === unit.id);
               if (unitIndex !== -1) {
-                updatedUnits[unitIndex] = {
-                  ...updatedUnits[unitIndex],
-                  [effect.stat]: (updatedUnits[unitIndex][effect.stat as keyof Unit] as number) + effect.value
+                nextUnits[unitIndex] = {
+                  ...nextUnits[unitIndex],
+                  [effect.stat]: (nextUnits[unitIndex][effect.stat as keyof Unit] as number) + effect.value
                 };
                 console.log(`Applied ${modifier.name} to ${unit.id}: +${effect.value} ${effect.stat}`);
               }
@@ -1691,9 +1588,9 @@ function handleAttackUnit(
     }
 
     // Blood Feud (Lamanites): nearby allies gain +2 attack when an allied unit dies.
-    if (targetPlayer?.factionId === 'LAMANITES') {
-      updatedUnits = updatedUnits.map(u => {
-        if (u.playerId !== targetPlayer.id) return u;
+    if (killedPlayer?.factionId === 'LAMANITES') {
+      nextUnits = nextUnits.map(u => {
+        if (u.playerId !== killedPlayer.id) return u;
         if (hexDistance(u.coordinate, killedUnit.coordinate) > 1) return u;
         return { ...u, attack: u.attack + 2 };
       });
@@ -1702,20 +1599,33 @@ function handleAttackUnit(
         status: 'success',
         reason: 'blood_feud_triggered',
         defenderId: killedUnit.id,
-        playerId: targetPlayer.id
+        playerId: killedPlayer.id
       });
     }
 
     // Protective stance: if guardian dies, clear adjacent ally defense back to base.
     const killedHasProtectiveStance = unitHasAbility(killedUnit as any, 'PROTECTIVE_STANCE');
     if (killedHasProtectiveStance) {
-      updatedUnits = updatedUnits.map(u => {
+      nextUnits = nextUnits.map(u => {
         if (u.playerId !== killedUnit.playerId) return u;
         if (hexDistance(u.coordinate, killedUnit.coordinate) > 1) return u;
         const def = getUnitDefinition(u.type);
         return { ...u, defense: def.baseStats.defense };
       });
     }
+
+    return nextUnits;
+  };
+
+  // Remove units if killed and apply death effects
+  if (combatResult.defenderKilled) {
+    updatedUnits = updatedUnits.filter((u: Unit) => u.id !== payload.targetId);
+    updatedUnits = applyDeathEffects(updatedUnits, target, targetPlayer);
+  }
+
+  if (combatResult.attackerKilled) {
+    updatedUnits = updatedUnits.filter((u: Unit) => u.id !== payload.attackerId);
+    updatedUnits = applyDeathEffects(updatedUnits, attacker, attackerPlayer);
   }
 
   return {

@@ -12,7 +12,7 @@ import { FactionPersonalityEngine } from './aiFactionPersonality';
 import { SeededRNG, aiDebugOverlay } from './aiFoundation';
 import { emitTelemetry } from '../logic/telemetry';
 import { getTechCostDetails } from '../logic/technologyHelpers';
-import { resolveMeleeCombat } from '../logic/combatSystem';
+import { resolveCombat } from '../logic/combatResolver';
 import type { Technology } from '../data/technologies';
 import type { City, StructureDefinition, StructureType } from '../types/city';
 import type { Tile } from '../types/game';
@@ -1777,7 +1777,7 @@ export class AIEngine {
     if (distance > attacker.attackRange) {
       return null;
     }
-    return resolveMeleeCombat(attacker, defender, this.gameState);
+    return resolveCombat(attacker, defender, this.gameState);
   }
 
   private calculateLocalStrength(center: HexCoordinate, playerId: string, radius: number): number {
