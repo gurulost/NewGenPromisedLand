@@ -89,7 +89,7 @@ const RAW_UNIT_DEFINITIONS = {
     cost: 25,
     requirements: { pride: 50 },
     factionSpecific: [], // Available to ALL factions
-    abilities: ['rally_troops', 'NAVAL_COMMAND'],
+    abilities: ['rally_troops', 'NAVAL_COMMAND', 'LEADERSHIP'],
     requiredTechnology: 'leadership',
   },
 
@@ -127,7 +127,7 @@ const RAW_UNIT_DEFINITIONS = {
     },
     cost: 12,
     factionSpecific: [], // Available to ALL factions
-    abilities: ['formation_fighting'],
+    abilities: ['formation_fighting', 'ANTI_CAVALRY'],
     requiredTechnology: 'bronze_working',
   },
 
