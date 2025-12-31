@@ -12,6 +12,8 @@ import { MAP_SIZE_CONFIGS, MapSize } from "@shared/utils/mapGenerator";
 import { ContentShell } from "../primitives/ContentShell";
 import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
+import { StepFretDivider } from "../primitives/StepFretDivider";
+import { getFactionIcon, TempleIcon } from "../primitives/ThematicIcons";
 import { useHotkeys } from "../../hooks/useHotkeys";
 
 export type AIDifficulty = 'easy' | 'normal' | 'hard';
@@ -53,7 +55,7 @@ export default function PlayerSetup() {
     if (players.length < 6) {
       setPlayers([...players, {
         id: (players.length + 1).toString(),
-        name: `AI Player ${players.length}`,
+        name: `AI Player ${players.length} `,
         factionId: null,
         isAI: true,
         aiDifficulty: 'normal'
@@ -78,7 +80,7 @@ export default function PlayerSetup() {
       p.id === id ? {
         ...p,
         isAI: !p.isAI,
-        name: !p.isAI ? `AI ${p.name}` : p.name.replace(/^AI /, '')
+        name: !p.isAI ? `AI ${p.name} ` : p.name.replace(/^AI /, '')
       } : p
     ));
   };
@@ -162,9 +164,9 @@ export default function PlayerSetup() {
                       </button>
 
                       <div className="flex-1 space-y-2">
-                        <Label htmlFor={`name-${player.id}`} className={player.isAI ? "text-jade-200" : "text-amber-100"}>Player Name</Label>
+                        <Label htmlFor={`name - ${player.id} `} className={player.isAI ? "text-jade-200" : "text-amber-100"}>Player Name</Label>
                         <Input
-                          id={`name-${player.id}`}
+                          id={`name - ${player.id} `}
                           value={player.name}
                           onChange={(e) => updatePlayer(player.id, 'name', e.target.value)}
                           className="bg-slate-700/80 border-slate-600 text-white"
@@ -173,33 +175,55 @@ export default function PlayerSetup() {
                       </div>
 
                       <div className="flex-1 space-y-2">
-                        <Label htmlFor={`faction-${player.id}`} className={player.isAI ? "text-jade-200" : "text-amber-100"}>Faction</Label>
-                        <Select
-                          value={player.factionId || ""}
-                          onValueChange={(value) => updatePlayer(player.id, 'factionId', value)}
-                        >
-                          <SelectTrigger className="bg-slate-700/80 border-slate-600 text-white">
-                            <SelectValue placeholder="Choose faction" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-slate-800 border-slate-600">
-                            {factions.map(faction => (
-                              <SelectItem
-                                key={faction.id}
-                                value={faction.id}
-                                disabled={usedFactions.includes(faction.id) && player.factionId !== faction.id}
-                                className="text-white hover:bg-slate-700"
+                        <Label htmlFor={`faction - ${player.id} `} className={player.isAI ? "text-jade-200" : "text-amber-100"}>Faction</Label>
+                        <div className="flex items-center gap-2">
+                          {/* Faction preview icon */}
+                          {player.factionId && (() => {
+                            const FactionIcon = getFactionIcon(player.factionId);
+                            const faction = factions.find(f => f.id === player.factionId);
+                            return FactionIcon ? (
+                              <div
+                                className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-500/50"
+                                style={{ backgroundColor: faction?.color + '33' }}
                               >
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className="w-3 h-3 rounded-full"
-                                    style={{ backgroundColor: faction.color }}
-                                  />
-                                  {faction.name}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                                <FactionIcon size="md" className="opacity-80" style={{ color: faction?.color }} />
+                              </div>
+                            ) : null;
+                          })()}
+                          <Select
+                            value={player.factionId || ""}
+                            onValueChange={(value) => updatePlayer(player.id, 'factionId', value)}
+                          >
+                            <SelectTrigger className="bg-slate-700/80 border-slate-600 text-white flex-1">
+                              <SelectValue placeholder="Choose faction" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-slate-800 border-slate-600">
+                              {factions.map(faction => {
+                                const FactionIcon = getFactionIcon(faction.id);
+                                return (
+                                  <SelectItem
+                                    key={faction.id}
+                                    value={faction.id}
+                                    disabled={usedFactions.includes(faction.id) && player.factionId !== faction.id}
+                                    className="text-white hover:bg-slate-700"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      {FactionIcon ? (
+                                        <FactionIcon size="sm" style={{ color: faction.color }} />
+                                      ) : (
+                                        <div
+                                          className="w-3 h-3 rounded-full"
+                                          style={{ backgroundColor: faction.color }}
+                                        />
+                                      )}
+                                      {faction.name}
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
 
                       {/* AI Difficulty Selector (only for AI players) */}

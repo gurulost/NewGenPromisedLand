@@ -3,7 +3,9 @@ import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { ContentShell } from "../primitives/ContentShell";
 import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
-import { Users, Crown, Globe, FolderOpen } from "lucide-react";
+import { StepFretDivider } from "../primitives/StepFretDivider";
+import { HeaddressIcon, WarriorShieldIcon, TempleIcon } from "../primitives/ThematicIcons";
+import { Users, Globe, FolderOpen } from "lucide-react";
 import { listSaves, type ServerSave } from "../../lib/saveApi";
 import SaveLoadMenu from "./SaveLoadMenu";
 import { loadAutosave } from "../../lib/autosaveStorage";
@@ -121,7 +123,7 @@ export default function MainMenu() {
         <ContentShell size="md" shimmerBorder showCornerOrnaments>
           <div className="p-6 space-y-6">
             <PanelHeader
-              icon={<Crown />}
+              icon={<HeaddressIcon size="lg" />}
               title="Chronicles of the Promised Land"
               description="A Book of Mormon Strategy Game"
               animated
@@ -141,7 +143,7 @@ export default function MainMenu() {
                     </span>
                   </GlowingButton>
 
-                  <div className="border-t border-amber-500/20 my-2" />
+                  <StepFretDivider />
                 </>
               )}
 
@@ -154,7 +156,7 @@ export default function MainMenu() {
                 variant={savedGames.length > 0 ? "secondary" : "default"}
               >
                 <span className="flex items-center justify-center gap-2">
-                  <Crown />
+                  <WarriorShieldIcon />
                   Single Player vs AI
                 </span>
               </GlowingButton>
@@ -183,7 +185,7 @@ export default function MainMenu() {
                 </span>
               </GlowingButton>
 
-              <div className="border-t border-amber-500/20 my-2" />
+              <StepFretDivider />
 
               <GlowingButton
                 onClick={() => setShowLoadMenu(true)}
@@ -198,7 +200,8 @@ export default function MainMenu() {
               </GlowingButton>
             </div>
 
-            <div className="pt-4 border-t border-amber-500/20">
+            <div className="pt-4">
+              <StepFretDivider size="sm" />
               <p className="text-sm text-amber-100/70 text-center leading-relaxed font-body">
                 Lead your people through faith, struggle, and triumph in the ancient Americas
               </p>
