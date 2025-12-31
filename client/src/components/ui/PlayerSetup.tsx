@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
+import clsx from "clsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 import { Input } from "./input";
 import { Label } from "./label";
@@ -111,12 +112,13 @@ export default function PlayerSetup() {
     >
       <div className="min-h-full flex items-center justify-center py-8">
         <div className="w-full max-w-2xl">
-          <ContentShell size="2xl">
+          <ContentShell size="2xl" shimmerBorder showCornerOrnaments>
             <div className="p-6 space-y-6">
               <PanelHeader
                 icon={<Users />}
                 title="Local Game Setup"
                 description="Configure players for pass-and-play mode"
+                animated
               />
 
               <div className="space-y-4">

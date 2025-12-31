@@ -2,29 +2,29 @@ import { renderHook } from '@testing-library/react';
 import { useHotkeys } from '../useHotkeys';
 
 describe('useHotkeys', () => {
-  let originalAddEventListener: typeof document.addEventListener;
-  let originalRemoveEventListener: typeof document.removeEventListener;
+  let originalAddEventListener: typeof window.addEventListener;
+  let originalRemoveEventListener: typeof window.removeEventListener;
   let mockCallback: jest.Mock;
 
   beforeEach(() => {
     mockCallback = jest.fn();
-    originalAddEventListener = document.addEventListener;
-    originalRemoveEventListener = document.removeEventListener;
-    
-    document.addEventListener = jest.fn();
-    document.removeEventListener = jest.fn();
+    originalAddEventListener = window.addEventListener;
+    originalRemoveEventListener = window.removeEventListener;
+
+    window.addEventListener = jest.fn();
+    window.removeEventListener = jest.fn();
   });
 
   afterEach(() => {
-    document.addEventListener = originalAddEventListener;
-    document.removeEventListener = originalRemoveEventListener;
+    window.addEventListener = originalAddEventListener;
+    window.removeEventListener = originalRemoveEventListener;
     jest.clearAllMocks();
   });
 
   it('adds event listener on mount', () => {
     renderHook(() => useHotkeys('Escape', mockCallback));
     
-    expect(document.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(window.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
   });
 
   it('removes event listener on unmount', () => {
@@ -32,13 +32,13 @@ describe('useHotkeys', () => {
     
     unmount();
     
-    expect(document.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(window.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
   });
 
   it('handles single key hotkey', () => {
     renderHook(() => useHotkeys('Escape', mockCallback));
     
-    const [[, handler]] = (document.addEventListener as jest.Mock).mock.calls;
+    const [[, handler]] = (window.addEventListener as jest.Mock).mock.calls;
     
     // Simulate Escape key press
     handler({ key: 'Escape', preventDefault: jest.fn() });
@@ -49,7 +49,7 @@ describe('useHotkeys', () => {
   it('handles multiple key hotkeys', () => {
     renderHook(() => useHotkeys(['Escape', 'b'], mockCallback));
     
-    const [[, handler]] = (document.addEventListener as jest.Mock).mock.calls;
+    const [[, handler]] = (window.addEventListener as jest.Mock).mock.calls;
     
     // Simulate Escape key press
     handler({ key: 'Escape', preventDefault: jest.fn() });
@@ -64,17 +64,28 @@ describe('useHotkeys', () => {
     const preventDefault = jest.fn();
     renderHook(() => useHotkeys('Escape', mockCallback));
     
-    const [[, handler]] = (document.addEventListener as jest.Mock).mock.calls;
+    const [[, handler]] = (window.addEventListener as jest.Mock).mock.calls;
     
     handler({ key: 'Escape', preventDefault });
     
     expect(preventDefault).toHaveBeenCalled();
   });
 
+  it('ignores hotkeys while typing in inputs', () => {
+    renderHook(() => useHotkeys('KeyB', mockCallback));
+
+    const [[, handler]] = (window.addEventListener as jest.Mock).mock.calls;
+    const input = document.createElement('input');
+
+    handler({ key: 'b', target: input, preventDefault: jest.fn() });
+
+    expect(mockCallback).not.toHaveBeenCalled();
+  });
+
   it('does not trigger callback for non-matching keys', () => {
     renderHook(() => useHotkeys('Escape', mockCallback));
     
-    const [[, handler]] = (document.addEventListener as jest.Mock).mock.calls;
+    const [[, handler]] = (window.addEventListener as jest.Mock).mock.calls;
     
     handler({ key: 'Enter', preventDefault: jest.fn() });
     
@@ -88,7 +99,7 @@ describe('useHotkeys', () => {
       { initialProps: { callback: mockCallback } }
     );
     
-    const [[, handler]] = (document.addEventListener as jest.Mock).mock.calls;
+    const [[, handler]] = (window.addEventListener as jest.Mock).mock.calls;
     
     // Test with original callback
     handler({ key: 'Escape', preventDefault: jest.fn() });
