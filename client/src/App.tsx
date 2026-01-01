@@ -14,20 +14,10 @@ import { CombatEffectsDemo } from "./components/effects/CombatEffectsDemo";
 import { VisualFeedbackProvider } from "./components/ui/VisualFeedback";
 import { FloatingTextManager } from "./components/ui/FloatingText";
 import { AudioProvider } from "./components/ui/AudioProvider";
+import { WorldBuildLoader } from "./components/ui/WorldBuildLoader";
 import { useTouchModeProvider, TouchModeContext } from "./hooks/useTouchMode";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "@fontsource/inter";
-
-function GameLoading() {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-      <div className="text-center space-y-4">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-amber-100 font-medium">Loading game...</p>
-      </div>
-    </div>
-  );
-}
 
 const queryClient = new QueryClient();
 
@@ -124,6 +114,7 @@ function App() {
                       </Suspense>
                     </Canvas>
                     <GameUI />
+                    <WorldBuildLoader enabled />
                   </ErrorBoundary>
                 )}
               </KeyboardControls>
