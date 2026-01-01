@@ -28,20 +28,80 @@ import { computeUnitPassiveEffectsForPlayer } from "./unitPassiveEffects";
 import { nextFloat, nextId, nextInt } from "./rng";
 import { resolveCombat } from "./combatResolver";
 
-function getUnitSpawnCoordinate(state: GameState, unitType: UnitType, cityCoordinate: HexCoordinate): HexCoordinate | null {
-  if (unitType !== 'boat') return cityCoordinate;
-
-  // Spawn boats into adjacent water tiles (no embark/disembark system yet).
-  for (const neighbor of hexNeighbors(cityCoordinate)) {
-    const tile = state.map.tiles.find(t => t.coordinate.q === neighbor.q && t.coordinate.r === neighbor.r);
-    if (!tile) continue;
-    if (tile.terrain !== 'water') continue;
-    const occupied = state.units.some(u => u.coordinate.q === neighbor.q && u.coordinate.r === neighbor.r && u.coordinate.s === neighbor.s);
-    if (occupied) continue;
-    return neighbor;
+function getUnitSpawnCoordinate(
+  state: GameState, 
+  unitType: UnitType, 
+  cityCoordinate: HexCoordinate,
+  playerId: string,
+  preferredCoordinate?: HexCoordinate
+): HexCoordinate | null {
+  const SPAWN_RADIUS = 2;
+  const MAX_UNITS_PER_TILE = GAME_RULES.units.maxUnitsPerCity;
+  
+  // Helper to count units on a tile using q,r (axial coords - s is derived)
+  const getUnitsOnTile = (coord: HexCoordinate) => 
+    state.units.filter(u => 
+      u.coordinate.q === coord.q && u.coordinate.r === coord.r
+    );
+  
+  // Helper to check if tile is valid for spawning
+  const isValidSpawnTile = (coord: HexCoordinate, terrain: string) => {
+    const unitsOnTile = getUnitsOnTile(coord);
+    const hasEnemy = unitsOnTile.some(u => u.playerId !== playerId);
+    if (hasEnemy) return false;
+    if (unitsOnTile.length >= MAX_UNITS_PER_TILE) return false;
+    return true;
+  };
+  
+  // For boats, find ADJACENT water tiles only (coastal launch rule)
+  if (unitType === 'boat') {
+    const adjacentTiles = hexNeighbors(cityCoordinate);
+    for (const neighbor of adjacentTiles) {
+      const tile = state.map.tiles.find(t => 
+        t.coordinate.q === neighbor.q && t.coordinate.r === neighbor.r
+      );
+      if (!tile || tile.terrain !== 'water') continue;
+      if (!isValidSpawnTile(tile.coordinate, tile.terrain)) continue;
+      return tile.coordinate;
+    }
+    return null;
   }
-
-  return null;
+  
+  // Get all tiles within spawn radius of the city for land units
+  const tilesInRange = state.map.tiles.filter(tile => 
+    hexDistance(cityCoordinate, tile.coordinate) <= SPAWN_RADIUS
+  );
+  
+  // For land units, find valid spawn locations
+  const validSpawnTiles = tilesInRange.filter(tile => {
+    if (tile.terrain === 'water') return false;
+    return isValidSpawnTile(tile.coordinate, tile.terrain);
+  });
+  
+  if (validSpawnTiles.length === 0) return null;
+  
+  // If a preferred coordinate is specified and valid, use it
+  if (preferredCoordinate) {
+    const preferred = validSpawnTiles.find(tile =>
+      tile.coordinate.q === preferredCoordinate.q &&
+      tile.coordinate.r === preferredCoordinate.r
+    );
+    if (preferred) return preferred.coordinate;
+  }
+  
+  // Prefer tiles with fewer units, prioritizing city center
+  validSpawnTiles.sort((a, b) => {
+    const unitsOnA = getUnitsOnTile(a.coordinate).length;
+    const unitsOnB = getUnitsOnTile(b.coordinate).length;
+    
+    // First prefer fewer units
+    if (unitsOnA !== unitsOnB) return unitsOnA - unitsOnB;
+    
+    // Then prefer closer to city
+    return hexDistance(cityCoordinate, a.coordinate) - hexDistance(cityCoordinate, b.coordinate);
+  });
+  
+  return validSpawnTiles[0].coordinate;
 }
 
 function clamp01(value: number): number {
@@ -1103,21 +1163,10 @@ function handleRecruitUnit(
     return state;
   }
 
-  // Check if city has space for new units (max units rule)
+  // Check if city has space for new units (uses 2-tile spawn radius)
   const unitTypeTyped = unitType as UnitType;
-  let spawnCoordinate: HexCoordinate | null = null;
-
-  if (unitTypeTyped === 'boat') {
-    spawnCoordinate = getUnitSpawnCoordinate(state, unitTypeTyped, targetCity.coordinate);
-    if (!spawnCoordinate) return state;
-  } else {
-    const existingCityUnits = state.units.filter(unit =>
-      unit.coordinate.q === targetCity.coordinate.q &&
-      unit.coordinate.r === targetCity.coordinate.r
-    );
-    if (existingCityUnits.length >= GAME_RULES.units.maxUnitsPerCity) return state;
-    spawnCoordinate = targetCity.coordinate;
-  }
+  const spawnCoordinate = getUnitSpawnCoordinate(state, unitTypeTyped, targetCity.coordinate, playerId);
+  if (!spawnCoordinate) return state;
 
   let rngSeed = state.rngSeed ?? 0;
   const unitIdResult = nextId(rngSeed, `${unitType}_${playerId}`);
@@ -2069,11 +2118,11 @@ function handleEndTurn(
     if ((player as any).completedConstructions) {
       (player as any).completedConstructions.forEach((construction: any) => {
         if (construction.category === 'units') {
-          // Create new unit at city location
+          // Create new unit within 2 tiles of city
           const city = state.cities?.find(c => c.id === construction.cityId);
           if (city) {
             const unitDef = getUnitDefinition(construction.type as any);
-            const spawnCoordinate = getUnitSpawnCoordinate(state, construction.type as UnitType, city.coordinate);
+            const spawnCoordinate = getUnitSpawnCoordinate(state, construction.type as UnitType, city.coordinate, construction.playerId);
             if (!spawnCoordinate) return;
             const unitIdResult = nextId(rngSeed, "unit");
             rngSeed = unitIdResult.seed;
@@ -2831,13 +2880,8 @@ function handleBuildUnit(
     if (unitDef.requirements.dissent && player.stats.internalDissent < unitDef.requirements.dissent) return state;
   }
 
-  const existingCityUnits = state.units.filter(u =>
-    u.coordinate.q === targetCity.coordinate.q &&
-    u.coordinate.r === targetCity.coordinate.r
-  );
-  if (unitType !== 'boat' && existingCityUnits.length >= GAME_RULES.units.maxUnitsPerCity) return state;
-
-  const spawnCoordinate = getUnitSpawnCoordinate(state, unitType as UnitType, targetCity.coordinate);
+  // Use 2-tile spawn radius from city
+  const spawnCoordinate = getUnitSpawnCoordinate(state, unitType as UnitType, targetCity.coordinate, playerId);
   if (!spawnCoordinate) return state;
 
   let rngSeed = state.rngSeed ?? 0;
@@ -3785,4 +3829,50 @@ function handleActivateFactionAbility(
     ...state,
     players: state.players.map(p => p.id === playerId ? updatedPlayer : p)
   };
+}
+
+/**
+ * Get all valid spawn tiles within range of a city for UI display
+ */
+export function getValidSpawnTiles(
+  state: GameState,
+  cityCoordinate: HexCoordinate,
+  unitType: UnitType,
+  playerId: string
+): HexCoordinate[] {
+  const SPAWN_RADIUS = 2;
+  const MAX_UNITS_PER_TILE = GAME_RULES.units.maxUnitsPerCity;
+  
+  const getUnitsOnTile = (coord: HexCoordinate) => 
+    state.units.filter(u => 
+      u.coordinate.q === coord.q && u.coordinate.r === coord.r
+    );
+  
+  const isValidSpawnTile = (coord: HexCoordinate) => {
+    const unitsOnTile = getUnitsOnTile(coord);
+    const hasEnemy = unitsOnTile.some(u => u.playerId !== playerId);
+    return !hasEnemy && unitsOnTile.length < MAX_UNITS_PER_TILE;
+  };
+  
+  // For boats, only adjacent water tiles (coastal launch)
+  if (unitType === 'boat') {
+    const adjacentTiles = hexNeighbors(cityCoordinate);
+    return adjacentTiles
+      .map(neighbor => state.map.tiles.find(t => 
+        t.coordinate.q === neighbor.q && t.coordinate.r === neighbor.r
+      ))
+      .filter((tile): tile is NonNullable<typeof tile> => 
+        !!tile && tile.terrain === 'water' && isValidSpawnTile(tile.coordinate)
+      )
+      .map(tile => tile.coordinate);
+  }
+  
+  // For land units, 2-tile radius
+  const tilesInRange = state.map.tiles.filter(tile => 
+    hexDistance(cityCoordinate, tile.coordinate) <= SPAWN_RADIUS
+  );
+  
+  return tilesInRange
+    .filter(tile => tile.terrain !== 'water' && isValidSpawnTile(tile.coordinate))
+    .map(tile => tile.coordinate);
 }
