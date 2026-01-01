@@ -94,9 +94,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     throw new Error("SESSION_SECRET environment variable is required in production");
   }
   
+  const isProduction = process.env.NODE_ENV === "production";
+  
+  // Trust the reverse proxy (required for secure cookies behind HTTPS proxy)
+  if (isProduction) {
+    app.set("trust proxy", 1);
+  }
+  
   app.use(
     session({
-      cookie: { maxAge: 86400000 * 7 }, // 7 days
+      cookie: { 
+        maxAge: 86400000 * 7, // 7 days
+        httpOnly: true,
+        sameSite: "lax",
+        secure: isProduction, // Only send cookie over HTTPS in production
+      },
       store: new MemoryStoreSession({
         checkPeriod: 86400000, // prune expired entries every 24h
       }),
