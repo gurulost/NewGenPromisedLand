@@ -12,6 +12,8 @@ import type { UnitType } from "@shared/types/unit";
 import { BuildingMenu } from "./BuildingMenu";
 import { ActionTooltip } from "./TooltipSystem";
 import { Input } from "./input";
+import { getValidSpawnTiles } from "@shared/logic/gameReducer";
+import { HexCoordinate } from "@shared/types/coordinates";
 
 interface CityPanelProps {
   open: boolean;
@@ -21,7 +23,7 @@ interface CityPanelProps {
 
 export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
   const { gameState, dispatch } = useLocalGame();
-  const { startConstruction } = useGameState();
+  const { startConstruction, startSpawnSelection } = useGameState();
   const [selectedTab, setSelectedTab] = useState<'overview' | 'structures' | 'units' | 'improvements'>('overview');
   const [showAdvancedBuildingMenu, setShowAdvancedBuildingMenu] = useState(false);
 
@@ -58,12 +60,48 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
   };
 
   const handleRecruitUnit = (unitType: UnitType) => {
-    dispatch({
-      type: 'RECRUIT_UNIT',
-      payload: {
-        playerId: currentPlayer.id,
-        cityId,
-        unitType
+    // Get valid spawn tiles for this unit type
+    const validTiles = getValidSpawnTiles(gameState, city.coordinate, unitType, currentPlayer.id);
+    
+    if (validTiles.length === 0) {
+      console.log('No valid spawn tiles available for', unitType);
+      // Show user feedback
+      alert(`Cannot recruit ${unitType}: No valid spawn locations available. All nearby tiles are blocked or at capacity.`);
+      return;
+    }
+    
+    // If only one valid tile, spawn directly there
+    if (validTiles.length === 1) {
+      dispatch({
+        type: 'RECRUIT_UNIT',
+        payload: {
+          playerId: currentPlayer.id,
+          cityId,
+          unitType,
+          spawnCoordinate: validTiles[0]
+        }
+      });
+      return;
+    }
+    
+    // Multiple valid tiles - enter spawn selection mode
+    onClose(); // Close the city panel
+    startSpawnSelection({
+      unitType,
+      cityId,
+      cityCoordinate: city.coordinate,
+      playerId: currentPlayer.id,
+      validSpawnTiles: validTiles,
+      onSelectTile: (coordinate: HexCoordinate) => {
+        dispatch({
+          type: 'RECRUIT_UNIT',
+          payload: {
+            playerId: currentPlayer.id,
+            cityId,
+            unitType,
+            spawnCoordinate: coordinate
+          }
+        });
       }
     });
   };
@@ -610,7 +648,14 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               category = 'improvements';
             }
 
-            // All construction now uses tile selection mode
+            // For units, use spawn selection mode
+            if (category === 'units') {
+              handleRecruitUnit(optionId as UnitType);
+              setShowAdvancedBuildingMenu(false);
+              return;
+            }
+
+            // For structures and improvements, use construction mode
             console.log(`Starting tile selection for ${optionId}`);
             startConstruction(optionId, category, city.id, currentPlayer.id);
             setShowAdvancedBuildingMenu(false);

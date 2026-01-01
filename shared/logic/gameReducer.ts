@@ -56,15 +56,27 @@ function getUnitSpawnCoordinate(
   // For boats, find ADJACENT water tiles only (coastal launch rule)
   if (unitType === 'boat') {
     const adjacentTiles = hexNeighbors(cityCoordinate);
-    for (const neighbor of adjacentTiles) {
-      const tile = state.map.tiles.find(t => 
+    const validBoatTiles = adjacentTiles
+      .map(neighbor => state.map.tiles.find(t => 
         t.coordinate.q === neighbor.q && t.coordinate.r === neighbor.r
+      ))
+      .filter((tile): tile is NonNullable<typeof tile> => 
+        !!tile && tile.terrain === 'water' && isValidSpawnTile(tile.coordinate, tile.terrain)
       );
-      if (!tile || tile.terrain !== 'water') continue;
-      if (!isValidSpawnTile(tile.coordinate, tile.terrain)) continue;
-      return tile.coordinate;
+    
+    if (validBoatTiles.length === 0) return null;
+    
+    // If a preferred coordinate is specified and valid, use it
+    if (preferredCoordinate) {
+      const preferred = validBoatTiles.find(tile =>
+        tile.coordinate.q === preferredCoordinate.q &&
+        tile.coordinate.r === preferredCoordinate.r
+      );
+      if (preferred) return preferred.coordinate;
     }
-    return null;
+    
+    // Otherwise return first valid water tile
+    return validBoatTiles[0].coordinate;
   }
   
   // Get all tiles within spawn radius of the city for land units
@@ -1126,9 +1138,9 @@ function handleWorldElementBuild(
 // Recruit Unit Handler
 function handleRecruitUnit(
   state: GameState,
-  payload: { playerId: string; cityId: string; unitType: string }
+  payload: { playerId: string; cityId: string; unitType: string; spawnCoordinate?: HexCoordinate }
 ): GameState {
-  const { playerId, cityId, unitType } = payload;
+  const { playerId, cityId, unitType, spawnCoordinate: preferredSpawnCoordinate } = payload;
 
   const player = state.players.find(p => p.id === playerId);
   if (!player) return state;
@@ -1165,7 +1177,7 @@ function handleRecruitUnit(
 
   // Check if city has space for new units (uses 2-tile spawn radius)
   const unitTypeTyped = unitType as UnitType;
-  const spawnCoordinate = getUnitSpawnCoordinate(state, unitTypeTyped, targetCity.coordinate, playerId);
+  const spawnCoordinate = getUnitSpawnCoordinate(state, unitTypeTyped, targetCity.coordinate, playerId, preferredSpawnCoordinate);
   if (!spawnCoordinate) return state;
 
   let rngSeed = state.rngSeed ?? 0;

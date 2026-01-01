@@ -64,7 +64,7 @@ export default function GameUI() {
   const hostLeaseExpired = useLocalGame((state) => state.hostLeaseExpired);
   const setOnlineHost = useLocalGame((state) => state.setOnlineHost);
   const setHostLeaseStatus = useLocalGame((state) => state.setHostLeaseStatus);
-  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates, closeTileContextMenu } = useGameState();
+  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, spawnSelectionMode, cancelSpawnSelection, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates, closeTileContextMenu } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const { triggerFlash, showToast } = useVisualFeedback();
   const playSfx = useSfxEngine();
@@ -1384,6 +1384,24 @@ export default function GameUI() {
               <p className="text-xs mb-2">Select an adjacent tile to build a road.</p>
               <button
                 onClick={cancelRoadBuild}
+                className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-xs text-white font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Spawn Selection Mode Indicator */}
+      {spawnSelectionMode.isActive && (
+        <div className="absolute top-4 right-4 pointer-events-auto z-50">
+          <div className="bg-black/90 text-white px-4 py-3 rounded-lg border-2 border-cyan-400 shadow-lg backdrop-blur-sm max-w-xs">
+            <div className="text-center">
+              <h3 className="text-sm font-bold mb-1">Select Spawn Location</h3>
+              <p className="text-xs mb-2">Click a <span className="text-cyan-300 font-semibold">highlighted tile</span> to spawn your <span className="font-semibold text-cyan-300">{spawnSelectionMode.unitType}</span></p>
+              <button
+                onClick={cancelSpawnSelection}
                 className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-xs text-white font-medium transition-colors"
               >
                 Cancel
