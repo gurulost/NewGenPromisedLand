@@ -6,7 +6,7 @@ import { GlowingButton } from "../primitives/GlowingButton";
 import { AvatarBadge } from "../primitives/AvatarBadge";
 import { ContentShell } from "../primitives/ContentShell";
 import { PanelHeader } from "../primitives/PanelHeader";
-import { Play, Clock, Eye, EyeOff } from "lucide-react";
+import { Play, Clock } from "lucide-react";
 import { useHotkeys } from "../../hooks/useHotkeys";
 
 // List of all available background images
@@ -48,29 +48,13 @@ const BACKGROUND_IMAGES = [
   'magnifics_upscale-zr6uwxMiG09mW0ByxKFZ-IMG_0326-min.png'
 ];
 
-// Preload all images for instant display
-const preloadedImages = new Map<string, HTMLImageElement>();
-
-const preloadImages = () => {
-  BACKGROUND_IMAGES.forEach(imageName => {
-    if (!preloadedImages.has(imageName)) {
-      const img = new Image();
-      img.src = `/images/rotating_images/${imageName}`;
-      preloadedImages.set(imageName, img);
-    }
-  });
-};
-
-// Start preloading immediately when module loads
-if (typeof window !== 'undefined') {
-  preloadImages();
-}
+// Track loaded images to avoid reloading in the same session.
+const loadedImages = new Set<string>();
 
 export default function HandoffScreen() {
-  const { gameState, setGamePhase } = useLocalGame();
+  const { gameState, setGamePhase, onlineSession } = useLocalGame();
   const [backgroundImage, setBackgroundImage] = useState<string>('');
   const [imageLoaded, setImageLoaded] = useState<boolean>(false);
-  const [showPrivacyMode, setShowPrivacyMode] = useState(false);
 
   useHotkeys('Space', () => setGamePhase('playing'));
   useHotkeys('Enter', () => setGamePhase('playing'));
@@ -81,8 +65,8 @@ export default function HandoffScreen() {
     const selectedImage = BACKGROUND_IMAGES[randomIndex];
     const imagePath = `/images/rotating_images/${selectedImage}`;
     
-    // Check if image is preloaded, if so show immediately
-    if (preloadedImages.has(selectedImage)) {
+    // If already loaded, display immediately; otherwise load on demand.
+    if (loadedImages.has(selectedImage)) {
       setBackgroundImage(imagePath);
       setImageLoaded(true);
     } else {
@@ -91,6 +75,7 @@ export default function HandoffScreen() {
       img.onload = () => {
         setBackgroundImage(imagePath);
         setImageLoaded(true);
+        loadedImages.add(selectedImage);
       };
       img.src = imagePath;
     }
@@ -109,6 +94,8 @@ export default function HandoffScreen() {
   }
 
   const faction = getFaction(currentPlayer.factionId as any);
+  const isOnline = !!onlineSession;
+  const subtitle = isOnline ? "Ready for your turn?" : "Pass the device to the next player";
 
   const handleStartTurn = () => {
     setGamePhase('playing');
@@ -125,11 +112,6 @@ export default function HandoffScreen() {
         opacity: imageLoaded ? 1 : 0.8
       }}
     >
-      {/* Privacy overlay */}
-      {showPrivacyMode && (
-        <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-xl z-40" />
-      )}
-
       {/* Elegant handoff panel with improved styling */}
       <div className="relative z-10 w-full h-full flex items-center justify-center">
         <ContentShell size="md">
@@ -137,7 +119,7 @@ export default function HandoffScreen() {
             <PanelHeader
               icon={<Clock />}
               title={`${currentPlayer.name}'s Turn`}
-              description="Pass the device to the next player"
+              description={subtitle}
             />
             
             {/* Player info with AvatarBadge */}
@@ -147,21 +129,19 @@ export default function HandoffScreen() {
               transition={{ delay: 0.3, type: "spring", duration: 0.8 }}
               className="flex flex-col items-center gap-4"
             >
-              {!showPrivacyMode && (
-                <AvatarBadge 
-                  playerId={currentPlayer.id}
-                  playerName={currentPlayer.name}
-                  factionId={currentPlayer.factionId as any}
-                  size="large"
-                  className="shadow-2xl shadow-amber-500/30"
-                />
-              )}
+              <AvatarBadge 
+                playerId={currentPlayer.id}
+                playerName={currentPlayer.name}
+                factionId={currentPlayer.factionId as any}
+                size="large"
+                className="shadow-2xl shadow-amber-500/30"
+              />
               <div className="text-center">
                 <div className="text-2xl font-bold font-cinzel text-amber-100">
-                  {showPrivacyMode ? "Next Player's Turn" : currentPlayer.name}
+                  {currentPlayer.name}
                 </div>
                 <div className="text-lg text-amber-300 font-body">
-                  {showPrivacyMode ? "Hidden for Privacy" : faction.name}
+                  {faction.name}
                 </div>
               </div>
             </motion.div>
@@ -175,23 +155,6 @@ export default function HandoffScreen() {
             >
               <Clock className="w-4 h-4" />
               <span>Turn {gameState.turn}</span>
-            </motion.div>
-            
-            {/* Privacy toggle */}
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.7, duration: 0.6 }}
-            >
-              <GlowingButton
-                onClick={() => setShowPrivacyMode(!showPrivacyMode)}
-                variant="secondary"
-                size="sm"
-                className="mb-4 flex items-center gap-2 justify-center"
-              >
-                {showPrivacyMode ? <Eye /> : <EyeOff />}
-                {showPrivacyMode ? 'Show Details' : 'Privacy Mode'}
-              </GlowingButton>
             </motion.div>
             
             {/* Call-to-action button */}
@@ -208,6 +171,9 @@ export default function HandoffScreen() {
                 <Play />
                 Start Turn
               </GlowingButton>
+              <div className="mt-3 text-xs text-amber-200/70 font-body">
+                Press Space or Enter to start
+              </div>
             </motion.div>
           </div>
         </ContentShell>
