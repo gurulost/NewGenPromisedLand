@@ -30,7 +30,7 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
 ### Backend
 - **Runtime**: Node.js with Express
 - **Storage**: In-memory storage with an interface for future database integration.
-- **Database**: Drizzle ORM for PostgreSQL (via Neon).
+- **Database**: Drizzle ORM for PostgreSQL (via Replit's built-in database).
 
 ### Core Game Mechanics
 - **Data-Driven**: All game rules, including abilities, costs, and terrain effects, are centrally configured.
@@ -50,7 +50,7 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
 - **3D Graphics**: Three.js
 - **UI Components**: Radix UI
 - **State Management**: Zustand
-- **Database**: Drizzle ORM (for PostgreSQL with Neon)
+- **Database**: Drizzle ORM (for PostgreSQL with Replit's built-in database)
 - **Build Tools**: Vite, TypeScript, ESBuild
 - **Styling**: Tailwind CSS, PostCSS
 - **Animation**: GSAP (for camera animations)
