@@ -7,7 +7,7 @@ import { Tooltip, ActionTooltip, InfoTooltip } from '../client/src/components/ui
 vi.mock('@radix-ui/react-tooltip', () => ({
   Provider: ({ children }: any) => children,
   Root: ({ children }: any) => children,
-  Trigger: ({ children, asChild, ...props }: any) => 
+  Trigger: ({ children, asChild, ...props }: any) =>
     asChild ? children : <button {...props}>{children}</button>,
   Portal: ({ children }: any) => children,
   Content: ({ children, className, ...props }: any) => (
@@ -37,7 +37,7 @@ describe('TooltipSystem Components', () => {
       );
 
       const trigger = screen.getByText('Hover me');
-      fireEvent.mouseEnter(trigger);
+      fireEvent.pointerEnter(trigger, { pointerType: 'mouse' });
 
       // Wait for tooltip to appear
       await waitFor(() => {
@@ -53,7 +53,7 @@ describe('TooltipSystem Components', () => {
       );
 
       const trigger = screen.getByText('Hover me');
-      fireEvent.mouseEnter(trigger);
+      fireEvent.pointerEnter(trigger, { pointerType: 'mouse' });
 
       // Wait for tooltip to appear with delay
       await waitFor(() => {
@@ -69,8 +69,8 @@ describe('TooltipSystem Components', () => {
       );
 
       const trigger = screen.getByText('Hover me');
-      fireEvent.mouseEnter(trigger);
-      
+      fireEvent.pointerEnter(trigger, { pointerType: 'mouse' });
+
       await waitFor(() => {
         expect(screen.queryByText('Test tooltip')).toBeInTheDocument();
       });
@@ -81,7 +81,7 @@ describe('TooltipSystem Components', () => {
         </Tooltip>
       );
 
-      fireEvent.mouseEnter(trigger);
+      fireEvent.pointerEnter(trigger, { pointerType: 'mouse' });
       await waitFor(() => {
         expect(screen.queryByText('Test tooltip')).toBeInTheDocument();
       });
