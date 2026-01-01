@@ -25,7 +25,7 @@ interface LegacyTooltipProps extends BaseTooltipProps {
   delay?: number;
 }
 
-interface InfoTooltipProps extends BaseTooltipProps {}
+interface InfoTooltipProps extends BaseTooltipProps { }
 
 interface ActionTooltipProps {
   cost?: number | string;
@@ -50,26 +50,26 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
     // Check for any fixed positioned modals with high z-index
     const modalSelectors = [
       '[class*="fixed"][class*="z-50"]',
-      '[class*="fixed"][class*="z-[50]"]', 
+      '[class*="fixed"][class*="z-[50]"]',
       '[class*="fixed"][class*="z-100"]',
       '[class*="fixed"][class*="z-[100]"]',
       '.fixed.z-50',
       '.fixed.z-100'
     ];
-    
+
     for (const selector of modalSelectors) {
       const modals = document.querySelectorAll(selector);
       if (modals.length > 0) {
         return true;
       }
     }
-    
+
     return false;
   };
 
   const showTooltip = (event: React.MouseEvent) => {
     if (disabled || shouldHideForModals()) return;
-    
+
     event.stopPropagation();
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     const tooltipPosition = calculatePosition(rect, placement);
@@ -83,7 +83,7 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
 
   // Hide tooltip and force re-render when modals open/close
   const [shouldHide, setShouldHide] = useState(false);
-  
+
   useEffect(() => {
     const checkModalState = () => {
       const hideState = shouldHideForModals();
@@ -181,10 +181,10 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
     >
       {/* Subtle glow effect - no animation */}
       <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-400/30 to-blue-600/30" />
-      
+
       {/* Info icon with enhanced styling */}
       <Info className="relative z-10 w-4 h-4 drop-shadow-sm transition-transform duration-300 group-hover:scale-110" />
-      
+
       {/* Subtle inner glow */}
       <div className="absolute inset-1 rounded-full bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
     </button>
@@ -203,30 +203,36 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
   );
 }
 
-// Legacy wrapper tooltip - only triggers on hover, doesn't block clicks
-export function Tooltip({ 
-  content, 
-  children, 
-  delay = 500, 
+// Legacy wrapper tooltip - supports hover AND touch (click to toggle)
+export function Tooltip({
+  content,
+  children,
+  delay = 500,
   placement = 'top',
-  disabled = false 
+  disabled = false
 }: LegacyTooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState<TooltipPosition>({ x: 0, y: 0, placement });
   const timeoutRef = useRef<NodeJS.Timeout>();
   const elementRef = useRef<HTMLElement>();
+  const isTouchRef = useRef(false);
 
-  const showTooltip = (event: MouseEvent) => {
+  const showTooltip = (event: PointerEvent | MouseEvent) => {
     if (disabled) return;
-    
+
+    // Track if this is a touch interaction
+    if ('pointerType' in event) {
+      isTouchRef.current = event.pointerType === 'touch';
+    }
+
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     const tooltipPosition = calculatePosition(rect, placement);
     setPosition(tooltipPosition);
-    
+
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
-    
+
     timeoutRef.current = setTimeout(() => {
       setIsVisible(true);
     }, delay);
@@ -239,16 +245,47 @@ export function Tooltip({
     setIsVisible(false);
   };
 
+  // Click-to-toggle for touch devices
+  const handleClick = (event: MouseEvent) => {
+    if (disabled) return;
+
+    // Only toggle on touch devices - desktop uses hover
+    if (isTouchRef.current || 'ontouchstart' in window) {
+      event.stopPropagation();
+      const rect = (event.target as HTMLElement).getBoundingClientRect();
+      const tooltipPosition = calculatePosition(rect, placement);
+      setPosition(tooltipPosition);
+      setIsVisible(prev => !prev);
+    }
+  };
+
+  // Close tooltip when clicking outside on touch devices
+  useEffect(() => {
+    if (!isVisible || !isTouchRef.current) return;
+
+    const handleClickOutside = (event: Event) => {
+      if (elementRef.current && !elementRef.current.contains(event.target as Node)) {
+        hideTooltip();
+      }
+    };
+
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => document.removeEventListener('touchstart', handleClickOutside);
+  }, [isVisible]);
+
   useEffect(() => {
     const element = elementRef.current;
     if (!element) return;
 
-    element.addEventListener('mouseenter', showTooltip);
-    element.addEventListener('mouseleave', hideTooltip);
+    // Use pointer events for unified mouse + touch support
+    element.addEventListener('pointerenter', showTooltip as EventListener);
+    element.addEventListener('pointerleave', hideTooltip);
+    element.addEventListener('click', handleClick as EventListener);
 
     return () => {
-      element.removeEventListener('mouseenter', showTooltip);
-      element.removeEventListener('mouseleave', hideTooltip);
+      element.removeEventListener('pointerenter', showTooltip as EventListener);
+      element.removeEventListener('pointerleave', hideTooltip);
+      element.removeEventListener('click', handleClick as EventListener);
     };
   }, [disabled]);
 
@@ -297,7 +334,7 @@ export function Tooltip({
 function calculatePosition(rect: DOMRect, preferredPlacement: string): TooltipPosition {
   const tooltipOffset = 8;
   const viewportPadding = 16;
-  
+
   let x = 0;
   let y = 0;
   let finalPlacement = preferredPlacement;
@@ -397,7 +434,7 @@ export function ActionTooltip({
           <span className="text-yellow-400 font-semibold">{formattedCost}</span>
         </div>
       )}
-      
+
       {requirements.length > 0 && (
         <div>
           <div className="text-red-400 font-semibold mb-1">Requirements:</div>
@@ -411,7 +448,7 @@ export function ActionTooltip({
           </ul>
         </div>
       )}
-      
+
       {effects.length > 0 && (
         <div>
           <div className="text-green-400 font-semibold mb-1">Effects:</div>
@@ -446,7 +483,7 @@ export function UnitTooltip({ unit, unitDef }: { unit: any; unitDef: any }) {
         <div className="font-semibold text-purple-300">{unitDef.name}</div>
         <div className="text-xs text-slate-400">Level {unit.level || 1}</div>
       </div>
-      
+
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div>
           <div className="text-red-300">❤️ {unit.hp}/{unit.maxHp}</div>
@@ -526,7 +563,7 @@ export function UnitTooltip({ unit, unitDef }: { unit: any; unitDef: any }) {
   );
 }
 
-export function StarProductionTooltip({ totalIncome, breakdown }: { totalIncome: number; breakdown: Array<{source: string, amount: number}> }) {
+export function StarProductionTooltip({ totalIncome, breakdown }: { totalIncome: number; breakdown: Array<{ source: string, amount: number }> }) {
   return (
     <div className="space-y-2">
       <div className="font-semibold text-yellow-300">Star Income: {totalIncome}/turn</div>

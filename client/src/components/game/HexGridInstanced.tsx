@@ -22,25 +22,25 @@ const HEX_SIZE = 1;
 function getValidConstructionTiles(gameState: any, buildingType: string, category: string, cityId: string) {
   const validTiles: string[] = [];
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  
+
   // Get city for reference
   const city = gameState.cities?.find((c: any) => c.id === cityId);
   if (!city) return validTiles;
-  
+
   // For each visible tile, check if it's valid for construction
   gameState.map.tiles.forEach((tile: any) => {
     if (isValidConstructionTile(gameState, tile.coordinate, buildingType, category, cityId)) {
       validTiles.push(`${tile.coordinate.q},${tile.coordinate.r}`);
     }
   });
-  
+
   return validTiles;
 }
 
 function isValidConstructionTile(gameState: any, coordinate: any, buildingType: string, category: string, cityId: string): boolean {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const city = gameState.cities?.find((c: any) => c.id === cityId);
-  
+
   if (!city || !currentPlayer) return false;
 
   // Tech gating for constructions
@@ -60,34 +60,34 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
       return false;
     }
   }
-  
+
   // Check if tile is explored/visible to current player
   const tileKey = `${coordinate.q},${coordinate.r}`;
   if (!currentPlayer.exploredTiles?.includes(tileKey)) return false;
-  
+
   // Find the tile
-  const tile = gameState.map.tiles.find((t: any) => 
+  const tile = gameState.map.tiles.find((t: any) =>
     t.coordinate.q === coordinate.q && t.coordinate.r === coordinate.r
   );
   if (!tile) return false;
-  
+
   // Check if tile already has something built on it
-  const hasUnit = gameState.units?.some((u: any) => 
+  const hasUnit = gameState.units?.some((u: any) =>
     u.coordinate.q === coordinate.q && u.coordinate.r === coordinate.r
   );
-  const hasImprovement = gameState.improvements?.some((i: any) => 
+  const hasImprovement = gameState.improvements?.some((i: any) =>
     i.coordinate.q === coordinate.q && i.coordinate.r === coordinate.r
   );
   const hasStructureInCity = gameState.structures?.some((s: any) =>
     s.cityId === cityId && s.type === buildingType
   );
-  
+
   if (category === 'units') {
     // Units can be placed on:
     if (buildingType === 'boat') {
       // Boats need water tiles or adjacent to city
-      return tile.terrain === 'water' || 
-             (tile.coordinate.q === city.coordinate.q && tile.coordinate.r === city.coordinate.r);
+      return tile.terrain === 'water' ||
+        (tile.coordinate.q === city.coordinate.q && tile.coordinate.r === city.coordinate.r);
     } else {
       // Other units need land tiles without obstacles
       return tile.terrain !== 'water' && !hasUnit && !hasImprovement;
@@ -107,7 +107,7 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
     // Structures can be built on most land tiles
     return tile.terrain !== 'water' && !hasImprovement && !hasStructureInCity;
   }
-  
+
   return false;
 }
 
@@ -115,11 +115,11 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const { gameState, moveUnit, attackUnit } = useLocalGame();
   const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction, isMovementMode, setMovementMode, isAttackMode, setAttackMode, attackableTargets, isRoadBuildMode, roadBuildUnitId, cancelRoadBuild, openTileContextMenu, closeTileContextMenu } = useGameState();
   const { camera, raycaster, gl } = useThree();
-  
+
   // Calculate valid construction tiles when in construction mode
   const validConstructionTiles = useMemo(() => {
     if (!constructionMode.isActive || !gameState) return [];
-    
+
     return getValidConstructionTiles(
       gameState,
       constructionMode.buildingType!,
@@ -127,10 +127,15 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       constructionMode.cityId!
     );
   }, [constructionMode, gameState]);
-  
+
   const meshRef = useRef<THREE.InstancedMesh>(null);
+
+  // Long-press detection for touch tile preview
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressCoordRef = useRef<{ x: number; y: number } | null>(null);
+  const LONG_PRESS_DURATION = 400; // ms
   const materialRef = useRef<THREE.ShaderMaterial>(null);
-  
+
   // Load textures
   const plainsTexture = useLoader(TextureLoader, "/textures/mesoamerican_plains.png");
   const forestTexture = useLoader(TextureLoader, "/textures/mesoamerican_forest.png");
@@ -155,7 +160,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       opacity: number;
       textureId: number;
     }> = [];
-    
+
     if (!gameState || !currentPlayer) {
       // Show all tiles clearly when no game state (for debugging)
       map.tiles.forEach((tile, index) => {
@@ -180,7 +185,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       // Use unit's actual vision radius from definition
       const unitDef = getUnitDefinition(unit.type);
       const visionRadius = unitDef.baseStats.visionRadius;
-      
+
       // Get visible tiles with line-of-sight calculations
       const unitVisibleTiles = getVisibleTilesInRange(
         unit.coordinate,
@@ -188,7 +193,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         map,
         true // Enable shadow casting for performance
       );
-      
+
       // Add all visible tiles to the set
       unitVisibleTiles.forEach(tileKey => visible.add(tileKey));
     });
@@ -204,31 +209,31 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     map.tiles.forEach((tile, index) => {
       const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      
+
       // Calculate fog of war state
       const fogState = calculateFogOfWarState(tileKey, visible, explored);
-      
+
       let color: [number, number, number];
       let opacity: number;
       let textureId: number;
-      
+
       // Apply three-tiered fog of war system
       let baseColor: [number, number, number] = [1.0, 1.0, 1.0]; // Default to white (no color tinting)
-      
+
       // Check if tile is currently visible (use same calculation as MapFeatures)
       const isCurrentlyVisible = visible.has(tileKey);
-      
+
       // Check if tile has been explored before (use same calculation as MapFeatures)
       const hasBeenExplored = explored.has(tileKey);
-      
+
       // Check for cities on this tile first
       const cityOnTile = gameState.cities?.find(city =>
         city.coordinate.q === tile.coordinate.q && city.coordinate.r === tile.coordinate.r
       );
-      
+
       // Check for construction mode highlighting first
       const isValidConstructionTile = validConstructionTiles.includes(tileKey);
-      
+
       if (isValidConstructionTile && (isCurrentlyVisible || hasBeenExplored)) {
         // Valid construction tiles are highlighted in bright green
         baseColor = [0.2, 1.0, 0.3]; // Bright green for valid construction
@@ -242,8 +247,8 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       else {
         baseColor = [1.0, 1.0, 1.0]; // Pure white - no color tinting
       }
-      
-      
+
+
       if (isCurrentlyVisible) {
         // Visible: Full visibility of terrain and units
         color = baseColor;
@@ -260,7 +265,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         opacity = 1.0; // Full opacity for proper rendering
         textureId = 0; // No terrain texture visible (textureId < 0.5 triggers clouds)
       }
-      
+
       instanceData.push({
         position: [pixelPos.x, 0.0, pixelPos.y], // y becomes z in 3D space, at ground level
         color,
@@ -308,83 +313,83 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     const mesh = meshRef.current as any;
     if (typeof mesh.setMatrixAt !== 'function' || !mesh.geometry || !mesh.instanceMatrix) return;
     const count = tileInstanceData.length;
-    
+
     // Set up instance attributes
     const colors = new Float32Array(count * 3);
     const opacities = new Float32Array(count);
     const textureIds = new Float32Array(count);
-    
+
     tileInstanceData.forEach((data, i) => {
       // Position (handled by instanceMatrix)
       const matrix = new THREE.Matrix4();
       matrix.setPosition(data.position[0], data.position[1], data.position[2]);
       mesh.setMatrixAt(i, matrix);
-      
+
       // Color
       colors[i * 3] = data.color[0];
       colors[i * 3 + 1] = data.color[1];
       colors[i * 3 + 2] = data.color[2];
-      
+
       // Opacity and texture
       opacities[i] = data.opacity;
       textureIds[i] = data.textureId;
     });
-    
+
     mesh.geometry.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colors, 3));
     mesh.geometry.setAttribute('instanceOpacity', new THREE.InstancedBufferAttribute(opacities, 1));
     mesh.geometry.setAttribute('instanceTextureId', new THREE.InstancedBufferAttribute(textureIds, 1));
-    
+
     mesh.instanceMatrix.needsUpdate = true;
     mesh.count = count;
-    
+
     // Force bounds computation to prevent culling issues
     mesh.computeBoundingSphere();
     mesh.computeBoundingBox();
-    
+
   }, [tileInstanceData]);
 
   // Handle interactions with proper raycasting for instanced rendering
   const handleClick = (event: any) => {
     if (!meshRef.current) return;
-    
+
     // Get mouse position in normalized device coordinates
     const mouse = new THREE.Vector2();
     const rect = gl.domElement.getBoundingClientRect();
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    
+
     // Update raycaster with camera and mouse position
     raycaster.setFromCamera(mouse, camera);
-    
+
     // Check for intersections with the instanced mesh
     const intersects = raycaster.intersectObject(meshRef.current);
-    
+
     if (intersects.length > 0) {
       const intersection = intersects[0];
       // instanceId tells us which tile was clicked
       const instanceId = intersection.instanceId;
-      
+
       if (instanceId !== undefined && instanceId < map.tiles.length) {
         const clickedTile = map.tiles[instanceId];
         console.log('Tile clicked:', clickedTile.coordinate);
-        
+
         // Check if there's a unit on this tile
-        const unitOnTile = gameState?.units.find(unit => 
+        const unitOnTile = gameState?.units.find(unit =>
           unit.coordinate.q === clickedTile.coordinate.q &&
           unit.coordinate.r === clickedTile.coordinate.r
         );
-        
+
         const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
         const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
         if (currentPlayer && !currentPlayer.exploredTiles?.includes(tileKey)) {
           closeTileContextMenu();
           return;
         }
-        
+
         // Handle construction mode - tile selection for building
         if (constructionMode.isActive && currentPlayer) {
           console.log('Construction mode: selecting tile for', constructionMode.buildingType);
-          
+
           // Validate if this tile is valid for construction
           const isValidTile = isValidConstructionTile(
             gameState,
@@ -393,16 +398,16 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             constructionMode.buildingCategory!,
             constructionMode.cityId!
           );
-          
+
           if (!isValidTile) {
             console.log('Invalid construction tile selected');
             return;
           }
-          
+
           // Show confirmation dialog before spending resources
           const buildingName = constructionMode.buildingType;
           const category = constructionMode.buildingCategory;
-          
+
           // Get cost for confirmation
           let costStars = 0;
           let requirementNote = '';
@@ -427,19 +432,19 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
               costStars = structureDef.cost;
             }
           }
-          
+
           const confirmed = window.confirm(
             `Build ${buildingName} for ${costStars} stars${requirementNote}?`
           );
-          
+
           if (!confirmed) {
             return;
           }
-          
+
           // Dispatch construction action
           if (gameState && constructionMode.buildingType && constructionMode.cityId) {
             const { dispatch } = useLocalGame.getState();
-            
+
             dispatch({
               type: 'START_CONSTRUCTION',
               payload: {
@@ -450,176 +455,69 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
                 cityId: constructionMode.cityId,
               },
             });
-            
+
             // Exit construction mode
             cancelConstruction();
           }
-          
-                  return; // Exit early, don't handle unit clicks in construction mode
-                }
 
-                // Handle road building mode (worker places a road on a clicked tile)
-                if (isRoadBuildMode && currentPlayer) {
-                  closeTileContextMenu();
-                  const builder = gameState?.units.find(u => u.id === roadBuildUnitId && u.playerId === currentPlayer.id);
-                  if (!builder) {
-                    cancelRoadBuild();
-                    return;
-                  }
+          return; // Exit early, don't handle unit clicks in construction mode
+        }
 
-                  const isValidDistance = hexDistance(builder.coordinate, clickedTile.coordinate) <= 1;
-                  const isValidTerrain = clickedTile.terrain !== 'water' && clickedTile.terrain !== 'mountain';
+        // Handle road building mode (worker places a road on a clicked tile)
+        if (isRoadBuildMode && currentPlayer) {
+          closeTileContextMenu();
+          const builder = gameState?.units.find(u => u.id === roadBuildUnitId && u.playerId === currentPlayer.id);
+          if (!builder) {
+            cancelRoadBuild();
+            return;
+          }
 
-                  if (!isValidDistance || !isValidTerrain) {
-                    console.log('Invalid road tile selected');
-                    return;
-                  }
+          const isValidDistance = hexDistance(builder.coordinate, clickedTile.coordinate) <= 1;
+          const isValidTerrain = clickedTile.terrain !== 'water' && clickedTile.terrain !== 'mountain';
 
-                  const { dispatch } = useLocalGame.getState();
-                  dispatch({
-                    type: 'BUILD_ROAD',
-                    payload: { unitId: builder.id, targetCoordinate: clickedTile.coordinate, playerId: currentPlayer.id },
-                  });
+          if (!isValidDistance || !isValidTerrain) {
+            console.log('Invalid road tile selected');
+            return;
+          }
 
-                  cancelRoadBuild();
-                  return;
-                }
-                
-                if (unitOnTile && currentPlayer) {
-                  // If clicking on a unit
-                  if (unitOnTile.playerId === currentPlayer.id) {
-                    // Check if tile has both a unit AND resources - show context menu
-                    const hasResources = clickedTile.resources && clickedTile.resources.length > 0;
-                    
-                    if (hasResources) {
-                      // Build context menu options
-                      const unitDef = getUnitDefinition(unitOnTile.type);
-                      const unitName = unitDef?.name || unitOnTile.type;
-                      const resourceName = clickedTile.resources[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-                      
-                      const menuOptions: TileContextMenuOption[] = [
-                        {
-                          id: 'select-unit',
-                          label: `Select ${unitName}`,
-                          icon: '⚔️',
-                          action: () => {
-                            setSelectedUnit(unitOnTile);
-                            setMovementMode(false);
-                            setAttackMode(false);
-                          }
-                        },
-                        {
-                          id: 'interact-element',
-                          label: `Interact with ${resourceName}`,
-                          icon: '🏛️',
-                          action: () => {
-                            const worldElementEvent = new CustomEvent('worldElementClick', {
-                              detail: {
-                                coordinate: clickedTile.coordinate,
-                                resources: clickedTile.resources,
-                                terrain: clickedTile.terrain
-                              }
-                            });
-                            window.dispatchEvent(worldElementEvent);
-                          }
-                        }
-                      ];
-                      
-                      console.log('Tile has both unit and resources - showing context menu');
-                      event.stopPropagation();
-                      openTileContextMenu(
-                        { x: event.clientX, y: event.clientY },
-                        clickedTile.coordinate,
-                        menuOptions
-                      );
-                      return;
-                    }
-                    
-                    // Select own unit (but don't show movement tiles yet)
-                    console.log('Unit clicked:', unitOnTile.id, 'Current player:', currentPlayer.id, 'Unit player:', unitOnTile.playerId);
-                    closeTileContextMenu();
+          const { dispatch } = useLocalGame.getState();
+          dispatch({
+            type: 'BUILD_ROAD',
+            payload: { unitId: builder.id, targetCoordinate: clickedTile.coordinate, playerId: currentPlayer.id },
+          });
+
+          cancelRoadBuild();
+          return;
+        }
+
+        if (unitOnTile && currentPlayer) {
+          // If clicking on a unit
+          if (unitOnTile.playerId === currentPlayer.id) {
+            // Check if tile has both a unit AND resources - show context menu
+            const hasResources = clickedTile.resources && clickedTile.resources.length > 0;
+
+            if (hasResources) {
+              // Build context menu options
+              const unitDef = getUnitDefinition(unitOnTile.type);
+              const unitName = unitDef?.name || unitOnTile.type;
+              const resourceName = clickedTile.resources[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+              const menuOptions: TileContextMenuOption[] = [
+                {
+                  id: 'select-unit',
+                  label: `Select ${unitName}`,
+                  icon: '⚔️',
+                  action: () => {
                     setSelectedUnit(unitOnTile);
-                    // Exit any previous modes
                     setMovementMode(false);
                     setAttackMode(false);
-                  } else {
-                    // Clicking on enemy/neutral unit
-                    const hasResources = clickedTile.resources && clickedTile.resources.length > 0;
-                    
-                    if (hasResources && !isAttackMode) {
-                      // Enemy unit on tile with resources - show context menu to interact with resource
-                      const resourceName = clickedTile.resources[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-                      
-                      const menuOptions: TileContextMenuOption[] = [
-                        {
-                          id: 'interact-element',
-                          label: `Interact with ${resourceName}`,
-                          icon: '🏛️',
-                          action: () => {
-                            const worldElementEvent = new CustomEvent('worldElementClick', {
-                              detail: {
-                                coordinate: clickedTile.coordinate,
-                                resources: clickedTile.resources,
-                                terrain: clickedTile.terrain
-                              }
-                            });
-                            window.dispatchEvent(worldElementEvent);
-                          }
-                        }
-                      ];
-                      
-                      console.log('Enemy unit on tile with resources - showing context menu');
-                      event.stopPropagation();
-                      openTileContextMenu(
-                        { x: event.clientX, y: event.clientY },
-                        clickedTile.coordinate,
-                        menuOptions
-                      );
-                      return;
-                    }
-                    
-                    if (selectedUnit && selectedUnit.playerId === currentPlayer.id && isAttackMode) {
-                      // Check if target is in attackable range
-                      const isValidTarget = attackableTargets.some(
-                        target => target.q === unitOnTile.coordinate.q && target.r === unitOnTile.coordinate.r
-                      );
-                      
-                      if (isValidTarget) {
-                        console.log('Attacking target:', unitOnTile.id);
-                        closeTileContextMenu();
-                        attackUnit(selectedUnit.id, unitOnTile.id);
-                        setAttackMode(false);
-                      } else {
-                        console.log('Target not in range');
-                        closeTileContextMenu();
-                      }
-                    } else if (!isAttackMode) {
-                      console.log('Attack target clicked (not in attack mode):', unitOnTile.id);
-                      closeTileContextMenu();
-                    }
                   }
-                } else if (selectedUnit && selectedUnit.playerId === currentPlayer?.id && isMovementMode) {
-                  // Move selected unit to empty tile only if in movement mode
-                  const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
-                  
-                  if (reachableTiles.includes(tileKey)) {
-                    console.log('Moving unit to:', clickedTile.coordinate);
-                    closeTileContextMenu();
-                    moveUnit(selectedUnit.id, clickedTile.coordinate);
-                    // Exit movement mode after moving
-                    setMovementMode(false);
-                  } else {
-                    console.log('Tile not reachable');
-                    closeTileContextMenu();
-                  }
-                } else if (!unitOnTile) {
-                  // Check for world elements on this tile first
-                  if (clickedTile.resources && clickedTile.resources.length > 0) {
-                    console.log('🎯 Tile clicked with resources:', clickedTile.resources, 'at coordinate:', clickedTile.coordinate);
-                    console.log('🔍 Tile terrain:', clickedTile.terrain, 'Tile details:', clickedTile);
-                    
-                    closeTileContextMenu();
-                    // Dispatch custom event for world element interaction
+                },
+                {
+                  id: 'interact-element',
+                  label: `Interact with ${resourceName}`,
+                  icon: '🏛️',
+                  action: () => {
                     const worldElementEvent = new CustomEvent('worldElementClick', {
                       detail: {
                         coordinate: clickedTile.coordinate,
@@ -627,45 +525,167 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
                         terrain: clickedTile.terrain
                       }
                     });
-                    
-                    console.log('📡 Dispatching worldElementClick event:', worldElementEvent.detail);
                     window.dispatchEvent(worldElementEvent);
-                    return; // Don't deselect unit if clicking on world element
-                  } else {
-                    console.log('🔍 Clicked tile has no resources:', clickedTile);
-                  }
-                  
-                  // Clicked on empty tile - exit movement mode and deselect
-                  console.log('Clicked on empty tile - exiting movement mode');
-                  closeTileContextMenu();
-                  setMovementMode(false);
-                  if (!isMovementMode) {
-                    setSelectedUnit(null);
                   }
                 }
-              }
+              ];
+
+              console.log('Tile has both unit and resources - showing context menu');
+              event.stopPropagation();
+              openTileContextMenu(
+                { x: event.clientX, y: event.clientY },
+                clickedTile.coordinate,
+                menuOptions
+              );
+              return;
             }
-          };
+
+            // Select own unit (but don't show movement tiles yet)
+            console.log('Unit clicked:', unitOnTile.id, 'Current player:', currentPlayer.id, 'Unit player:', unitOnTile.playerId);
+            closeTileContextMenu();
+            setSelectedUnit(unitOnTile);
+            // Exit any previous modes
+            setMovementMode(false);
+            setAttackMode(false);
+          } else {
+            // Clicking on enemy/neutral unit
+            const hasResources = clickedTile.resources && clickedTile.resources.length > 0;
+
+            if (hasResources && !isAttackMode) {
+              // Enemy unit on tile with resources - show context menu to interact with resource
+              const resourceName = clickedTile.resources[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+              const menuOptions: TileContextMenuOption[] = [
+                {
+                  id: 'interact-element',
+                  label: `Interact with ${resourceName}`,
+                  icon: '🏛️',
+                  action: () => {
+                    const worldElementEvent = new CustomEvent('worldElementClick', {
+                      detail: {
+                        coordinate: clickedTile.coordinate,
+                        resources: clickedTile.resources,
+                        terrain: clickedTile.terrain
+                      }
+                    });
+                    window.dispatchEvent(worldElementEvent);
+                  }
+                }
+              ];
+
+              console.log('Enemy unit on tile with resources - showing context menu');
+              event.stopPropagation();
+              openTileContextMenu(
+                { x: event.clientX, y: event.clientY },
+                clickedTile.coordinate,
+                menuOptions
+              );
+              return;
+            }
+
+            if (selectedUnit && selectedUnit.playerId === currentPlayer.id && isAttackMode) {
+              // Check if target is in attackable range
+              const isValidTarget = attackableTargets.some(
+                target => target.q === unitOnTile.coordinate.q && target.r === unitOnTile.coordinate.r
+              );
+
+              if (isValidTarget) {
+                console.log('Attacking target:', unitOnTile.id);
+                closeTileContextMenu();
+                attackUnit(selectedUnit.id, unitOnTile.id);
+                setAttackMode(false);
+              } else {
+                console.log('Target not in range');
+                closeTileContextMenu();
+              }
+            } else if (!isAttackMode) {
+              console.log('Attack target clicked (not in attack mode):', unitOnTile.id);
+              closeTileContextMenu();
+            }
+          }
+        } else if (selectedUnit && selectedUnit.playerId === currentPlayer?.id && isMovementMode) {
+          // Move selected unit to empty tile only if in movement mode
+          const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
+
+          if (reachableTiles.includes(tileKey)) {
+            console.log('Moving unit to:', clickedTile.coordinate);
+            closeTileContextMenu();
+            moveUnit(selectedUnit.id, clickedTile.coordinate);
+            // Exit movement mode after moving
+            setMovementMode(false);
+          } else {
+            console.log('Tile not reachable');
+            closeTileContextMenu();
+          }
+        } else if (!unitOnTile) {
+          // Check for world elements on this tile first
+          if (clickedTile.resources && clickedTile.resources.length > 0) {
+            console.log('🎯 Tile clicked with resources:', clickedTile.resources, 'at coordinate:', clickedTile.coordinate);
+            console.log('🔍 Tile terrain:', clickedTile.terrain, 'Tile details:', clickedTile);
+
+            closeTileContextMenu();
+            // Dispatch custom event for world element interaction
+            const worldElementEvent = new CustomEvent('worldElementClick', {
+              detail: {
+                coordinate: clickedTile.coordinate,
+                resources: clickedTile.resources,
+                terrain: clickedTile.terrain
+              }
+            });
+
+            console.log('📡 Dispatching worldElementClick event:', worldElementEvent.detail);
+            window.dispatchEvent(worldElementEvent);
+            return; // Don't deselect unit if clicking on world element
+          } else {
+            console.log('🔍 Clicked tile has no resources:', clickedTile);
+          }
+
+          // Clicked on empty tile - exit movement mode and deselect
+          console.log('Clicked on empty tile - exiting movement mode');
+          closeTileContextMenu();
+          setMovementMode(false);
+          if (!isMovementMode) {
+            setSelectedUnit(null);
+          }
+        }
+      }
+    }
+  };
 
   const handlePointerMove = (event: any) => {
     if (!meshRef.current) return;
-    
+
+    // Cancel long-press if finger moves too far (user is dragging/panning)
+    if (event.pointerType === 'touch' && longPressCoordRef.current) {
+      const dx = event.clientX - longPressCoordRef.current.x;
+      const dy = event.clientY - longPressCoordRef.current.y;
+      const moveThreshold = 10; // pixels
+      if (Math.abs(dx) > moveThreshold || Math.abs(dy) > moveThreshold) {
+        // User is dragging, cancel long-press
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+        longPressCoordRef.current = null;
+      }
+    }
+
     // Get mouse position in normalized device coordinates
     const mouse = new THREE.Vector2();
     const rect = gl.domElement.getBoundingClientRect();
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    
+
     // Update raycaster with camera and mouse position
     raycaster.setFromCamera(mouse, camera);
-    
+
     // Check for intersections with the instanced mesh
     const intersects = raycaster.intersectObject(meshRef.current);
-    
+
     if (intersects.length > 0) {
       const intersection = intersects[0];
       const instanceId = intersection.instanceId;
-      
+
       if (instanceId !== undefined && instanceId < map.tiles.length) {
         const hoveredTile = map.tiles[instanceId];
         const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
@@ -686,13 +706,70 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     }
   };
 
+  // Long-press handler for touch devices - shows tile preview
+  const handlePointerDown = (event: any) => {
+    // Only track touch events for long-press
+    if (event.pointerType !== 'touch') return;
+
+    longPressCoordRef.current = { x: event.clientX, y: event.clientY };
+
+    // Start long-press timer
+    longPressTimerRef.current = setTimeout(() => {
+      if (!meshRef.current) return;
+
+      // Calculate which tile is under the touch point
+      const mouse = new THREE.Vector2();
+      const rect = gl.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObject(meshRef.current);
+
+      if (intersects.length > 0) {
+        const instanceId = intersects[0].instanceId;
+        if (instanceId !== undefined && instanceId < map.tiles.length) {
+          const hoveredTile = map.tiles[instanceId];
+          const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+          const tileKey = `${hoveredTile.coordinate.q},${hoveredTile.coordinate.r}`;
+
+          // Only show preview for explored tiles
+          if (!currentPlayer || currentPlayer.exploredTiles?.includes(tileKey)) {
+            const pixelPos = hexToPixel(hoveredTile.coordinate, HEX_SIZE);
+            setHoveredTile({
+              x: pixelPos.x,
+              z: pixelPos.y,
+              tile: hoveredTile
+            });
+          }
+        }
+      }
+    }, LONG_PRESS_DURATION);
+  };
+
+  const handlePointerUp = () => {
+    // Clear long-press timer
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressCoordRef.current = null;
+  };
+
+  const handlePointerCancel = () => {
+    handlePointerUp();
+  };
+
   return (
     <group>
-      <instancedMesh 
+      <instancedMesh
         ref={meshRef}
         args={[hexGeometry, shaderMaterial, map.tiles.length]}
         onClick={handleClick}
         onPointerMove={handlePointerMove}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         frustumCulled={false}
         renderOrder={0}
       />
