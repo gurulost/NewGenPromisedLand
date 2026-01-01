@@ -1,12 +1,23 @@
 import { create } from "zustand";
-import { Unit } from "@shared/types/unit";
+import { Unit, UnitType } from "@shared/types/unit";
 import { Tile } from "@shared/types/game";
+import { HexCoordinate } from "@shared/types/coordinates";
 
 export interface TileContextMenuOption {
   id: string;
   label: string;
   icon?: string;
   action: () => void;
+}
+
+export interface SpawnSelectionState {
+  isActive: boolean;
+  unitType: UnitType | null;
+  cityId: string | null;
+  cityCoordinate: HexCoordinate | null;
+  playerId: string | null;
+  validSpawnTiles: HexCoordinate[];
+  onSelectTile?: (coordinate: HexCoordinate) => void;
 }
 
 export interface TileContextMenuState {
@@ -42,6 +53,9 @@ interface GameStateStore {
     playerId: string | null;
   };
   
+  // Spawn selection mode (for choosing unit spawn location)
+  spawnSelectionMode: SpawnSelectionState;
+  
   // Movement and attack modes
   isMovementMode: boolean;
   isAttackMode: boolean;
@@ -73,6 +87,17 @@ interface GameStateStore {
   // Construction actions
   startConstruction: (buildingType: string, category: 'improvements' | 'structures' | 'units', cityId: string, playerId: string) => void;
   cancelConstruction: () => void;
+  
+  // Spawn selection actions
+  startSpawnSelection: (params: {
+    unitType: UnitType;
+    cityId: string;
+    cityCoordinate: HexCoordinate;
+    playerId: string;
+    validSpawnTiles: HexCoordinate[];
+    onSelectTile: (coordinate: HexCoordinate) => void;
+  }) => void;
+  cancelSpawnSelection: () => void;
   
   // Movement and attack mode actions
   setMovementMode: (enabled: boolean) => void;
@@ -110,6 +135,16 @@ export const useGameState = create<GameStateStore>((set) => ({
     buildingCategory: null,
     cityId: null,
     playerId: null,
+  },
+  
+  spawnSelectionMode: {
+    isActive: false,
+    unitType: null,
+    cityId: null,
+    cityCoordinate: null,
+    playerId: null,
+    validSpawnTiles: [],
+    onSelectTile: undefined,
   },
   
   isMovementMode: false,
@@ -192,6 +227,35 @@ export const useGameState = create<GameStateStore>((set) => ({
       buildingCategory: null,
       cityId: null,
       playerId: null,
+    },
+  }),
+  
+  startSpawnSelection: ({ unitType, cityId, cityCoordinate, playerId, validSpawnTiles, onSelectTile }) => set({
+    spawnSelectionMode: {
+      isActive: true,
+      unitType,
+      cityId,
+      cityCoordinate,
+      playerId,
+      validSpawnTiles,
+      onSelectTile,
+    },
+    selectedUnit: null,
+    isMovementMode: false,
+    isAttackMode: false,
+    isRoadBuildMode: false,
+    roadBuildUnitId: null,
+  }),
+  
+  cancelSpawnSelection: () => set({
+    spawnSelectionMode: {
+      isActive: false,
+      unitType: null,
+      cityId: null,
+      cityCoordinate: null,
+      playerId: null,
+      validSpawnTiles: [],
+      onSelectTile: undefined,
     },
   }),
   

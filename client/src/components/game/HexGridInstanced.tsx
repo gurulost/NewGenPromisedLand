@@ -113,7 +113,7 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
 
 export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const { gameState, moveUnit, attackUnit } = useLocalGame();
-  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction, isMovementMode, setMovementMode, isAttackMode, setAttackMode, attackableTargets, isRoadBuildMode, roadBuildUnitId, cancelRoadBuild, openTileContextMenu, closeTileContextMenu } = useGameState();
+  const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction, spawnSelectionMode, cancelSpawnSelection, isMovementMode, setMovementMode, isAttackMode, setAttackMode, attackableTargets, isRoadBuildMode, roadBuildUnitId, cancelRoadBuild, openTileContextMenu, closeTileContextMenu } = useGameState();
   const { camera, raycaster, gl } = useThree();
 
   // Calculate valid construction tiles when in construction mode
@@ -233,8 +233,16 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
 
       // Check for construction mode highlighting first
       const isValidConstructionTile = validConstructionTiles.includes(tileKey);
+      
+      // Check for spawn selection mode highlighting
+      const isValidSpawnTile = spawnSelectionMode.isActive && spawnSelectionMode.validSpawnTiles.some(
+        coord => coord.q === tile.coordinate.q && coord.r === tile.coordinate.r
+      );
 
-      if (isValidConstructionTile && (isCurrentlyVisible || hasBeenExplored)) {
+      if (isValidSpawnTile && (isCurrentlyVisible || hasBeenExplored)) {
+        // Valid spawn tiles are highlighted in cyan/teal for unit placement
+        baseColor = [0.2, 0.9, 0.9]; // Bright cyan for spawn selection
+      } else if (isValidConstructionTile && (isCurrentlyVisible || hasBeenExplored)) {
         // Valid construction tiles are highlighted in bright green
         baseColor = [0.2, 1.0, 0.3]; // Bright green for valid construction
       }
@@ -275,7 +283,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     });
 
     return { visibleTileKeys: visible, exploredTileKeys: explored, tileInstanceData: instanceData };
-  }, [gameState?.units, currentPlayer?.id, map.tiles]);
+  }, [gameState?.units, currentPlayer?.id, map.tiles, spawnSelectionMode.isActive, spawnSelectionMode.validSpawnTiles]);
 
   // Create hex geometry once
   const hexGeometry = useMemo(() => {
@@ -383,6 +391,29 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
         if (currentPlayer && !currentPlayer.exploredTiles?.includes(tileKey)) {
           closeTileContextMenu();
+          return;
+        }
+
+        // Handle spawn selection mode - tile selection for unit spawning
+        if (spawnSelectionMode.isActive && currentPlayer) {
+          console.log('Spawn selection mode: selecting tile for', spawnSelectionMode.unitType);
+          
+          // Check if this tile is a valid spawn tile
+          const isValidSpawnTile = spawnSelectionMode.validSpawnTiles.some(
+            coord => coord.q === clickedTile.coordinate.q && coord.r === clickedTile.coordinate.r
+          );
+          
+          if (isValidSpawnTile) {
+            console.log('Valid spawn tile selected:', clickedTile.coordinate);
+            // Call the callback with the selected coordinate
+            if (spawnSelectionMode.onSelectTile) {
+              spawnSelectionMode.onSelectTile(clickedTile.coordinate);
+            }
+            cancelSpawnSelection();
+          } else {
+            console.log('Invalid spawn tile - cancelling selection');
+            cancelSpawnSelection();
+          }
           return;
         }
 
