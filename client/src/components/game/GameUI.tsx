@@ -64,7 +64,7 @@ export default function GameUI() {
   const hostLeaseExpired = useLocalGame((state) => state.hostLeaseExpired);
   const setOnlineHost = useLocalGame((state) => state.setOnlineHost);
   const setHostLeaseStatus = useLocalGame((state) => state.setHostLeaseStatus);
-  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, spawnSelectionMode, cancelSpawnSelection, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates, closeTileContextMenu } = useGameState();
+  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, spawnSelectionMode, cancelSpawnSelection, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates, closeTileContextMenu, showSpawnDebug, toggleSpawnDebug } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const { triggerFlash, showToast } = useVisualFeedback();
   const playSfx = useSfxEngine();

@@ -68,6 +68,9 @@ interface GameStateStore {
   // Tile context menu (for tiles with multiple interactable items)
   tileContextMenu: TileContextMenuState;
 
+  // Debug toggle for spawn visualization
+  showSpawnDebug: boolean;
+
   setSelectedUnit: (unit: Unit | null) => void;
   setHoveredTile: (tile: { x: number; z: number; tile: Tile } | null) => void;
   setReachableTiles: (tiles: string[]) => void;
@@ -111,6 +114,9 @@ interface GameStateStore {
   // Tile context menu actions
   openTileContextMenu: (screenPosition: { x: number; y: number }, tileCoordinate: { q: number; r: number }, options: TileContextMenuOption[]) => void;
   closeTileContextMenu: () => void;
+
+  // Debug toggle action
+  toggleSpawnDebug: () => void;
 }
 
 export const useGameState = create<GameStateStore>((set) => ({
@@ -160,6 +166,8 @@ export const useGameState = create<GameStateStore>((set) => ({
     tileCoordinate: null,
     options: [],
   },
+
+  showSpawnDebug: false,
 
   setSelectedUnit: (unit) =>
     set({
@@ -282,4 +290,6 @@ export const useGameState = create<GameStateStore>((set) => ({
       options: [],
     },
   }),
+
+  toggleSpawnDebug: () => set((state) => ({ showSpawnDebug: !state.showSpawnDebug })),
 }));

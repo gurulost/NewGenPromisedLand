@@ -14,6 +14,7 @@ import { ActionTooltip } from "./TooltipSystem";
 import { Input } from "./input";
 import { getValidSpawnTiles } from "@shared/logic/gameReducer";
 import { HexCoordinate } from "@shared/types/coordinates";
+import { Progress } from "./progress";
 
 interface CityPanelProps {
   open: boolean;
