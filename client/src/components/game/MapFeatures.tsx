@@ -5,6 +5,7 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { useMemo } from "react";
 import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
 import { getUnitDefinition } from "@shared/data/units";
+import { getFaction } from "@shared/data/factions";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
 import Construction from "./Construction";
 import { CityModel } from "./CityModel";
@@ -220,7 +221,8 @@ function ResourceWithTooltip({
 
 export default function MapFeatures() {
   const { gameState } = useLocalGame();
-  const { selectedUnit } = useGameState();
+  const isDev = import.meta.env.DEV;
+  const { showSpawnDebug } = useGameState();
   
   // Get current player for visibility calculations
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
@@ -308,12 +310,12 @@ export default function MapFeatures() {
     // Filter villages that are currently visible only (not just explored)
     const villages = gameState.map.tiles.filter(tile => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      const isCurrentlyVisible = visible.has(tileKey); // Only currently visible, not explored
+      const isCurrentlyVisible = visible.has(tileKey); // Currently visible
+      const isExplored = explored.has(tileKey);
+      const isOwnedByPlayer = tile.cityOwner === currentPlayer.id;
       const isVillage = tile.feature === 'village';
-      
 
-      
-      return isCurrentlyVisible && isVillage;
+      return isVillage && (isCurrentlyVisible || isExplored || isOwnedByPlayer);
     });
     
     return { 
@@ -325,6 +327,54 @@ export default function MapFeatures() {
       visibleVillages: villages
     };
   }, [gameState, currentPlayer]);
+
+  const spawnDebugMarkers = useMemo(() => {
+    if (!isDev || !showSpawnDebug || !gameState) return null;
+
+    const villageTiles = gameState.map.tiles.filter(tile => tile.feature === "village");
+    const capitals = gameState.players.map(player => {
+      const capitalCity = gameState.cities.find(city => city.id === `city-${player.id}`)
+        ?? gameState.cities.find(city => city.ownerId === player.id);
+
+      if (!capitalCity) return null;
+
+      const faction = getFaction(player.factionId);
+      const position = hexToPixel(capitalCity.coordinate, 1);
+      let nearestVillage: { coordinate: { q: number; r: number; s: number }; distance: number } | null = null;
+
+      for (const village of villageTiles) {
+        const distance = hexDistance(capitalCity.coordinate, village.coordinate);
+        if (!nearestVillage || distance < nearestVillage.distance) {
+          nearestVillage = { coordinate: village.coordinate, distance };
+        }
+      }
+
+      return {
+        id: player.id,
+        name: player.name,
+        position,
+        color: faction?.color ?? "#38bdf8",
+        nearestVillage,
+      };
+    }).filter((capital): capital is NonNullable<typeof capital> => !!capital);
+
+    const villageMarkers = new Map<string, { position: { x: number; y: number }; color: string }>();
+    capitals.forEach(capital => {
+      if (!capital.nearestVillage) return;
+      const key = `${capital.nearestVillage.coordinate.q},${capital.nearestVillage.coordinate.r}`;
+      if (!villageMarkers.has(key)) {
+        villageMarkers.set(key, {
+          position: hexToPixel(capital.nearestVillage.coordinate, 1),
+          color: capital.color,
+        });
+      }
+    });
+
+    return {
+      capitals,
+      villageMarkers: Array.from(villageMarkers.values()),
+    };
+  }, [gameState, isDev, showSpawnDebug]);
   
   // Get currently visible tiles with resources (not just explored)
   const visibleTilesWithFeatures = useMemo(() => {
@@ -695,6 +745,31 @@ export default function MapFeatures() {
             construction={construction}
           />
         ))
+      )}
+
+      {spawnDebugMarkers && (
+        <group>
+          {spawnDebugMarkers.capitals.map(capital => (
+            <group key={`spawn-capital-${capital.id}`}>
+              <Torus position={[capital.position.x, 0.06, capital.position.y]} args={[0.65, 0.05, 8, 24]} rotation={[Math.PI / 2, 0, 0]}>
+                <meshStandardMaterial color={capital.color} emissive={capital.color} emissiveIntensity={0.5} transparent opacity={0.9} />
+              </Torus>
+              <Cone position={[capital.position.x, 0.45, capital.position.y]} args={[0.16, 0.4, 6]}>
+                <meshStandardMaterial color={capital.color} emissive={capital.color} emissiveIntensity={0.35} />
+              </Cone>
+              <Html position={[capital.position.x, 0.85, capital.position.y]} style={{ pointerEvents: "none" }}>
+                <div className="rounded bg-black/70 px-2 py-1 text-[10px] text-white/80 shadow">
+                  {capital.name}
+                </div>
+              </Html>
+            </group>
+          ))}
+          {spawnDebugMarkers.villageMarkers.map((marker, index) => (
+            <Sphere key={`spawn-village-${index}`} position={[marker.position.x, 0.18, marker.position.y]} args={[0.08]}>
+              <meshStandardMaterial color={marker.color} emissive={marker.color} emissiveIntensity={0.6} transparent opacity={0.85} />
+            </Sphere>
+          ))}
+        </group>
       )}
     </group>
   );

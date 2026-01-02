@@ -21,6 +21,7 @@ export interface ElementAction {
 export interface ElementStructure {
   name: string;
   costStars: number;
+  requiresUnitTag?: string;
   effectPermanent: {
     popDelta: number;
     starsPerTurn: number;
@@ -228,6 +229,7 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
     longTermBuild: {
       name: 'Fishing Jetty',
       costStars: 2,
+      requiresUnitTag: 'naval_transport',
       effectPermanent: {
         popDelta: 1,
         starsPerTurn: 0
@@ -259,7 +261,7 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
     displayName: 'Great Sea Beast',
     description: 'Mighty creatures of the deep (Ether 2:24)',
     scriptureRef: 'Ether 2:24',
-    terrain: ['deep_water'],
+    terrain: ['water'],
     spawnWeight: 0.4,
     immediateAction: {
       name: 'Expedition Harvest',
@@ -268,13 +270,14 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
       prideDelta: 3,
       dissentDelta: 3,
       popDelta: 0,
-      tileTransform: 'deep_water_plain',
-      requiresUnitTag: 'naval_commander',
-      summary: 'Expedition harvest: +10 Stars (Pride +3, Dissent +3) - Requires Naval Commander'
+      tileTransform: 'water',
+      requiresUnitTag: 'naval_transport',
+      summary: 'Expedition harvest: +10 Stars (Pride +3, Dissent +3) - Requires Boat'
     },
     longTermBuild: {
       name: 'Sea Platform',
       costStars: 5,
+      requiresUnitTag: 'naval_transport',
       effectPermanent: {
         popDelta: 2,
         starsPerTurn: 0
@@ -287,8 +290,8 @@ export const WORLD_ELEMENTS: Record<string, WorldElement> = {
     techPrerequisite: 'navigation',
     assetTileset: 'tiles/feature_whale.png',
     assetStructure: 'structures/sea_platform.png',
-    uiTooltipHarvest: 'Harvest for 10★ (Pride +3, Dissent +3)',
-    uiTooltipBuild: '5★ Platform (+2 Pop, +2 Faith)',
+    uiTooltipHarvest: 'Harvest for 10★ (Pride +3, Dissent +3) - Requires Boat',
+    uiTooltipBuild: '5★ Platform (+2 Pop, +2 Faith) - Requires Boat',
     notes: 'Whale vs platform trade-off exactly preserved'
   },
 
