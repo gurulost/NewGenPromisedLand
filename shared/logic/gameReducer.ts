@@ -997,11 +997,13 @@ function handleWorldElementHarvest(
 
   const requiredTag = element.immediateAction?.requiresUnitTag;
   if (requiredTag) {
-    // Only special-cased tag today: naval_commander.
     const canActAsTag =
-      requiredTag === 'naval_commander' &&
-      unit.type === 'commander' &&
-      (unit.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_COMMAND');
+      (requiredTag === 'naval_commander' &&
+        unit.type === 'commander' &&
+        (unit.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_COMMAND')) ||
+      (requiredTag === 'naval_transport' &&
+        (unit.type === 'boat' ||
+          (unit.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_TRANSPORT')));
     if (!canActAsTag) return state;
   } else if (payload.elementId !== 'jaredite_ruins') {
     // Default: Worker-only interactions.
@@ -1047,7 +1049,22 @@ function handleWorldElementBuild(
   if (!unit || unit.playerId !== payload.playerId) return state;
   if (unit.coordinate.q !== payload.coordinate.q || unit.coordinate.r !== payload.coordinate.r) return state;
   if (unit.hasAttacked || unit.remainingMovement <= 0) return state;
-  if (unit.type !== 'worker') return state;
+  const element = getWorldElement(payload.elementId);
+  if (!element) return state;
+
+  const requiredTag = element.longTermBuild?.requiresUnitTag;
+  if (requiredTag) {
+    const canActAsTag =
+      (requiredTag === 'naval_commander' &&
+        unit.type === 'commander' &&
+        (unit.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_COMMAND')) ||
+      (requiredTag === 'naval_transport' &&
+        (unit.type === 'boat' ||
+          (unit.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_TRANSPORT')));
+    if (!canActAsTag) return state;
+  } else if (unit.type !== 'worker') {
+    return state;
+  }
 
   const result = executeElementBuild(state, payload.playerId, payload.elementId, payload.coordinate);
 
@@ -2349,16 +2366,10 @@ function handleHarvestResource(
   // Harvest the resource - add population to city
   const updatedCities = state.cities.map(c => {
     if (c.id === cityId) {
-      const newPopulation = c.population + 1;
-      const shouldLevelUp = newPopulation >= c.maxPopulation;
-
+      const grownCity = applyPopulationGain(c, 1);
       return {
-        ...c,
-        population: shouldLevelUp ? 1 : newPopulation, // Reset to 1 when leveling up
-        level: shouldLevelUp ? c.level + 1 : c.level,
-        maxPopulation: shouldLevelUp ? c.maxPopulation + 2 : c.maxPopulation, // Increase requirement
-        starProduction: shouldLevelUp ? c.starProduction + 1 : c.starProduction, // Increase production
-        harvestedResources: [...c.harvestedResources, resourceId]
+        ...grownCity,
+        harvestedResources: [...(c.harvestedResources || []), resourceId]
       };
     }
     return c;
@@ -2616,10 +2627,20 @@ function handleReconnaissance(
     u.id === unitId ? { ...u, hasAttacked: true } : u
   );
 
+  const revealSet = new Set(newVisibleTiles);
+  const updatedTiles = state.map.tiles.map(tile => {
+    const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
+    if (revealSet.has(tileKey) && !tile.exploredBy.includes(playerId)) {
+      return { ...tile, exploredBy: [...tile.exploredBy, playerId] };
+    }
+    return tile;
+  });
+
   return {
     ...state,
     units: updatedUnits,
-    players: updatedPlayers
+    players: updatedPlayers,
+    map: { ...state.map, tiles: updatedTiles }
   };
 }
 
@@ -3135,7 +3156,11 @@ function applyTowerVision(state: GameState, payload: any): GameState {
     },
     players: state.players.map(p =>
       p.id === player.id
-        ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - 15) } }
+        ? {
+          ...p,
+          exploredTiles: Array.from(new Set([...p.exploredTiles, ...tilesToReveal])),
+          stats: { ...p.stats, faith: Math.max(0, p.stats.faith - 15) }
+        }
         : p
     )
   };
@@ -3249,6 +3274,10 @@ function applyMaritimeExpansion(state: GameState, payload: any): GameState {
   if (!player) return state;
 
   // Maritime Expansion: Reveal coastlines and gain movement bonus for water units
+  const waterTileKeys = state.map.tiles
+    .filter(tile => tile.terrain === 'water')
+    .map(tile => `${tile.coordinate.q},${tile.coordinate.r}`);
+
   return {
     ...state,
     map: {
@@ -3264,6 +3293,11 @@ function applyMaritimeExpansion(state: GameState, payload: any): GameState {
         return tile;
       })
     },
+    players: state.players.map(p =>
+      p.id === player.id
+        ? { ...p, exploredTiles: Array.from(new Set([...p.exploredTiles, ...waterTileKeys])) }
+        : p
+    ),
     units: state.units.map(u =>
       u.playerId === player.id && u.type === 'scout' // Scouts can act as naval units
         ? { ...u, movement: u.movement + 1, remainingMovement: u.remainingMovement + 1 }
@@ -3664,6 +3698,7 @@ function handleUnitAction(
           }
         }
 
+        const revealSet = new Set(tilesToReveal);
         return {
           ...state,
           players: state.players.map(p =>
@@ -3673,7 +3708,17 @@ function handleUnitAction(
                 exploredTiles: [...p.exploredTiles, ...tilesToReveal.filter(tile => !p.exploredTiles.includes(tile))]
               }
               : p
-          )
+          ),
+          map: {
+            ...state.map,
+            tiles: state.map.tiles.map(tile => {
+              const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
+              if (revealSet.has(tileKey) && !tile.exploredBy.includes(playerId)) {
+                return { ...tile, exploredBy: [...tile.exploredBy, playerId] };
+              }
+              return tile;
+            })
+          }
         };
       }
       break;

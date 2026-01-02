@@ -29,6 +29,7 @@ import { useVisualFeedback } from "../ui/VisualFeedback";
 import { GameLogPanel } from "../ui/GameLogPanel";
 import { SettingsMenu } from "../ui/SettingsMenu";
 import { AITurnIndicator } from "../ui/AITurnIndicator";
+import { SpawnDebugPanel } from "../debug/SpawnDebugPanel";
 import MovementControls from "../game/MovementControls";
 import { useSfxEngine } from "../../hooks/useSfx";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
@@ -64,7 +65,7 @@ export default function GameUI() {
   const hostLeaseExpired = useLocalGame((state) => state.hostLeaseExpired);
   const setOnlineHost = useLocalGame((state) => state.setOnlineHost);
   const setHostLeaseStatus = useLocalGame((state) => state.setHostLeaseStatus);
-  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates, closeTileContextMenu } = useGameState();
+  const { selectedUnit, setSelectedUnit, constructionMode, cancelConstruction, isRoadBuildMode, cancelRoadBuild, isMovementMode, isAttackMode, setMovementMode, setAttackMode, reachableCoordinates, closeTileContextMenu, showSpawnDebug, toggleSpawnDebug } = useGameState();
   const [subscribeKeys] = useKeyboardControls();
   const { triggerFlash, showToast } = useVisualFeedback();
   const playSfx = useSfxEngine();
@@ -82,6 +83,7 @@ export default function GameUI() {
   const prevGameStateRef = useRef<GameState | null>(null);
   const activeTechRevealRef = useRef<string | null>(null);
   const completionSignatureRef = useRef<string | null>(null);
+  const prevCityLevelsRef = useRef<Map<string, number>>(new Map());
 
   useOnlineGameSync();
   const addToast = useMapToastStore(state => state.addToast);
@@ -565,6 +567,45 @@ export default function GameUI() {
     enqueueTechReveal,
     triggerConquestBanner,
     onlineSession,
+  ]);
+
+  useEffect(() => {
+    if (!gameState?.cities?.length) return;
+    const currentPlayerId = gameState.players[gameState.currentPlayerIndex]?.id;
+    const isLocalOwner = (ownerId?: string) => {
+      if (!ownerId) return false;
+      if (!onlineSession) return ownerId === currentPlayerId;
+      return onlineSession.myPlayerIds.includes(ownerId);
+    };
+
+    const previousLevels = prevCityLevelsRef.current;
+    const nextLevels = new Map<string, number>();
+
+    gameState.cities.forEach(city => {
+      const previous = previousLevels.get(city.id);
+      if (typeof previous === "number" && city.level > previous && isLocalOwner(city.ownerId)) {
+        addPulse('levelup', city.coordinate);
+        addToast(
+          `${city.name} Level ${previous} → ${city.level}`,
+          'levelup',
+          hexToWorldPos(city.coordinate.q, city.coordinate.r),
+          2600
+        );
+        triggerFlash('gold');
+        playSfx('achievement');
+      }
+      nextLevels.set(city.id, city.level);
+    });
+
+    prevCityLevelsRef.current = nextLevels;
+  }, [
+    gameState?.cities,
+    gameState?.currentPlayerIndex,
+    onlineSession,
+    addToast,
+    addPulse,
+    triggerFlash,
+    playSfx,
   ]);
 
   useEffect(() => {
@@ -1307,8 +1348,16 @@ export default function GameUI() {
           <div>Autosave: {autosave.isSaving ? 'saving…' : autosave.dirty ? 'dirty' : 'ok'}</div>
           {heapMb !== null && <div>Heap: ~{heapMb} MB</div>}
           {autosave.lastFailureAt && <div className="text-red-200">Autosave failed</div>}
+          <button
+            onClick={toggleSpawnDebug}
+            className="mt-1 w-full rounded border border-white/20 bg-white/10 px-2 py-1 text-[10px] text-white/80 transition hover:bg-white/20"
+          >
+            Spawn Debug: {showSpawnDebug ? "On" : "Off"}
+          </button>
         </div>
       )}
+
+      {isDev && <SpawnDebugPanel />}
 
       {/* Conquest Banner */}
       <AnimatePresence>

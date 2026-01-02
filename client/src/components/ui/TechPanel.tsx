@@ -6,7 +6,8 @@ import { Progress } from "./progress";
 import { Input } from "./input";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { TECHNOLOGIES, calculateResearchCost, getAvailableTechnologies, type Technology } from "@shared/data/technologies";
-import { Star, Book, Lock, CheckCircle, Clock, Sparkles, ArrowUpRight, Search, XCircle, Home, ChevronDown } from "lucide-react";
+import { ABILITIES } from "@shared/data/abilities";
+import { Star, Book, Lock, CheckCircle, Clock, Sparkles, ArrowUpRight, Search, XCircle, Home, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { TECH_LAYOUT, CELL_WIDTH, CELL_HEIGHT, COL_GAP, ROW_GAP, CANVAS_PADDING, CATEGORY_LANES } from "../tech/techLayout";
 import { useHaptic } from "../../hooks/useHaptic";
 import { usePerformanceMode } from "../../hooks/usePerformanceMode";
@@ -38,7 +39,14 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const [scrollLeft, setScrollLeft] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [showMinimap, setShowMinimap] = useState(true);
+  const [minimapOffset, setMinimapOffset] = useState({ x: 0, y: 0 });
+  const [isMinimapDragging, setIsMinimapDragging] = useState(false);
+  const minimapRef = useRef<HTMLDivElement>(null);
+  const minimapDragRef = useRef({ startX: 0, startY: 0, originX: 0, originY: 0 });
   const DRAG_THRESHOLD = 5; // Pixels moved before drag starts
+  const MINIMAP_MARGIN = 16;
+  const MINIMAP_PADDING = 8;
 
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
   const availableTechs = currentPlayer ? getAvailableTechnologies(currentPlayer.researchedTechs) : [];
@@ -257,18 +265,36 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     );
   };
 
-  const UnlockBadge = ({ type, name }: { type: 'unit' | 'building' | 'ability' | 'improvement', name: string }) => {
+  const formatLabel = (value: string) =>
+    value
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (match) => match.toUpperCase());
+
+  const formatUnlockName = (type: 'unit' | 'building' | 'ability' | 'improvement' | 'benefit', name: string) => {
+    if (type === 'ability') {
+      const ability = ABILITIES[name as keyof typeof ABILITIES];
+      if (ability?.name) return ability.name;
+    }
+
+    if (type === 'benefit') {
+      return name.includes('_') || name.includes('-') ? formatLabel(name) : name;
+    }
+
+    return formatLabel(name);
+  };
+
+  const UnlockBadge = ({ type, name }: { type: 'unit' | 'building' | 'ability' | 'improvement' | 'benefit', name: string }) => {
     const getIcon = () => {
       switch (type) {
         case 'unit': return '⚔️';
         case 'building': return '🏛️';
         case 'improvement': return '🔨';
         case 'ability': return '✨';
+        case 'benefit': return '⭐';
       }
     };
 
-    // Format name (replace underscores with spaces and capitalize)
-    const displayName = name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    const displayName = formatUnlockName(type, name);
 
     return (
       <div className="flex items-center gap-2 p-2 rounded bg-white/5 border border-white/10">
@@ -557,6 +583,67 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     }
   };
 
+  const clampMinimapOffset = useCallback((next: { x: number; y: number }) => {
+    const container = containerRef.current;
+    const minimap = minimapRef.current;
+    if (!container || !minimap) return next;
+    const containerRect = container.getBoundingClientRect();
+    const minimapRect = minimap.getBoundingClientRect();
+    const baseLeft = containerRect.width - minimapRect.width - MINIMAP_MARGIN;
+    const baseTop = MINIMAP_MARGIN;
+    const minLeft = MINIMAP_PADDING;
+    const maxLeft = containerRect.width - minimapRect.width - MINIMAP_PADDING;
+    const minTop = MINIMAP_PADDING;
+    const maxTop = containerRect.height - minimapRect.height - MINIMAP_PADDING;
+    return {
+      x: Math.min(Math.max(next.x, minLeft - baseLeft), maxLeft - baseLeft),
+      y: Math.min(Math.max(next.y, minTop - baseTop), maxTop - baseTop),
+    };
+  }, []);
+
+  const handleMinimapPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setIsMinimapDragging(true);
+    minimapDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: minimapOffset.x,
+      originY: minimapOffset.y,
+    };
+  }, [minimapOffset.x, minimapOffset.y]);
+
+  useEffect(() => {
+    if (!isMinimapDragging) return;
+    const handlePointerMove = (event: PointerEvent) => {
+      const dx = event.clientX - minimapDragRef.current.startX;
+      const dy = event.clientY - minimapDragRef.current.startY;
+      const next = {
+        x: minimapDragRef.current.originX + dx,
+        y: minimapDragRef.current.originY + dy,
+      };
+      setMinimapOffset(clampMinimapOffset(next));
+    };
+    const handlePointerUp = () => {
+      setIsMinimapDragging(false);
+    };
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [isMinimapDragging, clampMinimapOffset]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setMinimapOffset((prev) => clampMinimapOffset(prev));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [clampMinimapOffset]);
+
   return (
     <div
       className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto p-0 md:p-6"
@@ -693,39 +780,80 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             </div>
 
             {/* Minimap - positioned within the scrollable area */}
-            <div className="absolute bottom-4 left-4 w-48 h-32 bg-slate-900/90 border border-slate-700 rounded-lg overflow-hidden shadow-xl z-30">
-              <div className="relative w-full h-full">
-                {Object.keys(TECH_LAYOUT).map(techId => {
-                  const pos = TECH_LAYOUT[techId];
-                  if (!pos) return null;
-                  const status = techStatuses[techId] || "locked";
-                  const x = (pos.column * 30) + 8;
-                  const y = (pos.row * 10) + 8;
-                  const colors = {
-                    researched: "bg-green-500",
-                    available: "bg-blue-500",
-                    researching: "bg-amber-500",
-                    locked: "bg-slate-600",
-                  };
-                  return (
-                    <div
-                      key={techId}
-                      className={`absolute w-3 h-3 rounded-full cursor-pointer hover:scale-125 transition-transform ${colors[status]} ${selectedTech === techId ? 'ring-2 ring-white scale-125' : ''}`}
-                      style={{ left: x, top: y }}
-                      onClick={() => {
-                        setSelectedTech(techId);
-                        if (containerRef.current) {
-                          const targetX = pos.column * (CELL_WIDTH + COL_GAP);
-                          const targetY = pos.row * (CELL_HEIGHT + ROW_GAP);
-                          containerRef.current.scrollTo({ left: targetX, top: targetY, behavior: 'smooth' });
-                        }
-                      }}
-                    />
-                  );
-                })}
+            {showMinimap ? (
+              <div
+                ref={minimapRef}
+                className="absolute top-4 right-4 w-48 h-32 bg-slate-900/60 border border-slate-700/70 rounded-lg overflow-hidden shadow-xl z-30 backdrop-blur-sm"
+                style={{ transform: `translate(${minimapOffset.x}px, ${minimapOffset.y}px)` }}
+                onPointerDown={(event) => event.stopPropagation()}
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="relative w-full h-full">
+                  {Object.keys(TECH_LAYOUT).map(techId => {
+                    const pos = TECH_LAYOUT[techId];
+                    if (!pos) return null;
+                    const status = techStatuses[techId] || "locked";
+                    const x = (pos.column * 30) + 8;
+                    const y = (pos.row * 10) + 8;
+                    const colors = {
+                      researched: "bg-green-500",
+                      available: "bg-blue-500",
+                      researching: "bg-amber-500",
+                      locked: "bg-slate-600",
+                    };
+                    return (
+                      <div
+                        key={techId}
+                        className={`absolute w-3 h-3 rounded-full cursor-pointer hover:scale-125 transition-transform ${colors[status]} ${selectedTech === techId ? 'ring-2 ring-white scale-125' : ''}`}
+                        style={{ left: x, top: y }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedTech(techId);
+                          if (containerRef.current) {
+                            const targetX = pos.column * (CELL_WIDTH + COL_GAP);
+                            const targetY = pos.row * (CELL_HEIGHT + ROW_GAP);
+                            containerRef.current.scrollTo({ left: targetX, top: targetY, behavior: 'smooth' });
+                          }
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <div
+                  className={`absolute bottom-0 left-0 right-0 flex items-center justify-between px-2 py-1 text-[10px] text-slate-300/90 bg-slate-950/70 border-t border-slate-700/60 ${isMinimapDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                  onPointerDown={handleMinimapPointerDown}
+                >
+                  <span className="uppercase tracking-widest">Minimap</span>
+                  <button
+                    type="button"
+                    className="text-slate-300/80 hover:text-white transition"
+                    title="Hide minimap"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setShowMinimap(false);
+                    }}
+                  >
+                    <EyeOff className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-              <div className="absolute bottom-1 left-1 text-[10px] text-slate-500">Minimap</div>
-            </div>
+            ) : (
+              <button
+                type="button"
+                className="absolute top-4 right-4 z-30 flex items-center gap-2 rounded-full border border-slate-600/70 bg-slate-900/70 px-3 py-1 text-xs uppercase tracking-widest text-slate-200 shadow-lg backdrop-blur-sm hover:bg-slate-800/80"
+                onPointerDown={(event) => event.stopPropagation()}
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setShowMinimap(true);
+                }}
+                title="Show minimap"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Show minimap
+              </button>
+            )}
           </div>
 
           {/* Mobile Toggle Button */}
@@ -831,9 +959,16 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                       {detailTech.unlocks.abilities?.map(a => (
                         <UnlockBadge key={a} type="ability" name={a} />
                       ))}
+                      {detailTech.unlocks.benefits?.map(b => (
+                        <UnlockBadge key={b} type="benefit" name={b} />
+                      ))}
 
                       {/* Fallback if nothing specific listed */}
-                      {(!detailTech.unlocks.units?.length && !detailTech.unlocks.structures?.length && !detailTech.unlocks.improvements?.length) && (
+                      {(!detailTech.unlocks.units?.length &&
+                        !detailTech.unlocks.structures?.length &&
+                        !detailTech.unlocks.improvements?.length &&
+                        !detailTech.unlocks.abilities?.length &&
+                        !detailTech.unlocks.benefits?.length) && (
                         <div className="text-sm text-slate-500 italic px-2">Advanced functionality</div>
                       )}
                     </div>

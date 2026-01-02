@@ -9,6 +9,7 @@ import { getVisibleTilesInRange, calculateFogOfWarState } from "@shared/utils/li
 import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState, TileContextMenuOption } from "../../lib/stores/useGameState";
+import { getWorldElementRequirementSummary } from "../../utils/worldElementRequirements";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
 import { createCloudShader } from './cloudShader';
 
@@ -502,6 +503,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
               const unitName = unitDef?.name || unitOnTile.type;
               const resourceName = clickedTile.resources[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
 
+              const requirementSummary = getWorldElementRequirementSummary(clickedTile.resources[0]);
               const menuOptions: TileContextMenuOption[] = [
                 {
                   id: 'select-unit',
@@ -517,6 +519,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
                   id: 'interact-element',
                   label: `Interact with ${resourceName}`,
                   icon: '🏛️',
+                  subLabel: requirementSummary ? `Requires: ${requirementSummary}` : undefined,
                   action: () => {
                     const worldElementEvent = new CustomEvent('worldElementClick', {
                       detail: {
@@ -555,11 +558,13 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
               // Enemy unit on tile with resources - show context menu to interact with resource
               const resourceName = clickedTile.resources[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
 
+              const requirementSummary = getWorldElementRequirementSummary(clickedTile.resources[0]);
               const menuOptions: TileContextMenuOption[] = [
                 {
                   id: 'interact-element',
                   label: `Interact with ${resourceName}`,
                   icon: '🏛️',
+                  subLabel: requirementSummary ? `Requires: ${requirementSummary}` : undefined,
                   action: () => {
                     const worldElementEvent = new CustomEvent('worldElementClick', {
                       detail: {

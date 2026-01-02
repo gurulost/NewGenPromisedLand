@@ -129,7 +129,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     cost: 6,
     starProduction: 2,
     validTerrain: ['forest'],
-    requiredTech: 'organization',
+    requiredTech: 'forestry',
     constructionTime: 1
   },
 
@@ -140,7 +140,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<ImprovementType, ImprovementDefinit
     cost: 5,
     starProduction: 1,
     validTerrain: ['forest'],
-    requiredTech: 'organization',
+    requiredTech: 'forestry',
     constructionTime: 1,
     effects: {
       populationGrowth: 0

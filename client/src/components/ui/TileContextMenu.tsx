@@ -79,7 +79,8 @@ export function TileContextMenu() {
     left = menuPadding;
   }
 
-  const estimatedMenuHeight = safeMenu.options.length * 44 + 40;
+  const optionHeight = safeMenu.options.some(option => option.subLabel) ? 64 : 44;
+  const estimatedMenuHeight = safeMenu.options.length * optionHeight + 40;
   if (top + estimatedMenuHeight + menuPadding > viewportHeight) {
     top = viewportHeight - estimatedMenuHeight - menuPadding;
   }
@@ -110,10 +111,15 @@ export function TileContextMenu() {
           <button
             key={option.id}
             onClick={() => handleOptionClick(option.action)}
-            className="w-full px-3 py-2.5 text-left text-sm text-white hover:bg-amber-500/20 transition-colors flex items-center gap-2"
+            className="w-full px-3 py-2.5 text-left text-sm text-white hover:bg-amber-500/20 transition-colors flex items-start gap-2"
           >
             {option.icon && <span className="text-lg">{option.icon}</span>}
-            <span>{option.label}</span>
+            <span className="flex flex-col gap-1">
+              <span>{option.label}</span>
+              {option.subLabel && (
+                <span className="text-xs text-amber-200/70">{option.subLabel}</span>
+              )}
+            </span>
           </button>
         ))}
       </div>

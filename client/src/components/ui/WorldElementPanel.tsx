@@ -17,6 +17,7 @@ import { useHotkeys } from '../../hooks/useHotkeys'; // tiny custom hook
 import { useSfxEngine } from '../../hooks/useSfx';         // optional SFX hook
 import { StaggeredContent, StaggeredContainer } from '../primitives/StaggeredContent';
 import { RequirementBanner } from '../primitives/RequirementBanner';
+import { getTechDisplayName, getWorldElementActionRequirements, WorldElementRequirement } from '../../utils/worldElementRequirements';
 
 /** ───────────────────────────────────────────────────────────────────────────
  *  Resource‑delta pill (memoised to avoid re‑render churn)                  */
@@ -99,25 +100,38 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
     const pickNavalCommander = () =>
       unitsOnTile.find(u => u.type === 'commander' && (u.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_COMMAND'))?.id ??
       null;
+    const pickNavalTransport = () =>
+      unitsOnTile.find(u => u.type === 'boat' || (u.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_TRANSPORT'))?.id ??
+      null;
 
     const defaultHarvest = () => {
       if (preferred) return preferred;
       if (element?.immediateAction?.requiresUnitTag === 'naval_commander') return pickNavalCommander();
+      if (element?.immediateAction?.requiresUnitTag === 'naval_transport') return pickNavalTransport();
       if (elementId === 'jaredite_ruins') return unitsOnTile[0]?.id ?? null;
       return unitsOnTile.find(u => u.type === 'worker')?.id ?? null;
     };
 
     const defaultBuild = () => {
-      if (preferred && unitsOnTile.find(u => u.id === preferred)?.type === 'worker') return preferred;
+      const buildTag = element?.longTermBuild?.requiresUnitTag;
+      if (preferred) {
+        const preferredUnit = unitsOnTile.find(u => u.id === preferred);
+        if (!buildTag && preferredUnit?.type === 'worker') return preferred;
+        if (buildTag === 'naval_commander' && preferredUnit?.type === 'commander') return preferred;
+        if (buildTag === 'naval_transport' && preferredUnit && (preferredUnit.type === 'boat' || (preferredUnit.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_TRANSPORT'))) {
+          return preferred;
+        }
+      }
+      if (buildTag === 'naval_commander') return pickNavalCommander();
+      if (buildTag === 'naval_transport') return pickNavalTransport();
       return unitsOnTile.find(u => u.type === 'worker')?.id ?? null;
     };
 
     return { harvestUnitId: defaultHarvest(), buildUnitId: defaultBuild() };
-  }, [coordinate.q, coordinate.r, element?.immediateAction?.requiresUnitTag, elementId, gameState.units, playerId, unitId]);
+  }, [coordinate.q, coordinate.r, element?.immediateAction?.requiresUnitTag, element?.longTermBuild?.requiresUnitTag, elementId, gameState.units, playerId, unitId]);
 
   const harvest = canExecuteElementAction(gameState, playerId, elementId, 'harvest', coordinate, harvestUnitId ?? undefined);
   const build = canExecuteElementAction(gameState, playerId, elementId, 'build', coordinate, buildUnitId ?? undefined);
-
   const displayedLongTermAction = useMemo(() => {
     if (!element.longTermBuild) return null;
 
@@ -169,6 +183,38 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
       uiTooltipBuild: 'Already constructed',
     };
   }, [coordinate.q, coordinate.r, element, elementId, gameState.map.tiles, player.researchedTechs]);
+
+  const harvestRequirements = useMemo(
+    () => getWorldElementActionRequirements(elementId, 'harvest'),
+    [elementId]
+  );
+  const buildRequirements = useMemo(() => {
+    const baseRequirements = getWorldElementActionRequirements(elementId, 'build', { includeUpgrade: true });
+    const upgrade = element?.longTermBuild?.upgrade;
+
+    if (!upgrade || !displayedLongTermAction) {
+      return baseRequirements;
+    }
+
+    const isUpgrade = displayedLongTermAction.name === `Upgrade to ${upgrade.structure}`;
+    if (!isUpgrade) {
+      return baseRequirements;
+    }
+
+    const upgradeRequirements = getWorldElementActionRequirements(elementId, 'build', { includeUpgrade: false })
+      .filter(req => req.id !== 'tech' && req.id !== 'cost');
+
+    const upgradeTech = getTechDisplayName(upgrade.techRequired);
+    if (upgradeTech) {
+      upgradeRequirements.push({ id: 'tech', label: `Tech: ${upgradeTech}` });
+    }
+
+    if ((upgrade.costStars || 0) > 0) {
+      upgradeRequirements.push({ id: 'cost', label: `Cost: ${upgrade.costStars}★` });
+    }
+
+    return upgradeRequirements;
+  }, [displayedLongTermAction, element?.longTermBuild?.upgrade, elementId]);
 
   const moralMsg = useMemo(() => {
     const msgs: string[] = [];
@@ -228,6 +274,7 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
                   badgeColor="destructive"
                   action={element.immediateAction}
                   canExecute={harvest}
+                  requirements={harvestRequirements}
                   onClick={() => harvestUnitId && onAction('harvest', harvestUnitId)}
                   theme="red"
                 />
@@ -248,6 +295,7 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
                   badgeColor="secondary"
                   action={displayedLongTermAction}
                   canExecute={build}
+                  requirements={buildRequirements}
                   onClick={() => buildUnitId && onAction('build', buildUnitId)}
                   theme="blue"
                 />
@@ -326,11 +374,12 @@ interface ActionSectionProps {
   badgeColor: 'destructive' | 'secondary';
   action: any; // Will be transformed to ActionData
   canExecute: { canExecute: boolean; reason?: string };
+  requirements: WorldElementRequirement[];
   onClick: () => void; 
   theme: 'red' | 'blue';
 }
 
-function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }: ActionSectionProps) {
+function ActionSection({ label, badgeColor, action, canExecute, requirements, onClick, theme }: ActionSectionProps) {
   const isImmediate = theme === 'red';
   const playSfx = useSfxEngine();
   
@@ -353,6 +402,10 @@ function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }
       ...(action.faithDelta && !isImmediate ? [{ value: action.faithDelta, type: 'faith' as DeltaType }] : []),
     ].filter(d => d.value !== 0) : undefined,
   };
+  const hasPopulationGain = [
+    ...(actionData.immediateDeltas || []),
+    ...(actionData.permanentDeltas || [])
+  ].some(d => d.type === 'population' && d.value > 0);
   
   return (
     <section className="space-y-4">
@@ -377,6 +430,27 @@ function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }
         <p className="mb-3 text-sm text-amber-100/90 p-3 bg-stone-900/40 rounded-lg border border-amber-600/20">
           {actionData.summary}
         </p>
+      )}
+
+      {requirements.length > 0 && (
+        <div className="mb-4">
+          <h4 className="mt-4 mb-2 font-semibold text-amber-200 text-sm uppercase tracking-wide">
+            📜 Requirements:
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {requirements.map((req, idx) => (
+              <div
+                key={`${req.id}-${idx}`}
+                className="rounded-lg border border-amber-500/30 bg-stone-900/40 px-3 py-2 text-xs text-amber-100/90"
+              >
+                <span className="font-semibold">{req.label}</span>
+                {req.detail && (
+                  <span className="ml-2 text-amber-200/70">{req.detail}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Construction cost */}
@@ -415,6 +489,12 @@ function ActionSection({ label, badgeColor, action, canExecute, onClick, theme }
               <ResourceDeltaBadge key={`${d.type}-${idx}`} value={d.value} type={d.type} />
             ))}
           </div>
+        </div>
+      )}
+
+      {hasPopulationGain && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-900/10 px-3 py-2 text-xs text-amber-200/80">
+          Population is added to your nearest owned city and can trigger a level-up.
         </div>
       )}
 

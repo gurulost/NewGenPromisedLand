@@ -14,7 +14,7 @@ export const NEW_TECHNOLOGIES: Record<string, Technology> = {
     prerequisites: [],
     unlocks: {
       improvements: ['sawmill'],
-      abilities: ['harvest_lumber']
+      benefits: ['Sawmill (Timber Grove)']
     },
     category: 'economic'
   },
@@ -27,7 +27,7 @@ export const NEW_TECHNOLOGIES: Record<string, Technology> = {
     prerequisites: ['woodcraft'],
     unlocks: {
       improvements: ['corral'],
-      abilities: ['animal_domestication']
+      benefits: ['Corral (Wild Goats)']
     },
     category: 'economic'
   },
@@ -40,7 +40,7 @@ export const NEW_TECHNOLOGIES: Record<string, Technology> = {
     prerequisites: [],
     unlocks: {
       improvements: ['field'],
-      abilities: ['cultivation']
+      benefits: ['Field (Grain Patch)']
     },
     category: 'economic'
   },
@@ -53,7 +53,7 @@ export const NEW_TECHNOLOGIES: Record<string, Technology> = {
     prerequisites: ['agriculture'],
     unlocks: {
       improvements: ['windmill'],
-      abilities: ['advanced_farming']
+      benefits: ['Windmill (Grain Patch upgrade)']
     },
     category: 'economic'
   },
@@ -67,7 +67,7 @@ export const NEW_TECHNOLOGIES: Record<string, Technology> = {
     unlocks: {
       improvements: ['fishing_jetty'],
       units: ['boat'],
-      abilities: ['coastal_fishing']
+      benefits: ['Fishing Jetty (Fishing Shoal)']
     },
     category: 'exploration'
   },
@@ -81,7 +81,7 @@ export const NEW_TECHNOLOGIES: Record<string, Technology> = {
     unlocks: {
       improvements: ['harbor'],
       structures: ['marketplace'],
-      abilities: ['trade_routes']
+      benefits: ['Trade Routes', 'Harbor Upgrade (Fishing Jetty)', 'Road Network bonus increased']
     },
     category: 'economic'
   },
@@ -95,7 +95,7 @@ export const NEW_TECHNOLOGIES: Record<string, Technology> = {
     unlocks: {
       improvements: ['sea_platform'],
       units: ['deep_water_vessel'],
-      abilities: ['deep_sea_expedition']
+      benefits: ['Great Sea Beast Expeditions']
     },
     category: 'exploration'
   }
