@@ -21,10 +21,10 @@ export const TECH_LAYOUT: Record<string, TechPosition> = {
 
   // Column 1
   agriculture: { column: 1, row: 0 },     // ← Organization
-  woodcraft: { column: 1, row: 1 },       // ← Forestry
-  mining: { column: 1, row: 2 },          // ← Organization
-  irrigation: { column: 1, row: 3 },      // ← Agriculture
-  husbandry: { column: 1, row: 2.5 },     // ← Hunting (cross-category, Economic tech)
+  woodcraft: { column: 1, row: 0.7 },     // ← Forestry
+  mining: { column: 1, row: 1.4 },        // ← Organization
+  husbandry: { column: 1, row: 2.1 },     // ← Hunting (cross-category, Economic tech)
+  irrigation: { column: 1, row: 2.8 },    // ← Agriculture
 
   // Column 2
   construction: { column: 2, row: 1 },    // ← Organization + Forestry

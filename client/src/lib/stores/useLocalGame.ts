@@ -375,13 +375,22 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       }, playerFactions);
 
       const map = mapGenerator.generateMap();
+      const capitalPositions = mapGenerator.getCapitalPositions();
 
       // Find city tiles from the generated map for player starting positions
       const cityTiles = map.tiles.filter(tile => tile.hasCity);
+      const capitalTiles = capitalPositions
+        .map(pos => map.tiles.find(tile =>
+          tile.coordinate.q === pos.q &&
+          tile.coordinate.r === pos.r &&
+          tile.coordinate.s === pos.s
+        ))
+        .filter((tile): tile is typeof cityTiles[number] => !!tile);
+      const startTiles = capitalTiles.length === players.length ? capitalTiles : cityTiles;
 
       // Assign cities to players (first cities generated are best positioned for players)
       const cities = players.map((player, index) => {
-        const cityTile = cityTiles[index] || cityTiles[0]; // Fallback to first city if not enough
+        const cityTile = startTiles[index] || cityTiles[index] || cityTiles[0]; // Fallback to first city if not enough
 
         return {
           id: `city-${player.id}`,

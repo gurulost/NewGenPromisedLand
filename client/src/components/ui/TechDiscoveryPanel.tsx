@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BookOpen, Coins, Compass, Sparkles, Swords } from 'lucide-react';
+import { BookOpen, Coins, Compass, Sparkles, Star, Swords } from 'lucide-react';
 import { Button } from './button';
 import { useSfxEngine } from '../../hooks/useSfx';
 import { TECHNOLOGIES, type Technology } from '@shared/data/technologies';
@@ -58,6 +58,8 @@ const resolveAbilityName = (abilityId: string) => {
   return match?.name ?? titleCase(abilityId);
 };
 
+const formatBenefit = (value: string) => (value.includes('_') || value.includes('-') ? titleCase(value) : value);
+
 export function TechDiscoveryPanel({ techId, onClose }: TechDiscoveryPanelProps) {
   const playSfx = useSfxEngine();
   const [showContent, setShowContent] = useState(false);
@@ -69,12 +71,14 @@ export function TechDiscoveryPanel({ techId, onClose }: TechDiscoveryPanelProps)
     const improvements = (tech.unlocks.improvements || []).map((id) => IMPROVEMENT_DEFINITIONS[id as keyof typeof IMPROVEMENT_DEFINITIONS]?.name ?? titleCase(id));
     const structures = (tech.unlocks.structures || []).map((id) => STRUCTURE_DEFINITIONS[id as keyof typeof STRUCTURE_DEFINITIONS]?.name ?? titleCase(id));
     const abilities = (tech.unlocks.abilities || []).map(resolveAbilityName);
+    const benefits = (tech.unlocks.benefits || []).map(formatBenefit);
 
     return [
       { label: 'Units', icon: <Swords className="h-4 w-4" />, items: units },
       { label: 'Improvements', icon: <Coins className="h-4 w-4" />, items: improvements },
       { label: 'Structures', icon: <BookOpen className="h-4 w-4" />, items: structures },
       { label: 'Abilities', icon: <Sparkles className="h-4 w-4" />, items: abilities },
+      { label: 'Benefits', icon: <Star className="h-4 w-4" />, items: benefits },
     ].filter((group) => group.items.length > 0);
   }, [tech]);
 
