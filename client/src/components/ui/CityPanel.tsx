@@ -364,8 +364,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <h3 className="font-semibold mb-2">City Information</h3>
-                <div className="space-y-1 text-sm">
+                <h3 className="font-semibold mb-2 text-amber-100">City Information</h3>
+                <div className="space-y-1 text-sm text-slate-200">
                   <p>Level: {city.level}</p>
                   <p>Population: {city.population}/{city.maxPopulation}</p>
                   <p>Star Production: +{city.starProduction}/turn</p>
@@ -400,8 +400,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               </div>
 
               <div>
-                <h3 className="font-semibold mb-2">Resources</h3>
-                <div className="space-y-1 text-sm">
+                <h3 className="font-semibold mb-2 text-amber-100">Resources</h3>
+                <div className="space-y-1 text-sm text-slate-200">
                   <div className="flex items-center gap-1">
                     <Star className="w-3 h-3 text-yellow-500" />
                     <span>{currentPlayer.stars} Stars</span>
@@ -413,41 +413,41 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
             <Separator />
 
             <div>
-              <h3 className="font-semibold mb-2">Current Structures</h3>
+              <h3 className="font-semibold mb-2 text-amber-100">Current Structures</h3>
               {cityStructures.length > 0 ? (
                 <div className="grid grid-cols-1 gap-2">
                   {cityStructures.map(structure => (
-                    <div key={structure.id} className="p-2 border rounded">
-                      <p className="font-medium">{structure.type}</p>
+                    <div key={structure.id} className="p-2 border border-slate-600 rounded">
+                      <p className="font-medium text-slate-200">{structure.type}</p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500 text-sm">No structures built yet</p>
+                <p className="text-slate-400 text-sm">No structures built yet</p>
               )}
             </div>
 
             <div>
-              <h3 className="font-semibold mb-2">Units in City</h3>
+              <h3 className="font-semibold mb-2 text-amber-100">Units in City</h3>
               {cityUnits.length > 0 ? (
                 <div className="grid grid-cols-1 gap-2">
                   {cityUnits.map(unit => (
-                    <div key={unit.id} className="p-2 border rounded">
-                      <p className="font-medium">{unit.type}</p>
-                      <p className="text-sm text-gray-600">HP: {unit.hp}/{unit.maxHp}</p>
+                    <div key={unit.id} className="p-2 border border-slate-600 rounded">
+                      <p className="font-medium text-slate-200">{unit.type}</p>
+                      <p className="text-sm text-slate-400">HP: {unit.hp}/{unit.maxHp}</p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500 text-sm">No units in city</p>
+                <p className="text-slate-400 text-sm">No units in city</p>
               )}
             </div>
           </div>
           {selectedTab === 'overview' && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <h3 className="font-semibold">City Information</h3>
+                <div className="space-y-2 text-slate-200">
+                  <h3 className="font-semibold text-amber-100">City Information</h3>
                   <p>Population: {city.population}</p>
                   <p>Level: {city.level}</p>
                   <p>Production: {city.starProduction} per turn</p>
@@ -458,8 +458,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                   </p>
                   <Progress value={levelProgress} className="h-2 bg-slate-800" />
                 </div>
-                <div className="space-y-2">
-                  <h3 className="font-semibold">Units in City</h3>
+                <div className="space-y-2 text-slate-200">
+                  <h3 className="font-semibold text-amber-100">Units in City</h3>
                   <p>{cityUnits.length}/4 units stationed</p>
                   {cityUnits.map(unit => (
                     <Badge key={unit.id} variant="outline">
@@ -472,9 +472,9 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               <Separator />
 
               <div className="space-y-2">
-                <h3 className="font-semibold">City Structures</h3>
+                <h3 className="font-semibold text-amber-100">City Structures</h3>
                 {cityStructures.length === 0 ? (
-                  <p className="text-gray-500">No structures built</p>
+                  <p className="text-slate-400">No structures built</p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {cityStructures.map(structure => (
@@ -490,7 +490,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
 
           {selectedTab === 'structures' && (
             <div className="space-y-4">
-              <h3 className="font-semibold mb-4">Available Structures</h3>
+              <h3 className="font-semibold mb-4 text-amber-100">Available Structures</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.values(STRUCTURE_DEFINITIONS).map(structure => {
                   const canAfford = canAffordStructure(structure.id);
@@ -506,11 +506,11 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                         </div>
                       </div>
 
-                      <p className="text-sm text-gray-600 mb-3">{structure.description}</p>
+                      <p className="text-sm text-slate-300 mb-3">{structure.description}</p>
 
                       <div className="mb-3">
-                        <p className="text-xs font-medium text-gray-500 mb-1">Requirements:</p>
-                        <div className="text-xs space-y-1">
+                        <p className="text-xs font-medium text-slate-400 mb-1">Requirements:</p>
+                        <div className="text-xs space-y-1 text-slate-300">
                           <p>Technology: {structure.requiredTech.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                             {currentPlayer.researchedTechs.includes(structure.requiredTech) ?
                               <span className="text-green-600 ml-1">✓</span> :
@@ -521,8 +521,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                       </div>
 
                       <div className="mb-3">
-                        <p className="text-xs font-medium text-gray-500 mb-1">Effects:</p>
-                        <div className="text-xs space-y-1">
+                        <p className="text-xs font-medium text-slate-400 mb-1">Effects:</p>
+                        <div className="text-xs space-y-1 text-slate-300">
                           {structure.effects.starProduction > 0 && (
                             <p>+{structure.effects.starProduction} stars/turn</p>
                           )}
@@ -554,8 +554,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           {selectedTab === 'units' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="font-semibold">Recruit Units</h3>
-                <p className="text-sm text-gray-600">{cityUnits.length}/4 units in city</p>
+                <h3 className="font-semibold text-amber-100">Recruit Units</h3>
+                <p className="text-sm text-slate-300">{cityUnits.length}/4 units in city</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -579,11 +579,11 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                           </div>
                         </div>
 
-                        <p className="text-sm text-gray-600 mb-3">{unit.description}</p>
+                        <p className="text-sm text-slate-300 mb-3">{unit.description}</p>
 
                         <div className="mb-3">
-                          <p className="text-xs font-medium text-gray-500 mb-1">Stats:</p>
-                          <div className="grid grid-cols-2 gap-1 text-xs">
+                          <p className="text-xs font-medium text-slate-400 mb-1">Stats:</p>
+                          <div className="grid grid-cols-2 gap-1 text-xs text-slate-300">
                             <span>HP: {unit.baseStats.hp}</span>
                             <span>Attack: {unit.baseStats.attack}</span>
                             <span>Defense: {unit.baseStats.defense}</span>
@@ -593,8 +593,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
 
                         {unit.requirements && (
                           <div className="mb-3">
-                            <p className="text-xs font-medium text-gray-500 mb-1">Requirements:</p>
-                            <div className="text-xs space-y-1">
+                            <p className="text-xs font-medium text-slate-400 mb-1">Requirements:</p>
+                            <div className="text-xs space-y-1 text-slate-300">
                               {unit.requirements.faith && (
                                 <p>Faith: {unit.requirements.faith}+ (have: {currentPlayer.stats.faith})</p>
                               )}
@@ -610,8 +610,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
 
                         {unit.passiveEffects && (
                           <div className="mb-3">
-                            <p className="text-xs font-medium text-gray-500 mb-1">Per Turn:</p>
-                            <div className="text-xs space-y-1">
+                            <p className="text-xs font-medium text-slate-400 mb-1">Per Turn:</p>
+                            <div className="text-xs space-y-1 text-slate-300">
                               {unit.passiveEffects.perTurn?.stars && (
                                 <p>{unit.passiveEffects.perTurn.stars > 0 ? '+' : ''}{unit.passiveEffects.perTurn.stars}★</p>
                               )}
