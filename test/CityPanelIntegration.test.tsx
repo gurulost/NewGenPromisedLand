@@ -17,7 +17,7 @@ const mockDispatch = vi.fn();
 const mockStartConstruction = vi.fn();
 
 vi.mock('../client/src/lib/stores/useGameState', () => ({
-  useGameState: () => ({ startConstruction: mockStartConstruction }),
+  useGameState: () => ({ startConstruction: mockStartConstruction, startSpawnSelection: vi.fn() }),
 }));
 
 const mockUseLocalGame = vi.fn();
@@ -69,7 +69,13 @@ describe('CityPanel Integration Tests', () => {
         },
       ],
       cities: [mockCity],
-      map: { tiles: [], width: 10, height: 10 },
+      map: {
+        tiles: [
+          { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: true, exploredBy: [] }
+        ],
+        width: 10,
+        height: 10
+      },
       structures: [
         {
           id: 'struct1',
@@ -127,8 +133,15 @@ describe('CityPanel Integration Tests', () => {
     await user.click(screen.getByText('Construction Hall'));
     await user.click(screen.getByText('Build Warrior'));
 
-    expect(mockStartConstruction).toHaveBeenCalledWith('warrior', 'units', 'city1', 'player1');
-    expect(onClose).toHaveBeenCalled();
+    expect(mockDispatch).toHaveBeenCalledWith({
+      type: 'RECRUIT_UNIT',
+      payload: {
+        playerId: 'player1',
+        cityId: 'city1',
+        unitType: 'warrior',
+        spawnCoordinate: { q: 0, r: 0, s: 0 }
+      }
+    });
   });
 
   it('closes Construction Hall when close button is clicked', async () => {

@@ -338,7 +338,7 @@ export default function MapFeatures() {
 
       if (!capitalCity) return null;
 
-      const faction = getFaction(player.factionId);
+      const faction = getFaction(player.factionId as any);
       const position = hexToPixel(capitalCity.coordinate, 1);
       let nearestVillage: { coordinate: { q: number; r: number; s: number }; distance: number } | null = null;
 

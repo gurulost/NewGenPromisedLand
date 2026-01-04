@@ -17,7 +17,7 @@ describe('Map Generation - Capitals', () => {
   };
 
   it('should expose capital positions and keep them on land', () => {
-    const playerFactions: FactionId[] = ['nephites', 'lamanites', 'mulekites', 'zoramites'];
+    const playerFactions: FactionId[] = ['NEPHITES', 'LAMANITES', 'MULEKITES', 'ZORAMITES'];
     const mapGenerator = createMapGenerator(4, 12, playerFactions, 'capital-seed');
     const map = mapGenerator.generateMap();
     const capitals = mapGenerator.getCapitalPositions();
@@ -37,7 +37,7 @@ describe('Map Generation - Capitals', () => {
   });
 
   it('should keep capitals reasonably spaced', () => {
-    const playerFactions: FactionId[] = ['nephites', 'lamanites', 'mulekites', 'zoramites'];
+    const playerFactions: FactionId[] = ['NEPHITES', 'LAMANITES', 'MULEKITES', 'ZORAMITES'];
     const mapGenerator = createMapGenerator(4, 12, playerFactions, 'spacing-seed');
     mapGenerator.generateMap();
     const capitals = mapGenerator.getCapitalPositions();
@@ -51,7 +51,7 @@ describe('Map Generation - Capitals', () => {
   });
 
   it('should guarantee a nearby expansion village', () => {
-    const playerFactions: FactionId[] = ['nephites', 'lamanites', 'mulekites', 'zoramites'];
+    const playerFactions: FactionId[] = ['NEPHITES', 'LAMANITES', 'MULEKITES', 'ZORAMITES'];
     const mapGenerator = createMapGenerator(4, 12, playerFactions, 'village-seed');
     const map = mapGenerator.generateMap();
     const capitals = mapGenerator.getCapitalPositions();

@@ -2806,53 +2806,10 @@ function handleResearchTechnology(
   state: GameState,
   payload: { playerId: string; technologyId: string }
 ): GameState {
-  const { playerId, technologyId } = payload;
-
-  const player = state.players.find(p => p.id === playerId);
-  if (!player) return state;
-
-  const tech = TECHNOLOGIES[technologyId];
-  if (!tech) return state;
-
-  // Check if tech is already researched
-  if (player.researchedTechs.includes(technologyId)) {
-    return state;
-  }
-
-  // Verify prerequisites
-  const hasPrerequisites = tech.prerequisites.every(prereqId =>
-    player.researchedTechs.includes(prereqId)
-  );
-
-  if (!hasPrerequisites) {
-    console.log(`Cannot research ${tech.name}: missing prerequisites`);
-    return state;
-  }
-
-  // Check cost
-  if (player.stars < tech.cost) {
-    console.log(`Cannot research ${tech.name}: insufficient stars (need ${tech.cost}, have ${player.stars})`);
-    return state;
-  }
-
-  console.log(`Player ${player.name} researched ${tech.name} for ${tech.cost} stars`);
-
-  // Update player with new technology
-  const updatedPlayers = state.players.map(p => {
-    if (p.id === playerId) {
-      return {
-        ...p,
-        stars: p.stars - tech.cost,
-        researchedTechs: [...p.researchedTechs, technologyId],
-      };
-    }
-    return p;
+  return handleResearchTech(state, {
+    playerId: payload.playerId,
+    techId: payload.technologyId
   });
-
-  return {
-    ...state,
-    players: updatedPlayers
-  };
 }
 
 function checkVictoryConditions(state: GameState, players: PlayerState[]): string | undefined {

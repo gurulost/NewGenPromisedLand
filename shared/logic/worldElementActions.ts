@@ -160,6 +160,16 @@ export function executeElementHarvest(
     };
   }
 
+  const markerPrefix = `we:${elementId}:`;
+  const hasBuildMarker = (tileAt.resources || []).some(r => String(r).startsWith(markerPrefix));
+  if (hasBuildMarker) {
+    return {
+      success: false,
+      message: 'Already developed',
+      resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
+    };
+  }
+
   const player = gameState.players.find(p => p.id === playerId);
   if (!player) {
     return {
@@ -253,23 +263,29 @@ export function executeElementHarvest(
   };
 
   // Transform tile if specified
-  if (action.tileTransform) {
-    newState.map.tiles = newState.map.tiles.map(tile =>
-      tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
-        ? {
-          ...tile,
-          terrain: action.tileTransform as any,
-          resources: [] // Remove the resource after harvesting
-        }
-        : tile
-    );
-  }
+  const updatedState = action.tileTransform
+    ? {
+      ...newState,
+      map: {
+        ...newState.map,
+        tiles: newState.map.tiles.map(tile =>
+          tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
+            ? {
+              ...tile,
+              terrain: action.tileTransform as any,
+              resources: [] // Remove the resource after harvesting
+            }
+            : tile
+        )
+      }
+    }
+    : newState;
 
   return {
     success: true,
     message: `${action.name} completed - ${getImpactMessage(action.prideDelta, action.faithDelta)}${action.popDelta > 0 && closestCity ? ` (+${action.popDelta} population to ${closestCity.name})` : ''
       }`,
-    newState,
+    newState: updatedState,
     resourceDeltas: {
       stars: action.starsDelta,
       faith: action.faithDelta,
@@ -419,17 +435,23 @@ export function executeElementBuild(
           )
         };
       }
-      stateWithCity.map.tiles = stateWithCity.map.tiles.map(tile =>
-        tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
-          ? {
-            ...tile,
-            resources: [
-              ...(tile.resources || []).filter(r => !String(r).startsWith(markerPrefix)),
-              `${markerPrefix}${upgrade.structure}`
-            ]
-          }
-          : tile
-      );
+      stateWithCity = {
+        ...stateWithCity,
+        map: {
+          ...stateWithCity.map,
+          tiles: stateWithCity.map.tiles.map(tile =>
+            tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
+              ? {
+                ...tile,
+                resources: [
+                  ...(tile.resources || []).filter(r => !String(r).startsWith(markerPrefix)),
+                  `${markerPrefix}${upgrade.structure}`
+                ]
+              }
+              : tile
+          )
+        }
+      };
 
       return {
         success: true,
@@ -477,14 +499,20 @@ export function executeElementBuild(
   newState = applyCityDeltas(newState, basePopDelta, baseStarsPerTurn);
 
   // Mark the tile as improved (used to gate upgrades and prevent rebuild spam)
-  newState.map.tiles = newState.map.tiles.map(tile =>
-    tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
-      ? {
-        ...tile,
-        resources: [...(tile.resources || []), baseMarker]
-      }
-      : tile
-  );
+  newState = {
+    ...newState,
+    map: {
+      ...newState.map,
+      tiles: newState.map.tiles.map(tile =>
+        tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
+          ? {
+            ...tile,
+            resources: [...(tile.resources || []), baseMarker]
+          }
+          : tile
+      )
+    }
+  };
 
   return {
     success: true,
@@ -780,6 +808,12 @@ export function canExecuteElementAction(
     const hasElementAtTile =
       tile.feature === (elementId as any) || (tile.resources || []).includes(elementId);
     if (!hasElementAtTile) return { canExecute: false, reason: 'Element not present' };
+
+    const markerPrefix = `we:${elementId}:`;
+    const hasBuildMarker = (tile.resources || []).some(r => String(r).startsWith(markerPrefix));
+    if (actionType === 'harvest' && hasBuildMarker) {
+      return { canExecute: false, reason: 'Already developed' };
+    }
 
     const unitsOnTile = gameState.units.filter(u =>
       u.playerId === playerId &&
