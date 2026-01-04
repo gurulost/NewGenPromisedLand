@@ -138,17 +138,23 @@ describe('GameUI Navigation Integration Tests', () => {
       setSelectedUnit: vi.fn(),
       constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null },
       cancelConstruction: vi.fn(),
+      spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [] },
+      cancelSpawnSelection: vi.fn(),
       isRoadBuildMode: false,
       cancelRoadBuild: vi.fn(),
       isMovementMode: false,
       isAttackMode: false,
       setMovementMode: vi.fn(),
       setAttackMode: vi.fn(),
-      reachableCoordinates: []
+      reachableCoordinates: [],
+      closeTileContextMenu: vi.fn(),
+      showSpawnDebug: false,
+      toggleSpawnDebug: vi.fn()
     });
 
     (useGameState as any).getState = vi.fn().mockReturnValue({
-      startConstruction: mockStartConstruction
+      startConstruction: mockStartConstruction,
+      selectedUnit: null
     });
 
     // Mock useTurnTransition
@@ -348,13 +354,18 @@ describe('GameUI Navigation Integration Tests', () => {
           playerId: 'player1'
         },
         cancelConstruction: vi.fn(),
+        spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [] },
+        cancelSpawnSelection: vi.fn(),
         isRoadBuildMode: false,
         cancelRoadBuild: vi.fn(),
         isMovementMode: false,
         isAttackMode: false,
         setMovementMode: vi.fn(),
         setAttackMode: vi.fn(),
-        reachableCoordinates: []
+        reachableCoordinates: [],
+        closeTileContextMenu: vi.fn(),
+        showSpawnDebug: false,
+        toggleSpawnDebug: vi.fn()
       });
 
       render(<GameUI />);

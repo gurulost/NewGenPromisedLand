@@ -3,6 +3,7 @@ import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { CAPITAL_MIN_DISTANCE_BY_SIZE, MAP_GENERATION_CONSTANTS, MAP_SIZE_CONFIGS, MapSize } from "@shared/utils/mapGenerator";
 import { hexDistance, hexNeighbors } from "@shared/utils/hex";
+import type { HexCoordinate } from "@shared/types/coordinates";
 import { getFaction } from "@shared/data/factions";
 import type { Tile } from "@shared/types/game";
 
@@ -12,12 +13,14 @@ interface CapitalDebugInfo {
   factionId: string;
   factionName: string;
   color: string;
-  coordinate: { q: number; r: number; s?: number };
+  coordinate: HexCoordinate;
   terrain: string;
   landNeighbors: number;
   nearestOtherDistance: number | null;
   nearestVillageDistance: number | null;
 }
+
+type CapitalDebugBase = Omit<CapitalDebugInfo, "nearestOtherDistance">;
 
 export function SpawnDebugPanel() {
   const isDev = import.meta.env.DEV;
@@ -58,7 +61,7 @@ export function SpawnDebugPanel() {
         }
       }
 
-      const faction = getFaction(player.factionId);
+      const faction = getFaction(player.factionId as any);
 
       return {
         playerId: player.id,
@@ -71,7 +74,7 @@ export function SpawnDebugPanel() {
         landNeighbors,
         nearestVillageDistance,
       };
-    }).filter((capital): capital is Omit<CapitalDebugInfo, "nearestOtherDistance"> => !!capital);
+    }).filter((capital): capital is CapitalDebugBase => capital !== null);
 
     const capitals: CapitalDebugInfo[] = rawCapitals.map((capital, index) => {
       const otherDistances = rawCapitals

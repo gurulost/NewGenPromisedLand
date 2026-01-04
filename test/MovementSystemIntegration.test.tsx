@@ -132,12 +132,14 @@ describe('Movement System Integration Tests', () => {
       selectedUnit: mockUnit,
       hoveredTile: null,
       reachableTiles: ['1,0', '0,1'],
+      reachableCoordinates: [],
       isMovementMode: false,
       isAttackMode: false,
       attackableTargets: [],
       isRoadBuildMode: false,
       roadBuildUnitId: null,
       constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null },
+      spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [] },
       setSelectedUnit: mockSetSelectedUnit,
       setHoveredTile: vi.fn(),
       setReachableTiles: mockSetReachableTiles,
@@ -145,7 +147,13 @@ describe('Movement System Integration Tests', () => {
       setAttackMode: mockSetAttackMode,
       startConstruction: vi.fn(),
       cancelConstruction: vi.fn(),
-      cancelRoadBuild: vi.fn()
+      cancelRoadBuild: vi.fn(),
+      startSpawnSelection: vi.fn(),
+      cancelSpawnSelection: vi.fn(),
+      openTileContextMenu: vi.fn(),
+      closeTileContextMenu: vi.fn(),
+      showSpawnDebug: false,
+      toggleSpawnDebug: vi.fn()
     });
 
     // Mock useLocalGame
@@ -191,12 +199,14 @@ describe('Movement System Integration Tests', () => {
         selectedUnit: mockUnit,
         hoveredTile: null,
         reachableTiles: [],
+        reachableCoordinates: [],
         isMovementMode: false,
         isAttackMode: false,
         attackableTargets: [],
         isRoadBuildMode: false,
         roadBuildUnitId: null,
         constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null },
+        spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [] },
         setSelectedUnit: mockSetSelectedUnit,
         setHoveredTile: vi.fn(),
         setReachableTiles: mockSetReachableTiles,
@@ -204,7 +214,13 @@ describe('Movement System Integration Tests', () => {
         setAttackMode: mockSetAttackMode,
         startConstruction: vi.fn(),
         cancelConstruction: vi.fn(),
-        cancelRoadBuild: vi.fn()
+        cancelRoadBuild: vi.fn(),
+        startSpawnSelection: vi.fn(),
+        cancelSpawnSelection: vi.fn(),
+        openTileContextMenu: vi.fn(),
+        closeTileContextMenu: vi.fn(),
+        showSpawnDebug: false,
+        toggleSpawnDebug: vi.fn()
       });
 
       const { container } = render(
@@ -222,12 +238,14 @@ describe('Movement System Integration Tests', () => {
         selectedUnit: mockUnit,
         hoveredTile: null,
         reachableTiles: ['1,0', '0,1'],
+        reachableCoordinates: [],
         isMovementMode: true,
         isAttackMode: false,
         attackableTargets: [],
         isRoadBuildMode: false,
         roadBuildUnitId: null,
         constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null },
+        spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [] },
         setSelectedUnit: mockSetSelectedUnit,
         setHoveredTile: vi.fn(),
         setReachableTiles: mockSetReachableTiles,
@@ -235,7 +253,13 @@ describe('Movement System Integration Tests', () => {
         setAttackMode: mockSetAttackMode,
         startConstruction: vi.fn(),
         cancelConstruction: vi.fn(),
-        cancelRoadBuild: vi.fn()
+        cancelRoadBuild: vi.fn(),
+        startSpawnSelection: vi.fn(),
+        cancelSpawnSelection: vi.fn(),
+        openTileContextMenu: vi.fn(),
+        closeTileContextMenu: vi.fn(),
+        showSpawnDebug: false,
+        toggleSpawnDebug: vi.fn()
       });
 
       const { container } = render(
@@ -265,12 +289,14 @@ describe('Movement System Integration Tests', () => {
         selectedUnit: mockUnit,
         hoveredTile: null,
         reachableTiles: ['1,0', '0,1'],
+        reachableCoordinates: [],
         isMovementMode: true,
         isAttackMode: false,
         attackableTargets: [],
         isRoadBuildMode: false,
         roadBuildUnitId: null,
         constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null },
+        spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [] },
         setSelectedUnit: mockSetSelectedUnit,
         setHoveredTile: vi.fn(),
         setReachableTiles: mockSetReachableTiles,
@@ -278,7 +304,13 @@ describe('Movement System Integration Tests', () => {
         setAttackMode: mockSetAttackMode,
         startConstruction: vi.fn(),
         cancelConstruction: vi.fn(),
-        cancelRoadBuild: vi.fn()
+        cancelRoadBuild: vi.fn(),
+        startSpawnSelection: vi.fn(),
+        cancelSpawnSelection: vi.fn(),
+        openTileContextMenu: vi.fn(),
+        closeTileContextMenu: vi.fn(),
+        showSpawnDebug: false,
+        toggleSpawnDebug: vi.fn()
       });
 
       const { container } = render(
@@ -297,12 +329,14 @@ describe('Movement System Integration Tests', () => {
         selectedUnit: mockUnit,
         hoveredTile: null,
         reachableTiles: ['1,0', '0,1'],
+        reachableCoordinates: [],
         isMovementMode: true,
         isAttackMode: false,
         attackableTargets: [],
         isRoadBuildMode: false,
         roadBuildUnitId: null,
         constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null },
+        spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [] },
         setSelectedUnit: mockSetSelectedUnit,
         setHoveredTile: vi.fn(),
         setReachableTiles: mockSetReachableTiles,
@@ -310,7 +344,13 @@ describe('Movement System Integration Tests', () => {
         setAttackMode: mockSetAttackMode,
         startConstruction: vi.fn(),
         cancelConstruction: vi.fn(),
-        cancelRoadBuild: vi.fn()
+        cancelRoadBuild: vi.fn(),
+        startSpawnSelection: vi.fn(),
+        cancelSpawnSelection: vi.fn(),
+        openTileContextMenu: vi.fn(),
+        closeTileContextMenu: vi.fn(),
+        showSpawnDebug: false,
+        toggleSpawnDebug: vi.fn()
       });
 
       const { container } = render(
