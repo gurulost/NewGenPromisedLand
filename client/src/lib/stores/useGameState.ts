@@ -7,6 +7,7 @@ export interface TileContextMenuOption {
   id: string;
   label: string;
   icon?: string;
+  subLabel?: string;
   action: () => void;
 }
 
@@ -43,7 +44,7 @@ interface GameStateStore {
     selectedUnitId: string | null;
     onSelectUnit?: (unitId: string) => void;
   };
-  
+
   // Construction mode
   constructionMode: {
     isActive: boolean;
@@ -52,10 +53,10 @@ interface GameStateStore {
     cityId: string | null;
     playerId: string | null;
   };
-  
+
   // Spawn selection mode (for choosing unit spawn location)
   spawnSelectionMode: SpawnSelectionState;
-  
+
   // Movement and attack modes
   isMovementMode: boolean;
   isAttackMode: boolean;
@@ -68,7 +69,7 @@ interface GameStateStore {
   // Tile context menu (for tiles with multiple interactable items)
   tileContextMenu: TileContextMenuState;
 
-  // Debug toggle for spawn visualization
+  // Debug toggles for spawn visualization
   showSpawnDebug: boolean;
 
   setSelectedUnit: (unit: Unit | null) => void;
@@ -86,11 +87,11 @@ interface GameStateStore {
   }) => void;
   setAbilityTargetSelection: (unitId: string | null) => void;
   cancelAbilityTargeting: () => void;
-  
+
   // Construction actions
   startConstruction: (buildingType: string, category: 'improvements' | 'structures' | 'units', cityId: string, playerId: string) => void;
   cancelConstruction: () => void;
-  
+
   // Spawn selection actions
   startSpawnSelection: (params: {
     unitType: UnitType;
@@ -101,7 +102,7 @@ interface GameStateStore {
     onSelectTile: (coordinate: HexCoordinate) => void;
   }) => void;
   cancelSpawnSelection: () => void;
-  
+
   // Movement and attack mode actions
   setMovementMode: (enabled: boolean) => void;
   setAttackMode: (enabled: boolean) => void;
@@ -115,7 +116,8 @@ interface GameStateStore {
   openTileContextMenu: (screenPosition: { x: number; y: number }, tileCoordinate: { q: number; r: number }, options: TileContextMenuOption[]) => void;
   closeTileContextMenu: () => void;
 
-  // Debug toggle action
+  // Debug actions
+  setShowSpawnDebug: (show: boolean) => void;
   toggleSpawnDebug: () => void;
 }
 
@@ -134,7 +136,7 @@ export const useGameState = create<GameStateStore>((set) => ({
     selectedUnitId: null,
     onSelectUnit: undefined,
   },
-  
+
   constructionMode: {
     isActive: false,
     buildingType: null,
@@ -142,7 +144,7 @@ export const useGameState = create<GameStateStore>((set) => ({
     cityId: null,
     playerId: null,
   },
-  
+
   spawnSelectionMode: {
     isActive: false,
     unitType: null,
@@ -152,7 +154,7 @@ export const useGameState = create<GameStateStore>((set) => ({
     validSpawnTiles: [],
     onSelectTile: undefined,
   },
-  
+
   isMovementMode: false,
   isAttackMode: false,
   attackableTargets: [],
@@ -212,7 +214,7 @@ export const useGameState = create<GameStateStore>((set) => ({
       onSelectUnit: undefined,
     },
   }),
-  
+
   startConstruction: (buildingType, category, cityId, playerId) => set({
     constructionMode: {
       isActive: true,
@@ -227,7 +229,7 @@ export const useGameState = create<GameStateStore>((set) => ({
     isRoadBuildMode: false,
     roadBuildUnitId: null,
   }),
-  
+
   cancelConstruction: () => set({
     constructionMode: {
       isActive: false,
@@ -237,7 +239,7 @@ export const useGameState = create<GameStateStore>((set) => ({
       playerId: null,
     },
   }),
-  
+
   startSpawnSelection: ({ unitType, cityId, cityCoordinate, playerId, validSpawnTiles, onSelectTile }) => set({
     spawnSelectionMode: {
       isActive: true,
@@ -254,7 +256,7 @@ export const useGameState = create<GameStateStore>((set) => ({
     isRoadBuildMode: false,
     roadBuildUnitId: null,
   }),
-  
+
   cancelSpawnSelection: () => set({
     spawnSelectionMode: {
       isActive: false,
@@ -266,7 +268,7 @@ export const useGameState = create<GameStateStore>((set) => ({
       onSelectTile: undefined,
     },
   }),
-  
+
   setMovementMode: (enabled) => set({ isMovementMode: enabled, isAttackMode: enabled ? false : false, isRoadBuildMode: false, roadBuildUnitId: null, attackableTargets: [] }),
   setAttackMode: (enabled) => set({ isAttackMode: enabled, isMovementMode: enabled ? false : false, isRoadBuildMode: false, roadBuildUnitId: null }),
   setAttackableTargets: (targets) => set({ attackableTargets: targets }),
@@ -291,5 +293,6 @@ export const useGameState = create<GameStateStore>((set) => ({
     },
   }),
 
+  setShowSpawnDebug: (show) => set({ showSpawnDebug: show }),
   toggleSpawnDebug: () => set((state) => ({ showSpawnDebug: !state.showSpawnDebug })),
 }));

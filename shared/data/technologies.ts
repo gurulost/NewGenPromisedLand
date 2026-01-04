@@ -5,10 +5,13 @@ export interface Technology {
   cost: number;
   prerequisites: string[];
   unlocks: {
+    // Abilities must map to shared/data/abilities.ts ids for gating.
     units?: string[];
     improvements?: string[];
     structures?: string[];
     abilities?: string[];
+    // Benefits are UI-only unlock notes (world-elements, passive bonuses, upgrades).
+    benefits?: string[];
   };
   category: 'military' | 'economic' | 'religious' | 'exploration';
 }
@@ -22,7 +25,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 5,
     prerequisites: [],
     unlocks: {
-      improvements: ['farm'],
+      improvements: ['farm', 'road'],
       units: ['worker']
     },
     category: 'economic'
@@ -35,8 +38,8 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 5,
     prerequisites: [],
     unlocks: {
-      improvements: ['lumber_hut'],
-      abilities: ['clear_forest']
+      improvements: ['lumber_hut', 'forest_camp'],
+      benefits: ['Clear Forest (Worker action)']
     },
     category: 'economic'
   },
@@ -60,7 +63,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 8,
     prerequisites: ['hunting'],
     unlocks: {
-      abilities: ['Corral (Wild Goats)']
+      benefits: ['Corral (Wild Goats)']
     },
     category: 'economic'
   },
@@ -89,7 +92,8 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     prerequisites: ['organization'],
     unlocks: {
       improvements: ['plantation'],
-      structures: ['granary']
+      structures: ['granary'],
+      benefits: ['Field (Grain Patch)']
     },
     category: 'economic'
   },
@@ -101,7 +105,8 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 12,
     prerequisites: ['agriculture'],
     unlocks: {
-      improvements: ['irrigation']
+      improvements: ['irrigation'],
+      benefits: ['Windmill (Grain Patch upgrade)']
     },
     category: 'economic'
   },
@@ -124,7 +129,9 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     description: 'Advanced timbercraft and stewardship of forests, unlocking deeper yields from sacred groves.',
     cost: 10,
     prerequisites: ['forestry'],
-    unlocks: {},
+    unlocks: {
+      benefits: ['Sawmill (Timber Grove)']
+    },
     category: 'economic'
   },
 
@@ -174,7 +181,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 12,
     prerequisites: ['sailing'],
     unlocks: {
-      abilities: ['Ports +1★/turn']
+      benefits: ['Ports +1★/turn']
     },
     category: 'exploration'
   },
@@ -186,7 +193,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 10,
     prerequisites: ['seafaring'],
     unlocks: {
-      abilities: ['Fishing Jetty (Fishing Shoal)']
+      benefits: ['Fishing Jetty (Fishing Shoal)']
     },
     category: 'economic'
   },
@@ -199,7 +206,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     prerequisites: ['organization', 'seafaring'],
     unlocks: {
       units: ['scribe_teacher'],
-      abilities: ['Trade Routes', 'Harbor Upgrade (Fishing Jetty)', 'Road Network bonus increased']
+      benefits: ['Trade Routes', 'Harbor Upgrade (Fishing Jetty)', 'Road Network bonus increased']
     },
     category: 'economic'
   },
@@ -253,7 +260,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 25,
     prerequisites: ['seafaring', 'trade'],
     unlocks: {
-      abilities: ['Deep Sea Expeditions']
+      benefits: ['Great Sea Beast Expeditions']
     },
     category: 'exploration'
   },
@@ -266,7 +273,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     prerequisites: ['bronze_working', 'organization'],
     unlocks: {
       units: ['commander'],
-      abilities: ['rally_troops', 'tactical_command']
+      benefits: ['Rally Troops (Commander)']
     },
     category: 'military'
   }
@@ -316,7 +323,8 @@ export function getUnlockedContent(researchedTechs: string[]): Technology['unloc
     units: [],
     improvements: [],
     structures: [],
-    abilities: []
+    abilities: [],
+    benefits: []
   };
   
   researchedTechs.forEach(techId => {
@@ -326,6 +334,7 @@ export function getUnlockedContent(researchedTechs: string[]): Technology['unloc
       if (tech.unlocks.improvements) unlocked.improvements!.push(...tech.unlocks.improvements);
       if (tech.unlocks.structures) unlocked.structures!.push(...tech.unlocks.structures);
       if (tech.unlocks.abilities) unlocked.abilities!.push(...tech.unlocks.abilities);
+      if (tech.unlocks.benefits) unlocked.benefits!.push(...tech.unlocks.benefits);
     }
   });
   

@@ -8,6 +8,7 @@ import { GAME_RULES } from "../data/gameRules";
 import { ABILITIES } from "../data/abilities";
 import { attemptUnitConversion, getUnitConversionFaithCost } from "./conversion";
 import { nextId } from "./rng";
+import { applyPopulationGain } from "./cityGrowth";
 
 /**
  * Unit Action System - Handles special unit abilities and actions
@@ -133,14 +134,18 @@ function executeHarvestAction(
     ...state,
     cities: state.cities?.map(city => 
       city.id === closestCity.id 
-        ? { ...city, population: Math.min(city.population + harvestBonus, 20) }
+        ? applyPopulationGain(city, harvestBonus)
         : city
     ),
     map: {
       ...state.map,
       tiles: state.map.tiles.map(tile =>
         tile.coordinate.q === hex.coordinate.q && tile.coordinate.r === hex.coordinate.r
-          ? { ...tile, terrain: 'plains', resource: undefined }
+          ? { 
+            ...tile, 
+            terrain: 'plains', 
+            resources: (tile.resources || []).filter(r => r !== resource)
+          }
           : tile
       )
     }

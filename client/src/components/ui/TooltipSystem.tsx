@@ -4,6 +4,7 @@ import { Info } from 'lucide-react';
 import { getWorldElement } from '@shared/data/worldElements';
 import { GAME_RULES } from '@shared/data/gameRules';
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from '@shared/types/city';
+import { formatRequirementList, getTechDisplayName, getWorldElementActionRequirements } from '../../utils/worldElementRequirements';
 
 type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right';
 
@@ -693,6 +694,11 @@ export function WorldElementTooltip({ elementId }: { elementId: string }) {
 
   const immediate = element.immediateAction;
   const build = element.longTermBuild;
+  const immediateRequirements = getWorldElementActionRequirements(elementId, 'harvest');
+  const buildRequirements = getWorldElementActionRequirements(elementId, 'build', { includeUpgrade: true });
+  const hasPopulationGain =
+    (immediate?.popDelta || 0) > 0 ||
+    (build?.effectPermanent?.popDelta || 0) > 0;
 
   return (
     <div className="space-y-2">
@@ -709,6 +715,11 @@ export function WorldElementTooltip({ elementId }: { elementId: string }) {
           <div className="text-slate-300">
             {immediate.summary ?? formatWorldElementDeltas(immediate)}
           </div>
+          {immediateRequirements.length > 0 && (
+            <div className="text-slate-300">
+              Requires: {formatRequirementList(immediateRequirements)}
+            </div>
+          )}
         </div>
       )}
 
@@ -735,17 +746,28 @@ export function WorldElementTooltip({ elementId }: { elementId: string }) {
                 .filter(Boolean)
                 .join(' • ')}
           </div>
+          {buildRequirements.length > 0 && (
+            <div className="text-slate-300">
+              Requires: {formatRequirementList(buildRequirements)}
+            </div>
+          )}
 
           {build.upgrade && (
             <div className="text-slate-300">
               Upgrade: {build.upgrade.structure}
               {build.upgrade.costStars ? ` (${build.upgrade.costStars}★)` : ''}
-              {build.upgrade.techRequired ? ` after ${build.upgrade.techRequired}` : ''}{' '}
+              {build.upgrade.techRequired ? ` after ${getTechDisplayName(build.upgrade.techRequired)}` : ''}{' '}
               {build.upgrade.effectPermanent?.starsPerTurn
                 ? `(+${build.upgrade.effectPermanent.starsPerTurn}★/turn)`
                 : ''}
             </div>
           )}
+        </div>
+      )}
+
+      {hasPopulationGain && (
+        <div className="text-xs text-slate-300">
+          Population goes to your nearest owned city and can level it up.
         </div>
       )}
     </div>

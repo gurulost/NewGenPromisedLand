@@ -93,7 +93,38 @@ function hasRequiredTag(unitType: UnitType, requiredTag: string): boolean {
     return unitType === 'commander' && unitDef.abilities.includes('NAVAL_COMMAND');
   }
 
+  if (requiredTag === 'naval_transport') {
+    return unitType === 'boat' || unitDef.abilities.includes('NAVAL_TRANSPORT');
+  }
+
   return false;
+}
+
+function formatTechnologyName(techId?: string): string {
+  if (!techId) return 'Unknown technology';
+  return TECHNOLOGIES[techId]?.name || techId;
+}
+
+function getUnitRequirementMessage(
+  elementId: string,
+  actionType: 'harvest' | 'build',
+  requiredTag?: string
+): string {
+  if (requiredTag) {
+    if (requiredTag === 'naval_commander') {
+      return 'Requires a Naval Commander on this tile (Commander with Naval Command)';
+    }
+    if (requiredTag === 'naval_transport') {
+      return 'Requires a Boat on this tile';
+    }
+    return `Requires a unit with ${requiredTag} capability on this tile`;
+  }
+
+  if (actionType === 'harvest' && elementId === 'jaredite_ruins') {
+    return 'Requires any unit on this tile';
+  }
+
+  return 'Requires a Worker on this tile';
 }
 
 /**
@@ -144,7 +175,7 @@ export function executeElementHarvest(
   if (element.techPrerequisite && !player.researchedTechs.includes(element.techPrerequisite)) {
     return {
       success: false,
-      message: `Requires ${element.techPrerequisite} technology`,
+      message: `Requires ${formatTechnologyName(element.techPrerequisite)} technology`,
       resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
     };
   }
@@ -161,7 +192,7 @@ export function executeElementHarvest(
     if (requiredUnits.length === 0) {
       return {
         success: false,
-        message: `Requires unit with ${action.requiresUnitTag} capability on this tile`,
+        message: getUnitRequirementMessage(elementId, 'harvest', action.requiresUnitTag),
         resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
       };
     }
@@ -307,7 +338,7 @@ export function executeElementBuild(
   if (element.techPrerequisite && !player.researchedTechs.includes(element.techPrerequisite)) {
     return {
       success: false,
-      message: `Requires ${element.techPrerequisite} technology`,
+      message: `Requires ${formatTechnologyName(element.techPrerequisite)} technology`,
       resourceDeltas: { stars: 0, faith: 0, pride: 0, dissent: 0 }
     };
   }
@@ -611,6 +642,15 @@ function executeRuinExploration(
               : p
           );
         }
+        for (let i = 0; i < newTiles.length; i++) {
+          const tile = newTiles[i];
+          if (tile.coordinate.q === enemyCity.coordinate.q && tile.coordinate.r === enemyCity.coordinate.r) {
+            if (!tile.exploredBy.includes(playerId)) {
+              newTiles[i] = { ...tile, exploredBy: [...tile.exploredBy, playerId] };
+            }
+            break;
+          }
+        }
       } else {
         // Fallback if no enemies
         starGain = 10;
@@ -747,25 +787,29 @@ export function canExecuteElementAction(
       u.coordinate.r === coordinate.r
     );
     const actingUnit = unitId ? unitsOnTile.find(u => u.id === unitId) : unitsOnTile[0];
-    if (!actingUnit) return { canExecute: false, reason: 'Requires a unit on this tile' };
+    const requiresUnitTag = actionType === 'harvest'
+      ? element.immediateAction?.requiresUnitTag
+      : element.longTermBuild?.requiresUnitTag;
+    if (!actingUnit) {
+      return { canExecute: false, reason: getUnitRequirementMessage(elementId, actionType, requiresUnitTag) };
+    }
     if (actingUnit.hasAttacked || actingUnit.remainingMovement <= 0) return { canExecute: false, reason: 'Unit is exhausted' };
 
-    const requiresUnitTag = actionType === 'harvest' ? element.immediateAction?.requiresUnitTag : undefined;
     if (requiresUnitTag) {
       if (!hasRequiredTag(actingUnit.type as UnitType, requiresUnitTag)) {
-        return { canExecute: false, reason: `Requires unit with ${requiresUnitTag} capability on this tile` };
+        return { canExecute: false, reason: getUnitRequirementMessage(elementId, actionType, requiresUnitTag) };
       }
     } else {
       const requiresWorker = elementId !== 'jaredite_ruins';
       if (requiresWorker && actingUnit.type !== 'worker') {
-        return { canExecute: false, reason: 'Requires a Worker on this tile' };
+        return { canExecute: false, reason: getUnitRequirementMessage(elementId, actionType) };
       }
     }
   }
 
   // Check tech prerequisite
   if (element.techPrerequisite && !player.researchedTechs.includes(element.techPrerequisite)) {
-    return { canExecute: false, reason: `Requires ${element.techPrerequisite} technology` };
+    return { canExecute: false, reason: `Requires ${formatTechnologyName(element.techPrerequisite)} technology` };
   }
 
   if (actionType === 'harvest') {

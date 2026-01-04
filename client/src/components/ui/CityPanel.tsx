@@ -5,7 +5,7 @@ import { Badge } from "./badge";
 import { Separator } from "./separator";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
-import { Star, Building, Sword, Hammer, Users, Sparkles, Pencil, Check, X } from "lucide-react";
+import { Star, Building, Sword, Hammer, Users, Sparkles, Pencil, Check, X, Info } from "lucide-react";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS, type ImprovementType, type StructureType } from "@shared/types/city";
 import { getUnitDefinition, UNIT_DEFINITIONS } from "@shared/data/units";
 import type { UnitType } from "@shared/types/unit";
@@ -27,6 +27,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
   const { startConstruction, startSpawnSelection } = useGameState();
   const [selectedTab, setSelectedTab] = useState<'overview' | 'structures' | 'units' | 'improvements'>('overview');
   const [showAdvancedBuildingMenu, setShowAdvancedBuildingMenu] = useState(false);
+  const [showGrowthGuide, setShowGrowthGuide] = useState(false);
 
   // Renaming state
   const [isRenaming, setIsRenaming] = useState(false);
@@ -48,6 +49,10 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
     u.coordinate.q === city.coordinate.q &&
     u.coordinate.r === city.coordinate.r
   );
+  const popToNextLevel = Math.max(0, city.maxPopulation - city.population);
+  const levelProgress = city.maxPopulation > 0
+    ? Math.min(100, Math.round((city.population / city.maxPopulation) * 100))
+    : 0;
 
   const handleBuildStructure = (structureType: StructureType) => {
     dispatch({
@@ -365,9 +370,32 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                   <p>Population: {city.population}/{city.maxPopulation}</p>
                   <p>Star Production: +{city.starProduction}/turn</p>
                   <p>Owner: {currentPlayer.name}</p>
-                  {city.population >= city.maxPopulation && (
-                    <p className="text-yellow-400 font-bold">Ready to level up!</p>
-                  )}
+                  <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-900/10 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-amber-200">Level Progress</p>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs text-amber-200 hover:text-amber-100 hover:bg-amber-500/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowGrowthGuide(true);
+                        }}
+                      >
+                        <Info className="mr-1 h-3 w-3" />
+                        Growth Guide
+                      </Button>
+                    </div>
+                    <p className="mt-1 text-xs text-amber-200/70">
+                      {popToNextLevel === 0
+                        ? "Leveling on the next population gain"
+                        : `Next level in ${popToNextLevel} population`}
+                    </p>
+                    <Progress value={levelProgress} className="mt-2 h-2 bg-slate-800" />
+                    <p className="mt-2 text-[11px] text-amber-200/70">
+                      Next Level Rewards: +1★/turn, +2 population cap, larger city model
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -423,6 +451,12 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                   <p>Population: {city.population}</p>
                   <p>Level: {city.level}</p>
                   <p>Production: {city.starProduction} per turn</p>
+                  <p className="text-xs text-amber-200/70">
+                    {popToNextLevel === 0
+                      ? "Leveling on the next population gain"
+                      : `Next level in ${popToNextLevel} population`}
+                  </p>
+                  <Progress value={levelProgress} className="h-2 bg-slate-800" />
                 </div>
                 <div className="space-y-2">
                   <h3 className="font-semibold">Units in City</h3>
@@ -665,6 +699,57 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           }}
           onClose={() => setShowAdvancedBuildingMenu(false)}
         />
+      )}
+
+      {showGrowthGuide && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setShowGrowthGuide(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-amber-500/40 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6 text-amber-100 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="font-cinzel text-lg text-amber-200">City Growth Guide</h3>
+                <p className="text-xs text-amber-200/70">How population and leveling work</p>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-amber-200 hover:text-amber-100 hover:bg-amber-500/10"
+                onClick={() => setShowGrowthGuide(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="mt-4 space-y-4 text-sm text-amber-100/90">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-amber-300">How population grows</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  <li>Harvest world elements (timber, ore, grain, goats, fishing, ruins).</li>
+                  <li>Convert or conquer villages (population goes to your nearest city).</li>
+                  <li>Some world-element builds grant population immediately.</li>
+                </ul>
+              </div>
+
+              <div>
+                <p className="text-xs uppercase tracking-wider text-amber-300">Level-up rules</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  <li>When population hits the cap, the city levels up automatically.</li>
+                  <li>Population resets to 1, and the cap increases by 2.</li>
+                  <li>Each level grants +1★/turn and a larger city model.</li>
+                </ul>
+              </div>
+
+              <div className="rounded-lg border border-amber-500/20 bg-amber-900/10 p-3 text-xs text-amber-200/80">
+                Tip: Population rewards are always applied to your nearest owned city.
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

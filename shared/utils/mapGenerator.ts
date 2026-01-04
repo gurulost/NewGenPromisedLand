@@ -2,7 +2,7 @@ import { createNoise2D } from 'simplex-noise';
 import type { GameMap, Tile, TerrainType } from '@shared/types/game';
 import type { HexCoordinate } from '@shared/types/coordinates';
 import type { FactionId } from '@shared/types/faction';
-import { hexDistance } from './hex';
+import { hexDistance, hexNeighbors } from './hex';
 
 /**
  * Type definitions for map generation
@@ -65,7 +65,7 @@ export const MAP_SIZE_CONFIGS: Record<MapSize, MapSizeConfig> = {
  * Map Generation Constants
  * Centralized configuration for all map generation parameters
  */
-const MAP_GENERATION_CONSTANTS = {
+export const MAP_GENERATION_CONSTANTS = {
   // Tribal homeland influence
   TRIBAL_HOMELAND_RADIUS: 4,           // Tiles from capital where tribal modifiers apply
   TRIBAL_INFLUENCE_FALLOFF: 4,         // Distance divisor for influence calculation
@@ -92,6 +92,14 @@ const MAP_GENERATION_CONSTANTS = {
   // Village density
   VILLAGE_DENSITY_RATIO: 25,           // Tiles per village (tiles.length / 25 = 4% density)
 } as const;
+
+export const CAPITAL_MIN_DISTANCE_BY_SIZE: Record<MapSize, number> = {
+  tiny: 4,
+  small: 5,
+  normal: 6,
+  large: 7,
+  huge: 8,
+};
 
 /**
  * Tribal Homeland Generation System
@@ -189,6 +197,7 @@ export class MapGenerator {
   private noise2D: ReturnType<typeof createNoise2D>;
   private config: MapGenerationConfig;
   private playerFactions: string[] = [];
+  private lastCapitalPositions: HexCoordinate[] = [];
 
   constructor(config: MapGenerationConfig, playerFactions?: string[]) {
     this.config = config;
@@ -196,6 +205,10 @@ export class MapGenerator {
     this.rng = new SeededRandom(config.seed);
     // Create seeded noise function
     this.noise2D = createNoise2D(() => this.rng.next());
+  }
+
+  getCapitalPositions(): HexCoordinate[] {
+    return this.lastCapitalPositions.map(pos => ({ ...pos }));
   }
 
   generateMap(): GameMap {
@@ -225,15 +238,23 @@ export class MapGenerator {
 
     // Step 2: Determine capital spawns (player starting positions)
     const capitalPositions = this.generateCapitalSpawns(mapRadius);
+    this.lastCapitalPositions = capitalPositions;
     
     // Step 3: Place neutral villages/cities
     this.placeCities(tiles, mapRadius, capitalPositions);
     
     // Step 4: Generate terrain with faction-specific modifiers (BEFORE villages)
     this.generateFactionBiasedTerrain(tiles, mapRadius, capitalPositions);
+
+    // Step 4.5: Ensure cities are on land and capitals have workable land access
+    this.ensureCityLandTiles(tiles);
+    this.ensureCapitalLandAccess(tiles, capitalPositions, mapRadius);
     
     // Step 5: Place capturable villages (AFTER terrain is generated)
     this.placeVillages(tiles, mapRadius, capitalPositions);
+
+    // Step 5.5: Guarantee each capital has a nearby expansion village
+    this.ensureCapitalExpansionVillage(tiles, capitalPositions, mapRadius);
     
     // Step 6: Place resources strategically (city zones + wilderness)
     this.placeResourcesStrategically(tiles);
@@ -255,22 +276,55 @@ export class MapGenerator {
    * Step 2: Generate capital spawns using quadrant-based system
    */
   private generateCapitalSpawns(mapRadius: number): HexCoordinate[] {
-    const capitalPositions: HexCoordinate[] = [];
     const playerCount = this.config.playerCount;
-    
-    // Create balanced quadrants for player spawning
+    const baseMinDistance = this.getCapitalMinDistance();
+    const { minRadius, maxRadius } = this.getCapitalSpawnRadiusBand(mapRadius);
+    const angleStep = (2 * Math.PI) / Math.max(1, playerCount);
+    const angleJitter = angleStep * 0.35;
+
+    const tryPlace = (minDistance: number): HexCoordinate[] | null => {
+      const positions: HexCoordinate[] = [];
+      for (let i = 0; i < playerCount; i++) {
+        let placed = false;
+        for (let attempt = 0; attempt < 80; attempt++) {
+          const angle = (i * angleStep) + (this.rng.next() - 0.5) * angleJitter;
+          const radius = this.rng.nextInt(minRadius, maxRadius);
+          const q = Math.round(radius * Math.cos(angle));
+          const r = Math.round(radius * Math.sin(angle));
+          const s = -q - r;
+          const candidate: HexCoordinate = { q, r, s };
+
+          if (!this.isWithinMap(candidate, mapRadius)) continue;
+          if (hexDistance({ q: 0, r: 0, s: 0 }, candidate) > mapRadius - MAP_GENERATION_CONSTANTS.MAP_EDGE_BUFFER) continue;
+          if (positions.some(pos => hexDistance(pos, candidate) < minDistance)) continue;
+
+          positions.push(candidate);
+          placed = true;
+          break;
+        }
+
+        if (!placed) return null;
+      }
+      return positions;
+    };
+
+    for (let relax = 0; relax < 4; relax++) {
+      const minDistance = Math.max(3, baseMinDistance - relax);
+      const positions = tryPlace(minDistance);
+      if (positions) return positions;
+    }
+
+    const fallbackRadius = Math.floor(mapRadius * MAP_GENERATION_CONSTANTS.CAPITAL_SPAWN_RADIUS_RATIO);
+    const fallback: HexCoordinate[] = [];
     for (let i = 0; i < playerCount; i++) {
       const angle = (i / playerCount) * 2 * Math.PI;
-      const spawnRadius = Math.floor(mapRadius * MAP_GENERATION_CONSTANTS.CAPITAL_SPAWN_RADIUS_RATIO);
-      
-      const q = Math.round(spawnRadius * Math.cos(angle));
-      const r = Math.round(spawnRadius * Math.sin(angle));
+      const q = Math.round(fallbackRadius * Math.cos(angle));
+      const r = Math.round(fallbackRadius * Math.sin(angle));
       const s = -q - r;
-      
-      capitalPositions.push({ q, r, s });
+      fallback.push({ q, r, s });
     }
-    
-    return capitalPositions;
+
+    return fallback;
   }
 
   /**
@@ -292,20 +346,107 @@ export class MapGenerator {
     let placed = 0;
     let attempts = 0;
     const maxAttempts = tiles.length * 10; // Prevent infinite loops on small/tight maps
+    const cityPositions = [...capitalPositions];
     
     while (placed < additionalCities && attempts < maxAttempts) {
       attempts++;
       const candidate = tiles[Math.floor(this.rng.next() * tiles.length)];
       
       // Check distance from existing cities
-      const tooClose = [...capitalPositions].some(cityPos => 
+      const tooClose = cityPositions.some(cityPos => 
         hexDistance(candidate.coordinate, cityPos) < MAP_GENERATION_CONSTANTS.CITY_MIN_DISTANCE
       );
       
       if (!candidate.hasCity && !tooClose) {
         candidate.hasCity = true;
+        cityPositions.push(candidate.coordinate);
         placed++;
       }
+    }
+  }
+
+  private getCapitalMinDistance(): number {
+    return CAPITAL_MIN_DISTANCE_BY_SIZE[this.config.mapSize] || MAP_GENERATION_CONSTANTS.CITY_MIN_DISTANCE;
+  }
+
+  private getCapitalSpawnRadiusBand(mapRadius: number): { minRadius: number; maxRadius: number } {
+    const baseRadius = Math.floor(mapRadius * MAP_GENERATION_CONSTANTS.CAPITAL_SPAWN_RADIUS_RATIO);
+    const variance = Math.max(1, Math.floor(mapRadius * 0.12));
+    const minRadius = Math.max(3, baseRadius - variance);
+    const maxRadius = Math.max(minRadius, Math.min(mapRadius - MAP_GENERATION_CONSTANTS.MAP_EDGE_BUFFER, baseRadius + variance));
+    return { minRadius, maxRadius };
+  }
+
+  private isWithinMap(coord: HexCoordinate, mapRadius: number): boolean {
+    return Math.max(Math.abs(coord.q), Math.abs(coord.r), Math.abs(coord.s)) <= mapRadius;
+  }
+
+  private getTileAt(tiles: Tile[], coord: HexCoordinate): Tile | undefined {
+    return tiles.find(tile =>
+      tile.coordinate.q === coord.q &&
+      tile.coordinate.r === coord.r &&
+      tile.coordinate.s === coord.s
+    );
+  }
+
+  private ensureCityLandTiles(tiles: Tile[]): void {
+    tiles.forEach(tile => {
+      if (tile.hasCity && tile.terrain === 'water') {
+        tile.terrain = 'plains';
+      }
+    });
+  }
+
+  private ensureCapitalLandAccess(tiles: Tile[], capitalPositions: HexCoordinate[], mapRadius: number): void {
+    const minLandNeighbors = 3;
+    for (const capital of capitalPositions) {
+      const neighbors = hexNeighbors(capital)
+        .filter(coord => this.isWithinMap(coord, mapRadius))
+        .map(coord => this.getTileAt(tiles, coord))
+        .filter((tile): tile is Tile => !!tile);
+
+      const landNeighbors = neighbors.filter(tile => tile.terrain !== 'water');
+      if (landNeighbors.length >= minLandNeighbors) continue;
+
+      const waterNeighbors = neighbors.filter(tile => tile.terrain === 'water');
+      let needed = minLandNeighbors - landNeighbors.length;
+      for (const tile of waterNeighbors) {
+        tile.terrain = 'plains';
+        needed -= 1;
+        if (needed <= 0) break;
+      }
+    }
+  }
+
+  private ensureCapitalExpansionVillage(
+    tiles: Tile[],
+    capitalPositions: HexCoordinate[],
+    mapRadius: number
+  ): void {
+    const minDist = MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE_FROM_CITY;
+    const maxDist = minDist + 2;
+    const cityPositions = tiles.filter(tile => tile.hasCity).map(tile => tile.coordinate);
+    const villagePositions = tiles.filter(tile => tile.feature === 'village').map(tile => tile.coordinate);
+
+    for (const capital of capitalPositions) {
+      const hasVillage = villagePositions.some(village => {
+        const dist = hexDistance(village, capital);
+        return dist >= minDist && dist <= maxDist;
+      });
+      if (hasVillage) continue;
+
+      const candidates = tiles.filter(tile => {
+        const dist = hexDistance(tile.coordinate, capital);
+        if (dist < minDist || dist > maxDist) return false;
+        if (tile.terrain === 'water') return false;
+        if (tile.hasCity || tile.feature === 'village') return false;
+        return this.isValidVillageLocation(tile, cityPositions, villagePositions, mapRadius);
+      });
+
+      if (candidates.length === 0) continue;
+      const pick = candidates[Math.floor(this.rng.next() * candidates.length)];
+      pick.feature = 'village';
+      villagePositions.push(pick.coordinate);
     }
   }
 
