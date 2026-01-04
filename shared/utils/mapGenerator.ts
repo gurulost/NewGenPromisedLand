@@ -763,8 +763,7 @@ export class MapGenerator {
       }
     });
     
-    // 6. Guarantee harvest opportunities safety pass per blueprint
-    this.guaranteeCapitalHarvestOpportunities(tiles, cityCoordinates);
+    // 6. Harvest guarantees handled by generateMap after resource placement.
   }
   
   /**

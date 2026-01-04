@@ -738,6 +738,9 @@ export default function GameUI() {
 
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
+  const { isAIProcessing, currentAIPlayer } = useAITurn();
+  const currentPlayer = gameState?.players?.[gameState.currentPlayerIndex] ?? null;
+  const heapMb = heapBytes ? Math.round(heapBytes / (1024 * 1024)) : null;
 
   if (isDev) {
     console.log(
@@ -749,26 +752,6 @@ export default function GameUI() {
       gameState?.currentPlayerIndex
     );
   }
-
-  if (!gameState) {
-    console.warn('[GameUI] gameState is null, returning null');
-    return null;
-  }
-
-  const heapMb = heapBytes ? Math.round(heapBytes / (1024 * 1024)) : null;
-
-  // Enable AI opponents with visual indicator
-  const { isAIProcessing, currentAIPlayer } = useAITurn();
-
-  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-
-  // Guard against undefined currentPlayer (can happen during turn transitions with 4+ players)
-  if (!currentPlayer) {
-    console.warn('GameUI: currentPlayer is undefined at index', gameState.currentPlayerIndex);
-    return null;
-  }
-
-  const faction = getFaction(currentPlayer.factionId as any);
 
   // Enhanced end turn with transition  
   const handleEndTurn = () => {
@@ -850,7 +833,7 @@ export default function GameUI() {
 
   // Handle world element actions
   const handleWorldElementAction = (actionType: 'harvest' | 'build', unitId: string) => {
-    if (!selectedWorldElement) return;
+    if (!selectedWorldElement || !currentPlayer) return;
 
     const action = {
       type: actionType === 'harvest' ? 'WORLD_ELEMENT_HARVEST' : 'WORLD_ELEMENT_BUILD',
@@ -933,7 +916,7 @@ export default function GameUI() {
 
   // Handle village capture actions
   const handleVillageCaptureAction = (actionType: 'conquer' | 'convert') => {
-    if (!selectedVillage) return;
+    if (!selectedVillage || !currentPlayer) return;
 
     const action = {
       type: actionType === 'conquer' ? 'CONQUER_VILLAGE' : 'CONVERT_VILLAGE',
@@ -1236,6 +1219,19 @@ export default function GameUI() {
   }, [gameState]);
 
   // Remove duplicate - using enhanced version above
+
+  if (!gameState) {
+    console.warn('[GameUI] gameState is null, returning null');
+    return null;
+  }
+
+  // Guard against undefined currentPlayer (can happen during turn transitions with 4+ players)
+  if (!currentPlayer) {
+    console.warn('GameUI: currentPlayer is undefined at index', gameState.currentPlayerIndex);
+    return null;
+  }
+
+  const faction = getFaction(currentPlayer.factionId as any);
 
   const handleUseAbility = (abilityId: string) => {
     useAbility(currentPlayer.id, abilityId);

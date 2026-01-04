@@ -15,6 +15,7 @@ import { VisualFeedbackProvider } from "./components/ui/VisualFeedback";
 import { FloatingTextManager } from "./components/ui/FloatingText";
 import { AudioProvider } from "./components/ui/AudioProvider";
 import { WorldBuildLoader } from "./components/ui/WorldBuildLoader";
+import { MapGenerationOverlay } from "./components/ui/MapGenerationOverlay";
 import { useTouchModeProvider, TouchModeContext } from "./hooks/useTouchMode";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "@fontsource/inter";
@@ -118,6 +119,7 @@ function App() {
                   </ErrorBoundary>
                 )}
               </KeyboardControls>
+              <MapGenerationOverlay />
             </div>
           </VisualFeedbackProvider>
           <FloatingTextManager />

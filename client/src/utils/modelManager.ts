@@ -60,30 +60,59 @@ export const MODEL_PATHS = {
   }
 };
 
+const AVAILABLE_MODEL_PATHS = new Set([
+  '/models/archer.glb',
+  '/models/boat.glb',
+  '/models/city_level1.glb',
+  '/models/city_level2.glb',
+  '/models/city_level3.glb',
+  '/models/missionary.glb',
+  '/models/scout.glb',
+  '/models/scout_nephite.glb',
+  '/models/scout_upgraded.glb',
+  '/models/settler.glb',
+  '/models/village.glb',
+  '/models/village_upgraded.glb',
+  '/models/warrior.glb',
+  '/models/warrior_upgraded.glb',
+  '/models/worker.glb',
+  '/models/worker_upgraded.glb',
+]);
+
+const isModelAvailable = (path?: string | null) => !!path && AVAILABLE_MODEL_PATHS.has(path);
+
 // Preload all models for optimal performance
 export const preloadAllModels = () => {
+  const preloadPaths = new Set<string>();
+
   // Preload unit models
   Object.values(MODEL_PATHS.units).forEach(path => {
-    useGLTF.preload(path);
+    if (isModelAvailable(path)) preloadPaths.add(path);
   });
   
   // Preload village model
-  useGLTF.preload(MODEL_PATHS.village);
+  if (isModelAvailable(MODEL_PATHS.village)) {
+    preloadPaths.add(MODEL_PATHS.village);
+  }
   
   // Preload city models
   Object.values(MODEL_PATHS.cities).forEach(path => {
-    useGLTF.preload(path);
+    if (isModelAvailable(path)) preloadPaths.add(path);
   });
   
   // Preload resource models
   Object.values(MODEL_PATHS.resources).forEach(path => {
-    useGLTF.preload(path);
+    if (isModelAvailable(path)) preloadPaths.add(path);
   });
+
+  preloadPaths.forEach(path => useGLTF.preload(path));
 };
 
 // Get model path for a specific unit type
 export const getUnitModelPath = (unitType: string): string => {
-  return MODEL_PATHS.units[unitType as keyof typeof MODEL_PATHS.units] || MODEL_PATHS.units.warrior;
+  const path = MODEL_PATHS.units[unitType as keyof typeof MODEL_PATHS.units];
+  if (isModelAvailable(path)) return path;
+  return MODEL_PATHS.units.warrior;
 };
 
 // Get model path for village
@@ -103,28 +132,28 @@ export const getResourceModelPath = (resourceType: string): string | null => {
   switch (resourceType) {
     // Unified World Elements System - Scripture-themed resources
     case 'timber_grove':
-      return MODEL_PATHS.resources.timber_grove;
+      return isModelAvailable(MODEL_PATHS.resources.timber_grove) ? MODEL_PATHS.resources.timber_grove : null;
     case 'wild_goats':
     case 'sea_beast':
-      return MODEL_PATHS.resources.game; // Animal model for creatures
+      return isModelAvailable(MODEL_PATHS.resources.game) ? MODEL_PATHS.resources.game : null; // Animal model for creatures
     case 'grain_patch':
-      return MODEL_PATHS.resources.fruit; // Agricultural products
+      return isModelAvailable(MODEL_PATHS.resources.fruit) ? MODEL_PATHS.resources.fruit : null; // Agricultural products
     case 'ore_vein':
-      return MODEL_PATHS.resources.ore_vein;
+      return isModelAvailable(MODEL_PATHS.resources.ore_vein) ? MODEL_PATHS.resources.ore_vein : null;
     case 'fishing_shoal':
-      return MODEL_PATHS.resources.fishing_shoal;
+      return isModelAvailable(MODEL_PATHS.resources.fishing_shoal) ? MODEL_PATHS.resources.fishing_shoal : null;
     case 'jaredite_ruins':
-      return MODEL_PATHS.resources.jaredite_ruins;
+      return isModelAvailable(MODEL_PATHS.resources.jaredite_ruins) ? MODEL_PATHS.resources.jaredite_ruins : null;
     
     // Legacy resources for backward compatibility
     case 'fruit':
-      return MODEL_PATHS.resources.fruit;
+      return isModelAvailable(MODEL_PATHS.resources.fruit) ? MODEL_PATHS.resources.fruit : null;
     case 'stone':
-      return MODEL_PATHS.resources.stone;
+      return isModelAvailable(MODEL_PATHS.resources.stone) ? MODEL_PATHS.resources.stone : null;
     case 'game':
-      return MODEL_PATHS.resources.game;
+      return isModelAvailable(MODEL_PATHS.resources.game) ? MODEL_PATHS.resources.game : null;
     case 'metal':
-      return MODEL_PATHS.resources.metal;
+      return isModelAvailable(MODEL_PATHS.resources.metal) ? MODEL_PATHS.resources.metal : null;
     
     default:
       return null;

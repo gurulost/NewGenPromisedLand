@@ -9,6 +9,7 @@ import { canSelectUnit, isPassableForUnit } from "@shared/logic/unitLogic";
 import { usePathfindingWorker } from "../../hooks/usePathfindingWorker";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
+import { GLTFErrorBoundary } from "./GLTFErrorBoundary";
 import { UnitModel } from "./UnitModel";
 import { usePerformanceMode } from "../../hooks/usePerformanceMode";
 
@@ -119,6 +120,15 @@ function ActionBadge({ count, color, animate }: { count: number; color: string; 
         />
       </mesh>
     </>
+  );
+}
+
+function UnitModelFallback({ isPlayerUnit }: { isPlayerUnit: boolean }) {
+  return (
+    <mesh>
+      <boxGeometry args={[0.5, 0.5, 0.5]} />
+      <meshStandardMaterial color={isPlayerUnit ? "#22c55e" : "#ef4444"} />
+    </mesh>
   );
 }
 
@@ -270,7 +280,12 @@ export default function Unit({ unit, isSelected }: UnitProps) {
         onPointerLeave={() => (document.body.style.cursor = "default")}
       >
         <group scale={unit.status === "exhausted" ? [0.9, 0.9, 0.9] : [1.0, 1.0, 1.0]}>
-          <UnitModel unit={unit} position={{ x: 0, y: -UNIT_HEIGHT + 0.025 }} isPlayerUnit={currentPlayer?.id === unit.playerId} />
+          <GLTFErrorBoundary
+            fallback={<UnitModelFallback isPlayerUnit={currentPlayer?.id === unit.playerId} />}
+            resetKey={`${unit.id}:${unit.type}`}
+          >
+            <UnitModel unit={unit} position={{ x: 0, y: -UNIT_HEIGHT + 0.025 }} isPlayerUnit={currentPlayer?.id === unit.playerId} />
+          </GLTFErrorBoundary>
         </group>
       </group>
 
@@ -343,4 +358,3 @@ export default function Unit({ unit, isSelected }: UnitProps) {
     </group>
   );
 }
-

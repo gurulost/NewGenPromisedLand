@@ -55,16 +55,19 @@ export default function HandoffScreen() {
   const { gameState, setGamePhase, onlineSession } = useLocalGame();
   const [backgroundImage, setBackgroundImage] = useState<string>('');
   const [imageLoaded, setImageLoaded] = useState<boolean>(false);
+  const [imageFailed, setImageFailed] = useState<boolean>(false);
 
   useHotkeys('Space', () => setGamePhase('playing'));
   useHotkeys('Enter', () => setGamePhase('playing'));
 
   // Select a random background image when component mounts
   useEffect(() => {
+    setImageLoaded(false);
+    setImageFailed(false);
     const randomIndex = Math.floor(Math.random() * BACKGROUND_IMAGES.length);
     const selectedImage = BACKGROUND_IMAGES[randomIndex];
     const imagePath = `/images/rotating_images/${selectedImage}`;
-    
+
     // If already loaded, display immediately; otherwise load on demand.
     if (loadedImages.has(selectedImage)) {
       setBackgroundImage(imagePath);
@@ -77,8 +80,54 @@ export default function HandoffScreen() {
         setImageLoaded(true);
         loadedImages.add(selectedImage);
       };
+      img.onerror = () => {
+        setBackgroundImage('');
+        setImageFailed(true);
+        setImageLoaded(true);
+      };
       img.src = imagePath;
     }
+
+    const prefetchLimit = 3;
+    const available = BACKGROUND_IMAGES.filter(
+      (image) => image !== selectedImage && !loadedImages.has(image)
+    );
+    const picks: string[] = [];
+    const pool = [...available];
+    while (pool.length > 0 && picks.length < prefetchLimit) {
+      const idx = Math.floor(Math.random() * pool.length);
+      picks.push(pool.splice(idx, 1)[0]);
+    }
+
+    const preload = () => {
+      picks.forEach((image) => {
+        const src = `/images/rotating_images/${image}`;
+        const prefetch = new Image();
+        prefetch.onload = () => {
+          loadedImages.add(image);
+        };
+        prefetch.src = src;
+      });
+    };
+
+    const idleCallback = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+    const cancelIdle = (window as any).cancelIdleCallback as
+      | ((id: number) => void)
+      | undefined;
+
+    const idleId = idleCallback
+      ? idleCallback(preload, { timeout: 2000 })
+      : window.setTimeout(preload, 400);
+
+    return () => {
+      if (idleCallback && cancelIdle) {
+        cancelIdle(idleId);
+      } else {
+        window.clearTimeout(idleId);
+      }
+    };
   }, []); // Empty dependency array ensures this runs once per mount
 
   if (!gameState) {
@@ -101,15 +150,20 @@ export default function HandoffScreen() {
     setGamePhase('playing');
   };
 
+  const isPendingImage = !imageLoaded && !imageFailed;
+  const hasCustomImage = !!backgroundImage && !imageFailed;
+
   return (
     <div 
       className="w-full h-full flex items-center justify-center relative overflow-hidden transition-opacity duration-300"
       style={{
-        backgroundImage: imageLoaded ? `url(${backgroundImage})` : 'linear-gradient(135deg, #1e293b 0%, #7c3aed 50%, #1e293b 100%)',
+        backgroundImage: hasCustomImage
+          ? `url(${backgroundImage})`
+          : 'linear-gradient(135deg, #1e293b 0%, #7c3aed 50%, #1e293b 100%)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
-        opacity: imageLoaded ? 1 : 0.8
+        opacity: isPendingImage ? 0.8 : 1
       }}
     >
       {/* Elegant handoff panel with improved styling */}
