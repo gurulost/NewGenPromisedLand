@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import * as THREE from 'three';
 import { TerrainType } from '@shared/types/game';
 import { disposeClonedMaterials } from '../../lib/memoryUtils';
+import { GLTFErrorBoundary } from './GLTFErrorBoundary';
 
 interface TerrainTileProps {
   terrain: TerrainType;
@@ -46,24 +47,33 @@ function TerrainModel({ terrain, position, color, opacity }: {
   color: [number, number, number];
   opacity: number;
 }) {
-  const meshRef = useRef<THREE.Group>(null);
   const modelPath = TERRAIN_MODELS[terrain] || TERRAIN_MODELS.plains;
-  
-  let gltf;
-  try {
-    gltf = useLoader(GLTFLoader as any, modelPath);
-  } catch (error) {
-    console.warn(`Failed to load terrain model: ${modelPath}`, error);
-    // Return fallback if loading fails
-    return (
-      <TerrainFallback 
+
+  return (
+    <GLTFErrorBoundary
+      resetKey={`${terrain}:${modelPath}`}
+      fallback={<TerrainFallback terrain={terrain} position={position} color={color} opacity={opacity} />}
+    >
+      <TerrainGLTFModel
         terrain={terrain}
         position={position}
         color={color}
         opacity={opacity}
+        modelPath={modelPath}
       />
-    );
-  }
+    </GLTFErrorBoundary>
+  );
+}
+
+function TerrainGLTFModel({ terrain, position, color, opacity, modelPath }: {
+  terrain: TerrainType;
+  position: [number, number, number];
+  color: [number, number, number];
+  opacity: number;
+  modelPath: string;
+}) {
+  const meshRef = useRef<THREE.Group>(null);
+  const gltf = useLoader(GLTFLoader as any, modelPath);
   
   // Clone and apply materials to the loaded model
   const clonedScene = useMemo(() => {
@@ -112,14 +122,7 @@ function TerrainModel({ terrain, position, color, opacity }: {
   }, [clonedScene]);
   
   if (!clonedScene) {
-    return (
-      <TerrainFallback 
-        terrain={terrain}
-        position={position}
-        color={color}
-        opacity={opacity}
-      />
-    );
+    return <TerrainFallback terrain={terrain} position={position} color={color} opacity={opacity} />;
   }
   
   return (
