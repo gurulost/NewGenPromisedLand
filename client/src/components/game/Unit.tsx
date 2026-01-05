@@ -5,7 +5,7 @@ import * as THREE from "three";
 import type { Unit as UnitType } from "@shared/types/unit";
 import { hexToPixel } from "@shared/utils/hex";
 import { getFaction } from "@shared/data/factions";
-import { canSelectUnit, isPassableForUnit } from "@shared/logic/unitLogic";
+import { canSelectUnit, getMovementCostForCoordinate, isPassableForUnit } from "@shared/logic/unitLogic";
 import { usePathfindingWorker } from "../../hooks/usePathfindingWorker";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
@@ -176,11 +176,16 @@ export default function Unit({ unit, isSelected }: UnitProps) {
         console.log("Calculating reachable tiles for unit:", unit.id, "Movement:", unit.remainingMovement);
       }
 
-      const passableTiles = gameState.map.tiles
-        .filter((tile) => isPassableForUnit(tile.coordinate, gameState, unit))
-        .map((tile) => `${tile.coordinate.q},${tile.coordinate.r}`);
+      const passableTileList = gameState.map.tiles
+        .filter((tile) => isPassableForUnit(tile.coordinate, gameState, unit));
+      const passableTiles = passableTileList.map((tile) => `${tile.coordinate.q},${tile.coordinate.r}`);
+      const tileCosts = passableTileList.reduce<Record<string, number>>((acc, tile) => {
+        const key = `${tile.coordinate.q},${tile.coordinate.r}`;
+        acc[key] = getMovementCostForCoordinate(tile.coordinate, gameState, unit);
+        return acc;
+      }, {});
 
-      getReachableTilesWorker(unit.coordinate, unit.remainingMovement, passableTiles, (reachable, error) => {
+      getReachableTilesWorker(unit.coordinate, passableTiles, tileCosts, unit.remainingMovement, (reachable, error) => {
         if (error) {
           console.error("Pathfinding worker error:", error);
           setReachableTiles([]);
@@ -236,7 +241,9 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   const healthPercent = unit.hp / unit.maxHp;
   const healthColor = healthPercent > 0.6 ? "#22c55e" : healthPercent > 0.3 ? "#f59e0b" : "#ef4444";
   const factionColor = faction?.color || "#ffffff";
-  const hasActionsRemaining = unit.remainingMovement > 0 && !unit.hasAttacked;
+  const actionsRemaining = unit.actionsRemaining ?? unit.maxActions ?? 1;
+  const hasMovementRemaining = unit.remainingMovement > 0;
+  const hasActionsRemaining = hasMovementRemaining || actionsRemaining > 0;
   const isPlayerUnit = currentPlayer?.id === unit.playerId;
   const perfMode = usePerformanceMode();
   const animationsEnabled = perfMode === 'high';
@@ -264,7 +271,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
       </mesh>
 
       {/* Action Badge - only shown for player's units with actions remaining */}
-      {hasActionsRemaining && isPlayerUnit && !isSelected && (
+      {hasMovementRemaining && isPlayerUnit && !isSelected && (
         <ActionBadge
           count={unit.remainingMovement}
           color={factionColor}

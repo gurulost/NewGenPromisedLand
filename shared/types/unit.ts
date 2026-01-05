@@ -54,6 +54,8 @@ export const UnitSchema = z.object({
   defense: z.number(),
   movement: z.number(),
   remainingMovement: z.number(),
+  maxActions: z.number().optional(),
+  actionsRemaining: z.number().optional(),
   status: UnitStatusSchema,
   statusEffects: z.array(z.any()).optional(),
   // Enhanced unit abilities
@@ -100,6 +102,7 @@ export const UnitDefinitionSchema = z.object({
     attack: z.number(),
     defense: z.number(),
     movement: z.number(),
+    actions: z.number().default(1),
     visionRadius: z.number().default(2),
     attackRange: z.number().default(1),
   }),

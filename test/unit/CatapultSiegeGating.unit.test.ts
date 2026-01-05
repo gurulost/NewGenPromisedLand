@@ -74,6 +74,8 @@ describe('Catapult siege/bombardment gating', () => {
           defense: 2,
           movement: 1,
           remainingMovement: 1,
+          maxActions: 1,
+          actionsRemaining: 1,
           visionRadius: 2,
           attackRange: 3,
           status: 'active',
@@ -93,6 +95,8 @@ describe('Catapult siege/bombardment gating', () => {
           defense: 4,
           movement: 3,
           remainingMovement: 3,
+          maxActions: 1,
+          actionsRemaining: 1,
           visionRadius: 2,
           attackRange: 1,
           status: 'active',
@@ -112,15 +116,19 @@ describe('Catapult siege/bombardment gating', () => {
     const blocked = gameReducer(base, { type: 'ATTACK_UNIT', payload: { attackerId: 'c1', targetId: 'e1' } } as any);
     expect(blocked).toBe(base);
 
-    // Deploy siege mode (must be stationary). After this, remainingMovement should be 0.
+    // Deploy siege mode (must be stationary). This should consume the unit's action.
     const deployed = gameReducer(base, { type: 'SIEGE_MODE', payload: { playerId: p1, unitId: 'c1' } } as any);
     expect(deployed.units.find(u => u.id === 'c1')?.status).toBe('siege_mode');
-    expect(deployed.units.find(u => u.id === 'c1')?.remainingMovement).toBe(0);
+    expect(deployed.units.find(u => u.id === 'c1')?.actionsRemaining).toBe(0);
 
     // "Moved this turn" => blocked even when deployed.
     const movedThisTurn: GameState = {
       ...deployed,
-      units: deployed.units.map(u => u.id === 'c1' ? { ...u, remainingMovement: 0, movement: 1 } : u),
+      units: deployed.units.map(u =>
+        u.id === 'c1'
+          ? { ...u, remainingMovement: 0, movement: 1, maxActions: 1, actionsRemaining: 1 }
+          : u
+      ),
     };
     const stillBlocked = gameReducer(movedThisTurn, { type: 'ATTACK_UNIT', payload: { attackerId: 'c1', targetId: 'e1' } } as any);
     expect(stillBlocked).toBe(movedThisTurn);
@@ -128,7 +136,11 @@ describe('Catapult siege/bombardment gating', () => {
     // Stationary and deployed => allowed.
     const stationaryDeployed: GameState = {
       ...deployed,
-      units: deployed.units.map(u => u.id === 'c1' ? { ...u, remainingMovement: 1, movement: 1, hasAttacked: false } : u),
+      units: deployed.units.map(u =>
+        u.id === 'c1'
+          ? { ...u, remainingMovement: 1, movement: 1, maxActions: 1, actionsRemaining: 1, hasAttacked: false }
+          : u
+      ),
     };
     const attacked = gameReducer(stationaryDeployed, { type: 'ATTACK_UNIT', payload: { attackerId: 'c1', targetId: 'e1' } } as any);
     expect(attacked).not.toBe(stationaryDeployed);

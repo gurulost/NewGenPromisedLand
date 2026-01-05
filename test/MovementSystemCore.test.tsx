@@ -31,6 +31,8 @@ describe('Movement System Core Logic Tests', () => {
       defense: 4,
       movement: 3,
       remainingMovement: 3,
+      maxActions: 1,
+      actionsRemaining: 1,
       visionRadius: 2,
       attackRange: 1,
       hasAttacked: false,
@@ -192,8 +194,8 @@ describe('Movement System Core Logic Tests', () => {
       expect(within(moveSummary!).getByText('None')).toBeInTheDocument();
     });
 
-    it('should show Attack as unavailable when unit has already attacked', () => {
-      const unitThatAttacked = { ...mockUnit, hasAttacked: true };
+    it('should show Attack as unavailable when unit has already acted', () => {
+      const unitThatAttacked = { ...mockUnit, hasAttacked: true, actionsRemaining: 0 };
       render(<SelectedUnitPanel unit={unitThatAttacked} />);
       
       const attackSummary = screen.getByText('Attack').closest('div');
@@ -244,11 +246,12 @@ describe('Movement System Core Logic Tests', () => {
     it('should validate unit movement permissions', () => {
       expect(mockUnit.remainingMovement).toBeGreaterThan(0);
       expect(mockUnit.hasAttacked).toBe(false);
+      expect(mockUnit.actionsRemaining).toBeGreaterThan(0);
       expect(mockUnit.playerId).toBe('player1');
     });
 
     it('should validate unit attack permissions', () => {
-      expect(mockUnit.hasAttacked).toBe(false);
+      expect(mockUnit.actionsRemaining).toBeGreaterThan(0);
       expect(mockUnit.attackRange).toBeGreaterThan(0);
       expect(mockUnit.attack).toBeGreaterThan(0);
     });

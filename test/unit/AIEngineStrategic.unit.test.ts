@@ -200,7 +200,9 @@ describe('AIEngine ability usage', () => {
       attack: 15,
       defense: 2,
       movement: 1,
-      remainingMovement: 0,
+      remainingMovement: 1,
+      maxActions: 1,
+      actionsRemaining: 1,
       visionRadius: 2,
       attackRange: 3,
       status: 'active',
@@ -336,6 +338,7 @@ describe('AIEngine automation loops', () => {
 
     const tiles = [
       makeTile(0, 0, 'plains', ['1'], { hasCity: true, cityOwner: '1' }),
+      makeTile(1, -1, 'plains', []),
       makeTile(2, -2, 'plains', []),
     ];
 

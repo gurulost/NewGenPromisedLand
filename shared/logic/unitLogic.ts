@@ -1,7 +1,7 @@
 import { GameState } from "../types/game";
 import { Unit } from "../types/unit";
 import { HexCoordinate } from "../types/coordinates";
-import { getReachableTiles } from "./pathfinding";
+import { getPathCost, getReachableTiles } from "./pathfinding";
 import { GAME_RULES } from "../data/gameRules";
 import { hexDistance } from "../utils/hex";
 import { getUnitDefinition } from "../data/units";
@@ -16,6 +16,42 @@ const unitHasAbility = (unit: Unit, abilityId: string) =>
   (unit.abilities || []).some(ability => normalizeAbility(String(ability)) === normalizeAbility(abilityId));
 const unitHasBombardment = (unit: Unit) =>
   unitHasAbility(unit, 'SIEGE') || unitHasAbility(unit, 'BOMBARDMENT');
+const isNavalUnit = (unit?: Unit) => {
+  if (!unit) return false;
+  const unitDef = getUnitDefinition(unit.type as any);
+  return !!unitDef?.abilities?.includes('NAVAL_TRANSPORT') || unit.type === 'boat';
+};
+
+export const getUnitMaxActions = (unit: Unit): number => {
+  const unitDef = getUnitDefinition(unit.type as any);
+  return unit.maxActions ?? unitDef.baseStats.actions ?? 1;
+};
+
+export const getUnitActionsRemaining = (unit: Unit): number => {
+  const maxActions = getUnitMaxActions(unit);
+  return unit.actionsRemaining ?? maxActions;
+};
+
+export const spendUnitActions = (unit: Unit, cost = 1): Unit => {
+  const maxActions = getUnitMaxActions(unit);
+  const remaining = Math.max(0, getUnitActionsRemaining(unit) - cost);
+  return {
+    ...unit,
+    maxActions,
+    actionsRemaining: remaining,
+    hasAttacked: remaining === 0,
+  };
+};
+
+export const resetUnitActions = (unit: Unit): Unit => {
+  const maxActions = getUnitMaxActions(unit);
+  return {
+    ...unit,
+    maxActions,
+    actionsRemaining: maxActions,
+    hasAttacked: false,
+  };
+};
 
 /**
  * Determines if a coordinate is passable for unit movement
@@ -31,12 +67,11 @@ export function isPassableForUnit(
   
   if (!tile) return false;
   
-  const unitDef = unit ? getUnitDefinition(unit.type as any) : undefined;
-  const isNavalUnit = !!unitDef?.abilities?.includes('NAVAL_TRANSPORT') || unit?.type === 'boat';
+  const isNaval = isNavalUnit(unit);
 
   // Special-case naval movement: boats (and other NAVAL_TRANSPORT units) can move on water.
   if (tile.terrain === 'water') {
-    return isNavalUnit;
+    return isNaval;
   }
 
   // Check basic terrain passability using game rules
@@ -45,7 +80,7 @@ export function isPassableForUnit(
   if (isImpassable || movementCost === undefined) return false;
 
   // Naval units remain on water (no disembark system yet).
-  if (isNavalUnit) return false;
+  if (isNaval) return false;
   
   // Allow movement to unexplored tiles (units can explore new areas)
   // Units should be able to move to and explore adjacent unexplored tiles
@@ -97,15 +132,17 @@ export function calculateReachableTiles(
     movement = unit.remainingMovement;
   }
   
-  const isPassable = (coord: HexCoordinate): boolean => {
-    const unit = 'units' in unitOrGameState ? undefined : (unitOrGameState as Unit);
-    return isPassableForUnit(coord, gameState, unit);
-  };
-  
+  const unit = 'units' in unitOrGameState ? undefined : (unitOrGameState as Unit);
+  const isPassable = (coord: HexCoordinate): boolean =>
+    isPassableForUnit(coord, gameState, unit);
+  const getMoveCost = (coord: HexCoordinate): number =>
+    getMovementCostForCoordinate(coord, gameState, unit);
+
   return getReachableTiles(
     coordinate,
     movement,
-    isPassable
+    isPassable,
+    getMoveCost
   );
 }
 
@@ -120,6 +157,43 @@ export function canSelectUnit(
   
   // Only allow selecting units that belong to the current player
   return currentPlayer?.id === unit.playerId;
+}
+
+export function getMovementCostForCoordinate(
+  coordinate: HexCoordinate,
+  gameState: GameState,
+  unit?: Unit
+): number {
+  const tile = gameState.map.tiles.find(t =>
+    t.coordinate.q === coordinate.q && t.coordinate.r === coordinate.r
+  );
+  if (!tile) return Infinity;
+
+  const naval = isNavalUnit(unit);
+
+  if (tile.terrain === 'water') {
+    return naval ? 1 : Infinity;
+  }
+
+  const baseCost = GAME_RULES.terrain.movementCosts[tile.terrain];
+  const isImpassable = GAME_RULES.terrain.impassableTypes.includes(tile.terrain);
+  if (isImpassable || baseCost === undefined) return Infinity;
+
+  if (naval) return Infinity;
+
+  const hasRoad = (gameState.improvements || []).some(
+    imp =>
+      imp.type === 'road' &&
+      imp.coordinate.q === coordinate.q &&
+      imp.coordinate.r === coordinate.r
+  );
+
+  if (hasRoad) {
+    const roadCost = GAME_RULES.terrain.movementCosts.plains ?? 1;
+    return Math.min(baseCost, roadCost);
+  }
+
+  return baseCost;
 }
 
 /**
@@ -148,11 +222,30 @@ export function canUnitReachCoordinate(
   targetCoordinate: HexCoordinate,
   gameState: GameState
 ): boolean {
-  const reachableTiles = calculateReachableTiles(gameState, unit.coordinate, unit.remainingMovement);
+  const reachableTiles = calculateReachableTiles(unit, gameState);
   
   return reachableTiles.some(coord => 
     coord.q === targetCoordinate.q && 
     coord.r === targetCoordinate.r
+  );
+}
+
+export function getMovementCostToCoordinate(
+  unit: Unit,
+  targetCoordinate: HexCoordinate,
+  gameState: GameState
+): number | null {
+  const isPassable = (coord: HexCoordinate): boolean =>
+    isPassableForUnit(coord, gameState, unit);
+  const getMoveCost = (coord: HexCoordinate): number =>
+    getMovementCostForCoordinate(coord, gameState, unit);
+
+  return getPathCost(
+    unit.coordinate,
+    targetCoordinate,
+    isPassable,
+    unit.remainingMovement,
+    getMoveCost
   );
 }
 
@@ -163,6 +256,7 @@ export function getValidAttackTargets(
   unit: Unit,
   gameState: GameState
 ): Unit[] {
+  if (getUnitActionsRemaining(unit) <= 0) return [];
   // Find all enemy units within attack range
   const hasBombardment = unitHasBombardment(unit);
   return gameState.units.filter(target => {
@@ -195,6 +289,8 @@ export function canUnitAttackTarget(
 ): boolean {
   // Must be an enemy unit
   if (attacker.playerId === target.playerId) return false;
+
+  if (getUnitActionsRemaining(attacker) <= 0) return false;
 
   // Target must be visible to the attacker
   if (!isUnitVisibleToPlayer(target, attacker.playerId, gameState)) return false;

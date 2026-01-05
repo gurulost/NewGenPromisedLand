@@ -3,7 +3,7 @@ import { Unit } from "../types/unit";
 import { hexDistance } from "../utils/hex";
 import { GAME_RULES } from "../data/gameRules";
 import { getActiveModifiers } from "../data/modifiers";
-import { isUnitVisibleToPlayer } from "./unitLogic";
+import { getUnitActionsRemaining, isUnitVisibleToPlayer } from "./unitLogic";
 
 export type CombatBlockReason =
   | "invalid_units"
@@ -113,7 +113,7 @@ export function resolveCombat(
     };
   }
 
-  if (attacker.hasAttacked) {
+  if (getUnitActionsRemaining(attacker) <= 0) {
     return {
       success: false,
       canAttack: false,

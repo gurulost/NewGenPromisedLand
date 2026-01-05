@@ -17,7 +17,6 @@ import * as THREE from "three";
 import { UnitSelectionEffects, useUnitSelection } from "../effects/UnitSelection";
 import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import MovementOverlay from "./MovementOverlay";
-import { getReachableTiles } from "@shared/logic/pathfinding";
 import { ParticleEffectsContainer } from "../effects/ParticleEffects";
 import { MapPulseEffects } from "../effects/MapPulseEffects";
 
@@ -46,16 +45,7 @@ export default function GameCanvas() {
   // Calculate reachable tiles when movement mode is activated
   useEffect(() => {
     if (isMovementMode && selectedUnit && gameState) {
-      const reachable = getReachableTiles(
-        selectedUnit.coordinate,
-        selectedUnit.remainingMovement,
-        (coord) => {
-          const tile = gameState.map.tiles.find(t =>
-            t.coordinate.q === coord.q && t.coordinate.r === coord.r
-          );
-          return !!tile && tile.terrain !== 'water';
-        }
-      );
+      const reachable = calculateReachableTiles(selectedUnit, gameState);
       setReachableCoordinates(reachable);
     } else {
       setReachableCoordinates([]);

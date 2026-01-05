@@ -275,7 +275,7 @@ export function UnitSelectionUI({
               label="Attack"
               hotkey="A"
               onClick={() => onUnitAction('attack')}
-              disabled={selectedUnit.hasAttacked}
+              disabled={(selectedUnit.actionsRemaining ?? selectedUnit.maxActions ?? 1) <= 0}
             />
             <ActionButton
               icon="🏃"
@@ -289,6 +289,7 @@ export function UnitSelectionUI({
               label="Ability"
               hotkey="Q"
               onClick={() => onUnitAction('ability')}
+              disabled={(selectedUnit.actionsRemaining ?? selectedUnit.maxActions ?? 1) <= 0}
             />
           </div>
         </div>

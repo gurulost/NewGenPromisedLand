@@ -34,6 +34,8 @@ describe('ActionAvailabilityHelpers', () => {
       defense: 3,
       movement: 2,
       remainingMovement: 2,
+      actionsRemaining: 1,
+      maxActions: 1,
       hasAttacked: false,
       vision: 2,
       statusEffects: [],
@@ -43,6 +45,13 @@ describe('ActionAvailabilityHelpers', () => {
 
     const mockTile: MapTile = {
       coordinate: mockCoordinate,
+      terrain: 'plains',
+      resources: [],
+      hasCity: false,
+      exploredBy: ['player1']
+    };
+    const adjacentTile: MapTile = {
+      coordinate: { q: 1, r: 0, s: -1 },
       terrain: 'plains',
       resources: [],
       hasCity: false,
@@ -59,7 +68,7 @@ describe('ActionAvailabilityHelpers', () => {
       map: {
         width: 10,
         height: 10,
-        tiles: [mockTile]
+        tiles: [mockTile, adjacentTile]
       },
       gameRules: {
         maxPlayers: 6,
@@ -107,12 +116,12 @@ describe('ActionAvailabilityHelpers', () => {
     });
 
     it('should handle used attack', () => {
-      mockUnit.hasAttacked = true;
+      mockUnit.actionsRemaining = 0;
       
       const availability = getActionAvailability(mockUnit, mockGameState);
       
       expect(availability.canAttack).toBe(false);
-      expect(availability.attackReason).toBe("Already attacked this turn");
+      expect(availability.attackReason).toBe("No actions remaining");
     });
 
     it('should check worker abilities correctly', () => {

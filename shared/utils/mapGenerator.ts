@@ -78,6 +78,7 @@ export const MAP_GENERATION_CONSTANTS = {
   VILLAGE_MIN_DISTANCE: 3,             // Minimum distance between villages
   VILLAGE_MIN_DISTANCE_FROM_CITY: 4,   // Minimum distance from any city
   MAP_EDGE_BUFFER: 2,                  // Buffer distance from map edge
+  VILLAGE_EDGE_RADIUS_RATIO: 0.85,     // Max radial distance ratio from center
   
   // Water generation
   WATER_EDGE_THRESHOLD: 0.8,           // Distance ratio for increased water at edges
@@ -255,6 +256,11 @@ export class MapGenerator {
 
     // Step 5.5: Guarantee each capital has a nearby expansion village
     this.ensureCapitalExpansionVillage(tiles, capitalPositions, mapRadius);
+
+    const villageCount = tiles.filter(tile => tile.feature === 'village').length;
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Generated ${villageCount} villages on map`);
+    }
     
     // Step 6: Place resources strategically (city zones + wilderness)
     this.placeResourcesStrategically(tiles);
@@ -509,6 +515,10 @@ export class MapGenerator {
     // Must be ≥ 2 tiles inside map edge (Polytopia rule)
     const distanceFromCenter = hexDistance(tile.coordinate, { q: 0, r: 0, s: 0 });
     if (distanceFromCenter > mapRadius - MAP_GENERATION_CONSTANTS.MAP_EDGE_BUFFER) return false;
+
+    const radialDistance = Math.hypot(tile.coordinate.q, tile.coordinate.r);
+    const maxRadialDistance = mapRadius * MAP_GENERATION_CONSTANTS.VILLAGE_EDGE_RADIUS_RATIO;
+    if (radialDistance > maxRadialDistance) return false;
     
     // Must be ≥ 2 tiles from any existing village (Polytopia spacing rule)
     for (const villagePos of existingVillages) {

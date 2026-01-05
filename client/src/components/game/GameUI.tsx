@@ -880,8 +880,7 @@ export default function GameUI() {
             u.playerId === player.id &&
             u.coordinate.q === coordinate.q &&
             u.coordinate.r === coordinate.r &&
-            !u.hasAttacked &&
-            u.remainingMovement > 0
+            (u.actionsRemaining ?? u.maxActions ?? 1) > 0
           ) || [];
 
         const maybeSelectedUnit = useGameState.getState().selectedUnit;
@@ -890,8 +889,7 @@ export default function GameUI() {
             maybeSelectedUnit.playerId === player.id &&
             maybeSelectedUnit.coordinate.q === coordinate.q &&
             maybeSelectedUnit.coordinate.r === coordinate.r &&
-            !maybeSelectedUnit.hasAttacked &&
-            maybeSelectedUnit.remainingMovement > 0
+            (maybeSelectedUnit.actionsRemaining ?? maybeSelectedUnit.maxActions ?? 1) > 0
             ? maybeSelectedUnit.id
             : unitsOnTile[0]?.id;
 

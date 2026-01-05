@@ -38,6 +38,8 @@ const createUnit = (overrides: Partial<Unit>): Unit => ({
   defense: 3,
   movement: 3,
   remainingMovement: 3,
+  maxActions: 1,
+  actionsRemaining: 1,
   visionRadius: 2,
   attackRange: 1,
   status: 'active',
@@ -172,7 +174,7 @@ describe('Combat ability interactions', () => {
       attackRange: 3,
       attack: 10,
       status: 'siege_mode',
-      remainingMovement: 0,
+      remainingMovement: 3,
     });
     const defender = createUnit({
       id: 'keeper',
@@ -276,7 +278,7 @@ describe('Combat ability interactions', () => {
     expect(splashAfter?.hp).toBeLessThan(splash.hp);
     expect(farAfter?.hp).toBe(far.hp);
     expect(catapultAfter?.hasAttacked).toBe(true);
-    expect(catapultAfter?.remainingMovement).toBe(0);
+    expect(catapultAfter?.actionsRemaining).toBe(0);
   });
 
   it('blocks bombardment when the catapult is not in siege mode', () => {

@@ -88,7 +88,7 @@ export function getAttackableTargets(unit: Unit, gameState: GameState): Unit[] {
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   if (unit.playerId !== currentPlayer.id) return [];
-  if (unit.hasAttacked) return [];
+  if ((unit.actionsRemaining ?? unit.maxActions ?? 1) <= 0) return [];
 
   return gameState.units.filter(target => {
     if (target.playerId === unit.playerId) return false;

@@ -89,8 +89,7 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
       u.playerId === playerId &&
       u.coordinate.q === coordinate.q &&
       u.coordinate.r === coordinate.r &&
-      !u.hasAttacked &&
-      u.remainingMovement > 0
+      (u.actionsRemaining ?? u.maxActions ?? 1) > 0
     );
 
     const prefer = (candidateId?: string) => {
