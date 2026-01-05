@@ -196,6 +196,68 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, selectedTech, onClose, techStatuses, vibrate, handleResearchTech]);
 
+  // Minimap offset clamping - must be before early return
+  const clampMinimapOffset = useCallback((next: { x: number; y: number }) => {
+    const container = containerRef.current;
+    const minimap = minimapRef.current;
+    if (!container || !minimap) return next;
+    const containerRect = container.getBoundingClientRect();
+    const minimapRect = minimap.getBoundingClientRect();
+    const baseLeft = containerRect.width - minimapRect.width - MINIMAP_MARGIN;
+    const baseTop = MINIMAP_MARGIN;
+    const minLeft = MINIMAP_PADDING;
+    const maxLeft = containerRect.width - minimapRect.width - MINIMAP_PADDING;
+    const minTop = MINIMAP_PADDING;
+    const maxTop = containerRect.height - minimapRect.height - MINIMAP_PADDING;
+    return {
+      x: Math.min(Math.max(next.x, minLeft - baseLeft), maxLeft - baseLeft),
+      y: Math.min(Math.max(next.y, minTop - baseTop), maxTop - baseTop),
+    };
+  }, []);
+
+  const handleMinimapPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setIsMinimapDragging(true);
+    minimapDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: minimapOffset.x,
+      originY: minimapOffset.y,
+    };
+  }, [minimapOffset.x, minimapOffset.y]);
+
+  useEffect(() => {
+    if (!isMinimapDragging) return;
+    const handlePointerMove = (event: PointerEvent) => {
+      const dx = event.clientX - minimapDragRef.current.startX;
+      const dy = event.clientY - minimapDragRef.current.startY;
+      const next = {
+        x: minimapDragRef.current.originX + dx,
+        y: minimapDragRef.current.originY + dy,
+      };
+      setMinimapOffset(clampMinimapOffset(next));
+    };
+    const handlePointerUp = () => {
+      setIsMinimapDragging(false);
+    };
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [isMinimapDragging, clampMinimapOffset]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setMinimapOffset((prev) => clampMinimapOffset(prev));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [clampMinimapOffset]);
+
   if (!open || !gameState || !currentPlayer) return null;
 
   const matchesFilter = (techId: string) => {
@@ -604,67 +666,6 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
       containerRef.current.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
     }
   };
-
-  const clampMinimapOffset = useCallback((next: { x: number; y: number }) => {
-    const container = containerRef.current;
-    const minimap = minimapRef.current;
-    if (!container || !minimap) return next;
-    const containerRect = container.getBoundingClientRect();
-    const minimapRect = minimap.getBoundingClientRect();
-    const baseLeft = containerRect.width - minimapRect.width - MINIMAP_MARGIN;
-    const baseTop = MINIMAP_MARGIN;
-    const minLeft = MINIMAP_PADDING;
-    const maxLeft = containerRect.width - minimapRect.width - MINIMAP_PADDING;
-    const minTop = MINIMAP_PADDING;
-    const maxTop = containerRect.height - minimapRect.height - MINIMAP_PADDING;
-    return {
-      x: Math.min(Math.max(next.x, minLeft - baseLeft), maxLeft - baseLeft),
-      y: Math.min(Math.max(next.y, minTop - baseTop), maxTop - baseTop),
-    };
-  }, []);
-
-  const handleMinimapPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    setIsMinimapDragging(true);
-    minimapDragRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: minimapOffset.x,
-      originY: minimapOffset.y,
-    };
-  }, [minimapOffset.x, minimapOffset.y]);
-
-  useEffect(() => {
-    if (!isMinimapDragging) return;
-    const handlePointerMove = (event: PointerEvent) => {
-      const dx = event.clientX - minimapDragRef.current.startX;
-      const dy = event.clientY - minimapDragRef.current.startY;
-      const next = {
-        x: minimapDragRef.current.originX + dx,
-        y: minimapDragRef.current.originY + dy,
-      };
-      setMinimapOffset(clampMinimapOffset(next));
-    };
-    const handlePointerUp = () => {
-      setIsMinimapDragging(false);
-    };
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-    };
-  }, [isMinimapDragging, clampMinimapOffset]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setMinimapOffset((prev) => clampMinimapOffset(prev));
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [clampMinimapOffset]);
 
   return (
     <div
