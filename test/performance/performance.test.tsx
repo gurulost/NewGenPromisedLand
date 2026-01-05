@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, act } from '@testing-library/react';
+import { render, act, screen } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
 import React, { useState, useMemo } from 'react';
 
@@ -239,7 +239,7 @@ describe('Performance Guardrails', () => {
   });
 
   describe('Bundle Size and Loading Performance', () => {
-    it('validates code splitting effectiveness', () => {
+    it('validates code splitting effectiveness', async () => {
       // Mock dynamic import
       const mockDynamicImport = vi.fn(() => 
         Promise.resolve({ default: () => <div>Lazy Component</div> })
@@ -252,7 +252,8 @@ describe('Performance Guardrails', () => {
           <LazyWrapper />
         </React.Suspense>
       );
-      
+
+      await screen.findByText('Lazy Component');
       expect(mockDynamicImport).toHaveBeenCalledTimes(1);
     });
 

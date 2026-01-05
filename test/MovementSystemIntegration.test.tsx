@@ -19,6 +19,12 @@ vi.mock('../client/src/hooks/usePathfindingWorker', () => ({
     })
   })
 }));
+vi.mock('../client/src/components/game/HexGridInstanced', () => ({
+  default: ({ map }: any) => <div data-testid="hex-grid" data-tiles={map?.tiles?.length ?? 0} />,
+}));
+vi.mock('../client/src/components/game/Unit', () => ({
+  default: ({ unit }: any) => <div data-testid="unit" data-unit-id={unit?.id} />,
+}));
 vi.mock('@react-three/drei', () => {
   const makeScene = () => ({
     traverse: vi.fn(),

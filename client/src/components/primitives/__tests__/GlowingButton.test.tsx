@@ -1,6 +1,8 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { GlowingButton } from '../GlowingButton';
 
+const stripMotionProps = ({ animate, initial, exit, transition, whileHover, whileTap, layout, layoutId, ...rest }: any) => rest;
+
 // Mock framer-motion to simplify motion props in tests
 jest.mock('framer-motion', () => ({
   motion: {
@@ -10,7 +12,7 @@ jest.mock('framer-motion', () => ({
         onClick={onClick}
         disabled={disabled}
         data-testid="glowing-button"
-        {...props}
+        {...stripMotionProps(props)}
       >
         {children}
       </button>

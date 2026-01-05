@@ -11,9 +11,22 @@ import {
 // Mock framer-motion
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, className, style, animate, transition, initial, ...props }: any) => (
-      <div 
-        className={className} 
+    div: ({
+      children,
+      className,
+      style,
+      animate,
+      transition,
+      initial,
+      exit,
+      whileHover,
+      whileTap,
+      layout,
+      layoutId,
+      ...props
+    }: any) => (
+      <div
+        className={className}
         style={style}
         data-testid="motion-div"
         data-animate={animate ? JSON.stringify(animate) : undefined}

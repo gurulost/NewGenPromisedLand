@@ -2,11 +2,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { StaggeredContent, StaggeredContainer } from '../StaggeredContent';
 
+const stripMotionProps = ({ animate, initial, exit, transition, whileHover, whileTap, layout, layoutId, variants, ...rest }: any) => rest;
+
 // Mock framer-motion to avoid animation complications in tests
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, className, variants, ...props }: any) => (
-      <div className={className} data-testid="motion-div" {...props}>
+    div: ({ children, className, ...props }: any) => (
+      <div className={className} data-testid="motion-div" {...stripMotionProps(props)}>
         {children}
       </div>
     ),

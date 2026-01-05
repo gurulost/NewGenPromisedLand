@@ -2,12 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+const stripMotionProps = ({ animate, initial, exit, transition, whileHover, whileTap, layout, layoutId, ...rest }: any) => rest;
+
 // Mock all dependencies
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, className, ...props }: any) => <div className={className} {...props}>{children}</div>,
+    div: ({ children, className, ...props }: any) => (
+      <div className={className} {...stripMotionProps(props)}>{children}</div>
+    ),
     button: ({ children, className, onClick, ...props }: any) => (
-      <button className={className} onClick={onClick} {...props}>{children}</button>
+      <button className={className} onClick={onClick} {...stripMotionProps(props)}>{children}</button>
     )
   },
   AnimatePresence: ({ children }: any) => children

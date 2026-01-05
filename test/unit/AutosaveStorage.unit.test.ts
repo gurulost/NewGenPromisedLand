@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { GameState } from '@shared/types/game';
 
 const memory = new Map<string, any>();
+const originalIndexedDB = (globalThis as any).indexedDB;
 
 vi.mock('idb-keyval', () => ({
   get: async (key: string) => memory.get(key),
@@ -18,7 +19,15 @@ import { saveAutosave, loadAutosave, clearAutosave } from '../../client/src/lib/
 describe('autosaveStorage', () => {
   beforeEach(async () => {
     memory.clear();
+    (globalThis as any).indexedDB = {};
     await clearAutosave();
+  });
+  afterEach(() => {
+    if (originalIndexedDB === undefined) {
+      delete (globalThis as any).indexedDB;
+      return;
+    }
+    (globalThis as any).indexedDB = originalIndexedDB;
   });
 
   it('round-trips a valid game state through autosave', async () => {
@@ -88,4 +97,3 @@ describe('autosaveStorage', () => {
     expect(await loadAutosave()).toBeNull();
   });
 });
-
