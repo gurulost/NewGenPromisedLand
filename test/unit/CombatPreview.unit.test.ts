@@ -47,7 +47,17 @@ describe('combatPreview', () => {
       currentPlayerIndex: 0,
       turn: 1,
       phase: 'playing',
-      map: { tiles: [], width: 1, height: 1 },
+      map: {
+        tiles: [
+          { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['p1', 'p2'] },
+          { coordinate: { q: 1, r: 0, s: -1 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['p1', 'p2'] },
+          { coordinate: { q: 2, r: 0, s: -2 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['p1', 'p2'] },
+          { coordinate: { q: 3, r: 0, s: -3 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['p1', 'p2'] },
+          { coordinate: { q: 1, r: 1, s: -2 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['p1', 'p2'] },
+        ],
+        width: 4,
+        height: 4,
+      },
       units: [],
       cities: [],
       improvements: [],
@@ -82,20 +92,21 @@ describe('combatPreview', () => {
       coordinate: { q: 0, r: 0, s: 0 },
     });
     const defender = mkUnit({ id: 'd', playerId: 'p2', coordinate: { q: 3, r: 0, s: -3 } });
+    const spotter = mkUnit({ id: 's', type: 'scout', playerId: 'p1', coordinate: { q: 1, r: 0, s: -1 } });
 
-    const state = mkState({ units: [attacker, defender] });
+    const state = mkState({ units: [attacker, defender, spotter] });
     const notDeployed = getCombatPreview(attacker as any, defender as any, state);
     expect(notDeployed?.canAttack).toBe(false);
     expect(notDeployed?.reason).toMatch(/deploy|siege mode/i);
 
     const movedThisTurn = { ...attacker, status: 'siege_mode', remainingMovement: 0 };
-    const movedState = mkState({ units: [movedThisTurn, defender] });
+    const movedState = mkState({ units: [movedThisTurn, defender, spotter] });
     const notStationary = getCombatPreview(movedThisTurn as any, defender as any, movedState);
     expect(notStationary?.canAttack).toBe(false);
     expect(notStationary?.reason).toMatch(/stationary/i);
 
     const deployedStationary = { ...attacker, status: 'siege_mode', remainingMovement: 1 };
-    const deployedState = mkState({ units: [deployedStationary, defender] });
+    const deployedState = mkState({ units: [deployedStationary, defender, spotter] });
     const ok = getCombatPreview(deployedStationary as any, defender as any, deployedState);
     expect(ok?.canAttack).toBe(true);
   });
@@ -150,5 +161,64 @@ describe('combatPreview', () => {
     const stateNoPressure = mkState({ units: [baseAttacker, defender] });
     const previewNoPressure = getCombatPreview(baseAttacker as any, defender as any, stateNoPressure);
     expect(preview!.attackerDamage).toBeLessThan(previewNoPressure!.attackerDamage);
+  });
+
+  it('applies forest cover reduction to ranged attacks', () => {
+    const attacker = mkUnit({ id: 'a', playerId: 'p1', attack: 7, attackRange: 3 });
+    const defender = mkUnit({ id: 'd', playerId: 'p2', defense: 2, coordinate: { q: 2, r: 0, s: -2 } });
+    const baseMap = mkState().map;
+
+    const plainsState = mkState({ units: [attacker, defender], map: baseMap });
+    const previewPlains = getCombatPreview(attacker as any, defender as any, plainsState);
+    expect(previewPlains?.canAttack).toBe(true);
+
+    const forestState = mkState({
+      units: [attacker, defender],
+      map: {
+        ...baseMap,
+        tiles: baseMap.tiles.map(tile =>
+          tile.coordinate.q === 2 && tile.coordinate.r === 0
+            ? { ...tile, terrain: 'forest' }
+            : tile
+        ),
+      },
+    });
+    const previewForest = getCombatPreview(attacker as any, defender as any, forestState);
+    expect(previewForest?.canAttack).toBe(true);
+    expect(previewForest!.attackerDamage).toBeLessThan(previewPlains!.attackerDamage);
+    expect(previewForest!.modifiers.defender.join(' ')).toMatch(/Forest Cover/i);
+  });
+
+  it('applies forest ambush bonus for ranged attacks from forest', () => {
+    const attacker = mkUnit({
+      id: 'a',
+      type: 'wilderness_hunter',
+      playerId: 'p1',
+      attack: 6,
+      attackRange: 2,
+      abilities: ['AMBUSH'],
+      coordinate: { q: 0, r: 0, s: 0 },
+    });
+    const defender = mkUnit({ id: 'd', playerId: 'p2', defense: 2, coordinate: { q: 2, r: 0, s: -2 } });
+    const baseMap = mkState().map;
+
+    const plainsState = mkState({ units: [attacker, defender], map: baseMap });
+    const previewPlains = getCombatPreview(attacker as any, defender as any, plainsState);
+
+    const forestState = mkState({
+      units: [attacker, defender],
+      map: {
+        ...baseMap,
+        tiles: baseMap.tiles.map(tile =>
+          tile.coordinate.q === 0 && tile.coordinate.r === 0
+            ? { ...tile, terrain: 'forest' }
+            : tile
+        ),
+      },
+    });
+    const previewForest = getCombatPreview(attacker as any, defender as any, forestState);
+    expect(previewForest?.canAttack).toBe(true);
+    expect(previewForest!.attackerDamage).toBeGreaterThan(previewPlains!.attackerDamage);
+    expect(previewForest!.modifiers.attacker.join(' ')).toMatch(/Forest Ambush/i);
   });
 });

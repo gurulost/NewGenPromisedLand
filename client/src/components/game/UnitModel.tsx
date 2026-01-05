@@ -113,6 +113,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
       
       // Scout-type units (medium-small, agile)
       scout: 0.6,
+      slinger: 0.6,
       wilderness_hunter: 0.6,
       
       // Religious/diplomatic units (medium)

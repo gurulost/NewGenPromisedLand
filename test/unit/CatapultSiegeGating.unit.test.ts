@@ -12,7 +12,15 @@ describe('Catapult siege/bombardment gating', () => {
       currentPlayerIndex: 0,
       turn: 1,
       phase: 'playing',
-      map: { width: 5, height: 5, tiles: [] },
+      map: {
+        width: 5,
+        height: 5,
+        tiles: [
+          { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [p1, p2] },
+          { coordinate: { q: 1, r: 0, s: -1 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [p1, p2] },
+          { coordinate: { q: 2, r: 0, s: -2 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [p1, p2] },
+        ],
+      },
       players: [
         {
           id: p1,
@@ -78,7 +86,7 @@ describe('Catapult siege/bombardment gating', () => {
           id: 'e1',
           type: 'warrior',
           playerId: p2,
-          coordinate: { q: 3, r: 0, s: -3 },
+          coordinate: { q: 2, r: 0, s: -2 },
           hp: 25,
           maxHp: 25,
           attack: 6,
@@ -127,4 +135,3 @@ describe('Catapult siege/bombardment gating', () => {
     expect(attacked.units.find(u => u.id === 'c1')?.hasAttacked).toBe(true);
   });
 });
-

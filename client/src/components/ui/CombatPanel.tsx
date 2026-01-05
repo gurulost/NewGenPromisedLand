@@ -4,6 +4,7 @@ import { Button } from "./button";
 import { Progress } from "./progress";
 import { Sword, Shield, AlertTriangle, CheckCircle, XCircle, Info } from "lucide-react";
 import { getUnitDefinition } from "@shared/data/units";
+import { GAME_RULES } from "@shared/data/gameRules";
 import { getValidAttackTargets, canUnitAttackTarget } from "@shared/logic/unitLogic";
 import { hexDistance } from "@shared/utils/hex";
 import { getCombatPreview, CombatPreview } from "@shared/logic/combatPreview";
@@ -93,6 +94,9 @@ export default function CombatPanel({ selectedUnit, gameState, onAttackUnit, hov
                     <div>• Green: Favorable odds</div>
                     <div>• Yellow: Even match</div>
                     <div>• Red: Unfavorable odds</div>
+                    <div>• Forests reduce ranged damage by 1</div>
+                    <div>• Wilderness Hunters gain +2 attack when firing from forests</div>
+                    <div>• Fortresses reduce ranged damage by {GAME_RULES.combat.fortificationBonus}</div>
                   </div>
                 </div>
               } 

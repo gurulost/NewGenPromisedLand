@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Info } from 'lucide-react';
 import { getWorldElement } from '@shared/data/worldElements';
 import { GAME_RULES } from '@shared/data/gameRules';
+import { ABILITIES } from '@shared/data/abilities';
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from '@shared/types/city';
 import { formatRequirementList, getTechDisplayName, getWorldElementActionRequirements } from '../../utils/worldElementRequirements';
 
@@ -478,12 +479,50 @@ export function UnitTooltip({ unit, unitDef }: { unit: any; unitDef: any }) {
   if (passive?.perTurn?.pride) perTurnParts.push(`${passive.perTurn.pride > 0 ? '+' : ''}${passive.perTurn.pride} Pride/turn`);
   if (passive?.perTurn?.dissent) perTurnParts.push(`${passive.perTurn.dissent > 0 ? '+' : ''}${passive.perTurn.dissent} Dissent/turn`);
 
+  const abilityList = (unitDef?.abilities || unit?.abilities || []).map((ability: string) => String(ability).toUpperCase());
+  const abilitySet = new Set(abilityList);
+  const hasBombardment = abilitySet.has('SIEGE') || abilitySet.has('BOMBARDMENT');
+  const hasAmbush = abilitySet.has('AMBUSH');
+  const attackRange = unit?.attackRange ?? unitDef?.baseStats?.attackRange ?? 1;
+  const formatAbilityName = (abilityId: string) => {
+    const direct = ABILITIES[abilityId as keyof typeof ABILITIES];
+    if (direct?.name) return direct.name;
+    return abilityId
+      .toLowerCase()
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, match => match.toUpperCase());
+  };
+  const specialRules: string[] = [];
+  if (hasBombardment) {
+    specialRules.push('Siege mode: required for range 2-3; cannot fire adjacent; ends after firing or moving.');
+  }
+  if (hasAmbush) {
+    specialRules.push('Forest Ambush: +2 attack when firing from forest (range >1).');
+  }
+  if (attackRange > 1) {
+    specialRules.push('Forest cover: targets in forests take -1 ranged damage.');
+  }
+
+  const loreByUnit: Record<string, string> = {
+    slinger: '"armed with stones and slings" (Alma 43:19)',
+    wilderness_hunter: '"the bow, and the arrow, and the dart, and the javelin" (Jarom 1:8)',
+    catapult: '"they did cast over stones and arrows" (Alma 49:22)',
+  };
+
+  const lore = loreByUnit[unitDef?.type];
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <div className="font-semibold text-purple-300">{unitDef.name}</div>
         <div className="text-xs text-slate-400">Level {unit.level || 1}</div>
       </div>
+
+      {lore && (
+        <div className="text-xs italic text-amber-200/80">
+          {lore}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div>
@@ -502,8 +541,22 @@ export function UnitTooltip({ unit, unitDef }: { unit: any; unitDef: any }) {
         <div className="border-t border-slate-600 pt-2">
           <div className="text-xs text-slate-300 mb-1">Abilities:</div>
           <div className="text-xs text-blue-300">
-            {unitDef.abilities.join(', ')}
+            {unitDef.abilities.map(formatAbilityName).join(', ')}
           </div>
+        </div>
+      )}
+
+      {specialRules.length > 0 && (
+        <div className="border-t border-slate-600 pt-2">
+          <div className="text-xs text-slate-300 mb-1">Special Rules:</div>
+          <ul className="text-xs space-y-1">
+            {specialRules.map((rule, index) => (
+              <li key={index} className="flex items-start gap-1">
+                <span className="text-amber-300 mt-0.5">•</span>
+                <span className="text-amber-200">{rule}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

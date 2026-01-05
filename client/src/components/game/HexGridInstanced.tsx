@@ -185,7 +185,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     playerUnits.forEach(unit => {
       // Use unit's actual vision radius from definition
       const unitDef = getUnitDefinition(unit.type);
-      const visionRadius = unitDef.baseStats.visionRadius;
+      const visionRadius = unit.visionRadius ?? unitDef.baseStats.visionRadius;
 
       // Get visible tiles with line-of-sight calculations
       const unitVisibleTiles = getVisibleTilesInRange(
@@ -382,14 +382,23 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         const clickedTile = map.tiles[instanceId];
         console.log('Tile clicked:', clickedTile.coordinate);
 
-        // Check if there's a unit on this tile
-        const unitOnTile = gameState?.units.find(unit =>
-          unit.coordinate.q === clickedTile.coordinate.q &&
-          unit.coordinate.r === clickedTile.coordinate.r
-        );
-
         const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
         const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
+
+        // Check if there's a visible unit on this tile
+        const unitOnTile = gameState?.units.find(unit => {
+          if (
+            unit.coordinate.q !== clickedTile.coordinate.q ||
+            unit.coordinate.r !== clickedTile.coordinate.r
+          ) {
+            return false;
+          }
+
+          if (!currentPlayer) return true;
+          if (unit.playerId === currentPlayer.id) return true;
+          return visibleTileKeys.has(tileKey);
+        });
+
         if (currentPlayer && !currentPlayer.exploredTiles?.includes(tileKey)) {
           closeTileContextMenu();
           return;

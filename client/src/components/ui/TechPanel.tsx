@@ -6,8 +6,9 @@ import { Progress } from "./progress";
 import { Input } from "./input";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { TECHNOLOGIES, calculateResearchCost, getAvailableTechnologies, type Technology } from "@shared/data/technologies";
+import { GAME_RULES } from "@shared/data/gameRules";
 import { ABILITIES } from "@shared/data/abilities";
-import { Star, Book, Lock, CheckCircle, Clock, Sparkles, ArrowUpRight, Search, XCircle, Home, ChevronDown, Eye, EyeOff } from "lucide-react";
+import { Star, Book, Lock, CheckCircle, Clock, Sparkles, ArrowUpRight, Search, XCircle, Home, ChevronDown, Eye, EyeOff, Info } from "lucide-react";
 import { TECH_LAYOUT, CELL_WIDTH, CELL_HEIGHT, COL_GAP, ROW_GAP, CANVAS_PADDING, CATEGORY_LANES } from "../tech/techLayout";
 import { useHaptic } from "../../hooks/useHaptic";
 import { usePerformanceMode } from "../../hooks/usePerformanceMode";
@@ -69,6 +70,8 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     });
     return statuses;
   }, [currentPlayer, availableTechs]);
+
+  const rangedRules = detailTech ? getRangedRules(detailTech) : [];
 
   // Compute path highlighting - all prerequisites leading to selected tech
   const highlightedTechs = useMemo(() => {
@@ -281,6 +284,26 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     }
 
     return formatLabel(name);
+  };
+
+  const getRangedRules = (tech: Technology): string[] => {
+    const unlocks = tech.unlocks;
+    const hasSlinger = unlocks.units?.includes('slinger');
+    const hasCatapult = unlocks.units?.includes('catapult');
+    const hasFortress = unlocks.structures?.includes('fortress');
+    const rules: string[] = [];
+
+    if (hasSlinger || hasCatapult) {
+      rules.push('Ranged: forests reduce damage by 1');
+    }
+    if (hasCatapult) {
+      rules.push('Siege: range 2-3, cannot fire adjacent; deploy first');
+    }
+    if (hasFortress) {
+      rules.push(`Fortress: -${GAME_RULES.combat.fortificationBonus} ranged damage taken`);
+    }
+
+    return rules;
   };
 
   const UnlockBadge = ({ type, name }: { type: 'unit' | 'building' | 'ability' | 'improvement' | 'benefit', name: string }) => {
@@ -973,6 +996,22 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                       )}
                     </div>
                   </div>
+
+                  {rangedRules.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <Info className="w-4 h-4 text-amber-400" /> Rules
+                      </h3>
+                      <ul className="space-y-2">
+                        {rangedRules.map(rule => (
+                          <li key={rule} className="flex items-start gap-2 text-sm text-slate-300">
+                            <span className="text-amber-300 mt-0.5">•</span>
+                            <span>{rule}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
                 {/* Action Button */}

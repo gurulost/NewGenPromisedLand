@@ -354,7 +354,7 @@ export const STRUCTURE_DEFINITIONS: Record<StructureType, StructureDefinition> =
   fortress: {
     id: 'fortress',
     name: 'Fortress',
-    description: 'Strong defensive fortification',
+    description: 'Strong defensive fortification that reduces ranged damage',
     cost: 35,
     requiredTech: 'engineering',
     constructionTime: 1,

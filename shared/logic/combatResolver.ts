@@ -3,6 +3,7 @@ import { Unit } from "../types/unit";
 import { hexDistance } from "../utils/hex";
 import { GAME_RULES } from "../data/gameRules";
 import { getActiveModifiers } from "../data/modifiers";
+import { isUnitVisibleToPlayer } from "./unitLogic";
 
 export type CombatBlockReason =
   | "invalid_units"
@@ -10,6 +11,8 @@ export type CombatBlockReason =
   | "already_attacked"
   | "out_of_range"
   | "stealthed_target"
+  | "target_not_visible"
+  | "catapult_min_range"
   | "catapult_not_deployed"
   | "catapult_moved_this_turn"
   | "diplomacy_avoided";
@@ -45,6 +48,20 @@ const hasAbility = (abilities: Set<string>, abilityId: string) =>
   abilities.has(normalizeAbility(abilityId));
 
 const isFastUnit = (unit: Unit) => unit.movement >= 4 || unit.type === "scout";
+
+const isDefenderProtectedByFortress = (defender: Unit, state: GameState) => {
+  const city = state.cities.find(
+    c => c.coordinate.q === defender.coordinate.q && c.coordinate.r === defender.coordinate.r
+  );
+  if (!city) return false;
+
+  return state.structures.some(
+    structure =>
+      structure.cityId === city.id &&
+      structure.type === "fortress" &&
+      (structure.constructionTurns ?? 0) <= 0
+  );
+};
 
 const hasAdjacentLeader = (unit: Unit, state: GameState) =>
   state.units.some(other =>
@@ -115,6 +132,12 @@ export function resolveCombat(
   }
 
   const distance = hexDistance(attacker.coordinate, defender.coordinate);
+  const getTerrainAt = (coordinate: { q: number; r: number }) =>
+    state.map.tiles.find(
+      tile => tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
+    )?.terrain;
+  const attackerTerrain = getTerrainAt(attacker.coordinate);
+  const defenderTerrain = options?.terrainOverride ?? getTerrainAt(defender.coordinate);
   if (distance > attacker.attackRange) {
     return {
       success: false,
@@ -130,6 +153,34 @@ export function resolveCombat(
       specialEffects: [],
       modifiers: { attacker: [], defender: [] },
       message: "Combat blocked: out of range"
+    };
+  }
+
+  const attackerAbilities = getAbilitySet(attacker);
+  const defenderAbilities = getAbilitySet(defender);
+
+  const attackerHasBombardment =
+    hasAbility(attackerAbilities, "SIEGE") ||
+    hasAbility(attackerAbilities, "BOMBARDMENT");
+  const defenderHasBombardment =
+    hasAbility(defenderAbilities, "SIEGE") ||
+    hasAbility(defenderAbilities, "BOMBARDMENT");
+
+  if (attackerHasBombardment && distance <= 1) {
+    return {
+      success: false,
+      canAttack: false,
+      reason: "Artillery cannot fire at adjacent targets",
+      reasonCode: "catapult_min_range",
+      attackerDamage: 0,
+      defenderDamage: 0,
+      attackerHp: attacker.hp,
+      defenderHp: defender.hp,
+      attackerKilled: false,
+      defenderKilled: false,
+      specialEffects: [],
+      modifiers: { attacker: [], defender: [] },
+      message: "Combat blocked: catapult minimum range"
     };
   }
 
@@ -151,12 +202,23 @@ export function resolveCombat(
     };
   }
 
-  const attackerAbilities = getAbilitySet(attacker);
-  const defenderAbilities = getAbilitySet(defender);
-
-  const attackerHasBombardment =
-    hasAbility(attackerAbilities, "SIEGE") ||
-    hasAbility(attackerAbilities, "BOMBARDMENT");
+  if (!isUnitVisibleToPlayer(defender, attacker.playerId, state)) {
+    return {
+      success: false,
+      canAttack: false,
+      reason: "Target not visible",
+      reasonCode: "target_not_visible",
+      attackerDamage: 0,
+      defenderDamage: 0,
+      attackerHp: attacker.hp,
+      defenderHp: defender.hp,
+      attackerKilled: false,
+      defenderKilled: false,
+      specialEffects: [],
+      modifiers: { attacker: [], defender: [] },
+      message: "Combat blocked: target not visible"
+    };
+  }
 
   if (attackerHasBombardment && distance > 1 && attacker.status !== "siege_mode") {
     return {
@@ -243,6 +305,15 @@ export function resolveCombat(
     attackerAttack += 3;
     attackerModifiers.push("+3 Attack (Siege Mode)");
   }
+  if (defender.status === "siege_mode") {
+    defenderAttack += 3;
+    defenderModifiers.push("+3 Attack (Siege Mode)");
+  }
+  if (attackerTerrain === "forest" && distance > 1 && hasAbility(attackerAbilities, "AMBUSH")) {
+    attackerAttack += 2;
+    attackerModifiers.push("+2 Attack (Forest Ambush)");
+    specialEffects.push("Forest ambush");
+  }
   if (defender.status === "formation") {
     defenderDefense += 2;
     defenderModifiers.push("+2 Defense (Formation)");
@@ -320,13 +391,8 @@ export function resolveCombat(
   }
 
   // Terrain defense bonus
-  const terrain = options?.terrainOverride ??
-    state.map.tiles.find(tile =>
-      tile.coordinate.q === defender.coordinate.q &&
-      tile.coordinate.r === defender.coordinate.r
-    )?.terrain;
-  if (terrain) {
-    const terrainBonus = GAME_RULES.terrain.defenseBonus[terrain] || 0;
+  if (defenderTerrain) {
+    const terrainBonus = GAME_RULES.terrain.defenseBonus[defenderTerrain] || 0;
     if (terrainBonus > 0) {
       defenderDefense += terrainBonus;
       defenderModifiers.push(`+${terrainBonus} Defense (Terrain)`);
@@ -349,11 +415,28 @@ export function resolveCombat(
     defenderModifiers.push("-1 Damage Taken (Protective Aura)");
   }
 
+  const isRangedAttack = distance > 1;
+  if (isRangedAttack && defenderTerrain === "forest") {
+    attackerDamage = Math.max(1, attackerDamage - 1);
+    defenderModifiers.push("-1 Ranged Damage (Forest Cover)");
+    specialEffects.push("Forest cover");
+  }
+  if (isRangedAttack && isDefenderProtectedByFortress(defender, state)) {
+    const fortificationReduction = GAME_RULES.combat.fortificationBonus;
+    if (fortificationReduction > 0) {
+      attackerDamage = Math.max(1, attackerDamage - fortificationReduction);
+      defenderModifiers.push(`-${fortificationReduction} Ranged Damage (Fortress)`);
+      specialEffects.push("Fortification ranged reduction");
+    }
+  }
+
   const defenderHpAfter = Math.max(0, defender.hp - attackerDamage);
   const defenderCanCounter =
     defenderHpAfter > 0 &&
     distance <= defender.attackRange &&
-    defenderAttack > 0;
+    defenderAttack > 0 &&
+    (!defenderHasBombardment ||
+      (distance > 1 && defender.status === "siege_mode" && defender.remainingMovement === defender.movement));
   const defenderDamage = defenderCanCounter
     ? Math.max(1, defenderAttack - attackerDefense)
     : 0;

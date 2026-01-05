@@ -3,6 +3,7 @@ import { GameState, PlayerState } from '@shared/types/game';
 import { getUnitDefinition } from '@shared/data/units';
 import { hexDistance } from '@shared/utils/hex';
 import { resolveCombat } from '@shared/logic/combatResolver';
+import { isUnitVisibleToPlayer } from '@shared/logic/unitLogic';
 
 export interface CombatOdds {
   attackerWinChance: number;
@@ -92,6 +93,7 @@ export function getAttackableTargets(unit: Unit, gameState: GameState): Unit[] {
   return gameState.units.filter(target => {
     if (target.playerId === unit.playerId) return false;
     if (target.hp <= 0) return false;
+    if (!isUnitVisibleToPlayer(target, unit.playerId, gameState)) return false;
     return resolveCombat(unit, target, gameState).canAttack;
   });
 }

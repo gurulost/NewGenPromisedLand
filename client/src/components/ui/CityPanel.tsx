@@ -8,6 +8,7 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { Star, Building, Sword, Hammer, Users, Sparkles, Pencil, Check, X, Info } from "lucide-react";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS, type ImprovementType, type StructureType } from "@shared/types/city";
 import { getUnitDefinition, UNIT_DEFINITIONS } from "@shared/data/units";
+import { GAME_RULES } from "@shared/data/gameRules";
 import type { UnitType } from "@shared/types/unit";
 import { BuildingMenu } from "./BuildingMenu";
 import { ActionTooltip } from "./TooltipSystem";
@@ -463,7 +464,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                   <p>{cityUnits.length}/4 units stationed</p>
                   {cityUnits.map(unit => (
                     <Badge key={unit.id} variant="outline">
-                      {unit.type}
+                      {getUnitDefinition(unit.type)?.name ?? unit.type}
                     </Badge>
                   ))}
                 </div>
@@ -531,6 +532,9 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                           )}
                           {structure.effects.defenseBonus > 0 && (
                             <p>+{structure.effects.defenseBonus} defense</p>
+                          )}
+                          {structure.id === 'fortress' && (
+                            <p>-{GAME_RULES.combat.fortificationBonus} ranged damage taken</p>
                           )}
                         </div>
                       </div>

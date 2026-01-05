@@ -1433,6 +1433,10 @@ function handleMoveUnit(
       remainingMovement: u.remainingMovement - distance
     };
 
+    if (updatedUnit.status === 'siege_mode') {
+      updatedUnit.status = 'active';
+    }
+
     // Guerrilla/forest bonuses are terrain-dependent; reset to base stats when leaving forest.
     const unitDef = getUnitDefinition(updatedUnit.type);
     const unitAbilities = new Set((unitDef.abilities || []).map(a => String(a).toUpperCase()));
@@ -1450,7 +1454,7 @@ function handleMoveUnit(
 
   // Use unit's actual vision radius from definition
   const unitDef = getUnitDefinition(unit.type);
-  const visionRadius = unitDef.baseStats.visionRadius;
+  const visionRadius = unit.visionRadius ?? unitDef.baseStats.visionRadius;
   const visibleTiles: string[] = [];
 
   // Get all tiles within vision radius
@@ -1611,7 +1615,10 @@ function handleAttackUnit(
     }
     if (u.id === payload.attackerId) {
       // Remove stealth when attacking
-      const newStatus = u.status === 'stealthed' ? 'active' : u.status;
+      let newStatus = u.status;
+      if (newStatus === 'stealthed' || newStatus === 'siege_mode') {
+        newStatus = 'active';
+      }
       const isRangedBombardment = attackerHasBombardment && distance > 1;
       return {
         ...u,
@@ -2275,7 +2282,7 @@ function handleEndTurn(
         remainingMovement: u.movement
       };
 
-      // Clear temporary status effects (keep permanent ones like formation/siege)
+      // Clear temporary status effects (keep permanent ones like formation)
       if (u.status === 'rallied') {
         resetUnit.status = 'active';
       }

@@ -120,7 +120,7 @@ const abilityConfigs: AbilityConfig[] = [
     abilityId: 'BOMBARDMENT',
     unitTypes: ['catapult'],
     displayName: 'Artillery Bombardment',
-    description: 'Long-range area attack when deployed in siege mode.',
+    description: 'Long-range area attack (range 2-3) when deployed in siege mode.',
     evaluate: ({ unit }) => {
       if (unit.status !== 'siege_mode') {
         return { status: 'locked', reason: 'Deploy siege mode first' };

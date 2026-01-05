@@ -315,7 +315,7 @@ export class FactionPersonalityEngine {
     
     // Mood modifiers
     let moodModifier = 0;
-    if (unitType.includes('warrior') || unitType.includes('archer')) {
+    if (unitType.includes('warrior') || unitType.includes('slinger') || unitType.includes('hunter')) {
       moodModifier = this.personality.currentMood.desperation * 0.2;
     }
     if (unitType === 'missionary') {

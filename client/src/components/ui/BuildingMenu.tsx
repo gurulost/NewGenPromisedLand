@@ -29,12 +29,14 @@ import { BuildingMenuBackground } from './AnimatedBackground';
 import { PrimaryButton, SuccessButton, GhostButton } from './EnhancedButton';
 import { UNIT_DEFINITIONS } from '@shared/data/units';
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '@shared/types/city';
+import { GAME_RULES } from '@shared/data/gameRules';
 import { getPlayerStats } from '../../selectors/player';
 
 interface BuildingOption {
   id: string;
   name: string;
   description: string;
+  lore?: string;
   category: 'units' | 'structures' | 'improvements';
   cost: {
     stars?: number;
@@ -134,6 +136,13 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
     return effects;
   };
 
+  const loreById: Record<string, string> = {
+    slinger: '"armed with stones and slings" (Alma 43:19)',
+    wilderness_hunter: '"the bow, and the arrow, and the dart, and the javelin" (Jarom 1:8)',
+    catapult: '"they did cast over stones and arrows" (Alma 49:22)',
+    fortress: '"could not cast their stones and their arrows that they might take effect" (Alma 49:4)',
+  };
+
   // Generate building options from actual game data
   const buildingOptions: BuildingOption[] = [
     // Units from game data
@@ -141,6 +150,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       id: unit.type,
       name: unit.name,
       description: unit.description,
+      lore: loreById[unit.type],
       category: 'units' as const,
       cost: { stars: unit.cost },
       requirements: formatUnitRequirements(unit),
@@ -163,35 +173,48 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
     })),
     
     // Structures from game data
-    ...Object.values(STRUCTURE_DEFINITIONS).map(structure => ({
-      id: structure.id,
-      name: structure.name,
-      description: structure.description,
-      category: 'structures' as const,
-      cost: { stars: structure.cost },
-      requirements: [structure.requiredTech],
-      effects: [
-        ...(structure.effects.starProduction > 0 ? [{ 
-          description: 'Star Production', 
-          icon: <Star className="w-4 h-4" />, 
-          value: `+${structure.effects.starProduction}/turn` 
+    ...Object.values(STRUCTURE_DEFINITIONS).map(structure => {
+      const effects = [
+        ...(structure.effects.starProduction > 0 ? [{
+          description: 'Star Production',
+          icon: <Star className="w-4 h-4" />,
+          value: `+${structure.effects.starProduction}/turn`
         }] : []),
-        ...(structure.effects.defenseBonus > 0 ? [{ 
-          description: 'Defense Bonus', 
-          icon: <Shield className="w-4 h-4" />, 
-          value: `+${structure.effects.defenseBonus}` 
+        ...(structure.effects.defenseBonus > 0 ? [{
+          description: 'Defense Bonus',
+          icon: <Shield className="w-4 h-4" />,
+          value: `+${structure.effects.defenseBonus}`
         }] : []),
-        ...(structure.effects.unitProduction > 0 ? [{ 
-          description: 'Unit Production', 
-          icon: <Users className="w-4 h-4" />, 
-          value: `+${structure.effects.unitProduction}` 
+        ...(structure.effects.unitProduction > 0 ? [{
+          description: 'Unit Production',
+          icon: <Users className="w-4 h-4" />,
+          value: `+${structure.effects.unitProduction}`
         }] : [])
-      ],
-      buildTime: 1,
-      icon: <Castle className="w-6 h-6" />,
-      rarity: structure.effects.starProduction >= 3 ? 'epic' : 'common' as const,
-      unlocked: player.researchedTechs.includes(structure.requiredTech)
-    })),
+      ];
+
+      if (structure.id === 'fortress') {
+        effects.push({
+          description: 'Ranged Damage Taken',
+          icon: <Shield className="w-4 h-4" />,
+          value: `-${GAME_RULES.combat.fortificationBonus}`
+        });
+      }
+
+      return {
+        id: structure.id,
+        name: structure.name,
+        description: structure.description,
+        lore: loreById[structure.id],
+        category: 'structures' as const,
+        cost: { stars: structure.cost },
+        requirements: [structure.requiredTech],
+        effects,
+        buildTime: 1,
+        icon: <Castle className="w-6 h-6" />,
+        rarity: structure.effects.starProduction >= 3 ? 'epic' : 'common' as const,
+        unlocked: player.researchedTechs.includes(structure.requiredTech)
+      };
+    }),
     
     // Improvements from game data  
     ...Object.values(IMPROVEMENT_DEFINITIONS).map(improvement => ({
@@ -523,6 +546,12 @@ function BuildingCard({
           </div>
         ))}
       </div>
+
+      {option.lore && (
+        <div className="mb-4 text-xs italic text-amber-200/80">
+          {option.lore}
+        </div>
+      )}
 
       {/* Requirements */}
       {option.requirements && option.requirements.length > 0 && (
