@@ -76,12 +76,15 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
   
   // Play panel open sound
   React.useEffect(() => {
+    if (!element || !player) return;
     playSfx('panel-open');
-  }, [playSfx]);
-
-  if (!element || !player) return null;
+  }, [element, player, playSfx]);
 
   const { harvestUnitId, buildUnitId } = useMemo(() => {
+    if (!element || !player) {
+      return { harvestUnitId: null, buildUnitId: null };
+    }
+
     const unitsOnTile = gameState.units.filter(u =>
       u.playerId === playerId &&
       u.coordinate.q === coordinate.q &&
@@ -128,11 +131,12 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
     };
 
     return { harvestUnitId: defaultHarvest(), buildUnitId: defaultBuild() };
-  }, [coordinate.q, coordinate.r, element?.immediateAction?.requiresUnitTag, element?.longTermBuild?.requiresUnitTag, elementId, gameState.units, playerId, unitId]);
+  }, [coordinate.q, coordinate.r, element, element?.immediateAction?.requiresUnitTag, element?.longTermBuild?.requiresUnitTag, elementId, gameState.units, player, playerId, unitId]);
 
   const harvest = canExecuteElementAction(gameState, playerId, elementId, 'harvest', coordinate, harvestUnitId ?? undefined);
   const build = canExecuteElementAction(gameState, playerId, elementId, 'build', coordinate, buildUnitId ?? undefined);
   const displayedLongTermAction = useMemo(() => {
+    if (!element || !player) return null;
     if (!element.longTermBuild) return null;
 
     const tile = gameState.map.tiles.find(t =>
@@ -182,7 +186,7 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
       effectPermanent: { popDelta: 0, starsPerTurn: 0 },
       uiTooltipBuild: 'Already constructed',
     };
-  }, [coordinate.q, coordinate.r, element, elementId, gameState.map.tiles, player.researchedTechs]);
+  }, [coordinate.q, coordinate.r, element, elementId, gameState.map.tiles, player?.researchedTechs]);
 
   const harvestRequirements = useMemo(
     () => getWorldElementActionRequirements(elementId, 'harvest'),
@@ -217,11 +221,14 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
   }, [displayedLongTermAction, element?.longTermBuild?.upgrade, elementId]);
 
   const moralMsg = useMemo(() => {
+    if (!element) return '';
     const msgs: string[] = [];
     if (element.immediateAction?.prideDelta) msgs.push('⚔ Immediate exploitation increases Pride and Dissent.');
     if (element.longTermBuild?.faithDelta)   msgs.push('✠ Patient stewardship builds Faith and strengthens your covenant path.');
     return msgs.join(' ');
   }, [element]);
+
+  if (!element || !player) return null;
 
   return (
     <Transition appear show as={Fragment}>

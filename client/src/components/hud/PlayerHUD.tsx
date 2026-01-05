@@ -37,7 +37,6 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
   const faction = getFaction(player.factionId as any);
   const handleEndTurn = onEndTurn ?? (() => { });
   const autosaveStatus = useAutosaveStatus();
-  if (!gameState) return null;
 
   // Moved expensive calculations to selector
   const playerStats = useMemo(() =>
@@ -46,6 +45,8 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
   );
 
   const testimonyPressureLastTurn = useMemo(() => {
+    if (!gameState) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+
     const action: any = gameState.lastAction;
     if (!action) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
 
@@ -72,7 +73,9 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
     }
 
     return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
-  }, [gameState.lastAction, player.id]);
+  }, [gameState?.lastAction, player.id]);
+
+  if (!gameState) return null;
 
   return (
     <HUDShell position="top-left">
