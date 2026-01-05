@@ -69,6 +69,8 @@ describe('Missionary unit conversion', () => {
           defense: 2,
           movement: 3,
           remainingMovement: 3,
+          maxActions: 1,
+          actionsRemaining: 1,
           visionRadius: 2,
           attackRange: 1,
           status: 'active',
@@ -88,6 +90,8 @@ describe('Missionary unit conversion', () => {
           defense: 4,
           movement: 3,
           remainingMovement: 3,
+          maxActions: 1,
+          actionsRemaining: 1,
           visionRadius: 2,
           attackRange: 1,
           status: 'active',
@@ -112,7 +116,7 @@ describe('Missionary unit conversion', () => {
     expect(after.players.find(p => p.id === 'p1')?.stats.faith).toBe(100 - GAME_RULES.conversion.costs.unit);
     expect(after.rngSeed).toBe(expectedNextSeed);
     expect(after.units.find(u => u.id === 'm1')?.hasAttacked).toBe(true);
-    expect(after.units.find(u => u.id === 'm1')?.remainingMovement).toBe(0);
+    expect(after.units.find(u => u.id === 'm1')?.actionsRemaining).toBe(0);
     expect(after.units.find(u => u.id === 'e1')?.playerId).toBe('p1');
     expect((after.lastAction as any)?.type).toBe('CONVERT_UNIT');
   });
@@ -178,6 +182,8 @@ describe('Missionary unit conversion', () => {
           defense: 2,
           movement: 3,
           remainingMovement: 3,
+          maxActions: 1,
+          actionsRemaining: 1,
           visionRadius: 2,
           attackRange: 1,
           status: 'active',
@@ -197,6 +203,8 @@ describe('Missionary unit conversion', () => {
           defense: 4,
           movement: 3,
           remainingMovement: 3,
+          maxActions: 1,
+          actionsRemaining: 1,
           visionRadius: 2,
           attackRange: 1,
           status: 'active',
@@ -284,6 +292,8 @@ describe('Missionary unit conversion', () => {
           defense: 2,
           movement: 3,
           remainingMovement: 3,
+          maxActions: 1,
+          actionsRemaining: 1,
           visionRadius: 2,
           attackRange: 1,
           status: 'active',
@@ -303,6 +313,8 @@ describe('Missionary unit conversion', () => {
           defense: 4,
           movement: 3,
           remainingMovement: 3,
+          maxActions: 1,
+          actionsRemaining: 1,
           visionRadius: 2,
           attackRange: 1,
           status: 'active',

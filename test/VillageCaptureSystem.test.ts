@@ -45,6 +45,8 @@ describe('Village Capture System - Moral Choice', () => {
       defense: 2,
       movement: 1,
       remainingMovement: 1,
+      maxActions: 1,
+      actionsRemaining: 1,
       visionRadius: 2,
       status: 'active',
       hasAttacked: false,
@@ -120,7 +122,7 @@ describe('Village Capture System - Moral Choice', () => {
 
       // Check that unit is exhausted after conquering
       const updatedUnit = newState.units.find(u => u.id === 'unit1');
-      expect(updatedUnit?.remainingMovement).toBe(0);
+      expect(updatedUnit?.actionsRemaining).toBe(0);
       expect(updatedUnit?.hasAttacked).toBe(true);
     });
 
@@ -209,7 +211,7 @@ describe('Village Capture System - Moral Choice', () => {
 
       // Check that unit is exhausted after converting
       const updatedUnit = newState.units.find(u => u.id === 'unit1');
-      expect(updatedUnit?.remainingMovement).toBe(0);
+      expect(updatedUnit?.actionsRemaining).toBe(0);
       expect(updatedUnit?.hasAttacked).toBe(true);
     });
 

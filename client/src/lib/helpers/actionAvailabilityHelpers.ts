@@ -1,8 +1,7 @@
 import type { GameState, PlayerState } from "@shared/types/game";
 import type { Unit } from "@shared/types/unit";
 import { getUnitDefinition } from "@shared/data/units";
-import { getValidAttackTargets } from "@shared/logic/unitLogic";
-import { getReachableTiles } from "@shared/logic/pathfinding";
+import { calculateReachableTiles, getValidAttackTargets } from "@shared/logic/unitLogic";
 import { hexNeighbors, hexDistance } from "@shared/utils/hex";
 
 /**
@@ -32,19 +31,15 @@ export function getActionAvailability(
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const isPlayerTurn = unit.playerId === currentPlayer.id;
   const unitDef = getUnitDefinition(unit.type);
+  const actionsRemaining = unit.actionsRemaining ?? unit.maxActions ?? 1;
 
   // Movement availability
   const hasMovementPoints = unit.remainingMovement > 0;
-  const reachableTiles = hasMovementPoints ? getReachableTiles(
-    unit.coordinate, 
-    unit.remainingMovement, 
-    (coord) => gameState.map.tiles.some(tile => 
-      tile.coordinate.q === coord.q && 
-      tile.coordinate.r === coord.r &&
-      tile.terrain !== 'water' // Basic passability check
-    )
-  ) : [];
-  const hasValidMoves = reachableTiles.length > 0;
+  const reachableTiles = hasMovementPoints ? calculateReachableTiles(unit, gameState) : [];
+  const reachableMoveTiles = reachableTiles.filter(coord =>
+    coord.q !== unit.coordinate.q || coord.r !== unit.coordinate.r
+  );
+  const hasValidMoves = reachableMoveTiles.length > 0;
   
   const canMove = isPlayerTurn && hasMovementPoints && hasValidMoves;
   const movementReason = !isPlayerTurn 
@@ -53,12 +48,12 @@ export function getActionAvailability(
       ? "No movement remaining"
       : !hasValidMoves
         ? "No valid moves available"
-        : `${reachableTiles.length} tiles available`;
+        : `${reachableMoveTiles.length} tiles available`;
 
   // Attack availability
   const hasAttackCapability = unit.attack > 0;
-  const hasNotAttacked = !unit.hasAttacked;
-  const attackTargets = (isPlayerTurn && hasNotAttacked && hasAttackCapability) 
+  const hasNotAttacked = actionsRemaining > 0;
+  const attackTargets = (isPlayerTurn && hasNotAttacked && hasAttackCapability)
     ? getValidAttackTargets(unit, gameState) 
     : [];
   const hasValidTargets = attackTargets.length > 0;
@@ -66,8 +61,8 @@ export function getActionAvailability(
   const canAttack = isPlayerTurn && hasNotAttacked && hasAttackCapability && hasValidTargets;
   const attackReason = !isPlayerTurn
     ? "Not your turn"
-    : unit.hasAttacked
-      ? "Already attacked this turn"
+    : !hasNotAttacked
+      ? "No actions remaining"
       : !hasAttackCapability
         ? "Unit cannot attack"
         : !hasValidTargets
@@ -81,8 +76,8 @@ export function getActionAvailability(
     ? "Not your turn"
     : !hasAbilities
       ? "No abilities available"
-      : unit.hasAttacked
-        ? "Already acted this turn"
+      : !hasNotAttacked
+        ? "No actions remaining"
         : !canUseAbilities
           ? "Insufficient resources"
           : `${unitDef.abilities.length} abilities available`;
@@ -92,8 +87,8 @@ export function getActionAvailability(
     tile.coordinate.q === unit.coordinate.q &&
     tile.coordinate.r === unit.coordinate.r
   );
-  const canHarvest = isPlayerTurn && currentTile?.resources && currentTile.resources.length > 0 && !unit.hasAttacked;
-  const canBuild = isPlayerTurn && unit.type === 'worker' && currentTile && !currentTile.hasCity;
+  const canHarvest = isPlayerTurn && actionsRemaining > 0 && currentTile?.resources && currentTile.resources.length > 0;
+  const canBuild = isPlayerTurn && actionsRemaining > 0 && unit.type === 'worker' && currentTile && !currentTile.hasCity;
 
   return {
     canMove,
@@ -101,7 +96,7 @@ export function getActionAvailability(
     hasAbilities: canUseAbilities || false,
     canHarvest: canHarvest || false,
     canBuild: canBuild || false,
-    reachableTilesCount: reachableTiles.length,
+    reachableTilesCount: reachableMoveTiles.length,
     attackTargetsCount: attackTargets.length,
     isPlayerTurn,
     movementReason,

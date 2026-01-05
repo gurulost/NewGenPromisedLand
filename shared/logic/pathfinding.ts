@@ -1,6 +1,8 @@
 import { HexCoordinate } from "../types/coordinates";
 import { hexDistance, hexNeighbors } from "../utils/hex";
 
+type MovementCostFn = (coord: HexCoordinate) => number;
+
 interface PathNode {
   coordinate: HexCoordinate;
   gCost: number;
@@ -64,11 +66,17 @@ class PriorityQueue {
   }
 }
 
+const defaultMoveCost: MovementCostFn = () => 1;
+
+const normalizeMoveCost = (cost: number): number =>
+  Number.isFinite(cost) && cost > 0 ? cost : Infinity;
+
 export function findPath(
   start: HexCoordinate,
   goal: HexCoordinate,
   isPassable: (coord: HexCoordinate) => boolean,
-  maxDistance: number = Infinity
+  maxCost: number = Infinity,
+  getMoveCost: MovementCostFn = defaultMoveCost
 ): HexCoordinate[] {
   
   // Use priority queue for O(log n) operations instead of O(n log n) sorting
@@ -110,9 +118,14 @@ export function findPath(
         continue;
       }
       
-      const gCost = currentNode.gCost + 1;
+      const stepCost = normalizeMoveCost(getMoveCost(neighbor));
+      if (!Number.isFinite(stepCost)) {
+        continue;
+      }
+
+      const gCost = currentNode.gCost + stepCost;
       
-      if (gCost > maxDistance) {
+      if (gCost > maxCost) {
         continue;
       }
       
@@ -142,6 +155,70 @@ export function findPath(
   return []; // No path found
 }
 
+export function getPathCost(
+  start: HexCoordinate,
+  goal: HexCoordinate,
+  isPassable: (coord: HexCoordinate) => boolean,
+  maxCost: number = Infinity,
+  getMoveCost: MovementCostFn = defaultMoveCost
+): number | null {
+  const openSet = new PriorityQueue();
+  const bestCosts = new Map<string, number>();
+
+  const startNode: PathNode = {
+    coordinate: start,
+    gCost: 0,
+    hCost: 0,
+    fCost: 0
+  };
+
+  openSet.push(startNode);
+  bestCosts.set(coordToKey(start), 0);
+
+  while (openSet.length > 0) {
+    const currentNode = openSet.pop()!;
+    const currentKey = coordToKey(currentNode.coordinate);
+    const bestCost = bestCosts.get(currentKey);
+
+    if (bestCost !== undefined && currentNode.gCost > bestCost) {
+      continue;
+    }
+
+    if (currentNode.gCost > maxCost) {
+      continue;
+    }
+
+    if (hexDistance(currentNode.coordinate, goal) === 0) {
+      return currentNode.gCost;
+    }
+
+    const neighbors = hexNeighbors(currentNode.coordinate);
+    for (const neighbor of neighbors) {
+      if (!isPassable(neighbor)) continue;
+
+      const stepCost = normalizeMoveCost(getMoveCost(neighbor));
+      if (!Number.isFinite(stepCost)) continue;
+
+      const nextCost = currentNode.gCost + stepCost;
+      if (nextCost > maxCost) continue;
+
+      const neighborKey = coordToKey(neighbor);
+      const recordedCost = bestCosts.get(neighborKey);
+      if (recordedCost === undefined || nextCost < recordedCost) {
+        bestCosts.set(neighborKey, nextCost);
+        openSet.push({
+          coordinate: neighbor,
+          gCost: nextCost,
+          hCost: 0,
+          fCost: nextCost
+        });
+      }
+    }
+  }
+
+  return null;
+}
+
 function reconstructPath(node: PathNode): HexCoordinate[] {
   const path: HexCoordinate[] = [];
   let currentNode: PathNode | undefined = node;
@@ -160,35 +237,61 @@ function coordToKey(coord: HexCoordinate): string {
 
 export function getReachableTiles(
   start: HexCoordinate,
-  maxDistance: number,
-  isPassable: (coord: HexCoordinate) => boolean
+  maxCost: number,
+  isPassable: (coord: HexCoordinate) => boolean,
+  getMoveCost: MovementCostFn = defaultMoveCost
 ): HexCoordinate[] {
   const reachable: HexCoordinate[] = [];
   const visited = new Set<string>();
-  const queue: { coord: HexCoordinate; distance: number }[] = [
-    { coord: start, distance: 0 }
-  ];
-  
+  const bestCosts = new Map<string, number>();
+  const queue = new PriorityQueue();
+
+  const startNode: PathNode = {
+    coordinate: start,
+    gCost: 0,
+    hCost: 0,
+    fCost: 0
+  };
+
+  queue.push(startNode);
+  bestCosts.set(coordToKey(start), 0);
+
   while (queue.length > 0) {
-    const { coord, distance } = queue.shift()!;
-    const key = coordToKey(coord);
-    
-    if (visited.has(key) || distance > maxDistance || !isPassable(coord)) {
-      continue;
-    }
-    
+    const { coordinate, gCost } = queue.pop()!;
+    const key = coordToKey(coordinate);
+
+    if (visited.has(key)) continue;
     visited.add(key);
-    reachable.push(coord);
-    
-    // Add neighbors for next iteration
-    const neighbors = hexNeighbors(coord);
+
+    if (gCost > maxCost) continue;
+    if (!isPassable(coordinate)) continue;
+
+    reachable.push(coordinate);
+
+    const neighbors = hexNeighbors(coordinate);
     for (const neighbor of neighbors) {
       const neighborKey = coordToKey(neighbor);
-      if (!visited.has(neighborKey)) {
-        queue.push({ coord: neighbor, distance: distance + 1 });
+      if (visited.has(neighborKey)) continue;
+      if (!isPassable(neighbor)) continue;
+
+      const stepCost = normalizeMoveCost(getMoveCost(neighbor));
+      if (!Number.isFinite(stepCost)) continue;
+
+      const nextCost = gCost + stepCost;
+      if (nextCost > maxCost) continue;
+
+      const recorded = bestCosts.get(neighborKey);
+      if (recorded === undefined || nextCost < recorded) {
+        bestCosts.set(neighborKey, nextCost);
+        queue.push({
+          coordinate: neighbor,
+          gCost: nextCost,
+          hCost: 0,
+          fCost: nextCost
+        });
       }
     }
   }
-  
+
   return reachable;
 }

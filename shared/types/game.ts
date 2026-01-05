@@ -344,6 +344,7 @@ export const GameActionSchema = z.discriminatedUnion('type', [
     type: z.literal('BUILD_IMPROVEMENT'),
     payload: z.object({
       playerId: z.string(),
+      unitId: z.string(),
       coordinate: HexCoordinateSchema,
       improvementType: z.string(),
       cityId: z.string(),

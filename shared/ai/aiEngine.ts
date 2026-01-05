@@ -12,6 +12,7 @@ import { FactionPersonalityEngine } from './aiFactionPersonality';
 import { SeededRNG, aiDebugOverlay } from './aiFoundation';
 import { emitTelemetry } from '../logic/telemetry';
 import { getTechCostDetails } from '../logic/technologyHelpers';
+import { calculateReachableTiles, canUnitReachCoordinate, getUnitActionsRemaining } from '../logic/unitLogic';
 import { resolveCombat } from '../logic/combatResolver';
 import type { Technology } from '../data/technologies';
 import type { City, StructureDefinition, StructureType } from '../types/city';
@@ -487,28 +488,9 @@ export class AIEngine {
   }
 
   private getReachableTiles(unit: Unit): HexCoordinate[] {
-    const reachable: HexCoordinate[] = [];
-    const maxDistance = unit.remainingMovement;
-
-    // Simple pathfinding - check tiles within movement range
-    for (let q = unit.coordinate.q - maxDistance; q <= unit.coordinate.q + maxDistance; q++) {
-      for (let r = unit.coordinate.r - maxDistance; r <= unit.coordinate.r + maxDistance; r++) {
-        const s = -q - r;
-        const distance = hexDistance(unit.coordinate, { q, r, s });
-
-        if (distance <= maxDistance && distance > 0) {
-          const tile = this.gameState.map.tiles.find(t =>
-            t.coordinate.q === q && t.coordinate.r === r
-          );
-
-          if (tile && tile.terrain !== 'water') { // Basic passability check
-            reachable.push({ q, r, s });
-          }
-        }
-      }
-    }
-
-    return reachable;
+    return calculateReachableTiles(unit, this.gameState).filter(coord =>
+      coord.q !== unit.coordinate.q || coord.r !== unit.coordinate.r
+    );
   }
 
   private getNearbyResources(coordinate: HexCoordinate): any[] {
@@ -789,7 +771,7 @@ export class AIEngine {
 
       const nextStep = this.getNextStepTowards(worker, job.coordinate);
       if (!nextStep) continue;
-      if (hexDistance(worker.coordinate, nextStep) > worker.remainingMovement) continue;
+      if (!canUnitReachCoordinate(worker, nextStep, this.gameState)) continue;
 
       decisions.push({
         type: 'MOVE_UNIT',
@@ -845,7 +827,7 @@ export class AIEngine {
 
       const nextStep = this.getNextStepTowards(explorer, goal.target);
       if (!nextStep) continue;
-      if (hexDistance(explorer.coordinate, nextStep) > explorer.remainingMovement) continue;
+      if (!canUnitReachCoordinate(explorer, nextStep, this.gameState)) continue;
 
       decisions.push({
         type: 'MOVE_UNIT',
@@ -1001,7 +983,7 @@ export class AIEngine {
       if (this.reservedUnits.has(unit.id)) continue;
       const abilitySet = new Set((unit.abilities || []).map(a => a.toLowerCase()));
 
-      if (abilitySet.has('heal') && !unit.hasAttacked && this.aiPlayer.stats.faith >= 5) {
+      if (abilitySet.has('heal') && getUnitActionsRemaining(unit) > 0 && this.aiPlayer.stats.faith >= 5) {
         const healValue = this.evaluateHealOpportunity(unit);
         if (healValue > 0) {
           decisions.push({
@@ -1012,7 +994,7 @@ export class AIEngine {
         }
       }
 
-      if (abilitySet.has('siege') && unit.status !== 'siege_mode' && unit.remainingMovement === 0) {
+      if (abilitySet.has('siege') && unit.status !== 'siege_mode' && unit.remainingMovement === unit.movement && getUnitActionsRemaining(unit) > 0) {
         if (this.hasSiegeOpportunity(unit)) {
           decisions.push({
             type: 'SIEGE_MODE',
@@ -1022,7 +1004,7 @@ export class AIEngine {
         }
       }
 
-      if (abilitySet.has('stealth') && unit.status !== 'stealthed' && !unit.hasAttacked) {
+      if (abilitySet.has('stealth') && unit.status !== 'stealthed' && getUnitActionsRemaining(unit) > 0) {
         if (this.shouldApplyStealth(unit)) {
           decisions.push({
             type: 'APPLY_STEALTH',
@@ -1032,7 +1014,7 @@ export class AIEngine {
         }
       }
 
-      if (abilitySet.has('formation_fighting') && unit.status !== 'formation' && !unit.hasAttacked) {
+      if (abilitySet.has('formation_fighting') && unit.status !== 'formation' && getUnitActionsRemaining(unit) > 0) {
         const adjacentAllies = this.countAdjacentAllies(unit, 1);
         if (adjacentAllies >= 1) {
           decisions.push({
@@ -1043,7 +1025,7 @@ export class AIEngine {
         }
       }
 
-      if (abilitySet.has('rally') && !unit.hasAttacked && this.aiPlayer.stats.pride >= 5) {
+      if (abilitySet.has('rally') && getUnitActionsRemaining(unit) > 0 && this.aiPlayer.stats.pride >= 5) {
         const allies = this.countAlliesInRadius(unit, 2);
         if (allies >= 2) {
           decisions.push({
@@ -2737,7 +2719,7 @@ export class AIEngine {
             priority: priority + 15
           });
           this.reservedUnits.add(unit.id);
-        } else if (distToEmbark <= unit.remainingMovement) {
+        } else if (canUnitReachCoordinate(unit, embarkPoint, this.gameState)) {
           const nextStep = this.getNextStepTowards(unit, embarkPoint);
           if (nextStep) {
             decisions.push({

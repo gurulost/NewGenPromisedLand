@@ -8,6 +8,7 @@ import { getAvailableTechnologies, TECHNOLOGIES } from '../data/technologies';
 import type { UnitType } from '../types/unit';
 import { applyPopulationGain } from './cityGrowth';
 import { emitTelemetry } from './telemetry';
+import { getUnitActionsRemaining } from './unitLogic';
 
 type WeightedRuinReward = RuinReward & { weight: number };
 
@@ -628,13 +629,15 @@ function executeRuinExploration(
         defense: unitDef.baseStats.defense,
         movement: unitDef.baseStats.movement,
         remainingMovement: 0, // Summoned units delay
+        maxActions: unitDef.baseStats.actions,
+        actionsRemaining: 0,
         status: 'active',
         abilities: [...(unitDef.abilities || [])],
         level: 1,
         experience: 0,
         visionRadius: unitDef.baseStats.visionRadius,
         attackRange: unitDef.baseStats.attackRange,
-        hasAttacked: false
+        hasAttacked: true
       };
       newUnits.push(newUnit);
       break;
@@ -827,7 +830,7 @@ export function canExecuteElementAction(
     if (!actingUnit) {
       return { canExecute: false, reason: getUnitRequirementMessage(elementId, actionType, requiresUnitTag) };
     }
-    if (actingUnit.hasAttacked || actingUnit.remainingMovement <= 0) return { canExecute: false, reason: 'Unit is exhausted' };
+    if (getUnitActionsRemaining(actingUnit) <= 0) return { canExecute: false, reason: 'Unit is exhausted' };
 
     if (requiresUnitTag) {
       if (!hasRequiredTag(actingUnit.type as UnitType, requiresUnitTag)) {

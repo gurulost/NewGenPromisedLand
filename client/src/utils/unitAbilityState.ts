@@ -16,6 +16,9 @@ export interface UnitAbilityState {
   order: number;
 }
 
+const getActionsRemaining = (unit: Unit): number =>
+  unit.actionsRemaining ?? unit.maxActions ?? 1;
+
 type AbilityEvaluator = (params: {
   unit: Unit;
   player: PlayerState;
@@ -44,7 +47,7 @@ const abilityConfigs: AbilityConfig[] = [
       if (player.stats.faith < 5) {
         return { status: 'locked', reason: 'Needs 5 Faith' };
       }
-      if (unit.hasAttacked) {
+      if (getActionsRemaining(unit) <= 0) {
         return { status: 'exhausted', reason: 'Unit already acted this turn' };
       }
       return { status: 'ready' };
@@ -59,7 +62,7 @@ const abilityConfigs: AbilityConfig[] = [
       if (player.stats.faith < 10) {
         return { status: 'locked', reason: 'Needs 10 Faith' };
       }
-      if (unit.hasAttacked) {
+      if (getActionsRemaining(unit) <= 0) {
         return { status: 'exhausted', reason: 'Unit already acted this turn' };
       }
       const adjacentEnemies = gameState.units.some(candidate =>
@@ -82,7 +85,7 @@ const abilityConfigs: AbilityConfig[] = [
       if (unit.status === 'stealthed') {
         return { status: 'locked', reason: 'Already stealthed' };
       }
-      if (unit.hasAttacked) {
+      if (getActionsRemaining(unit) <= 0) {
         return { status: 'exhausted', reason: 'Unit already acted this turn' };
       }
       return { status: 'ready' };
@@ -94,7 +97,7 @@ const abilityConfigs: AbilityConfig[] = [
     unitTypes: ['scout'],
     displayName: 'Reconnaissance',
     evaluate: ({ unit }) => {
-      if (unit.hasAttacked) {
+      if (getActionsRemaining(unit) <= 0) {
         return { status: 'exhausted', reason: 'Unit already acted this turn' };
       }
       return { status: 'ready' };
@@ -109,7 +112,7 @@ const abilityConfigs: AbilityConfig[] = [
       if (player.stats.pride < 5) {
         return { status: 'locked', reason: 'Needs 5 Pride' };
       }
-      if (unit.hasAttacked) {
+      if (getActionsRemaining(unit) <= 0) {
         return { status: 'exhausted', reason: 'Unit already acted this turn' };
       }
       return { status: 'ready' };
@@ -128,7 +131,7 @@ const abilityConfigs: AbilityConfig[] = [
       if (unit.remainingMovement !== unit.movement) {
         return { status: 'locked', reason: 'Must be stationary this turn' };
       }
-      if (unit.hasAttacked) {
+      if (getActionsRemaining(unit) <= 0) {
         return { status: 'exhausted', reason: 'Unit already attacked this turn' };
       }
       return { status: 'ready' };

@@ -15,6 +15,7 @@ import type { GameState, PlayerState } from '../types/game';
 import type { Unit } from '../types/unit';
 import { GAME_RULES } from '../data/gameRules';
 import { hexDistance } from '../utils/hex';
+import { getUnitActionsRemaining, spendUnitActions } from './unitLogic';
 
 export type ConversionFailureReason =
   | 'not_found'
@@ -42,7 +43,7 @@ export function canAttemptUnitConversion(
     if (!currentPlayerId || caster.playerId !== currentPlayerId) return { ok: false, reason: 'not_owner_turn' };
   }
   if (caster.playerId === target.playerId) return { ok: false, reason: 'same_player' };
-  if (caster.hasAttacked || caster.remainingMovement <= 0) return { ok: false, reason: 'exhausted' };
+  if (getUnitActionsRemaining(caster) <= 0) return { ok: false, reason: 'exhausted' };
 
   // Canonical rule: unit conversions are performed by missionaries.
   if (caster.type !== 'missionary') return { ok: false, reason: 'invalid_caster' };
@@ -120,7 +121,7 @@ export function attemptUnitConversion(
   );
 
   const updatedUnits = state.units.map(u => {
-    if (u.id === caster.id) return { ...u, hasAttacked: true, remainingMovement: 0 };
+    if (u.id === caster.id) return spendUnitActions(u);
     if (u.id === target.id && success) {
       return {
         ...u,

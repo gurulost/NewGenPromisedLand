@@ -9,6 +9,7 @@ import { ABILITIES } from "../data/abilities";
 import { attemptUnitConversion, getUnitConversionFaithCost } from "./conversion";
 import { nextId } from "./rng";
 import { applyPopulationGain } from "./cityGrowth";
+import { spendUnitActions } from "./unitLogic";
 
 /**
  * Unit Action System - Handles special unit abilities and actions
@@ -457,8 +458,7 @@ export function executeCatapultAction(
           return { ...u, hp: Math.max(0, u.hp - damage) };
         }
         if (u.id === unit.id) {
-          // Catapult has attacked and used movement
-          return { ...u, hasAttacked: true, remainingMovement: 0 };
+          return spendUnitActions(u);
         }
         return u;
       }).filter(u => u.hp > 0) // Remove destroyed units
@@ -479,12 +479,12 @@ export function executeCatapultAction(
   }
 
   if (action === 'SETUP') {
-    // Must setup before attacking, cannot move when setup
+    // Enter siege mode (spends an action; moving will break siege).
     const newState = {
       ...state,
       units: state.units.map(u => 
         u.id === unit.id 
-          ? { ...u, status: 'defending' as const, remainingMovement: 0 }
+          ? { ...spendUnitActions(u), status: 'siege_mode' as const }
           : u
       )
     };
@@ -611,8 +611,7 @@ export function executeCommanderAction(
           };
         }
         if (u.id === unit.id) {
-          // Commander uses an action but gains inspiration
-          return { ...u, hasAttacked: false, remainingMovement: Math.max(0, u.remainingMovement - 1) };
+          return spendUnitActions(u);
         }
         return u;
       })
@@ -641,12 +640,11 @@ export function executeCommanderAction(
         if (commandedUnits.some(cmd => cmd.id === u.id)) {
           return { 
             ...u, 
-            hasAttacked: false,
             tacticalCommand: true // Mark for coordinated attack bonus
           };
         }
         if (u.id === unit.id) {
-          return { ...u, remainingMovement: Math.max(0, u.remainingMovement - 1) };
+          return spendUnitActions(u);
         }
         return u;
       })

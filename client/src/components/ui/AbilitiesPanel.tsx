@@ -59,6 +59,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const isPlayerTurn = currentPlayer.id === unit.playerId;
   const actionAvailability = getActionAvailability(unit, gameState);
+  const actionsRemaining = unit.actionsRemaining ?? unit.maxActions ?? 1;
 
   const currentTile = gameState.map.tiles.find(tile =>
     tile.coordinate.q === unit.coordinate.q &&
@@ -112,7 +113,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     }
 
     // Basic attack action
-    if (unit.attack > 0 && !unit.hasAttacked && isPlayerTurn) {
+    if (unit.attack > 0 && actionsRemaining > 0 && isPlayerTurn) {
       actions.push({
         id: 'attack',
         name: 'Attack',
@@ -152,8 +153,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
       !!currentTile &&
       (currentTile.resources || []).includes('jaredite_ruins') &&
       isPlayerTurn &&
-      unit.remainingMovement > 0 &&
-      !unit.hasAttacked;
+      actionsRemaining > 0;
 
     if (canExploreRuins) {
       actions.push({
@@ -179,8 +179,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           currentPlayer.researchedTechs.includes('forestry') &&
           currentPlayer.stars >= 5 &&
           isPlayerTurn &&
-          unit.remainingMovement > 0 &&
-          !unit.hasAttacked;
+          actionsRemaining > 0;
         actions.push(
           {
             id: 'build_improvement',
@@ -217,7 +216,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             icon: <Target className="w-4 h-4" />,
             cost: '3 Stars',
             starCost: 3,
-            available: currentPlayer.researchedTechs.includes('organization') && currentPlayer.stars >= 3 && isPlayerTurn && unit.remainingMovement > 0 && !!currentTile && !unit.hasAttacked
+            available: currentPlayer.researchedTechs.includes('organization') && currentPlayer.stars >= 3 && isPlayerTurn && !!currentTile && actionsRemaining > 0
           },
           {
             id: 'clear_forest',
@@ -257,7 +256,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             icon: <Heart className="w-4 h-4" />,
             cost: '5 Faith',
             faithCost: 5,
-            available: hasHealingTech && currentPlayer.stats.faith >= 5 && !unit.hasAttacked,
+            available: hasHealingTech && currentPlayer.stats.faith >= 5 && actionsRemaining > 0,
             rangeType: 'ability',
             range: 2
           },
@@ -272,7 +271,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             icon: <Star className="w-4 h-4" />,
             cost: `${unitConversionFaithCost} Faith`,
             faithCost: unitConversionFaithCost,
-            available: currentPlayer.stats.faith >= unitConversionFaithCost && !unit.hasAttacked && unit.remainingMovement > 0 && adjacentEnemyUnits.length > 0,
+            available: currentPlayer.stats.faith >= unitConversionFaithCost && actionsRemaining > 0 && adjacentEnemyUnits.length > 0,
             rangeType: 'attack',
             range: GAME_RULES.abilities.conversionRadius
           }
@@ -293,7 +292,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
 	          const targetCity = adjacentCities[0]; // Get first adjacent city
 	          const cityName = targetCity.name || 'City';
 	          const multipleNote = adjacentCities.length > 1 ? ` (${adjacentCities.length} available)` : '';
-	          const canUseCityConversion = isPlayerTurn && unit.remainingMovement > 0 && !unit.hasAttacked;
+	          const canUseCityConversion = isPlayerTurn && actionsRemaining > 0;
 
 	          actions.push(
 	            {
@@ -341,7 +340,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: 'Become invisible to enemies',
             icon: <Eye className="w-4 h-4" />,
             cost: 'Turn',
-            available: isPlayerTurn && !unit.hasAttacked && unit.status !== 'stealthed'
+            available: isPlayerTurn && actionsRemaining > 0 && unit.status !== 'stealthed'
           },
           {
             id: 'reconnaissance',
@@ -349,7 +348,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: 'Reveal large area around unit',
             icon: <Target className="w-4 h-4" />,
             cost: 'Turn',
-            available: isPlayerTurn && !unit.hasAttacked
+            available: isPlayerTurn && actionsRemaining > 0
           }
         );
         break;
@@ -361,7 +360,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           description: 'Assume formation for +2 defense until broken',
           icon: <Shield className="w-4 h-4" />,
           cost: 'Turn',
-          available: isPlayerTurn && !unit.hasAttacked && unit.remainingMovement > 0
+          available: isPlayerTurn && actionsRemaining > 0
         });
         break;
 
@@ -375,7 +374,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           icon: <Crown className="w-4 h-4" />,
           cost: '5 Pride',
           prideCost: 5,
-          available: isPlayerTurn && !unit.hasAttacked && currentPlayer.stats.pride >= 5,
+          available: isPlayerTurn && actionsRemaining > 0 && currentPlayer.stats.pride >= 5,
           rangeType: 'ability',
           range: 2
         });
@@ -396,7 +395,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             cost: 'Turn',
             available:
               isPlayerTurn &&
-              !unit.hasAttacked &&
+              actionsRemaining > 0 &&
               unit.remainingMovement === unit.movement &&
               unit.status !== 'siege_mode',
           },
@@ -413,7 +412,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             cost: 'Turn',
             available:
               isPlayerTurn &&
-              !unit.hasAttacked &&
+              actionsRemaining > 0 &&
               unit.status === 'siege_mode' &&
               unit.remainingMovement === unit.movement,
             rangeType: 'attack',
@@ -594,6 +593,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             type: 'BUILD_IMPROVEMENT',
             payload: {
               playerId: currentPlayer.id,
+              unitId: unit.id,
               coordinate: currentTile.coordinate,
               improvementType: bestImprovement,
               cityId: closestCityId,

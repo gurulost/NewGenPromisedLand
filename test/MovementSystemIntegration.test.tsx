@@ -14,7 +14,7 @@ vi.mock('../client/src/lib/stores/useGameState');
 vi.mock('../client/src/lib/stores/useLocalGame');
 vi.mock('../client/src/hooks/usePathfindingWorker', () => ({
   usePathfindingWorker: () => ({
-    getReachableTiles: vi.fn((coord, movement, passable, callback) => {
+    getReachableTiles: vi.fn((coord, passable, tileCosts, maxCost, callback) => {
       callback([{ q: 1, r: 0, s: -1 }, { q: 0, r: 1, s: -1 }], null);
     })
   })
@@ -79,6 +79,8 @@ describe('Movement System Integration Tests', () => {
       defense: 4,
       movement: 3,
       remainingMovement: 3,
+      maxActions: 1,
+      actionsRemaining: 1,
       visionRadius: 2,
       attackRange: 1,
       hasAttacked: false,
@@ -188,8 +190,8 @@ describe('Movement System Integration Tests', () => {
       expect(within(moveSummary!).getByText('None')).toBeInTheDocument();
     });
 
-    it('should show Attack as unavailable when unit has already attacked', () => {
-      const unitThatAttacked = { ...mockUnit, hasAttacked: true };
+    it('should show Attack as unavailable when unit has already acted', () => {
+      const unitThatAttacked = { ...mockUnit, hasAttacked: true, actionsRemaining: 0 };
       render(<SelectedUnitPanel unit={unitThatAttacked} />);
 
       const attackSummary = screen.getByText('Attack').closest('div');

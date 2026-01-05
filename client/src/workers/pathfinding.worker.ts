@@ -8,7 +8,8 @@ interface PathfindingRequest {
     start: HexCoordinate;
     goal?: HexCoordinate;
     passableTiles: string[];
-    maxDistance: number;
+    tileCosts: Record<string, number>;
+    maxCost: number;
   };
 }
 
@@ -22,17 +23,23 @@ self.onmessage = function(e: MessageEvent<PathfindingRequest>) {
   const { id, type, data } = e.data;
   
   try {
+    const passableSet = new Set(data.passableTiles);
     const isPassable = (coord: HexCoordinate): boolean => {
       const key = `${coord.q},${coord.r}`;
-      return data.passableTiles.includes(key);
+      return passableSet.has(key);
+    };
+    const getMoveCost = (coord: HexCoordinate): number => {
+      const key = `${coord.q},${coord.r}`;
+      const cost = data.tileCosts[key];
+      return typeof cost === 'number' ? cost : 1;
     };
 
     let result: HexCoordinate[];
 
     if (type === 'findPath' && data.goal) {
-      result = findPath(data.start, data.goal, isPassable, data.maxDistance);
+      result = findPath(data.start, data.goal, isPassable, data.maxCost, getMoveCost);
     } else if (type === 'getReachable') {
-      result = getReachableTiles(data.start, data.maxDistance, isPassable);
+      result = getReachableTiles(data.start, data.maxCost, isPassable, getMoveCost);
     } else {
       throw new Error('Invalid pathfinding request type');
     }

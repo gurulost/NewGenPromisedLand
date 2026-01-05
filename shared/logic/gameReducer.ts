@@ -15,7 +15,7 @@ import { executeUnitAction } from "./unitActions";
 import { executeAbility } from "./abilitySystem";
 import { executeElementHarvest, executeElementBuild } from "./worldElementActions";
 import { HexCoordinate } from "../types/coordinates";
-import { isPassableForUnit } from "./unitLogic";
+import { getMovementCostToCoordinate, getUnitActionsRemaining, isPassableForUnit, resetUnitActions, spendUnitActions } from "./unitLogic";
 import { emitTelemetry } from "./telemetry";
 import {
   areCitiesConnectedByRoad,
@@ -381,9 +381,15 @@ function handleStartConstruction(
 // Build Improvement Handler
 function handleBuildImprovement(
   state: GameState,
-  payload: { playerId: string; coordinate: any; improvementType: string; cityId: string }
+  payload: { playerId: string; unitId: string; coordinate: any; improvementType: string; cityId: string }
 ): GameState {
-  const { playerId, coordinate, improvementType, cityId } = payload;
+  const { playerId, unitId, coordinate, improvementType, cityId } = payload;
+
+  const unit = state.units.find(u => u.id === unitId);
+  if (!unit || unit.playerId !== playerId) return state;
+  if (unit.type !== 'worker') return state;
+  if (getUnitActionsRemaining(unit) <= 0) return state;
+  if (unit.coordinate.q !== coordinate.q || unit.coordinate.r !== coordinate.r) return state;
 
   const improvementDef = IMPROVEMENT_DEFINITIONS[improvementType as keyof typeof IMPROVEMENT_DEFINITIONS];
   if (!improvementDef) return state;
@@ -438,6 +444,7 @@ function handleBuildImprovement(
         ? { ...p, stars: p.stars - improvementDef.cost }
         : p
     ),
+    units: state.units.map(u => u.id === unitId ? spendUnitActions(u) : u),
     improvements: [...(state.improvements || []), newImprovement],
     rngSeed,
   };
@@ -688,7 +695,7 @@ function handleConquerVillage(
   // Exhaust the unit after conquering
   const updatedUnits = state.units.map(u =>
     u.id === unitId
-      ? { ...u, remainingMovement: 0, hasAttacked: true }
+      ? spendUnitActions(u)
       : u
   );
 
@@ -792,7 +799,7 @@ function handleConvertVillage(
   // Exhaust the unit after converting
   const updatedUnits = state.units.map(u =>
     u.id === unitId
-      ? { ...u, remainingMovement: 0, hasAttacked: true }
+      ? spendUnitActions(u)
       : u
   );
 
@@ -890,10 +897,8 @@ function handleExploreRuins(
   let updatedUnits = state.units.map(u => {
     if (u.id === unitId) {
       return {
-        ...u,
+        ...spendUnitActions(u),
         hp: reward.healAmount ? Math.min(u.maxHp, u.hp + reward.healAmount) : u.hp,
-        remainingMovement: 0, // Exploring exhausts movement
-        hasAttacked: true
       };
     }
     return u;
@@ -914,9 +919,11 @@ function handleExploreRuins(
       defense: 2,
       movement: 2,
       remainingMovement: 0,
+      maxActions: 1,
+      actionsRemaining: 0,
       visionRadius: 2,
       status: 'active' as const,
-      hasAttacked: false,
+      hasAttacked: true,
       abilities: [],
       level: 1,
       experience: 0,
@@ -1054,7 +1061,7 @@ function handleWorldElementHarvest(
   const unit = state.units.find(u => u.id === payload.unitId);
   if (!unit || unit.playerId !== payload.playerId) return state;
   if (unit.coordinate.q !== payload.coordinate.q || unit.coordinate.r !== payload.coordinate.r) return state;
-  if (unit.hasAttacked || unit.remainingMovement <= 0) return state;
+  if (getUnitActionsRemaining(unit) <= 0) return state;
 
   const element = getWorldElement(payload.elementId);
   if (!element) return state;
@@ -1097,7 +1104,7 @@ function handleWorldElementHarvest(
       ...result.newState,
       rngSeed,
       units: result.newState.units.map(u =>
-        u.id === payload.unitId ? { ...u, remainingMovement: 0, hasAttacked: true } : u
+        u.id === payload.unitId ? spendUnitActions(u) : u
       )
     };
   }
@@ -1112,7 +1119,7 @@ function handleWorldElementBuild(
   const unit = state.units.find(u => u.id === payload.unitId);
   if (!unit || unit.playerId !== payload.playerId) return state;
   if (unit.coordinate.q !== payload.coordinate.q || unit.coordinate.r !== payload.coordinate.r) return state;
-  if (unit.hasAttacked || unit.remainingMovement <= 0) return state;
+  if (getUnitActionsRemaining(unit) <= 0) return state;
   const element = getWorldElement(payload.elementId);
   if (!element) return state;
 
@@ -1136,7 +1143,7 @@ function handleWorldElementBuild(
     return {
       ...result.newState,
       units: result.newState.units.map(u =>
-        u.id === payload.unitId ? { ...u, remainingMovement: 0, hasAttacked: true } : u
+        u.id === payload.unitId ? spendUnitActions(u) : u
       )
     };
   }
@@ -1205,6 +1212,8 @@ function handleRecruitUnit(
     defense: unitDef.baseStats.defense,
     movement: unitDef.baseStats.movement,
     remainingMovement: unitDef.baseStats.movement,
+    maxActions: unitDef.baseStats.actions,
+    actionsRemaining: unitDef.baseStats.actions,
     status: 'active' as const,
     abilities: unitDef.abilities,
     level: 1,
@@ -1393,9 +1402,9 @@ function handleMoveUnit(
     return state;
   }
 
-  // Check if movement is valid
-  const distance = hexDistance(unit.coordinate, payload.targetCoordinate);
-  if (distance > unit.remainingMovement) {
+  // Check if movement is valid (weighted by terrain/path cost)
+  const moveCost = getMovementCostToCoordinate(unit, payload.targetCoordinate, state);
+  if (moveCost === null || moveCost > unit.remainingMovement) {
     return state;
   }
 
@@ -1417,7 +1426,7 @@ function handleMoveUnit(
     const updatedUnit: Unit = {
       ...u,
       coordinate: nextCoordinate,
-      remainingMovement: u.remainingMovement - distance
+      remainingMovement: Math.max(0, u.remainingMovement - moveCost)
     };
 
     if (updatedUnit.status === 'siege_mode') {
@@ -1527,8 +1536,8 @@ function handleAttackUnit(
   // Prevent friendly fire - cannot attack units from the same player
   if (attacker.playerId === target.playerId) return state;
 
-  // Check if unit has already attacked this turn
-  if (attacker.hasAttacked) return state;
+  // Check if unit has remaining actions this turn
+  if (getUnitActionsRemaining(attacker) <= 0) return state;
 
   const distance = hexDistance(attacker.coordinate, target.coordinate);
 
@@ -1582,7 +1591,7 @@ function handleAttackUnit(
       return {
         ...state,
         players: updatedPlayers,
-        units: state.units.map(u => u.id === attacker.id ? { ...u, hasAttacked: true } : u)
+        units: state.units.map(u => u.id === attacker.id ? spendUnitActions(u) : u)
       };
     }
 
@@ -1604,13 +1613,11 @@ function handleAttackUnit(
       if (newStatus === 'stealthed' || newStatus === 'siege_mode') {
         newStatus = 'active';
       }
-      const isRangedBombardment = attackerHasBombardment && distance > 1;
       return {
-        ...u,
+        ...spendUnitActions(u),
         hp: newAttackerHp,
-        hasAttacked: true,
         status: newStatus,
-        remainingMovement: isRangedBombardment ? 0 : u.remainingMovement
+        remainingMovement: u.remainingMovement
       };
     }
     return u;
@@ -2151,6 +2158,8 @@ function handleEndTurn(
               playerId: construction.playerId,
               coordinate: spawnCoordinate,
               remainingMovement: unitDef.baseStats.movement,
+              maxActions: unitDef.baseStats.actions,
+              actionsRemaining: unitDef.baseStats.actions,
               hasAttacked: false,
               hp: unitDef.baseStats.hp,
               maxHp: unitDef.baseStats.hp,
@@ -2259,8 +2268,7 @@ function handleEndTurn(
     if (u.playerId === nextPlayer.id) {
       // Reset movement and attack state for next player
       const resetUnit = {
-        ...u,
-        hasAttacked: false,
+        ...resetUnitActions(u),
         remainingMovement: u.movement
       };
 
@@ -2376,6 +2384,7 @@ function handleHarvestResource(
   // Find the unit
   const unit = state.units.find(u => u.id === unitId);
   if (!unit) return state;
+  if (getUnitActionsRemaining(unit) <= 0) return state;
 
   // Find the city
   const city = state.cities.find(c => c.id === cityId);
@@ -2428,7 +2437,7 @@ function handleHarvestResource(
   // Exhaust the unit after harvesting
   const updatedUnits = state.units.map(u =>
     u.id === unitId
-      ? { ...u, remainingMovement: 0 }
+      ? spendUnitActions(u)
       : u
   );
 
@@ -2452,7 +2461,7 @@ function handleClearForest(
   const player = state.players.find(p => p.id === playerId);
   if (!player || player.stars < 5) return state;
   if (!player.researchedTechs?.includes('forestry')) return state;
-  if (unit.remainingMovement <= 0 || unit.hasAttacked) return state;
+  if (getUnitActionsRemaining(unit) <= 0) return state;
 
   // Find the target tile
   const targetTile = state.map.tiles.find(tile =>
@@ -2487,7 +2496,7 @@ function handleClearForest(
     },
     units: state.units.map(u =>
       u.id === unitId
-        ? { ...u, remainingMovement: 0, hasAttacked: true } // Exhaust unit after clearing
+        ? spendUnitActions(u)
         : u
     )
   };
@@ -2506,7 +2515,7 @@ function handleBuildRoad(
   const player = state.players.find(p => p.id === playerId);
   if (!player || player.stars < 3) return state;
   if (!player.researchedTechs.includes('organization')) return state;
-  if (unit.remainingMovement <= 0 || unit.hasAttacked) return state;
+  if (getUnitActionsRemaining(unit) <= 0) return state;
 
   // Find the target tile
   const targetTile = state.map.tiles.find(tile =>
@@ -2556,7 +2565,7 @@ function handleBuildRoad(
     improvements: [...(state.improvements || []), roadImprovement],
     units: state.units.map(u =>
       u.id === unitId
-        ? { ...u, remainingMovement: 0 } // Exhaust unit after building
+        ? spendUnitActions(u)
         : u
     ),
     rngSeed,
@@ -2574,7 +2583,7 @@ function handleHealUnit(
   if (!unit || unit.playerId !== playerId) return state;
 
   // Check if unit has heal ability and hasn't acted
-  if (!unit.abilities.includes('heal') || unit.hasAttacked) return state;
+  if (!unit.abilities.includes('heal') || getUnitActionsRemaining(unit) <= 0) return state;
 
   // Check faith cost requirement
   const player = state.players.find(p => p.id === playerId);
@@ -2594,7 +2603,7 @@ function handleHealUnit(
 
   // Mark the healing unit as having acted and consume faith
   const updatedHealingUnits = updatedUnits.map(u =>
-    u.id === unitId ? { ...u, hasAttacked: true } : u
+    u.id === unitId ? spendUnitActions(u) : u
   );
 
   const updatedPlayers = state.players.map(p =>
@@ -2620,12 +2629,12 @@ function handleApplyStealth(
   if (!unit || unit.playerId !== playerId) return state;
 
   // Check if unit has stealth ability and hasn't acted
-  if (!unit.abilities.includes('stealth') || unit.hasAttacked) return state;
+  if (!unit.abilities.includes('stealth') || getUnitActionsRemaining(unit) <= 0) return state;
   if (unit.status === 'stealthed') return state;
 
   const updatedUnits = state.units.map(u =>
     u.id === unitId
-      ? { ...u, status: 'stealthed' as const, hasAttacked: true }
+      ? { ...spendUnitActions(u), status: 'stealthed' as const }
       : u
   );
 
@@ -2645,7 +2654,7 @@ function handleReconnaissance(
   if (!unit || unit.playerId !== playerId) return state;
 
   // Check if unit has reconnaissance ability and hasn't acted
-  if (!unit.abilities.includes('reconnaissance') || unit.hasAttacked) return state;
+  if (!unit.abilities.includes('reconnaissance') || getUnitActionsRemaining(unit) <= 0) return state;
 
   // Reveal large area around unit (radius 4)
   const reconRadius = 4;
@@ -2674,7 +2683,7 @@ function handleReconnaissance(
   );
 
   const updatedUnits = state.units.map(u =>
-    u.id === unitId ? { ...u, hasAttacked: true } : u
+    u.id === unitId ? spendUnitActions(u) : u
   );
 
   const revealSet = new Set(newVisibleTiles);
@@ -2702,7 +2711,7 @@ function handleFormationFighting(
 
   const unit = state.units.find(u => u.id === unitId);
   if (!unit || unit.playerId !== playerId) return state;
-  if (unit.remainingMovement <= 0 || unit.hasAttacked) return state;
+  if (getUnitActionsRemaining(unit) <= 0) return state;
 
   // Check if unit has formation fighting ability
   if (!unit.abilities.includes('formation_fighting')) return state;
@@ -2710,7 +2719,7 @@ function handleFormationFighting(
   // Apply formation bonus - this is passive, just mark the unit as having used the action
   const updatedUnits = state.units.map(u =>
     u.id === unitId
-      ? { ...u, status: 'formation' as const, hasAttacked: true, remainingMovement: 0 }
+      ? { ...spendUnitActions(u), status: 'formation' as const }
       : u
   );
 
@@ -2731,10 +2740,11 @@ function handleSiegeMode(
 
   // Check if unit has siege ability and is stationary
   if (!unit.abilities.includes('siege') || unit.remainingMovement !== unit.movement) return state;
+  if (getUnitActionsRemaining(unit) <= 0) return state;
 
   const updatedUnits = state.units.map(u =>
     u.id === unitId
-      ? { ...u, status: 'siege_mode' as const, hasAttacked: true, remainingMovement: 0 }
+      ? { ...spendUnitActions(u), status: 'siege_mode' as const }
       : u
   );
 
@@ -2754,7 +2764,7 @@ function handleRallyTroops(
   if (!unit || unit.playerId !== playerId) return state;
 
   // Check if unit has rally ability and pride cost
-  if (!(unit.abilities.includes('rally') || unit.abilities.includes('rally_troops')) || unit.hasAttacked) return state;
+  if (!(unit.abilities.includes('rally') || unit.abilities.includes('rally_troops')) || getUnitActionsRemaining(unit) <= 0) return state;
 
   const player = state.players.find(p => p.id === playerId);
   if (!player || player.stats.pride < 5) return state;
@@ -2774,7 +2784,7 @@ function handleRallyTroops(
 
   // Mark the rally unit as having acted and consume pride
   const updatedRallyUnits = updatedUnits.map(u =>
-    u.id === unitId ? { ...u, hasAttacked: true } : u
+    u.id === unitId ? spendUnitActions(u) : u
   );
 
   const updatedPlayers = state.players.map(p =>
@@ -2877,6 +2887,8 @@ function handleBuildUnit(
     defense: unitDef.baseStats.defense,
     movement: unitDef.baseStats.movement,
     remainingMovement: unitDef.baseStats.movement,
+    maxActions: unitDef.baseStats.actions,
+    actionsRemaining: unitDef.baseStats.actions,
     status: 'active' as const,
     abilities: unitDef.abilities,
     level: 1,
@@ -2974,6 +2986,7 @@ function applyCovenantOfPeace(state: GameState, player: PlayerState): GameState 
 function applyRighteousCharge(state: GameState, payload: any): GameState {
   const unit = state.units.find(u => u.id === payload.unitId);
   if (!unit || !payload.targetUnitId) return state;
+  if (getUnitActionsRemaining(unit) <= 0) return state;
 
   const target = state.units.find(u => u.id === payload.targetUnitId);
   if (!target || target.playerId === unit.playerId) return state;
@@ -2985,7 +2998,7 @@ function applyRighteousCharge(state: GameState, payload: any): GameState {
       ...state,
       units: state.units.map(u =>
         u.id === unit.id
-          ? { ...u, attack: u.attack + GAME_RULES.abilities.attackBonuses.righteousCharge, remainingMovement: Math.max(0, u.remainingMovement - 1) }
+          ? { ...spendUnitActions(u), attack: u.attack + GAME_RULES.abilities.attackBonuses.righteousCharge }
           : u
       )
     };
@@ -3504,8 +3517,7 @@ function handleConvertCity(
       u.playerId === playerId &&
       u.type === 'missionary' &&
       missionaryHasConvertAbility(u) &&
-      !u.hasAttacked &&
-      u.remainingMovement > 0 &&
+      getUnitActionsRemaining(u) > 0 &&
       hexDistance(u.coordinate, city.coordinate) <= 1;
 
     if (isEligible(candidateById)) return candidateById;
@@ -3547,7 +3559,7 @@ function handleConvertCity(
   return {
     ...state,
     units: state.units.map(u =>
-      u.id === actingMissionary.id ? { ...u, hasAttacked: true, remainingMovement: 0 } : u
+      u.id === actingMissionary.id ? spendUnitActions(u) : u
     ),
     players: state.players.map(p => {
       if (p.id === playerId) {
@@ -3614,7 +3626,7 @@ function handleUnitAction(
   switch (actionType) {
     case 'convert': {
       // Missionary conversion: convert an adjacent enemy unit (auto-targets if none provided)
-      if (!unit.abilities.includes('convert') || unit.hasAttacked) return state;
+      if (!unit.abilities.includes('convert') || getUnitActionsRemaining(unit) <= 0) return state;
       if (player.stats.faith < GAME_RULES.conversion.costs.unit) return state;
 
       const requestedTargetUnitId =
@@ -3639,12 +3651,12 @@ function handleUnitAction(
 
     case 'stealth':
       // Implement stealth mode for scouts
-      if (unit.type === 'scout' && unit.remainingMovement >= 2) {
+      if (unit.type === 'scout' && getUnitActionsRemaining(unit) > 0) {
         return {
           ...state,
           units: state.units.map(u =>
             u.id === unitId
-              ? { ...u, remainingMovement: u.remainingMovement - 2, status: 'stealthed' as const, hasAttacked: true }
+              ? { ...spendUnitActions(u), status: 'stealthed' as const }
               : u
           )
         };
@@ -3653,7 +3665,7 @@ function handleUnitAction(
 
     case 'heal':
       // Implement healing for missionaries
-      if (unit.type === 'missionary' && player.stats.faith >= 5) {
+      if (unit.type === 'missionary' && player.stats.faith >= 5 && getUnitActionsRemaining(unit) > 0) {
         const nearbyUnits = state.units.filter(u =>
           u.playerId === playerId &&
           hexDistance(u.coordinate, unit.coordinate) <= GAME_RULES.abilities.healRadius &&
@@ -3672,6 +3684,9 @@ function handleUnitAction(
               if (nearbyUnits.some(nu => nu.id === u.id)) {
                 return { ...u, hp: Math.min(u.maxHp, u.hp + GAME_RULES.units.healingAmount) };
               }
+              if (u.id === unitId) {
+                return spendUnitActions(u);
+              }
               return u;
             })
           };
@@ -3681,7 +3696,7 @@ function handleUnitAction(
 
     case 'reconnaissance':
       // Implement reconnaissance for scouts
-      if (unit.type === 'scout') {
+      if (unit.type === 'scout' && getUnitActionsRemaining(unit) > 0) {
         const revealRadius = GAME_RULES.abilities.visionRevealRadius;
         const tilesToReveal: string[] = [];
 
@@ -3716,7 +3731,10 @@ function handleUnitAction(
               }
               return tile;
             })
-          }
+          },
+          units: state.units.map(u =>
+            u.id === unitId ? spendUnitActions(u) : u
+          )
         };
       }
       break;

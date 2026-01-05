@@ -8,7 +8,8 @@ interface PathfindingRequest {
     start: HexCoordinate;
     goal?: HexCoordinate;
     passableTiles: string[];
-    maxDistance: number;
+    tileCosts: Record<string, number>;
+    maxCost: number;
   };
 }
 
@@ -59,7 +60,8 @@ export function usePathfindingWorker() {
     start: HexCoordinate,
     goal: HexCoordinate,
     passableTiles: string[],
-    maxDistance: number,
+    tileCosts: Record<string, number>,
+    maxCost: number,
     callback: PathfindingCallback
   ) => {
     if (!workerRef.current) {
@@ -73,7 +75,7 @@ export function usePathfindingWorker() {
     const request: PathfindingRequest = {
       id,
       type: 'findPath',
-      data: { start, goal, passableTiles, maxDistance }
+      data: { start, goal, passableTiles, tileCosts, maxCost }
     };
 
     workerRef.current.postMessage(request);
@@ -81,8 +83,9 @@ export function usePathfindingWorker() {
 
   const getReachableTiles = useCallback((
     start: HexCoordinate,
-    maxDistance: number,
     passableTiles: string[],
+    tileCosts: Record<string, number>,
+    maxCost: number,
     callback: PathfindingCallback
   ) => {
     if (!workerRef.current) {
@@ -96,7 +99,7 @@ export function usePathfindingWorker() {
     const request: PathfindingRequest = {
       id,
       type: 'getReachable',
-      data: { start, passableTiles, maxDistance }
+      data: { start, passableTiles, tileCosts, maxCost }
     };
 
     workerRef.current.postMessage(request);

@@ -468,6 +468,8 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
               defense: 4,
               movement: 3,
               remainingMovement: 3,
+              maxActions: 1,
+              actionsRemaining: 1,
               status: 'active' as const,
               abilities: [],
               level: 1,
