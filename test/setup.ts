@@ -25,6 +25,15 @@ global.ResizeObserver = vi.fn(() => ({
   unobserve: vi.fn(),
 })) as any;
 
+// Mock MutationObserver
+class MockMutationObserver {
+  observe = vi.fn();
+  disconnect = vi.fn();
+  takeRecords = vi.fn(() => []);
+  constructor(_callback: MutationCallback) {}
+}
+global.MutationObserver = MockMutationObserver as any;
+
 // Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

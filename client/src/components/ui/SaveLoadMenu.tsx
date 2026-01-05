@@ -46,7 +46,9 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
   const loadAutosaveData = async () => {
     try {
       const autosave = await loadAutosave();
-      setAutosaveData(autosave);
+      if (autosave) {
+        setAutosaveData(autosave);
+      }
     } catch (err) {
       console.error('Error loading autosave:', err);
     }

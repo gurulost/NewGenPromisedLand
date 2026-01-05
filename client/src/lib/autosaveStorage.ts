@@ -13,6 +13,8 @@ export interface AutosavePayload {
 }
 
 export async function saveAutosave(gameState: GameState): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+
   const validation = GameStateSchema.safeParse(gameState);
   if (!validation.success) {
     throw new Error('Refusing to autosave invalid game state');
@@ -30,6 +32,8 @@ export async function saveAutosave(gameState: GameState): Promise<void> {
 }
 
 export async function loadAutosave(): Promise<AutosavePayload | null> {
+  if (typeof indexedDB === 'undefined') return null;
+
   const stored = await get(AUTOSAVE_KEY);
   if (!stored) return null;
 
@@ -72,6 +76,7 @@ export async function loadAutosave(): Promise<AutosavePayload | null> {
 }
 
 export async function clearAutosave(): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+
   await del(AUTOSAVE_KEY);
 }
-

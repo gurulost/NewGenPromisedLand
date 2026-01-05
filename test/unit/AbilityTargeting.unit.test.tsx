@@ -3,10 +3,12 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AbilityTargetOverlay } from '../../client/src/components/ui/AbilityTargetOverlay';
 
+const stripMotionProps = ({ animate, initial, exit, transition, whileHover, whileTap, layout, layoutId, ...rest }: any) => rest;
+
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+    div: ({ children, ...props }: any) => <div {...stripMotionProps(props)}>{children}</div>,
+    button: ({ children, ...props }: any) => <button {...stripMotionProps(props)}>{children}</button>,
   },
   AnimatePresence: ({ children }: any) => children,
 }));
@@ -100,4 +102,3 @@ describe('AbilityTargetOverlay', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 });
-

@@ -99,14 +99,15 @@ describe('SaveLoadMenu', () => {
     await waitFor(() => expect(mockListSaves).toHaveBeenCalled());
   });
 
-  it('displays save current game section when gameState exists', () => {
+  it('displays save current game section when gameState exists', async () => {
     render(<SaveLoadMenu {...mockProps} />);
     expect(screen.getByText('Save Current Game')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Enter save name...')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    await waitFor(() => expect(mockListSaves).toHaveBeenCalled());
   });
 
-  it('does not display save section when gameState is null', () => {
+  it('does not display save section when gameState is null', async () => {
     mockUseLocalGame.mockReturnValue({
       gameState: null,
       setGameState: vi.fn(),
@@ -115,11 +116,13 @@ describe('SaveLoadMenu', () => {
 
     render(<SaveLoadMenu {...mockProps} />);
     expect(screen.queryByText('Save Current Game')).not.toBeInTheDocument();
+    await waitFor(() => expect(mockListSaves).toHaveBeenCalled());
   });
 
   it('enables save button only when save name is entered', async () => {
     const user = userEvent.setup();
     render(<SaveLoadMenu {...mockProps} />);
+    await waitFor(() => expect(mockListSaves).toHaveBeenCalled());
 
     const saveButton = screen.getByRole('button', { name: 'Save' });
     const nameInput = screen.getByPlaceholderText('Enter save name...');
@@ -135,6 +138,7 @@ describe('SaveLoadMenu', () => {
   it('creates a save when save button is clicked', async () => {
     const user = userEvent.setup();
     render(<SaveLoadMenu {...mockProps} />);
+    await waitFor(() => expect(mockListSaves).toHaveBeenCalled());
 
     const nameInput = screen.getByPlaceholderText('Enter save name...');
     const saveButton = screen.getByRole('button', { name: 'Save' });
@@ -253,6 +257,7 @@ describe('SaveLoadMenu', () => {
   it('closes menu when close button is clicked', async () => {
     const user = userEvent.setup();
     render(<SaveLoadMenu {...mockProps} />);
+    await waitFor(() => expect(mockListSaves).toHaveBeenCalled());
 
     await user.click(screen.getByRole('button', { name: 'Close panel' }));
     expect(mockProps.onClose).toHaveBeenCalled();

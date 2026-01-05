@@ -3,11 +3,13 @@ import { WorldElementPanel } from '../WorldElementPanel';
 import { GameState } from '../../../../../shared/types/game';
 import { HexCoordinate } from '../../../../../shared/types/coordinates';
 
+const stripMotionProps = ({ animate, initial, exit, transition, whileHover, whileTap, layout, layoutId, ...rest }: any) => rest;
+
 // Mock dependencies
 jest.mock('framer-motion', () => ({
   motion: {
     div: ({ children, className, ...props }: any) => (
-      <div className={className} data-testid="motion-div" {...props}>
+      <div className={className} data-testid="motion-div" {...stripMotionProps(props)}>
         {children}
       </div>
     ),

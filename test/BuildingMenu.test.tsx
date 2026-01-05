@@ -4,11 +4,17 @@ import userEvent from '@testing-library/user-event';
 import { BuildingMenu } from '../client/src/components/ui/BuildingMenu';
 import { GameState, PlayerState, City } from '../shared/types/game';
 
+const stripMotionProps = ({ animate, initial, exit, transition, whileHover, whileTap, layout, layoutId, ...rest }: any) => rest;
+
 // Mock framer-motion
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, className, ...props }: any) => <div className={className} {...props}>{children}</div>,
-    button: ({ children, className, ...props }: any) => <button className={className} {...props}>{children}</button>
+    div: ({ children, className, ...props }: any) => (
+      <div className={className} {...stripMotionProps(props)}>{children}</div>
+    ),
+    button: ({ children, className, ...props }: any) => (
+      <button className={className} {...stripMotionProps(props)}>{children}</button>
+    )
   },
   AnimatePresence: ({ children }: any) => children
 }));

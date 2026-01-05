@@ -11,6 +11,8 @@ import {
   GhostButton 
 } from '../client/src/components/ui/EnhancedButton';
 
+const stripMotionProps = ({ animate, initial, exit, transition, whileHover, whileTap, layout, layoutId, ...rest }: any) => rest;
+
 // Mock framer-motion
 vi.mock('framer-motion', () => ({
   motion: {
@@ -25,7 +27,7 @@ vi.mock('framer-motion', () => ({
       </button>
     ),
     div: ({ children, className, ...props }: any) => (
-      <div className={className} {...props}>{children}</div>
+      <div className={className} {...stripMotionProps(props)}>{children}</div>
     )
   }
 }));
