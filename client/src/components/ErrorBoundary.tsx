@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { captureSentryException } from '../utils/sentry';
 
 interface Props {
   children: ReactNode;
@@ -24,6 +25,19 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
     this.setState({ errorInfo });
+
+    // Report to Sentry with component stack for debugging
+    try {
+      captureSentryException(error, {
+        componentStack: errorInfo.componentStack,
+        errorBoundary: true,
+        // Tag React Error #310 specifically for easy filtering
+        isHookOrderingError: error.message?.includes('Rendered fewer hooks') ||
+          error.message?.includes('Rendered more hooks'),
+      });
+    } catch (sentryError) {
+      console.warn('Failed to report error to Sentry:', sentryError);
+    }
   }
 
   render() {
@@ -31,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) {
         return this.props.fallback;
       }
-      
+
       return (
         <div className="w-full h-full flex items-center justify-center bg-slate-900 text-white p-8">
           <div className="max-w-lg text-center space-y-4">
@@ -56,3 +70,4 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+
