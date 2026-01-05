@@ -71,6 +71,12 @@ function generateLobbyCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
+// Parse and validate integer parameters
+function parseIntParam(value: string): number | null {
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 // Extend express-session types
 declare module "express-session" {
   interface SessionData {
@@ -283,7 +289,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get lobby by id (for refreshing)
   app.get("/api/lobbies/id/:id", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseIntParam(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ error: "Invalid lobby ID" });
+      }
       const lobby = await storage.getLobbyById(id);
       if (!lobby) {
         return res.status(404).json({ error: "Lobby not found" });
@@ -332,10 +341,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Game already started" });
       }
       
-      const seatIndex = parseInt(req.params.seatIndex);
+      const seatIndex = parseIntParam(req.params.seatIndex);
+      if (seatIndex === null) {
+        return res.status(400).json({ error: "Invalid seat index" });
+      }
       const seats = await storage.getSeatsByLobbyId(lobby.id);
       const seat = seats.find(s => s.seatIndex === seatIndex);
-      
+
       if (!seat) {
         return res.status(404).json({ error: "Seat not found" });
       }
@@ -370,22 +382,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Lobby is not in waiting state" });
       }
       
-      const seatIndex = parseInt(req.params.seatIndex);
+      const seatIndex = parseIntParam(req.params.seatIndex);
+      if (seatIndex === null) {
+        return res.status(400).json({ error: "Invalid seat index" });
+      }
       const seats = await storage.getSeatsByLobbyId(lobby.id);
       const seat = seats.find(s => s.seatIndex === seatIndex);
-      
+
       if (!seat) {
         return res.status(404).json({ error: "Seat not found" });
       }
       if (seat.userId !== req.session.userId) {
         return res.status(403).json({ error: "Not your seat" });
       }
-      
-      await storage.updateSeat(seat.id, { 
-        userId: null, 
+
+      await storage.updateSeat(seat.id, {
+        userId: null,
         playerName: null,
         factionId: null,
-        isReady: false 
+        isReady: false
       });
       
       const updatedSeats = await storage.getSeatsByLobbyId(lobby.id);
@@ -407,7 +422,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Lobby is not in waiting state" });
       }
       
-      const seatIndex = parseInt(req.params.seatIndex);
+      const seatIndex = parseIntParam(req.params.seatIndex);
+      if (seatIndex === null) {
+        return res.status(400).json({ error: "Invalid seat index" });
+      }
       const seats = await storage.getSeatsByLobbyId(lobby.id);
       const seat = seats.find(s => s.seatIndex === seatIndex);
       
@@ -447,7 +465,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Only host can add AI" });
       }
       
-      const seatIndex = parseInt(req.params.seatIndex);
+      const seatIndex = parseIntParam(req.params.seatIndex);
+      if (seatIndex === null) {
+        return res.status(400).json({ error: "Invalid seat index" });
+      }
       const seats = await storage.getSeatsByLobbyId(lobby.id);
       const seat = seats.find(s => s.seatIndex === seatIndex);
       
@@ -487,7 +508,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Only host can remove AI" });
       }
       
-      const seatIndex = parseInt(req.params.seatIndex);
+      const seatIndex = parseIntParam(req.params.seatIndex);
+      if (seatIndex === null) {
+        return res.status(400).json({ error: "Invalid seat index" });
+      }
       const seats = await storage.getSeatsByLobbyId(lobby.id);
       const seat = seats.find(s => s.seatIndex === seatIndex);
       
@@ -1075,7 +1099,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!deviceId) {
         return res.status(400).json({ error: "Device ID required" });
       }
-      const id = parseInt(req.params.id);
+      const id = parseIntParam(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ error: "Invalid ID" });
+      }
       const save = await storage.getGameSaveById(id);
       if (!save) {
         return res.status(404).json({ error: "Save not found" });
@@ -1119,7 +1146,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!deviceId) {
         return res.status(400).json({ error: "Device ID required" });
       }
-      const id = parseInt(req.params.id);
+      const id = parseIntParam(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ error: "Invalid ID" });
+      }
       const existingSave = await storage.getGameSaveById(id);
       if (!existingSave) {
         return res.status(404).json({ error: "Save not found" });
@@ -1142,7 +1172,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!deviceId) {
         return res.status(400).json({ error: "Device ID required" });
       }
-      const id = parseInt(req.params.id);
+      const id = parseIntParam(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ error: "Invalid ID" });
+      }
       const existingSave = await storage.getGameSaveById(id);
       if (!existingSave) {
         return res.status(404).json({ error: "Save not found" });

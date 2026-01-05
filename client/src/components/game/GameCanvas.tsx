@@ -32,8 +32,6 @@ export default function GameCanvas() {
   const spotlightTimelineRef = useRef<gsap.core.Timeline | null>(null);
   const cinematicTimelineRef = useRef<gsap.core.Timeline | null>(null);
 
-  console.log('[GameCanvas] Rendering, gameState exists:', !!gameState, 'map tiles:', gameState?.map?.tiles?.length);
-
   // Enhanced selection and effects
   const {
     selectedCoordinate,
@@ -386,13 +384,11 @@ export default function GameCanvas() {
             s: Math.round(hoveredTile.tile.coordinate.s || 0)
           } : null}
           onTileHover={(coord) => {
-            // Handle tile hover for movement preview
-            console.log('Movement tile hovered:', coord);
+            // Handle tile hover for movement preview - coord available for future use
           }}
           onTileClick={(coord) => {
             // Execute unit movement
             if (selectedUnit && gameState) {
-              console.log('Executing unit movement:', selectedUnit.id, 'to', coord);
               dispatch({
                 type: 'MOVE_UNIT',
                 payload: {

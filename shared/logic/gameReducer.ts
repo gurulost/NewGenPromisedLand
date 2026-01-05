@@ -297,7 +297,6 @@ function handleStartConstruction(
   } else if (category === 'units') {
     const unitDef = getUnitDefinition(buildingType as any);
     if (!unitDef) {
-      console.log(`Unit definition not found for ${buildingType}`);
       return state;
     }
     if (unitDef.requiredTechnology && !player.researchedTechs.includes(unitDef.requiredTechnology)) return state;
@@ -332,7 +331,6 @@ function handleStartConstruction(
           });
 
           if (!adjacentWater) {
-            console.log(`Cannot build boat: city ${cityId} has no coastal access`);
             return state;
           }
         }
@@ -344,12 +342,8 @@ function handleStartConstruction(
   if (player.stars < cost.stars ||
     player.stats.faith < (cost.faith || 0) ||
     player.stats.pride < (cost.pride || 0)) {
-    console.log(`Cannot afford ${buildingType}: need ${cost.stars} stars, ${cost.faith} faith, ${cost.pride} pride. Have ${player.stars} stars, ${player.stats.faith} faith, ${player.stats.pride} pride`);
     return state;
   }
-
-  console.log(`Starting construction of ${buildingType} (${category}) for player ${playerId}`);
-  console.log(`Construction details:`, { buildingType, category, coordinate, cityId, cost, buildTime });
 
   // Create construction item deterministically
   let rngSeed = state.rngSeed ?? 0;
@@ -367,8 +361,6 @@ function handleStartConstruction(
     totalTurns: buildTime,
     cost,
   };
-
-  console.log(`Adding construction item to queue:`, constructionItem);
 
   // Deduct costs and add to construction queue
   return {
@@ -1393,27 +1385,22 @@ function handleMoveUnit(
 ): GameState {
   const unit = state.units.find((u: Unit) => u.id === payload.unitId);
   if (!unit) {
-    console.log('Unit not found:', payload.unitId);
     return state;
   }
 
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (unit.playerId !== currentPlayer.id) {
-    console.log('Unit does not belong to current player');
     return state;
   }
 
   // Check if movement is valid
   const distance = hexDistance(unit.coordinate, payload.targetCoordinate);
-  console.log('Movement distance:', distance, 'Remaining movement:', unit.remainingMovement);
   if (distance > unit.remainingMovement) {
-    console.log('Not enough movement');
     return state;
   }
 
   // Check if target tile is passable (includes naval special-cases and enemy-blocking)
   if (!isPassableForUnit(payload.targetCoordinate, state, unit)) {
-    console.log('Target tile is not passable for this unit');
     return state;
   }
 
@@ -1607,8 +1594,6 @@ function handleAttackUnit(
   const newHp = combatResult.defenderHp;
   const newAttackerHp = combatResult.attackerHp;
 
-  console.log(`Combat: ${attacker.type} (${combatResult.attackerDamage} dmg) vs ${target.type} (${combatResult.defenderDamage} counter)`);
-
   let updatedUnits = state.units.map((u: Unit) => {
     if (u.id === payload.targetId) {
       return { ...u, hp: newHp };
@@ -1669,7 +1654,6 @@ function handleAttackUnit(
                   ...nextUnits[unitIndex],
                   [effect.stat]: (nextUnits[unitIndex][effect.stat as keyof Unit] as number) + effect.value
                 };
-                console.log(`Applied ${modifier.name} to ${unit.id}: +${effect.value} ${effect.stat}`);
               }
             });
           }
@@ -1746,8 +1730,6 @@ function handleUseAbility(
     if (ability.requirements.pride && player.stats.pride < ability.requirements.pride) return state;
     if (ability.requirements.dissent && player.stats.internalDissent < ability.requirements.dissent) return state;
   }
-
-  console.log(`Player ${player.name} using ability: ${ability.name}`);
 
   // Implement specific ability effects
   let next: GameState = state;
@@ -3402,8 +3384,6 @@ function handleDeclareWar(
   // Check if already at war
   if (player.atWarWith?.includes(targetPlayerId)) return state;
 
-  console.log(`${player.name} declares war on ${targetPlayer.name}!`);
-
   // Declaring war:
   // - Updates atWarWith for both players (war is mutual)
   // - Removes any existing alliance between them
@@ -3461,8 +3441,6 @@ function handleFormAlliance(
 
   // Check if already allied
   if (player.alliedWith?.includes(allyPlayerId)) return state;
-
-  console.log(`${player.name} forms alliance with ${ally.name}!`);
 
   // Forming alliances:
   // - Updates alliedWith for both players (alliance is mutual)
