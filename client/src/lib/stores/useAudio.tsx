@@ -131,7 +131,6 @@ export const useAudio = create<AudioState>((set, get) => ({
     }
     
     set({ isMuted: newMutedState });
-    console.log(`Sound ${newMutedState ? 'muted' : 'unmuted'}`);
   },
 
   initializeAudio: async () => {
@@ -269,6 +268,8 @@ export const useAudio = create<AudioState>((set, get) => ({
     }
   },
 
-  playAmbientSound: () => {
+  // Ambient sounds not yet implemented - placeholder for future feature
+  playAmbientSound: (_type?: string) => {
+    // No-op: ambient sound system not yet implemented
   }
 }));

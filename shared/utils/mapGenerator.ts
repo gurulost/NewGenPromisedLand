@@ -485,8 +485,7 @@ export class MapGenerator {
         villagesPlaced++;
       }
     }
-    
-    console.log(`Polytopia village spawning: Generated ${villagesPlaced} villages on map (${((villagesPlaced / tiles.length) * 100).toFixed(1)}% density)`);
+    // Village spawning complete - density can be checked via game state if needed
   }
 
   /**
@@ -508,7 +507,7 @@ export class MapGenerator {
     if (tile.feature === 'village') return false;
     
     // Must be ≥ 2 tiles inside map edge (Polytopia rule)
-    const distanceFromCenter = Math.sqrt(tile.coordinate.q ** 2 + tile.coordinate.r ** 2);
+    const distanceFromCenter = hexDistance(tile.coordinate, { q: 0, r: 0, s: 0 });
     if (distanceFromCenter > mapRadius - MAP_GENERATION_CONSTANTS.MAP_EDGE_BUFFER) return false;
     
     // Must be ≥ 2 tiles from any existing village (Polytopia spacing rule)
@@ -689,10 +688,7 @@ export class MapGenerator {
       // Future: Add any special tribal features here
       // For now, all tribal bonuses are handled through spawn rate modifiers
       
-      if (modifiers && modifiers.lore) {
-        // Log tribal lore for debugging
-        console.log(`${factionId} homeland: ${modifiers.lore}`);
-      }
+      // Tribal lore available in modifiers.lore for future UI display
     }
   }
 

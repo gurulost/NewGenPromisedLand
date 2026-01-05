@@ -269,8 +269,8 @@ export const useGameState = create<GameStateStore>((set) => ({
     },
   }),
 
-  setMovementMode: (enabled) => set({ isMovementMode: enabled, isAttackMode: enabled ? false : false, isRoadBuildMode: false, roadBuildUnitId: null, attackableTargets: [] }),
-  setAttackMode: (enabled) => set({ isAttackMode: enabled, isMovementMode: enabled ? false : false, isRoadBuildMode: false, roadBuildUnitId: null }),
+  setMovementMode: (enabled) => set({ isMovementMode: enabled, isAttackMode: false, isRoadBuildMode: false, roadBuildUnitId: null, attackableTargets: [] }),
+  setAttackMode: (enabled) => set({ isAttackMode: enabled, isMovementMode: false, isRoadBuildMode: false, roadBuildUnitId: null }),
   setAttackableTargets: (targets) => set({ attackableTargets: targets }),
 
   startRoadBuild: (unitId) => set({ isRoadBuildMode: true, roadBuildUnitId: unitId, isMovementMode: false, isAttackMode: false, attackableTargets: [] }),
