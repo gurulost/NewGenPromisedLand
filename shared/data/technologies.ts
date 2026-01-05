@@ -51,7 +51,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 5,
     prerequisites: [],
     unlocks: {
-      units: ['scout']
+      units: ['scout', 'slinger']
     },
     category: 'military'
   },

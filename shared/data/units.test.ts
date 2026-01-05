@@ -14,6 +14,7 @@ describe('Unit Definitions', () => {
       'prophet',
       'guard',
       'scout',
+      'slinger',
       'worker',
       'commander'
     ];

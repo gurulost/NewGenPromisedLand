@@ -79,6 +79,8 @@ describe('Unit Logic', () => {
           { coordinate: { q: 0, r: 1, s: -1 }, terrain: 'mountain', resources: [], hasCity: false, exploredBy: ['player1', 'player2'] },
           { coordinate: { q: 2, r: 0, s: -2 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['player1', 'player2'] },
           { coordinate: { q: 1, r: 1, s: -2 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['player1', 'player2'] },
+          { coordinate: { q: 3, r: 0, s: -3 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['player1', 'player2'] },
+          { coordinate: { q: 4, r: 0, s: -4 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['player1', 'player2'] },
           { coordinate: { q: -1, r: 0, s: 1 }, terrain: 'water', resources: [], hasCity: false, exploredBy: ['player1', 'player2'] }
         ],
         width: 10,
@@ -339,7 +341,7 @@ describe('Unit Logic', () => {
       const ranges = [1, 2, 3, 4];
       
       ranges.forEach(range => {
-        const rangedUnit = { ...testUnit, attackRange: range };
+        const rangedUnit = { ...testUnit, type: 'scout', attackRange: range, visionRadius: 4 };
         
         // Place enemy at exact range distance
         const targetCoord = { q: range, r: 0, s: -range };
@@ -392,7 +394,7 @@ describe('Unit Logic', () => {
       };
       
       // Place enemy for visibility test
-      enemyUnit.coordinate = { q: 2, r: -1, s: -1 }; // Distance 2
+      enemyUnit.coordinate = { q: 2, r: 0, s: -2 }; // Distance 2
       
       const missionaryVisible = isUnitVisibleToPlayer(enemyUnit, 'player1', { 
         ...mockGameState, 

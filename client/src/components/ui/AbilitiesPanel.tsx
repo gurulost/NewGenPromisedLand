@@ -387,11 +387,11 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             id: 'siege_mode',
             name: 'Deploy Siege Mode',
             description:
-              unit.status === 'siege_mode'
-                ? 'Already deployed'
-                : unit.remainingMovement !== unit.movement
-                  ? 'Must be stationary to deploy'
-                  : 'Deploy to enable long-range bombardment',
+                  unit.status === 'siege_mode'
+                    ? 'Already deployed'
+                    : unit.remainingMovement !== unit.movement
+                      ? 'Must be stationary to deploy'
+                      : 'Deploy to enable long-range bombardment (ends after firing or moving)',
             icon: <Target className="w-4 h-4" />,
             cost: 'Turn',
             available:
@@ -404,11 +404,11 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             id: 'bombardment',
             name: 'Artillery Bombardment',
             description:
-              unit.status !== 'siege_mode'
-                ? 'Deploy siege mode first'
-                : unit.remainingMovement !== unit.movement
-                  ? 'Must be stationary this turn'
-                  : 'Long-range attack (splash on adjacent enemies when firing at range)',
+                  unit.status !== 'siege_mode'
+                    ? 'Deploy siege mode first'
+                    : unit.remainingMovement !== unit.movement
+                      ? 'Must be stationary this turn'
+                      : 'Long-range attack (range 2-3; splash on adjacent enemies when firing at range)',
             icon: <Bomb className="w-4 h-4" />,
             cost: 'Turn',
             available:

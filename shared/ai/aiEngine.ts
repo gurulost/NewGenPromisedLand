@@ -2098,11 +2098,12 @@ export class AIEngine {
 
     // Counter-unit relationships (rock-paper-scissors style)
     const counters: Record<string, string[]> = {
-      spearman: ['cavalry', 'rider'],      // Spears counter mounted
-      archer: ['warrior', 'spearman'],     // Ranged counters infantry
-      cavalry: ['archer', 'catapult'],     // Fast units counter ranged/siege
-      warrior: ['archer'],                  // Basic can swarm archers
-      catapult: ['spearman', 'warrior'],   // Siege counters slow infantry
+      spearman: ['scout'], // Spears counter fast movers
+      slinger: ['warrior', 'spearman'], // Ranged counters infantry
+      wilderness_hunter: ['warrior', 'spearman'],
+      scout: ['slinger', 'wilderness_hunter', 'catapult'], // Fast units counter ranged/siege
+      warrior: ['slinger', 'wilderness_hunter'], // Basic can swarm ranged
+      catapult: ['guard', 'warrior'], // Siege pressures slow/defensive units
     };
 
     const unitCounters = counters[unitDef.type] || [];

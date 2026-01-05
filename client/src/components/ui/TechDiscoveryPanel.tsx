@@ -1,13 +1,14 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BookOpen, Coins, Compass, Sparkles, Star, Swords } from 'lucide-react';
+import { BookOpen, Coins, Compass, Info, Sparkles, Star, Swords } from 'lucide-react';
 import { Button } from './button';
 import { useSfxEngine } from '../../hooks/useSfx';
 import { TECHNOLOGIES, type Technology } from '@shared/data/technologies';
 import { UNIT_DEFINITIONS } from '@shared/data/units';
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from '@shared/types/city';
 import { ABILITIES } from '@shared/data/abilities';
+import { GAME_RULES } from '@shared/data/gameRules';
 
 interface TechDiscoveryPanelProps {
   techId: string | null;
@@ -72,6 +73,19 @@ export function TechDiscoveryPanel({ techId, onClose }: TechDiscoveryPanelProps)
     const structures = (tech.unlocks.structures || []).map((id) => STRUCTURE_DEFINITIONS[id as keyof typeof STRUCTURE_DEFINITIONS]?.name ?? titleCase(id));
     const abilities = (tech.unlocks.abilities || []).map(resolveAbilityName);
     const benefits = (tech.unlocks.benefits || []).map(formatBenefit);
+    const hasSlinger = tech.unlocks.units?.includes('slinger');
+    const hasCatapult = tech.unlocks.units?.includes('catapult');
+    const hasFortress = tech.unlocks.structures?.includes('fortress');
+    const rules: string[] = [];
+    if (hasSlinger || hasCatapult) {
+      rules.push('Ranged: forests reduce damage by 1');
+    }
+    if (hasCatapult) {
+      rules.push('Siege: range 2-3, cannot fire adjacent; deploy first');
+    }
+    if (hasFortress) {
+      rules.push(`Fortress: -${GAME_RULES.combat.fortificationBonus} ranged damage taken`);
+    }
 
     return [
       { label: 'Units', icon: <Swords className="h-4 w-4" />, items: units },
@@ -79,6 +93,7 @@ export function TechDiscoveryPanel({ techId, onClose }: TechDiscoveryPanelProps)
       { label: 'Structures', icon: <BookOpen className="h-4 w-4" />, items: structures },
       { label: 'Abilities', icon: <Sparkles className="h-4 w-4" />, items: abilities },
       { label: 'Benefits', icon: <Star className="h-4 w-4" />, items: benefits },
+      { label: 'Rules', icon: <Info className="h-4 w-4" />, items: rules },
     ].filter((group) => group.items.length > 0);
   }, [tech]);
 

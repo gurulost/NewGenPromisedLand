@@ -177,7 +177,7 @@ export const GAME_RULES: GameRules = {
     maxUnitsPerCity: 4,
     healingAmount: 3,
     upgradeBaseCost: 15,
-    maxAttackRange: 1,
+    maxAttackRange: 3,
   },
 
   research: {

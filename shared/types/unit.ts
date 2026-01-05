@@ -5,6 +5,7 @@ export const UnitTypeSchema = z.enum([
   // Common units (available to all factions)
   'warrior',
   'scout',
+  'slinger',
   'worker',
   'guard',
   'commander',

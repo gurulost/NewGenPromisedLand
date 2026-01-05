@@ -382,7 +382,7 @@ export default function GameUI() {
 
       const friendlyUnits = gameState.units.filter(unit => unit.playerId === currentPlayerId);
       for (const unit of friendlyUnits) {
-        const visionRadius = UNIT_DEFINITIONS[unit.type]?.baseStats.visionRadius ?? 2;
+        const visionRadius = unit.visionRadius ?? UNIT_DEFINITIONS[unit.type]?.baseStats.visionRadius ?? 2;
         if (hexDistance(unit.coordinate, normalizedCoordinate) > visionRadius) continue;
         const visibleTiles = getVisibleTilesInRange(unit.coordinate, visionRadius, gameState.map, true);
         if (visibleTiles.has(tileKey)) return true;

@@ -85,7 +85,7 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-amber-300/70">Vision:</span>
-              <span className="text-amber-100 font-medium">{unitStats.definition.baseStats.visionRadius || 2}</span>
+              <span className="text-amber-100 font-medium">{unit.visionRadius ?? unitStats.definition.baseStats.visionRadius ?? 2}</span>
             </div>
           </div>
 

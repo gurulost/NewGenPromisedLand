@@ -256,7 +256,7 @@ export default function MapFeatures() {
       .forEach(unit => {
         // Use unit's actual vision radius from definition
         const unitDef = getUnitDefinition(unit.type);
-        const visionRadius = unitDef.baseStats.visionRadius;
+        const visionRadius = unit.visionRadius ?? unitDef.baseStats.visionRadius;
         
         // Get visible tiles with line-of-sight calculations
         const unitVisibleTiles = getVisibleTilesInRange(

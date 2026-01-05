@@ -38,6 +38,24 @@ const RAW_UNIT_DEFINITIONS = {
     requiredTechnology: 'hunting', // Scouts require hunting technology
   },
 
+  slinger: {
+    type: 'slinger',
+    name: 'Slinger',
+    description: 'Light ranged unit (range 2) trained with stones and slings for battlefield skirmishes',
+    baseStats: {
+      hp: 16,
+      attack: 4,
+      defense: 2,
+      movement: 3,
+      visionRadius: 2,
+      attackRange: 2,
+    },
+    cost: 8,
+    factionSpecific: [], // Available to ALL factions
+    abilities: [],
+    requiredTechnology: 'hunting',
+  },
+
   worker: {
     type: 'worker',
     name: 'Worker',
@@ -152,7 +170,7 @@ const RAW_UNIT_DEFINITIONS = {
   catapult: {
     type: 'catapult',
     name: 'Catapult',
-    description: 'Siege weapon with long-range bombardment capabilities',
+    description: 'Siege weapon with long-range bombardment (range 2-3); cannot fire adjacent targets',
     baseStats: {
       hp: 12,
       attack: 15,
@@ -303,7 +321,7 @@ const RAW_UNIT_DEFINITIONS = {
   wilderness_hunter: {
     type: 'wilderness_hunter',
     name: 'Wilderness Hunter',
-    description: 'Elite Lamanite ranger - masters of forest warfare and ambush tactics',
+    description: 'Elite Lamanite ranger - gains +2 attack when firing from forests',
     baseStats: {
       hp: 18,
       attack: 7,

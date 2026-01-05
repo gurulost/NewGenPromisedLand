@@ -11,6 +11,12 @@ import { getVisibleTilesInRange } from "../utils/lineOfSight";
  * Centralized unit logic functions to be shared between UI and game reducer
  */
 
+const normalizeAbility = (abilityId: string) => abilityId.toUpperCase();
+const unitHasAbility = (unit: Unit, abilityId: string) =>
+  (unit.abilities || []).some(ability => normalizeAbility(String(ability)) === normalizeAbility(abilityId));
+const unitHasBombardment = (unit: Unit) =>
+  unitHasAbility(unit, 'SIEGE') || unitHasAbility(unit, 'BOMBARDMENT');
+
 /**
  * Determines if a coordinate is passable for unit movement
  */
@@ -158,14 +164,24 @@ export function getValidAttackTargets(
   gameState: GameState
 ): Unit[] {
   // Find all enemy units within attack range
+  const hasBombardment = unitHasBombardment(unit);
   return gameState.units.filter(target => {
     // Must be an enemy unit
     if (target.playerId === unit.playerId) return false;
+
+    // Must be visible to the attacker
+    if (!isUnitVisibleToPlayer(target, unit.playerId, gameState)) return false;
     
     // Must be within attack range using proper hex distance
     const distance = hexDistance(unit.coordinate, target.coordinate);
-    
-    return distance <= unit.attackRange;
+    if (distance > unit.attackRange) return false;
+
+    if (target.status === 'stealthed' && distance > 1) return false;
+    if (hasBombardment && distance <= 1) return false;
+    if (hasBombardment && distance > 1 && unit.status !== 'siege_mode') return false;
+    if (hasBombardment && distance > 1 && unit.remainingMovement !== unit.movement) return false;
+
+    return true;
   });
 }
 
@@ -179,14 +195,28 @@ export function canUnitAttackTarget(
 ): boolean {
   // Must be an enemy unit
   if (attacker.playerId === target.playerId) return false;
+
+  // Target must be visible to the attacker
+  if (!isUnitVisibleToPlayer(target, attacker.playerId, gameState)) return false;
   
   // Attacker must not be exhausted
   if (attacker.status === 'exhausted') return false;
+
+  if (target.status === 'stealthed' && hexDistance(attacker.coordinate, target.coordinate) > 1) {
+    return false;
+  }
   
   // Must be within attack range using proper hex distance
   const distance = hexDistance(attacker.coordinate, target.coordinate);
-  
-  return distance <= attacker.attackRange;
+
+  if (distance > attacker.attackRange) return false;
+
+  const hasBombardment = unitHasBombardment(attacker);
+  if (hasBombardment && distance <= 1) return false;
+  if (hasBombardment && distance > 1 && attacker.status !== 'siege_mode') return false;
+  if (hasBombardment && distance > 1 && attacker.remainingMovement !== attacker.movement) return false;
+
+  return true;
 }
 
 /**
@@ -215,7 +245,7 @@ export function isUnitVisibleToPlayer(
   playerUnits.forEach(friendlyUnit => {
     // Use unit's actual vision radius from definition (same as MapFeatures)
     const unitDef = getUnitDefinition(friendlyUnit.type);
-    const visionRadius = unitDef.baseStats.visionRadius;
+    const visionRadius = friendlyUnit.visionRadius ?? unitDef.baseStats.visionRadius;
     
     // Get visible tiles with line-of-sight calculations (same as MapFeatures)
     const unitVisibleTiles = getVisibleTilesInRange(
