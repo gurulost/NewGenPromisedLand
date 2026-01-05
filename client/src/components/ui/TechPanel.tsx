@@ -71,8 +71,6 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     return statuses;
   }, [currentPlayer, availableTechs]);
 
-  const rangedRules = detailTech ? getRangedRules(detailTech) : [];
-
   // Compute path highlighting - all prerequisites leading to selected tech
   const highlightedTechs = useMemo(() => {
     if (!selectedTech) return new Set<string>();
@@ -501,6 +499,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   };
 
   const detailTech = selectedTech ? TECHNOLOGIES[selectedTech] : null;
+  const rangedRules = detailTech ? getRangedRules(detailTech) : [];
 
   // Drag to scroll handlers
   const handleMouseDown = (e: React.MouseEvent) => {
