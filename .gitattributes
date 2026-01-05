@@ -64,3 +64,9 @@
 /client/public/models/scribe_teacher.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/spearman.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/wilderness_hunter.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/_orphans/scout_nephite.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/_orphans/scout_upgraded.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/_orphans/village_upgraded.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/_orphans/warrior_upgraded.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/_orphans/worker.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/_orphans/worker_upgraded.glb filter=lfs diff=lfs merge=lfs -text
