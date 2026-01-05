@@ -60,45 +60,26 @@ export const MODEL_PATHS = {
   }
 };
 
-const AVAILABLE_MODEL_PATHS = new Set([
-  '/models/ancient_giant.glb',
-  '/models/boat.glb',
-  '/models/catapult.glb',
-  '/models/cavalry.glb',
-  '/models/city_level1.glb',
-  '/models/city_level2.glb',
-  '/models/city_level3.glb',
-  '/models/commander.glb',
-  '/models/converted_missionary.glb',
-  '/models/fish_shoal.glb',
-  '/models/forest_canopy.glb',
-  '/models/fruit.glb',
-  '/models/fruit_new.glb',
-  '/models/game.glb',
-  '/models/guard.glb',
-  '/models/jaredite_ruins.glb',
-  '/models/metal.glb',
-  '/models/missionary.glb',
-  '/models/ore_vein.glb',
-  '/models/peacekeeping_guard.glb',
-  '/models/priestcraft_preacher.glb',
-  '/models/prophet.glb',
-  '/models/royal_envoy.glb',
-  '/models/scout.glb',
-  '/models/scribe_teacher.glb',
-  '/models/settler.glb',
-  '/models/spearman.glb',
-  '/models/stone.glb',
-  '/models/stripling_warrior.glb',
-  '/models/terrain_forest.glb',
-  '/models/terrain_hill.glb',
-  '/models/terrain_mountain.glb',
-  '/models/terrain_plains.glb',
-  '/models/terrain_water.glb',
-  '/models/village.glb',
-  '/models/warrior.glb',
-  '/models/wilderness_hunter.glb',
-]);
+// Automatically derive available models from MODEL_PATHS to prevent manual list drift
+const buildAvailableModelPaths = (): Set<string> => {
+  const paths = new Set<string>();
+  
+  // Add all unit models
+  Object.values(MODEL_PATHS.units).forEach(path => paths.add(path));
+  
+  // Add village model
+  paths.add(MODEL_PATHS.village);
+  
+  // Add all city models
+  Object.values(MODEL_PATHS.cities).forEach(path => paths.add(path));
+  
+  // Add all resource models
+  Object.values(MODEL_PATHS.resources).forEach(path => paths.add(path));
+  
+  return paths;
+};
+
+const AVAILABLE_MODEL_PATHS = buildAvailableModelPaths();
 
 const isModelAvailable = (path?: string | null) => !!path && AVAILABLE_MODEL_PATHS.has(path);
 
