@@ -19,6 +19,7 @@ export interface AudioPreferences {
   masterVolume: number;
   sfxVolume: number;
   musicVolume: number;
+  isMuted: boolean;
   uiSoundsEnabled: boolean;
 }
 
@@ -47,6 +48,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
     masterVolume: 0.7,
     sfxVolume: 0.8,
     musicVolume: 0.6,
+    isMuted: false,
     uiSoundsEnabled: true,
   },
   version: 1,

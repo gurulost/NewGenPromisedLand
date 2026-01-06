@@ -14,9 +14,11 @@ interface SettingsMenuProps {
 export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
   const {
     isMuted,
+    masterVolume,
     musicVolume,
     sfxVolume,
     toggleMute,
+    setMasterVolume,
     setMusicVolume,
     setSfxVolume,
     startBackgroundMusic
@@ -78,6 +80,26 @@ export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
 
               {!isMuted && (
                 <>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Volume2 className="w-4 h-4 text-emerald-400" />
+                        <span className="text-sm text-emerald-300">Master Volume</span>
+                      </div>
+                      <span className="text-xs text-slate-400">
+                        {Math.round(masterVolume * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      value={[masterVolume]}
+                      onValueChange={(value) => setMasterVolume(value[0])}
+                      max={1}
+                      min={0}
+                      step={0.05}
+                      className="w-full"
+                    />
+                  </div>
+
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">

@@ -37,10 +37,14 @@ export function PanelShell({
 }: PanelShellProps) {
   const reducedMotion = useReducedMotion();
   
+  const playOpenSfx = useSfx('panel-open');
+
   // Sound effects
-  if (isOpen) {
-    useSfx('panel-open');
-  }
+  useEffect(() => {
+    if (isOpen) {
+      playOpenSfx();
+    }
+  }, [isOpen, playOpenSfx]);
   
   // Hotkeys for closing
   useHotkeys('Escape', onClose);

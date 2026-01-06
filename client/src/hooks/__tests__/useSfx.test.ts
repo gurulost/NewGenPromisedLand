@@ -1,42 +1,21 @@
 import { renderHook, act } from '@testing-library/react';
 import { useSfxEngine } from '../useSfx';
+import { useAudio } from '../../lib/stores/useAudio';
 
-// Mock audio context and related APIs
-const mockAudioContext = {
-  createBufferSource: jest.fn(() => ({
-    connect: jest.fn(),
-    start: jest.fn(),
-    buffer: null,
-  })),
-  createGain: jest.fn(() => ({
-    connect: jest.fn(),
-    gain: { value: 1 },
-  })),
-  destination: {},
-  decodeAudioData: jest.fn(),
-};
+jest.mock('../../lib/stores/useAudio', () => ({
+  useAudio: {
+    getState: jest.fn(),
+  },
+}));
 
-const mockAudio = {
-  play: jest.fn(() => Promise.resolve()),
-  pause: jest.fn(),
-  load: jest.fn(),
-  volume: 1,
-  currentTime: 0,
-  duration: 10,
-  paused: true,
-  ended: false,
-};
-
-// Mock global Audio constructor
-global.Audio = jest.fn(() => mockAudio) as any;
-global.AudioContext = jest.fn(() => mockAudioContext) as any;
-(global as any).webkitAudioContext = jest.fn(() => mockAudioContext);
+const playSfxMock = jest.fn();
 
 describe('useSfxEngine', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.clearAllTimers();
     jest.useFakeTimers();
+    (useAudio.getState as jest.Mock).mockReturnValue({ playSfx: playSfxMock });
   });
 
   afterEach(() => {
@@ -54,11 +33,10 @@ describe('useSfxEngine', () => {
     const playSfx = result.current;
     
     act(() => {
-      playSfx('button-click');
+      playSfx('cta-click');
     });
     
-    // Should attempt to create and play audio
-    expect(global.Audio).toHaveBeenCalled();
+    expect(playSfxMock).toHaveBeenCalledWith('cta-click');
   });
 
   it('throttles rapid consecutive calls', () => {
@@ -66,13 +44,13 @@ describe('useSfxEngine', () => {
     const playSfx = result.current;
     
     act(() => {
-      playSfx('button-click');
-      playSfx('button-click');
-      playSfx('button-click');
+      playSfx('cta-click');
+      playSfx('cta-click');
+      playSfx('cta-click');
     });
     
     // Should only create audio once due to throttling
-    expect(global.Audio).toHaveBeenCalledTimes(1);
+    expect(playSfxMock).toHaveBeenCalledTimes(1);
   });
 
   it('allows different sounds to play simultaneously', () => {
@@ -80,23 +58,25 @@ describe('useSfxEngine', () => {
     const playSfx = result.current;
     
     act(() => {
-      playSfx('button-click');
+      playSfx('cta-click');
       playSfx('panel-open');
     });
     
     // Should create audio for both different sounds
-    expect(global.Audio).toHaveBeenCalledTimes(2);
+    expect(playSfxMock).toHaveBeenCalledTimes(2);
   });
 
   it('handles audio playback errors gracefully', () => {
-    mockAudio.play.mockRejectedValueOnce(new Error('Audio failed'));
+    playSfxMock.mockImplementationOnce(() => {
+      throw new Error('Audio failed');
+    });
     
     const { result } = renderHook(() => useSfxEngine());
     const playSfx = result.current;
     
     expect(() => {
       act(() => {
-        playSfx('button-click');
+        playSfx('cta-click');
       });
     }).not.toThrow();
   });
@@ -106,22 +86,24 @@ describe('useSfxEngine', () => {
     const playSfx = result.current;
     
     act(() => {
-      playSfx('button-click');
+      playSfx('cta-click');
     });
     
-    expect(global.Audio).toHaveBeenCalledTimes(1);
+    expect(playSfxMock).toHaveBeenCalledTimes(1);
     
     // Fast forward past throttle period
     act(() => {
       jest.advanceTimersByTime(200);
-      playSfx('button-click');
+      playSfx('cta-click');
     });
     
-    expect(global.Audio).toHaveBeenCalledTimes(2);
+    expect(playSfxMock).toHaveBeenCalledTimes(2);
   });
 
   it('handles missing audio files gracefully', () => {
-    mockAudio.play.mockRejectedValueOnce(new Error('404 Not Found'));
+    playSfxMock.mockImplementationOnce(() => {
+      throw new Error('404 Not Found');
+    });
     
     const { result } = renderHook(() => useSfxEngine());
     const playSfx = result.current;
@@ -138,7 +120,7 @@ describe('useSfxEngine', () => {
     const playSfx = result.current;
     
     act(() => {
-      playSfx('button-click');
+      playSfx('cta-click');
     });
     
     expect(() => {
@@ -146,15 +128,14 @@ describe('useSfxEngine', () => {
     }).not.toThrow();
   });
 
-  it('handles volume control if implemented', () => {
+  it('forwards calls to the audio store', () => {
     const { result } = renderHook(() => useSfxEngine());
     const playSfx = result.current;
-    
+
     act(() => {
-      playSfx('button-click');
+      playSfx('panel-open');
     });
-    
-    // Audio should be created with reasonable volume
-    expect(mockAudio.volume).toBeDefined();
+
+    expect(playSfxMock).toHaveBeenCalledWith('panel-open');
   });
 });
