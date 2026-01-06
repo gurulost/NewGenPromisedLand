@@ -76,3 +76,4 @@
 /client/public/sounds/temple_shadows_3.mp3 filter=lfs diff=lfs merge=lfs -text
 /client/public/sounds/untitled.mp3 filter=lfs diff=lfs merge=lfs -text
 /client/public/sounds/wicked_spirits.mp3 filter=lfs diff=lfs merge=lfs -text
+/client/public/sounds/sound_the_bell.mp3 filter=lfs diff=lfs merge=lfs -text
