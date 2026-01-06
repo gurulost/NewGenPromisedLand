@@ -70,3 +70,9 @@
 /client/public/models/_orphans/warrior_upgraded.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/_orphans/worker.glb filter=lfs diff=lfs merge=lfs -text
 /client/public/models/_orphans/worker_upgraded.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/sounds/jungle_gravitas.mp3 filter=lfs diff=lfs merge=lfs -text
+/client/public/sounds/jungle_pad_2.mp3 filter=lfs diff=lfs merge=lfs -text
+/client/public/sounds/love_in_the_rain_2.mp3 filter=lfs diff=lfs merge=lfs -text
+/client/public/sounds/temple_shadows_3.mp3 filter=lfs diff=lfs merge=lfs -text
+/client/public/sounds/untitled.mp3 filter=lfs diff=lfs merge=lfs -text
+/client/public/sounds/wicked_spirits.mp3 filter=lfs diff=lfs merge=lfs -text
