@@ -161,8 +161,10 @@ export const useAudio = create<AudioState>((set, get) => ({
     const { musicTracks, musicVolume } = get();
     
     if (musicTracks.length > 0) {
-      const audio = createAudioElement(musicTracks[0], musicVolume, () => get().playNextTrack());
-      set({ backgroundMusic: audio });
+      // Shuffle tracks immediately on initialization for variety
+      const shuffled = musicTracks.length > 1 ? shuffleArray(musicTracks) : musicTracks;
+      const audio = createAudioElement(shuffled[0], musicVolume, () => get().playNextTrack());
+      set({ backgroundMusic: audio, musicTracks: shuffled, currentTrackIndex: 0 });
     }
     
     if (SFX_ENABLED) {
@@ -227,11 +229,12 @@ export const useAudio = create<AudioState>((set, get) => ({
   },
 
   startBackgroundMusic: () => {
-    const { backgroundMusic, isMuted, musicVolume, musicTracks } = get();
+    const { backgroundMusic, isMuted, musicVolume, musicTracks, isMusicPlaying } = get();
     
     if (!backgroundMusic || musicTracks.length === 0) return;
     
-    if (musicTracks.length > 1) {
+    // Only shuffle if music is NOT already playing (first start or after stop)
+    if (!isMusicPlaying && musicTracks.length > 1) {
       const shuffled = shuffleArray(musicTracks);
       backgroundMusic.src = shuffled[0];
       set({ musicTracks: shuffled, currentTrackIndex: 0 });
