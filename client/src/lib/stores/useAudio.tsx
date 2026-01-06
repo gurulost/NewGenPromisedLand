@@ -1,47 +1,46 @@
 import { create } from "zustand";
 import { Howl } from "howler";
+import { SFX_MANIFEST } from "../audio/sfxManifest";
 
 const SFX_ENABLED = (import.meta as any).env?.VITE_ENABLE_SFX === 'true';
 
-type SoundKey =
-  | 'hit'
-  | 'success'
-  | 'unit-move'
-  | 'construction'
-  | 'notification'
-  | 'ambient';
-
 interface AudioState {
   backgroundMusic: HTMLAudioElement | null;
+  nextTrackAudio: HTMLAudioElement | null;
   musicTracks: string[];
   currentTrackIndex: number;
-  hitSound: Howl | null;
-  successSound: Howl | null;
+  sfxMap: Record<string, Howl>;
   isMuted: boolean;
   isInitialized: boolean;
+  masterVolume: number;
   musicVolume: number;
   sfxVolume: number;
   isMusicPlaying: boolean;
+  isCrossfading: boolean;
+  wasPlayingBeforeHidden: boolean;
   
   setBackgroundMusic: (music: HTMLAudioElement) => void;
   setMusicTracks: (tracks: string[]) => void;
-  setHitSound: (sound: Howl) => void;
-  setSuccessSound: (sound: Howl) => void;
+  setMasterVolume: (volume: number) => void;
   setMusicVolume: (volume: number) => void;
   setSfxVolume: (volume: number) => void;
+  setMuted: (muted: boolean) => void;
   
   toggleMute: () => void;
   initializeAudio: () => Promise<void>;
   startBackgroundMusic: () => void;
+  pauseBackgroundMusic: (rememberPlayback?: boolean) => void;
+  resumeBackgroundMusic: () => void;
   stopBackgroundMusic: () => void;
   playNextTrack: () => void;
+  startCrossfade: () => void;
   shuffleTracks: () => void;
+  playSfx: (key: string, volumeScale?: number) => void;
   playHit: () => void;
   playSuccess: () => void;
   playUnitMove: () => void;
   playConstruction: () => void;
   playNotification: () => void;
-  playAmbientSound: (type?: string) => void;
 }
 
 function shuffleArray<T>(array: T[]): T[] {
@@ -53,16 +52,84 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
-function createAudioElement(src: string, volume: number, onEnded: () => void): HTMLAudioElement {
+function clampVolume(volume: number): number {
+  return Math.max(0, Math.min(1, volume));
+}
+
+function getEffectiveMusicVolume(musicVolume: number, masterVolume: number): number {
+  return clampVolume(musicVolume * masterVolume);
+}
+
+const CROSSFADE_DURATION_MS = 1800;
+
+function createAudioElement(src: string, volume: number): HTMLAudioElement {
   const audio = new Audio(src);
-  audio.volume = volume;
+  audio.volume = clampVolume(volume);
+  audio.preload = 'auto';
   audio.loop = false;
-  audio.addEventListener('ended', onEnded);
   return audio;
 }
 
-export const useAudio = create<AudioState>((set, get) => ({
+function createPreloadedAudio(src: string): HTMLAudioElement {
+  const audio = new Audio(src);
+  audio.volume = 0;
+  audio.preload = 'auto';
+  audio.loop = false;
+  audio.load();
+  return audio;
+}
+
+function resolveNextTrack(tracks: string[], currentIndex: number): { tracks: string[]; nextIndex: number } {
+  if (tracks.length === 0) {
+    return { tracks, nextIndex: 0 };
+  }
+  let nextIndex = currentIndex + 1;
+  let nextTracks = tracks;
+  if (nextIndex >= tracks.length) {
+    nextIndex = 0;
+    if (tracks.length > 1) {
+      nextTracks = shuffleArray(tracks);
+    }
+  }
+  return { tracks: nextTracks, nextIndex };
+}
+
+function audioSourceMatches(audio: HTMLAudioElement | null, src: string): boolean {
+  if (!audio) return false;
+  return audio.src.endsWith(src);
+}
+
+const scheduleFrame =
+  typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame
+    : (callback: FrameRequestCallback) => {
+        const setTimeoutFn = typeof window !== 'undefined' ? window.setTimeout : globalThis.setTimeout;
+        return setTimeoutFn(() => callback(Date.now()), 16);
+      };
+
+export const useAudio = create<AudioState>((set, get) => {
+  const attachTrackHandlers = (audio: HTMLAudioElement) => {
+    audio.onended = () => get().playNextTrack();
+    audio.ontimeupdate = () => {
+      const { isCrossfading } = get();
+      if (isCrossfading) return;
+      if (!audio.duration || !Number.isFinite(audio.duration)) return;
+      const remaining = audio.duration - audio.currentTime;
+      if (remaining <= CROSSFADE_DURATION_MS / 1000) {
+        get().startCrossfade();
+      }
+    };
+  };
+
+  const prepareNextTrackAudio = (tracks: string[], currentIndex: number) => {
+    if (tracks.length <= 1) return null;
+    const nextIndex = (currentIndex + 1) % tracks.length;
+    return createPreloadedAudio(tracks[nextIndex]);
+  };
+
+  return {
   backgroundMusic: null,
+  nextTrackAudio: null,
   musicTracks: [
     '/sounds/jungle_whispers.mp3',
     '/sounds/temple_shadows.mp3',
@@ -96,98 +163,155 @@ export const useAudio = create<AudioState>((set, get) => ({
     '/sounds/drunken_sailor.mp3',
   ],
   currentTrackIndex: 0,
-  hitSound: null,
-  successSound: null,
+  sfxMap: {},
   isMuted: false,
   isInitialized: false,
+  masterVolume: 0.7,
   musicVolume: 0.5,
   sfxVolume: 0.6,
   isMusicPlaying: false,
+  isCrossfading: false,
+  wasPlayingBeforeHidden: false,
   
-  setBackgroundMusic: (music) => set({ backgroundMusic: music }),
+  setBackgroundMusic: (music) => {
+    if (music) {
+      attachTrackHandlers(music);
+    }
+    set({ backgroundMusic: music });
+  },
   
   setMusicTracks: (tracks) => {
-    const { backgroundMusic, musicVolume, isMusicPlaying, isMuted } = get();
+    const { backgroundMusic, nextTrackAudio, musicVolume, masterVolume, isMusicPlaying, isMuted } = get();
     
     if (backgroundMusic) {
       backgroundMusic.pause();
-      backgroundMusic.removeEventListener('ended', get().playNextTrack);
+      backgroundMusic.onended = null;
+      backgroundMusic.ontimeupdate = null;
+    }
+    if (nextTrackAudio) {
+      nextTrackAudio.pause();
     }
     
     if (tracks.length === 0) {
-      set({ musicTracks: [], currentTrackIndex: 0, backgroundMusic: null, isMusicPlaying: false });
+      set({
+        musicTracks: [],
+        currentTrackIndex: 0,
+        backgroundMusic: null,
+        nextTrackAudio: null,
+        isMusicPlaying: false,
+        isCrossfading: false,
+      });
       return;
     }
     
-    const newAudio = createAudioElement(tracks[0], musicVolume, () => get().playNextTrack());
-    set({ musicTracks: tracks, currentTrackIndex: 0, backgroundMusic: newAudio });
+    const newAudio = createAudioElement(
+      tracks[0],
+      getEffectiveMusicVolume(musicVolume, masterVolume)
+    );
+    attachTrackHandlers(newAudio);
+    set({
+      musicTracks: tracks,
+      currentTrackIndex: 0,
+      backgroundMusic: newAudio,
+      nextTrackAudio: prepareNextTrackAudio(tracks, 0),
+      isCrossfading: false,
+    });
     
     if (isMusicPlaying && !isMuted) {
       newAudio.play().catch(() => {});
     }
   },
   
-  setHitSound: (sound) => set({ hitSound: sound }),
-  setSuccessSound: (sound) => set({ successSound: sound }),
-  
-  setMusicVolume: (volume) => {
-    const clampedVolume = Math.max(0, Math.min(1, volume));
-    const { backgroundMusic } = get();
+  setMasterVolume: (volume) => {
+    const clampedVolume = clampVolume(volume);
+    const { backgroundMusic, musicVolume } = get();
     if (backgroundMusic) {
-      backgroundMusic.volume = clampedVolume;
+      backgroundMusic.volume = getEffectiveMusicVolume(musicVolume, clampedVolume);
+    }
+    set({ masterVolume: clampedVolume });
+  },
+
+  setMusicVolume: (volume) => {
+    const clampedVolume = clampVolume(volume);
+    const { backgroundMusic, masterVolume } = get();
+    if (backgroundMusic) {
+      backgroundMusic.volume = getEffectiveMusicVolume(clampedVolume, masterVolume);
     }
     set({ musicVolume: clampedVolume });
   },
   
-  setSfxVolume: (volume) => set({ sfxVolume: Math.max(0, Math.min(1, volume)) }),
-  
-  toggleMute: () => {
-    const { isMuted, backgroundMusic, musicVolume, isMusicPlaying } = get();
-    const newMutedState = !isMuted;
-    
+  setSfxVolume: (volume) => set({ sfxVolume: clampVolume(volume) }),
+
+  setMuted: (muted) => {
+    const { backgroundMusic, nextTrackAudio, isMusicPlaying, musicVolume, masterVolume } = get();
     if (backgroundMusic) {
-      if (newMutedState) {
+      if (muted) {
         backgroundMusic.pause();
+        backgroundMusic.ontimeupdate = null;
       } else if (isMusicPlaying) {
-        backgroundMusic.volume = musicVolume;
+        backgroundMusic.volume = getEffectiveMusicVolume(musicVolume, masterVolume);
         backgroundMusic.play().catch(() => {});
+        attachTrackHandlers(backgroundMusic);
       }
     }
-    
-    set({ isMuted: newMutedState });
+    if (nextTrackAudio && muted) {
+      nextTrackAudio.pause();
+    }
+    set({ isMuted: muted, isCrossfading: muted ? false : get().isCrossfading });
+  },
+  
+  toggleMute: () => {
+    const { isMuted } = get();
+    get().setMuted(!isMuted);
   },
 
   initializeAudio: async () => {
-    const { musicTracks, musicVolume } = get();
+    const { musicTracks, musicVolume, masterVolume, sfxVolume, sfxMap } = get();
     
     if (musicTracks.length > 0) {
       // Shuffle tracks immediately on initialization for variety
       const shuffled = musicTracks.length > 1 ? shuffleArray(musicTracks) : musicTracks;
-      const audio = createAudioElement(shuffled[0], musicVolume, () => get().playNextTrack());
-      set({ backgroundMusic: audio, musicTracks: shuffled, currentTrackIndex: 0 });
+      const audio = createAudioElement(
+        shuffled[0],
+        getEffectiveMusicVolume(musicVolume, masterVolume)
+      );
+      attachTrackHandlers(audio);
+      set({
+        backgroundMusic: audio,
+        musicTracks: shuffled,
+        currentTrackIndex: 0,
+        nextTrackAudio: prepareNextTrackAudio(shuffled, 0),
+        isCrossfading: false,
+      });
     }
     
+    let nextSfxMap: Record<string, Howl> = {};
     if (SFX_ENABLED) {
-      const loadBeep = (dataUri: string) => new Howl({ src: [dataUri], volume: 0.6 });
-      const clickBeep = 'data:audio/wav;base64,UklGRhYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQwAAAAA//8AAP//AAD//wAA//8AAP//AAD//wAA';
-      const successBeep = 'data:audio/wav;base64,UklGRhYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQwAAAAA////AP///wD///8A////AP///wD///8A////AP///wD///8A';
-
+      Object.values(sfxMap).forEach((sound) => {
+        try {
+          sound.unload();
+        } catch (error) {
+          // Ignore unload errors for previously created sounds
+        }
+      });
+      nextSfxMap = Object.entries(SFX_MANIFEST).reduce((acc, [key, src]) => {
+        acc[key] = new Howl({ src: [src], volume: sfxVolume, preload: true });
+        return acc;
+      }, {} as Record<string, Howl>);
       set({
         isInitialized: true,
-        hitSound: loadBeep(clickBeep),
-        successSound: loadBeep(successBeep),
+        sfxMap: nextSfxMap,
       });
     } else {
       set({
         isInitialized: true,
-        hitSound: null,
-        successSound: null,
+        sfxMap: {},
       });
     }
   },
 
   shuffleTracks: () => {
-    const { musicTracks, backgroundMusic, musicVolume, isMusicPlaying, isMuted } = get();
+    const { musicTracks, backgroundMusic, musicVolume, masterVolume, isMusicPlaying, isMuted } = get();
     if (musicTracks.length <= 1) return;
     
     const shuffled = shuffleArray(musicTracks);
@@ -195,10 +319,16 @@ export const useAudio = create<AudioState>((set, get) => ({
     if (backgroundMusic) {
       backgroundMusic.pause();
       backgroundMusic.src = shuffled[0];
-      backgroundMusic.volume = musicVolume;
+      backgroundMusic.currentTime = 0;
+      backgroundMusic.volume = getEffectiveMusicVolume(musicVolume, masterVolume);
     }
     
-    set({ musicTracks: shuffled, currentTrackIndex: 0 });
+    set({
+      musicTracks: shuffled,
+      currentTrackIndex: 0,
+      nextTrackAudio: prepareNextTrackAudio(shuffled, 0),
+      isCrossfading: false,
+    });
     
     if (isMusicPlaying && !isMuted && backgroundMusic) {
       backgroundMusic.play().catch(() => {});
@@ -206,30 +336,134 @@ export const useAudio = create<AudioState>((set, get) => ({
   },
 
   playNextTrack: () => {
-    const { musicTracks, currentTrackIndex, isMuted, musicVolume, backgroundMusic } = get();
+    const {
+      musicTracks,
+      currentTrackIndex,
+      isMuted,
+      musicVolume,
+      masterVolume,
+      backgroundMusic,
+      nextTrackAudio,
+      isMusicPlaying,
+      isCrossfading,
+    } = get();
     
-    if (musicTracks.length === 0 || !backgroundMusic) return;
+    if (musicTracks.length === 0 || !backgroundMusic || isCrossfading) return;
     
-    let nextIndex = (currentTrackIndex + 1) % musicTracks.length;
+    const { tracks: nextTracks, nextIndex } = resolveNextTrack(musicTracks, currentTrackIndex);
+    const nextSrc = nextTracks[nextIndex];
+    const effectiveVolume = getEffectiveMusicVolume(musicVolume, masterVolume);
+    const nextAudio = audioSourceMatches(nextTrackAudio, nextSrc)
+      ? nextTrackAudio
+      : createPreloadedAudio(nextSrc);
+
+    backgroundMusic.onended = null;
+    backgroundMusic.ontimeupdate = null;
+    backgroundMusic.pause();
+
+    nextAudio.currentTime = 0;
+    nextAudio.volume = effectiveVolume;
+    attachTrackHandlers(nextAudio);
+
+    set({
+      musicTracks: nextTracks,
+      currentTrackIndex: nextIndex,
+      backgroundMusic: nextAudio,
+      nextTrackAudio: prepareNextTrackAudio(nextTracks, nextIndex),
+      isCrossfading: false,
+    });
     
-    if (nextIndex === 0 && musicTracks.length > 1) {
-      const shuffled = shuffleArray(musicTracks);
-      set({ musicTracks: shuffled });
-      nextIndex = 0;
-    }
-    
-    const { musicTracks: currentTracks } = get();
-    backgroundMusic.src = currentTracks[nextIndex];
-    backgroundMusic.volume = musicVolume;
-    set({ currentTrackIndex: nextIndex });
-    
-    if (!isMuted) {
-      backgroundMusic.play().catch(() => {});
+    if (!isMuted && isMusicPlaying) {
+      nextAudio.play().catch(() => {});
     }
   },
 
+  startCrossfade: () => {
+    const {
+      backgroundMusic,
+      musicTracks,
+      currentTrackIndex,
+      isMuted,
+      isMusicPlaying,
+      isCrossfading,
+      musicVolume,
+      masterVolume,
+      nextTrackAudio,
+    } = get();
+
+    if (!backgroundMusic || isMuted || !isMusicPlaying || isCrossfading || musicTracks.length <= 1) {
+      return;
+    }
+
+    const { tracks: nextTracks, nextIndex } = resolveNextTrack(musicTracks, currentTrackIndex);
+    const nextSrc = nextTracks[nextIndex];
+    const nextAudio = audioSourceMatches(nextTrackAudio, nextSrc)
+      ? nextTrackAudio
+      : createPreloadedAudio(nextSrc);
+
+    backgroundMusic.onended = null;
+    backgroundMusic.ontimeupdate = null;
+    nextAudio.currentTime = 0;
+    nextAudio.volume = 0;
+
+    set({ isCrossfading: true, nextTrackAudio: nextAudio });
+
+    const targetVolume = getEffectiveMusicVolume(musicVolume, masterVolume);
+    const startVolume = clampVolume(backgroundMusic.volume);
+    const nowFn = typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now.bind(performance)
+      : Date.now;
+    const startTime = nowFn();
+
+    const step = (now: number) => {
+      const { isCrossfading: stillCrossfading, isMuted: muted } = get();
+      if (!stillCrossfading) return;
+      if (muted) {
+        backgroundMusic.pause();
+        nextAudio.pause();
+        attachTrackHandlers(backgroundMusic);
+        set({
+          isCrossfading: false,
+          nextTrackAudio: prepareNextTrackAudio(musicTracks, currentTrackIndex),
+        });
+        return;
+      }
+      const progress = Math.min(1, (now - startTime) / CROSSFADE_DURATION_MS);
+      nextAudio.volume = targetVolume * progress;
+      backgroundMusic.volume = startVolume * (1 - progress);
+
+      if (progress < 1) {
+        scheduleFrame(step);
+        return;
+      }
+
+      backgroundMusic.pause();
+      backgroundMusic.currentTime = 0;
+      attachTrackHandlers(nextAudio);
+      set({
+        backgroundMusic: nextAudio,
+        musicTracks: nextTracks,
+        currentTrackIndex: nextIndex,
+        nextTrackAudio: prepareNextTrackAudio(nextTracks, nextIndex),
+        isCrossfading: false,
+      });
+    };
+
+    nextAudio.play()
+      .then(() => {
+        scheduleFrame(step);
+      })
+      .catch(() => {
+        attachTrackHandlers(backgroundMusic);
+        set({
+          isCrossfading: false,
+          nextTrackAudio: prepareNextTrackAudio(musicTracks, currentTrackIndex),
+        });
+      });
+  },
+
   startBackgroundMusic: () => {
-    const { backgroundMusic, isMuted, musicVolume, musicTracks, isMusicPlaying } = get();
+    const { backgroundMusic, isMuted, musicVolume, masterVolume, musicTracks, isMusicPlaying } = get();
     
     if (!backgroundMusic || musicTracks.length === 0) return;
     
@@ -237,66 +471,91 @@ export const useAudio = create<AudioState>((set, get) => ({
     if (!isMusicPlaying && musicTracks.length > 1) {
       const shuffled = shuffleArray(musicTracks);
       backgroundMusic.src = shuffled[0];
-      set({ musicTracks: shuffled, currentTrackIndex: 0 });
+      set({
+        musicTracks: shuffled,
+        currentTrackIndex: 0,
+        nextTrackAudio: prepareNextTrackAudio(shuffled, 0),
+        isCrossfading: false,
+      });
     }
     
     if (!isMuted) {
-      backgroundMusic.volume = musicVolume;
+      backgroundMusic.volume = getEffectiveMusicVolume(musicVolume, masterVolume);
       backgroundMusic.play().catch(() => {});
       set({ isMusicPlaying: true });
     }
   },
 
-  stopBackgroundMusic: () => {
-    const { backgroundMusic } = get();
+  pauseBackgroundMusic: (rememberPlayback = false) => {
+    const { backgroundMusic, nextTrackAudio, isMusicPlaying } = get();
     if (backgroundMusic) {
       backgroundMusic.pause();
-      set({ isMusicPlaying: false });
+      attachTrackHandlers(backgroundMusic);
     }
+    if (nextTrackAudio) {
+      nextTrackAudio.pause();
+    }
+    set({
+      wasPlayingBeforeHidden: rememberPlayback ? isMusicPlaying : false,
+      isMusicPlaying: false,
+      isCrossfading: false,
+    });
+  },
+
+  resumeBackgroundMusic: () => {
+    const { backgroundMusic, isMuted, musicVolume, masterVolume, wasPlayingBeforeHidden } = get();
+    if (!backgroundMusic || isMuted || !wasPlayingBeforeHidden) {
+      set({ wasPlayingBeforeHidden: false });
+      return;
+    }
+    backgroundMusic.volume = getEffectiveMusicVolume(musicVolume, masterVolume);
+    backgroundMusic.play().catch(() => {});
+    set({ isMusicPlaying: true, wasPlayingBeforeHidden: false });
+  },
+
+  stopBackgroundMusic: () => {
+    const { backgroundMusic, nextTrackAudio } = get();
+    if (backgroundMusic) {
+      backgroundMusic.pause();
+      backgroundMusic.currentTime = 0;
+    }
+    if (nextTrackAudio) {
+      nextTrackAudio.pause();
+      nextTrackAudio.currentTime = 0;
+    }
+    set({ isMusicPlaying: false, wasPlayingBeforeHidden: false, isCrossfading: false });
   },
   
-  playHit: () => {
-    const { hitSound, isMuted, sfxVolume } = get();
-    if (SFX_ENABLED && hitSound && !isMuted) {
-      hitSound.volume(sfxVolume);
-      hitSound.play();
+  playSfx: (key, volumeScale = 1) => {
+    const { sfxMap, isMuted, sfxVolume, masterVolume, isInitialized } = get();
+    if (!SFX_ENABLED || isMuted || !isInitialized) return;
+    const sound = sfxMap[key];
+    if (!sound) return;
+    const volume = clampVolume(sfxVolume * masterVolume * volumeScale);
+    const soundId = sound.play();
+    if (soundId !== undefined && soundId !== null) {
+      sound.volume(volume, soundId);
     }
+  },
+
+  playHit: () => {
+    get().playSfx('hit');
   },
   
   playSuccess: () => {
-    const { successSound, isMuted, sfxVolume } = get();
-    if (SFX_ENABLED && successSound && !isMuted) {
-      successSound.volume(sfxVolume);
-      successSound.play();
-    }
+    get().playSfx('success');
   },
 
   playUnitMove: () => {
-    const { hitSound, isMuted, sfxVolume } = get();
-    if (SFX_ENABLED && hitSound && !isMuted) {
-      hitSound.volume(sfxVolume * 0.6);
-      hitSound.play();
-    }
+    get().playSfx('unit-move', 0.6);
   },
 
   playConstruction: () => {
-    const { successSound, isMuted, sfxVolume } = get();
-    if (SFX_ENABLED && successSound && !isMuted) {
-      successSound.volume(sfxVolume * 0.7);
-      successSound.play();
-    }
+    get().playSfx('construction-complete', 0.7);
   },
 
   playNotification: () => {
-    const { successSound, isMuted, sfxVolume } = get();
-    if (SFX_ENABLED && successSound && !isMuted) {
-      successSound.volume(sfxVolume * 0.5);
-      successSound.play();
-    }
-  },
-
-  // Ambient sounds not yet implemented - placeholder for future feature
-  playAmbientSound: (_type?: string) => {
-    // No-op: ambient sound system not yet implemented
+    get().playSfx('notification', 0.5);
   }
-}));
+  };
+});

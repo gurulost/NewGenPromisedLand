@@ -14,9 +14,11 @@ interface AudioControlsProps {
 export function AudioControls({ compact = false, className = '' }: AudioControlsProps) {
   const {
     isMuted,
+    masterVolume,
     musicVolume,
     sfxVolume,
     toggleMute,
+    setMasterVolume,
     setMusicVolume,
     setSfxVolume,
     startBackgroundMusic,
@@ -122,6 +124,30 @@ export function AudioControls({ compact = false, className = '' }: AudioControls
         {/* Volume Controls - Only show when not muted */}
         {!isMuted && (
           <div className="space-y-3">
+            {/* Master Volume */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Volume2 className="w-3 h-3 text-emerald-400" />
+                  <label className="text-xs text-emerald-300 font-medium">
+                    Master Volume
+                  </label>
+                </div>
+                <span className="text-xs text-slate-300">
+                  {Math.round(masterVolume * 100)}%
+                </span>
+              </div>
+              <Slider
+                value={[masterVolume]}
+                onValueChange={(value) => setMasterVolume(value[0])}
+                max={1}
+                min={0}
+                step={0.1}
+                className="w-full"
+                aria-label="Master volume"
+              />
+            </div>
+
             {/* Music Volume */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
