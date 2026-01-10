@@ -8,6 +8,7 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { Star, Building, Sword, Hammer, Users, Sparkles, Pencil, Check, X, Info } from "lucide-react";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS, type ImprovementType, type StructureType } from "@shared/types/city";
 import { getUnitDefinition, UNIT_DEFINITIONS } from "@shared/data/units";
+import { getFaction } from "@shared/data/factions";
 import { GAME_RULES } from "@shared/data/gameRules";
 import type { UnitType } from "@shared/types/unit";
 import { BuildingMenu } from "./BuildingMenu";
@@ -572,11 +573,27 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                   .map(unit => {
                     const canAfford = canAffordUnit(unit.type);
                     const hasRequiredTech = !unit.requiredTechnology || currentPlayer.researchedTechs.includes(unit.requiredTechnology);
+                    const factionTag = unit.factionSpecific.length > 0
+                      ? (() => {
+                          const names = unit.factionSpecific.map((id) => {
+                            const faction = getFaction(id as any);
+                            return faction ? faction.name : String(id);
+                          });
+                          return names.length === 1 ? `${names[0]} only` : `Only: ${names.join(', ')}`;
+                        })()
+                      : null;
 
                     return (
                       <Card key={unit.type} className="p-4">
                         <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-medium">{unit.name}</h4>
+                          <div>
+                            <h4 className="font-medium">{unit.name}</h4>
+                            {factionTag && (
+                              <p className="mt-1 text-[10px] font-semibold text-amber-200/70">
+                                {factionTag}
+                              </p>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1">
                             <Star className="w-3 h-3 text-yellow-500" />
                             <span className="font-semibold">{unit.cost}</span>

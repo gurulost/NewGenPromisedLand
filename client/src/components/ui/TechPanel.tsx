@@ -6,6 +6,8 @@ import { Progress } from "./progress";
 import { Input } from "./input";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { TECHNOLOGIES, calculateResearchCost, getAvailableTechnologies, type Technology } from "@shared/data/technologies";
+import { UNIT_DEFINITIONS } from "@shared/data/units";
+import { getFaction } from "@shared/data/factions";
 import { GAME_RULES } from "@shared/data/gameRules";
 import { ABILITIES } from "@shared/data/abilities";
 import { Star, Book, Lock, CheckCircle, Clock, Sparkles, ArrowUpRight, Search, XCircle, Home, ChevronDown, Eye, EyeOff, Info } from "lucide-react";
@@ -346,6 +348,19 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     return formatLabel(name);
   };
 
+  const getUnitFactionTag = (unitId: string) => {
+    const unitDef = UNIT_DEFINITIONS[unitId as keyof typeof UNIT_DEFINITIONS];
+    if (!unitDef || unitDef.factionSpecific.length === 0) return null;
+    const factionNames = unitDef.factionSpecific.map((id) => {
+      const faction = getFaction(id as any);
+      return faction ? faction.name : String(id);
+    });
+    if (factionNames.length === 0) return null;
+    return factionNames.length === 1
+      ? `${factionNames[0]} only`
+      : `Only: ${factionNames.join(', ')}`;
+  };
+
   const getRangedRules = (tech: Technology): string[] => {
     const unlocks = tech.unlocks;
     const hasSlinger = unlocks.units?.includes('slinger');
@@ -378,11 +393,17 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     };
 
     const displayName = formatUnlockName(type, name);
+    const factionTag = type === 'unit' ? getUnitFactionTag(name) : null;
 
     return (
       <div className="flex items-center gap-2 p-2 rounded bg-white/5 border border-white/10">
         <span className="text-xl">{getIcon()}</span>
-        <span className="text-sm font-medium text-amber-100">{displayName}</span>
+        <div className="flex flex-col">
+          <span className="text-sm font-medium text-amber-100">{displayName}</span>
+          {factionTag && (
+            <span className="text-xs text-amber-200/70">{factionTag}</span>
+          )}
+        </div>
       </div>
     );
   };
