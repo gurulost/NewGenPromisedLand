@@ -13,6 +13,85 @@ interface TerrainProbabilities {
   plains: number;
 }
 
+interface WaterBodyData {
+  bodyByCoord: Map<string, number>;
+  bodySizes: number[];
+}
+
+type LandResourceType = 'grain_patch' | 'wild_goats' | 'timber_grove' | 'ore_vein';
+
+const LAND_RESOURCE_TYPES: LandResourceType[] = [
+  'grain_patch',
+  'wild_goats',
+  'timber_grove',
+  'ore_vein',
+];
+
+const LAND_RESOURCES_BY_TERRAIN: Record<TerrainType, LandResourceType[]> = {
+  plains: ['grain_patch', 'wild_goats'],
+  forest: ['timber_grove', 'wild_goats'],
+  mountain: ['ore_vein'],
+  water: [],
+  desert: [],
+  swamp: [],
+};
+
+interface LandResourceConstraintDebug {
+  blockedBySpacing: number;
+  blockedByCap: number;
+  blockedByOccupied: number;
+  fallbackPlaced: number;
+  relaxSpacingUsed: number[];
+  relaxCapUsed: number[];
+  maxPerCapitalClamped: boolean;
+}
+
+interface LandResourceConstraintContext {
+  minDistance: number;
+  maxPerCapital: number;
+  homeRadius: number;
+  homeZoneByCoord: Map<string, number>;
+  homeCountByCapital: number[];
+  resourceCoordsByType: Map<LandResourceType, HexCoordinate[]>;
+  occupiedCoords: Set<string>;
+  tileIndex: Map<string, Tile>;
+  debug: LandResourceConstraintDebug;
+}
+
+interface ResourceCandidate {
+  tile: Tile;
+  resource: LandResourceType;
+  zone: 'inner' | 'outer' | 'wilderness';
+  distanceToNearestCity: number;
+  order: number;
+}
+
+interface VillageRingBand {
+  min: number;
+  max: number;
+}
+
+interface VillageRingBands {
+  near: VillageRingBand;
+  mid: VillageRingBand;
+  far: VillageRingBand;
+}
+
+type VillageRing = keyof VillageRingBands;
+
+interface VillageCandidateEntry {
+  tile: Tile;
+  distances: number[];
+  nearestDistance: number;
+  secondDistance: number;
+}
+
+interface VillageCandidateAssignment {
+  entry: VillageCandidateEntry;
+  distanceToCapital: number;
+  ring: VillageRing;
+}
+
 export class SeededRandom {
   private seed: number;
 
@@ -84,6 +163,38 @@ export const MAP_GENERATION_CONSTANTS = {
   WATER_EDGE_THRESHOLD: 0.8,           // Distance ratio for increased water at edges
   WATER_EDGE_CHANCE: 0.4,              // Water probability at map edges
   WATER_CENTER_CHANCE: 0.15,           // Water probability in center
+
+  WATER_RATIO_BY_SIZE: {
+    tiny: { min: 0.12, max: 0.2 },
+    small: { min: 0.14, max: 0.22 },
+    normal: { min: 0.16, max: 0.24 },
+    large: { min: 0.18, max: 0.28 },
+    huge: { min: 0.2, max: 0.3 },
+  },
+  WATER_MIN_BODY_SIZE_BY_SIZE: {
+    tiny: 6,
+    small: 8,
+    normal: 10,
+    large: 12,
+    huge: 14,
+  },
+  WATER_MULEKITE_MIN_BODY_SIZE_BY_SIZE: {
+    tiny: 8,
+    small: 10,
+    normal: 12,
+    large: 14,
+    huge: 16,
+  },
+  WATER_MULEKITE_MIN_COAST_TILES_BY_SIZE: {
+    tiny: 2,
+    small: 2,
+    normal: 3,
+    large: 3,
+    huge: 3,
+  },
+  WATER_REPAIR_BUDGET: 3,
+  WATER_REPAIR_SEARCH_RADIUS: 6,
+  WATER_SMOOTH_PASSES: 1,
   
   // Resource placement
   INNER_CITY_RADIUS: 1,                // Adjacent to city
@@ -102,6 +213,16 @@ export const MAP_GENERATION_CONSTANTS = {
   
   // Village density
   VILLAGE_DENSITY_RATIO: 25,           // Tiles per village (tiles.length / 25 = 4% density)
+  VILLAGE_EARLY_RADIUS_BY_SIZE: {
+    tiny: 7,
+    small: 7,
+    normal: 8,
+    large: 9,
+    huge: 9,
+  },
+  VILLAGE_TARGET_EARLY_MIN: 2,
+  VILLAGE_CONTESTED_TARGET_RATIO: 0.15,
+  VILLAGE_BEST_OF_K: 7,
 } as const;
 
 export const CAPITAL_MIN_DISTANCE_BY_SIZE: Record<MapSize, number> = {
@@ -247,41 +368,57 @@ export class MapGenerator {
       }
     }
 
-    // Step 2: Determine capital spawns (player starting positions)
-    const capitalPositions = this.generateCapitalSpawns(mapRadius);
+    // Step 2: Generate water mask before choosing capital positions
+    const waterData = this.generateWaterMask(tiles, mapRadius);
+
+    // Step 3: Determine capital spawns (player starting positions)
+    const capitalPositions = this.generateCapitalSpawns(mapRadius, tiles, waterData);
     this.lastCapitalPositions = capitalPositions;
     
-    // Step 3: Place neutral villages/cities
+    // Step 4: Place neutral villages/cities
     this.placeCities(tiles, mapRadius, capitalPositions);
     
-    // Step 4: Generate terrain with faction-specific modifiers (BEFORE villages)
+    // Step 5: Generate terrain with faction-specific modifiers (BEFORE villages)
     this.generateFactionBiasedTerrain(tiles, mapRadius, capitalPositions);
 
-    // Step 4.5: Ensure cities are on land and capitals have workable land access
+    // Step 5.5: Ensure cities are on land and capitals have workable land access
     this.ensureCityLandTiles(tiles);
     this.ensureCapitalLandAccess(tiles, capitalPositions, mapRadius);
-    
-    // Step 5: Place capturable villages (AFTER terrain is generated)
-    this.placeVillages(tiles, mapRadius, capitalPositions);
 
-    // Step 5.5: Guarantee each capital has a nearby expansion village
+    // Step 5.75: Repair water access for water-leaning factions (rare fallback)
+    const repairedWaterData = this.repairCapitalWaterAccess(
+      tiles,
+      capitalPositions,
+      this.buildWaterBodyIndex(tiles),
+      mapRadius
+    );
+    
+    // Step 6: Guarantee each capital has a nearby expansion village
     this.ensureCapitalExpansionVillage(tiles, capitalPositions, mapRadius);
+
+    // Step 6.5: Place capturable villages (AFTER terrain is generated)
+    this.placeVillages(tiles, mapRadius, capitalPositions);
 
     const villageCount = tiles.filter(tile => tile.feature === 'village').length;
     if (process.env.NODE_ENV !== 'production') {
       console.log(`Generated ${villageCount} villages on map`);
     }
     
-    // Step 6: Place resources strategically (city zones + wilderness)
-    this.placeResourcesStrategically(tiles, capitalPositions);
+    // Step 7: Place resources strategically (city zones + wilderness)
+    const landResourceContext = this.placeResourcesStrategically(tiles, capitalPositions);
     
-    // Step 6.5: Guarantee opening-ring harvest opportunities (safety pass)
-    this.guaranteeCapitalHarvestOpportunities(tiles, capitalPositions);
+    // Step 7.5: Guarantee opening-ring harvest opportunities (safety pass)
+    this.guaranteeCapitalHarvestOpportunities(tiles, capitalPositions, landResourceContext);
 
-    // Step 6.75: Place Jaredite ruins as a dedicated pass for fairness and exploration
+    this.logLandResourcePlacementSummary(landResourceContext);
+
+    // Step 7.75: Place water resources for naval relevance
+    this.placeWaterResources(tiles, capitalPositions, repairedWaterData);
+
+    // Step 7.9: Place Jaredite ruins as a dedicated pass for fairness and exploration
     this.placeRuinsStrategically(tiles, capitalPositions);
     
-    // Step 7: Place special features
+    // Step 8: Place special features
     this.placeSpecialFeatures(tiles, capitalPositions);
 
     return {
@@ -294,14 +431,18 @@ export class MapGenerator {
   /**
    * Step 2: Generate capital spawns using quadrant-based system
    */
-  private generateCapitalSpawns(mapRadius: number): HexCoordinate[] {
+  private generateCapitalSpawns(
+    mapRadius: number,
+    tiles: Tile[],
+    waterData: WaterBodyData
+  ): HexCoordinate[] {
     const playerCount = this.config.playerCount;
     const baseMinDistance = this.getCapitalMinDistance();
     const { minRadius, maxRadius } = this.getCapitalSpawnRadiusBand(mapRadius);
     const angleStep = (2 * Math.PI) / Math.max(1, playerCount);
     const angleJitter = angleStep * 0.35;
 
-    const tryPlace = (minDistance: number): HexCoordinate[] | null => {
+    const tryPlace = (minDistance: number, relax: number): HexCoordinate[] | null => {
       const positions: HexCoordinate[] = [];
       for (let i = 0; i < playerCount; i++) {
         let placed = false;
@@ -316,6 +457,7 @@ export class MapGenerator {
           if (!this.isWithinMap(candidate, mapRadius)) continue;
           if (hexDistance({ q: 0, r: 0, s: 0 }, candidate) > mapRadius - MAP_GENERATION_CONSTANTS.MAP_EDGE_BUFFER) continue;
           if (positions.some(pos => hexDistance(pos, candidate) < minDistance)) continue;
+          if (!this.isValidCapitalCandidate(candidate, tiles, waterData, relax, i, mapRadius)) continue;
 
           positions.push(candidate);
           placed = true;
@@ -329,7 +471,7 @@ export class MapGenerator {
 
     for (let relax = 0; relax < 4; relax++) {
       const minDistance = Math.max(3, baseMinDistance - relax);
-      const positions = tryPlace(minDistance);
+      const positions = tryPlace(minDistance, relax);
       if (positions) return positions;
     }
 
@@ -340,10 +482,618 @@ export class MapGenerator {
       const q = Math.round(fallbackRadius * Math.cos(angle));
       const r = Math.round(fallbackRadius * Math.sin(angle));
       const s = -q - r;
-      fallback.push({ q, r, s });
+      const candidate = { q, r, s };
+      fallback.push(this.findNearestLandTile(candidate, tiles, mapRadius) ?? candidate);
     }
 
     return fallback;
+  }
+
+  private generateWaterMask(tiles: Tile[], mapRadius: number): WaterBodyData {
+    const motif = this.pickWaterMotif();
+    const { min, max } = this.getWaterRatioRange();
+    const targetRatio = min + (max - min) * this.rng.next();
+    const targetCount = Math.round(tiles.length * targetRatio);
+    const scoreByKey = this.scoreWaterTiles(tiles, mapRadius, motif);
+
+    const sortedTiles = [...tiles].sort((a, b) => {
+      const scoreA = scoreByKey.get(this.coordKey(a.coordinate)) ?? 0;
+      const scoreB = scoreByKey.get(this.coordKey(b.coordinate)) ?? 0;
+      return scoreB - scoreA;
+    });
+
+    sortedTiles.forEach((tile, index) => {
+      tile.terrain = index < targetCount ? 'water' : 'plains';
+    });
+
+    for (let pass = 0; pass < MAP_GENERATION_CONSTANTS.WATER_SMOOTH_PASSES; pass++) {
+      this.smoothWaterMask(tiles);
+    }
+
+    let waterData = this.buildWaterBodyIndex(tiles);
+    this.removeSmallWaterBodies(tiles, waterData, this.getMinWaterBodySize());
+
+    const waterCount = tiles.filter(tile => tile.terrain === 'water').length;
+    const minTarget = Math.round(tiles.length * min);
+    const maxTarget = Math.round(tiles.length * max);
+
+    if (waterCount < minTarget) {
+      this.fillWaterDeficit(tiles, scoreByKey, minTarget - waterCount);
+    } else if (waterCount > maxTarget) {
+      this.trimWaterSurplus(tiles, scoreByKey, waterCount - maxTarget);
+    }
+
+    waterData = this.buildWaterBodyIndex(tiles);
+    this.removeSmallWaterBodies(tiles, waterData, this.getMinWaterBodySize());
+    const postTrimCount = tiles.filter(tile => tile.terrain === 'water').length;
+    if (postTrimCount < minTarget) {
+      this.fillWaterDeficit(tiles, scoreByKey, minTarget - postTrimCount);
+    }
+    waterData = this.buildWaterBodyIndex(tiles);
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Water motif: ${motif}, ratio: ${(tiles.filter(t => t.terrain === 'water').length / tiles.length).toFixed(2)}`);
+    }
+
+    return waterData;
+  }
+
+  private pickWaterMotif(): 'coastal' | 'inland_sea' | 'straits' {
+    const hasWaterFaction = this.playerFactions.some((factionId) => {
+      const normalized = this.normalizeFactionId(factionId);
+      if (!normalized) return false;
+      return TRIBAL_SPAWN_MODIFIERS[normalized].water > 1;
+    });
+
+    const weights = hasWaterFaction
+      ? [
+          { motif: 'coastal' as const, weight: 0.25 },
+          { motif: 'inland_sea' as const, weight: 0.4 },
+          { motif: 'straits' as const, weight: 0.35 },
+        ]
+      : [
+          { motif: 'coastal' as const, weight: 0.45 },
+          { motif: 'inland_sea' as const, weight: 0.3 },
+          { motif: 'straits' as const, weight: 0.25 },
+        ];
+
+    const totalWeight = weights.reduce((sum, entry) => sum + entry.weight, 0);
+    let roll = this.rng.next() * totalWeight;
+    for (const entry of weights) {
+      roll -= entry.weight;
+      if (roll <= 0) return entry.motif;
+    }
+    return weights[0].motif;
+  }
+
+  private scoreWaterTiles(
+    tiles: Tile[],
+    mapRadius: number,
+    motif: 'coastal' | 'inland_sea' | 'straits'
+  ): Map<string, number> {
+    const scores = new Map<string, number>();
+    const center = { q: 0, r: 0, s: 0 };
+
+    let seaCenter = center;
+    let seaRadius = mapRadius * 0.5;
+    let straitAxis: 'q' | 'r' | 's' = 'q';
+    let straitOffset = 0;
+    let straitWidth = Math.max(2, Math.round(mapRadius * 0.18));
+
+    if (motif === 'inland_sea') {
+      const angle = this.rng.next() * Math.PI * 2;
+      const offsetRadius = mapRadius * 0.2;
+      const offsetQ = Math.round(offsetRadius * Math.cos(angle));
+      const offsetR = Math.round(offsetRadius * Math.sin(angle));
+      seaCenter = { q: offsetQ, r: offsetR, s: -offsetQ - offsetR };
+      seaRadius = mapRadius * (0.45 + this.rng.next() * 0.15);
+    }
+
+    if (motif === 'straits') {
+      const axisRoll = this.rng.next();
+      straitAxis = axisRoll < 0.33 ? 'q' : axisRoll < 0.66 ? 'r' : 's';
+      straitOffset = Math.round((this.rng.next() - 0.5) * mapRadius * 0.4);
+      straitWidth = Math.max(2, Math.round(mapRadius * 0.16));
+    }
+
+    tiles.forEach(tile => {
+      const noiseValue = this.noise2D(tile.coordinate.q * 0.08, tile.coordinate.r * 0.08);
+      const distanceFromCenter = hexDistance(tile.coordinate, center) / mapRadius;
+      let score = 0;
+
+      if (motif === 'coastal') {
+        const edgeBias = Math.max(0, (distanceFromCenter - 0.3) / 0.7);
+        score = edgeBias + noiseValue * 0.25;
+      } else if (motif === 'inland_sea') {
+        const distToSea = hexDistance(tile.coordinate, seaCenter);
+        const seaBias = Math.max(0, 1 - distToSea / seaRadius);
+        const edgeBias = Math.max(0, (distanceFromCenter - 0.8) / 0.2);
+        score = seaBias + edgeBias * 0.2 + noiseValue * 0.2;
+      } else {
+        const axisValue =
+          straitAxis === 'q'
+            ? tile.coordinate.q
+            : straitAxis === 'r'
+              ? tile.coordinate.r
+              : tile.coordinate.s;
+        const distToStrait = Math.abs(axisValue - straitOffset);
+        const straitBias = Math.max(0, 1 - distToStrait / straitWidth);
+        const edgeBias = Math.max(0, (distanceFromCenter - 0.75) / 0.25);
+        score = straitBias + edgeBias * 0.25 + noiseValue * 0.2;
+      }
+
+      const jitter = this.rng.next() * 0.05;
+      scores.set(this.coordKey(tile.coordinate), score + jitter);
+    });
+
+    return scores;
+  }
+
+  private smoothWaterMask(tiles: Tile[]): void {
+    const tileIndex = this.buildTileIndex(tiles);
+    const toLand: Tile[] = [];
+    const toWater: Tile[] = [];
+
+    for (const tile of tiles) {
+      const waterNeighbors = hexNeighbors(tile.coordinate)
+        .map(coord => tileIndex.get(this.coordKey(coord)))
+        .filter((neighbor): neighbor is Tile => !!neighbor && neighbor.terrain === 'water').length;
+
+      if (tile.terrain === 'water' && waterNeighbors <= 1) {
+        toLand.push(tile);
+      } else if (tile.terrain !== 'water' && waterNeighbors >= 5) {
+        toWater.push(tile);
+      }
+    }
+
+    toLand.forEach(tile => {
+      tile.terrain = 'plains';
+    });
+    toWater.forEach(tile => {
+      tile.terrain = 'water';
+    });
+  }
+
+  private removeSmallWaterBodies(tiles: Tile[], waterData: WaterBodyData, minSize: number): void {
+    const waterBodies = this.groupWaterBodies(tiles, waterData);
+    waterBodies.forEach(body => {
+      if (body.length < minSize) {
+        body.forEach(tile => {
+          tile.terrain = 'plains';
+        });
+      }
+    });
+  }
+
+  private fillWaterDeficit(tiles: Tile[], scoreByKey: Map<string, number>, needed: number): void {
+    if (needed <= 0) return;
+    const tileIndex = this.buildTileIndex(tiles);
+    const candidates = tiles
+      .filter(tile => tile.terrain !== 'water')
+      .filter(tile => hexNeighbors(tile.coordinate)
+        .map(coord => tileIndex.get(this.coordKey(coord)))
+        .some(neighbor => neighbor?.terrain === 'water'))
+      .sort((a, b) => (scoreByKey.get(this.coordKey(b.coordinate)) ?? 0) - (scoreByKey.get(this.coordKey(a.coordinate)) ?? 0));
+
+    let remaining = needed;
+    for (const tile of candidates) {
+      if (remaining <= 0) break;
+      tile.terrain = 'water';
+      remaining -= 1;
+    }
+
+    if (remaining > 0) {
+      const fallback = tiles
+        .filter(tile => tile.terrain !== 'water')
+        .sort((a, b) => (scoreByKey.get(this.coordKey(b.coordinate)) ?? 0) - (scoreByKey.get(this.coordKey(a.coordinate)) ?? 0));
+      for (const tile of fallback) {
+        if (remaining <= 0) break;
+        tile.terrain = 'water';
+        remaining -= 1;
+      }
+    }
+  }
+
+  private trimWaterSurplus(tiles: Tile[], scoreByKey: Map<string, number>, surplus: number): void {
+    if (surplus <= 0) return;
+    const candidates = tiles
+      .filter(tile => tile.terrain === 'water')
+      .sort((a, b) => (scoreByKey.get(this.coordKey(a.coordinate)) ?? 0) - (scoreByKey.get(this.coordKey(b.coordinate)) ?? 0));
+
+    let remaining = surplus;
+    for (const tile of candidates) {
+      if (remaining <= 0) break;
+      tile.terrain = 'plains';
+      remaining -= 1;
+    }
+  }
+
+  private repairCapitalWaterAccess(
+    tiles: Tile[],
+    capitalPositions: HexCoordinate[],
+    waterData: WaterBodyData,
+    mapRadius: number
+  ): WaterBodyData {
+    let updatedWaterData = waterData;
+
+    for (let i = 0; i < capitalPositions.length; i++) {
+      const factionId = this.normalizeFactionId(this.playerFactions[i]);
+      const modifiers = factionId ? TRIBAL_SPAWN_MODIFIERS[factionId] : null;
+      const wantsWater = !!modifiers && modifiers.water > 1;
+      if (!wantsWater) continue;
+
+      const capital = capitalPositions[i];
+      const metrics = this.getCapitalWaterMetrics(capital, tiles, updatedWaterData, mapRadius);
+      if (
+        metrics.adjacentWaterTiles > 0 &&
+        metrics.connectedBodySize >= this.getMulekiteMinBodySize() &&
+        metrics.coastTilesWithinRadius >= this.getMulekiteMinCoastTiles()
+      ) {
+        continue;
+      }
+
+      const tileIndex = this.buildTileIndex(tiles);
+      const path = this.findPathToWater(capital, tileIndex);
+      if (path.length > 0 && path.length <= MAP_GENERATION_CONSTANTS.WATER_REPAIR_BUDGET) {
+        path.forEach(tile => {
+          if (!tile.hasCity && tile.feature !== 'village' && tile.resources.length === 0) {
+            tile.terrain = 'water';
+          }
+        });
+      } else if (path.length > 0) {
+        path.slice(0, MAP_GENERATION_CONSTANTS.WATER_REPAIR_BUDGET).forEach(tile => {
+          if (!tile.hasCity && tile.feature !== 'village' && tile.resources.length === 0) {
+            tile.terrain = 'water';
+          }
+        });
+      }
+
+      updatedWaterData = this.buildWaterBodyIndex(tiles);
+    }
+
+    return updatedWaterData;
+  }
+
+  private getWaterRatioRange(): { min: number; max: number } {
+    return MAP_GENERATION_CONSTANTS.WATER_RATIO_BY_SIZE[this.config.mapSize] ?? { min: 0.16, max: 0.24 };
+  }
+
+  private getMinWaterBodySize(): number {
+    return MAP_GENERATION_CONSTANTS.WATER_MIN_BODY_SIZE_BY_SIZE[this.config.mapSize] ?? 10;
+  }
+
+  private getMulekiteMinBodySize(): number {
+    return MAP_GENERATION_CONSTANTS.WATER_MULEKITE_MIN_BODY_SIZE_BY_SIZE[this.config.mapSize] ?? 12;
+  }
+
+  private getMulekiteMinCoastTiles(): number {
+    return MAP_GENERATION_CONSTANTS.WATER_MULEKITE_MIN_COAST_TILES_BY_SIZE[this.config.mapSize] ?? 3;
+  }
+
+  private getCapitalWaterMetrics(
+    coord: HexCoordinate,
+    tiles: Tile[],
+    waterData: WaterBodyData,
+    mapRadius: number
+  ): { adjacentWaterTiles: number; connectedBodySize: number; coastTilesWithinRadius: number } {
+    const tileIndex = this.buildTileIndex(tiles);
+    const adjacentWater = hexNeighbors(coord)
+      .map(neighbor => tileIndex.get(this.coordKey(neighbor)))
+      .filter((tile): tile is Tile => !!tile && tile.terrain === 'water');
+
+    const connectedBodySize = adjacentWater.reduce((best, tile) => {
+      const bodyId = waterData.bodyByCoord.get(this.coordKey(tile.coordinate));
+      if (bodyId === undefined) return best;
+      return Math.max(best, waterData.bodySizes[bodyId] ?? 0);
+    }, 0);
+
+    const coastTilesWithinRadius = tiles.reduce((count, tile) => {
+      if (tile.terrain !== 'water') return count;
+      const distance = hexDistance(coord, tile.coordinate);
+      if (distance > Math.min(3, mapRadius)) return count;
+      const hasLandNeighbor = hexNeighbors(tile.coordinate)
+        .map(neighbor => tileIndex.get(this.coordKey(neighbor)))
+        .some(neighbor => neighbor && neighbor.terrain !== 'water');
+      return hasLandNeighbor ? count + 1 : count;
+    }, 0);
+
+    return {
+      adjacentWaterTiles: adjacentWater.length,
+      connectedBodySize,
+      coastTilesWithinRadius,
+    };
+  }
+
+  private findPathToWater(
+    start: HexCoordinate,
+    tileIndex: Map<string, Tile>
+  ): Tile[] {
+    const visited = new Set<string>([this.coordKey(start)]);
+    const queue: HexCoordinate[] = [start];
+    const parent = new Map<string, string>();
+    const maxDepth = MAP_GENERATION_CONSTANTS.WATER_REPAIR_SEARCH_RADIUS;
+
+    while (queue.length > 0) {
+      const current = queue.shift() as HexCoordinate;
+      const currentKey = this.coordKey(current);
+      const currentTile = tileIndex.get(currentKey);
+      if (!currentTile) continue;
+
+      const depth = hexDistance(start, current);
+      if (depth > maxDepth) continue;
+
+      if (currentTile.terrain === 'water') {
+        const path: Tile[] = [];
+        let walkerKey = currentKey;
+        while (parent.has(walkerKey)) {
+          const parentKey = parent.get(walkerKey) as string;
+          const parentTile = tileIndex.get(parentKey);
+          if (parentTile && parentTile.terrain !== 'water') {
+            path.push(parentTile);
+          }
+          walkerKey = parentKey;
+        }
+        return path.reverse();
+      }
+
+      for (const neighbor of hexNeighbors(current)) {
+        const neighborKey = this.coordKey(neighbor);
+        if (visited.has(neighborKey)) continue;
+        const neighborTile = tileIndex.get(neighborKey);
+        if (!neighborTile) continue;
+        if (neighborTile.hasCity || neighborTile.feature === 'village') continue;
+        if (neighborTile.resources.length > 0 && neighborTile.terrain !== 'water') continue;
+        visited.add(neighborKey);
+        parent.set(neighborKey, currentKey);
+        queue.push(neighbor);
+      }
+    }
+
+    return [];
+  }
+
+  private placeWaterResources(
+    tiles: Tile[],
+    capitalPositions: HexCoordinate[],
+    waterData: WaterBodyData
+  ): void {
+    const waterBodies = this.groupWaterBodies(tiles, waterData);
+    const tileIndex = this.buildTileIndex(tiles);
+
+    waterBodies.forEach(body => {
+      const bodySize = body.length;
+      if (bodySize === 0) return;
+
+      const fishTarget = Math.max(1, Math.round(bodySize * 0.12));
+      this.placeResourceClusters(body, tileIndex, 'fishing_shoal', fishTarget, 2, 4);
+
+      const seaBeastTarget = bodySize >= 12 ? Math.max(1, Math.floor(bodySize * 0.015)) : 0;
+      if (seaBeastTarget > 0) {
+        this.placeDeepWaterResources(body, tileIndex, 'sea_beast', seaBeastTarget);
+      }
+    });
+
+    this.ensureCapitalFishAccess(tiles, capitalPositions, waterData);
+    this.ensureSharedWaterOpportunities(tiles, capitalPositions, waterData);
+  }
+
+  private placeResourceClusters(
+    bodyTiles: Tile[],
+    tileIndex: Map<string, Tile>,
+    resource: string,
+    target: number,
+    minClusterSize: number,
+    maxClusterSize: number
+  ): void {
+    let remaining = target;
+    const maxClusters = Math.max(1, Math.round(bodyTiles.length / 12));
+    let clusters = 0;
+
+    while (remaining > 0 && clusters < maxClusters) {
+      const seed = this.pickAvailableWaterTile(bodyTiles);
+      if (!seed) break;
+
+      const clusterSize = Math.min(remaining, this.rng.nextInt(minClusterSize, maxClusterSize));
+      const clusterTiles = this.expandCluster(seed, tileIndex, clusterSize);
+      clusterTiles.forEach(tile => {
+        if (!tile.resources.includes(resource)) {
+          tile.resources.push(resource);
+          remaining -= 1;
+        }
+      });
+      clusters += 1;
+    }
+
+    while (remaining > 0) {
+      const tile = this.pickAvailableWaterTile(bodyTiles);
+      if (!tile) break;
+      tile.resources.push(resource);
+      remaining -= 1;
+    }
+  }
+
+  private placeDeepWaterResources(
+    bodyTiles: Tile[],
+    tileIndex: Map<string, Tile>,
+    resource: string,
+    target: number
+  ): void {
+    let remaining = target;
+    const deepTiles = bodyTiles.filter(tile => {
+      const waterNeighbors = hexNeighbors(tile.coordinate)
+        .map(coord => tileIndex.get(this.coordKey(coord)))
+        .filter((neighbor): neighbor is Tile => !!neighbor && neighbor.terrain === 'water').length;
+      return waterNeighbors >= 5;
+    });
+
+    while (remaining > 0 && deepTiles.length > 0) {
+      const pick = deepTiles[Math.floor(this.rng.next() * deepTiles.length)];
+      if (pick.resources.length === 0) {
+        pick.resources.push(resource);
+        remaining -= 1;
+      } else {
+        deepTiles.splice(deepTiles.indexOf(pick), 1);
+      }
+    }
+  }
+
+  private pickAvailableWaterTile(bodyTiles: Tile[]): Tile | null {
+    const candidates = bodyTiles.filter(tile => tile.resources.length === 0);
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(this.rng.next() * candidates.length)];
+  }
+
+  private expandCluster(seed: Tile, tileIndex: Map<string, Tile>, size: number): Tile[] {
+    const cluster: Tile[] = [seed];
+    const visited = new Set<string>([this.coordKey(seed.coordinate)]);
+
+    while (cluster.length < size) {
+      const anchor = cluster[Math.floor(this.rng.next() * cluster.length)];
+      const neighbors = hexNeighbors(anchor.coordinate)
+        .map(coord => tileIndex.get(this.coordKey(coord)))
+        .filter((tile): tile is Tile => !!tile && tile.terrain === 'water' && tile.resources.length === 0)
+        .filter(tile => !visited.has(this.coordKey(tile.coordinate)));
+
+      if (neighbors.length === 0) break;
+      const next = neighbors[Math.floor(this.rng.next() * neighbors.length)];
+      cluster.push(next);
+      visited.add(this.coordKey(next.coordinate));
+    }
+
+    return cluster;
+  }
+
+  private ensureCapitalFishAccess(
+    tiles: Tile[],
+    capitalPositions: HexCoordinate[],
+    waterData: WaterBodyData
+  ): void {
+    const tileIndex = this.buildTileIndex(tiles);
+    const waterBodies = this.groupWaterBodies(tiles, waterData);
+    const minFish = 2;
+    const maxDistance = 6;
+
+    capitalPositions.forEach((capital, index) => {
+      const adjacentWater = hexNeighbors(capital)
+        .map(coord => tileIndex.get(this.coordKey(coord)))
+        .find(tile => tile && tile.terrain === 'water');
+      if (!adjacentWater) return;
+
+      const bodyId = waterData.bodyByCoord.get(this.coordKey(adjacentWater.coordinate));
+      if (bodyId === undefined) return;
+
+      const bodyTiles = waterBodies[bodyId] || [];
+      const reachable = bodyTiles.filter(tile => hexDistance(capital, tile.coordinate) <= maxDistance);
+      const factionId = this.normalizeFactionId(this.playerFactions[index]);
+      const fishMod = factionId ? TRIBAL_SPAWN_MODIFIERS[factionId]?.fish ?? 1 : 1;
+      const targetFish = minFish + Math.max(0, Math.round(fishMod - 1));
+      let fishCount = reachable.filter(tile => tile.resources.includes('fishing_shoal')).length;
+
+      while (fishCount < targetFish) {
+        const candidate = reachable.find(tile => tile.resources.length === 0);
+        if (!candidate) break;
+        candidate.resources.push('fishing_shoal');
+        fishCount += 1;
+      }
+    });
+  }
+
+  private ensureSharedWaterOpportunities(
+    tiles: Tile[],
+    capitalPositions: HexCoordinate[],
+    waterData: WaterBodyData
+  ): void {
+    const tileIndex = this.buildTileIndex(tiles);
+    const waterBodies = this.groupWaterBodies(tiles, waterData);
+    const bodyAccessCounts = new Map<number, number>();
+
+    capitalPositions.forEach(capital => {
+      const adjacentWater = hexNeighbors(capital)
+        .map(coord => tileIndex.get(this.coordKey(coord)))
+        .find(tile => tile && tile.terrain === 'water');
+      if (!adjacentWater) return;
+      const bodyId = waterData.bodyByCoord.get(this.coordKey(adjacentWater.coordinate));
+      if (bodyId === undefined) return;
+      bodyAccessCounts.set(bodyId, (bodyAccessCounts.get(bodyId) ?? 0) + 1);
+    });
+
+    const sharedBodyIds = Array.from(bodyAccessCounts.entries())
+      .filter(([, count]) => count >= 2)
+      .map(([bodyId]) => bodyId);
+
+    for (const bodyId of sharedBodyIds) {
+      const bodyTiles = waterBodies[bodyId] || [];
+      const farTiles = bodyTiles.filter(tile => {
+        const minDistance = Math.min(...capitalPositions.map(cap => hexDistance(cap, tile.coordinate)));
+        return minDistance >= 4 && tile.resources.length === 0;
+      });
+      if (farTiles.length === 0) continue;
+      const hasFarFish = farTiles.some(tile => tile.resources.includes('fishing_shoal'));
+      if (!hasFarFish) {
+        const pick = farTiles[Math.floor(this.rng.next() * farTiles.length)];
+        pick.resources.push('fishing_shoal');
+      }
+    }
+  }
+
+  private buildWaterBodyIndex(tiles: Tile[]): WaterBodyData {
+    const tileIndex = this.buildTileIndex(tiles);
+    const visited = new Set<string>();
+    const bodyByCoord = new Map<string, number>();
+    const bodySizes: number[] = [];
+
+    for (const tile of tiles) {
+      if (tile.terrain !== 'water') continue;
+      const key = this.coordKey(tile.coordinate);
+      if (visited.has(key)) continue;
+
+      const queue: Tile[] = [tile];
+      visited.add(key);
+      const bodyTiles: Tile[] = [];
+
+      while (queue.length > 0) {
+        const current = queue.shift() as Tile;
+        const currentKey = this.coordKey(current.coordinate);
+        bodyTiles.push(current);
+        bodyByCoord.set(currentKey, bodySizes.length);
+
+        for (const neighborCoord of hexNeighbors(current.coordinate)) {
+          const neighborKey = this.coordKey(neighborCoord);
+          if (visited.has(neighborKey)) continue;
+          const neighbor = tileIndex.get(neighborKey);
+          if (!neighbor || neighbor.terrain !== 'water') continue;
+          visited.add(neighborKey);
+          queue.push(neighbor);
+        }
+      }
+
+      bodySizes.push(bodyTiles.length);
+    }
+
+    return { bodyByCoord, bodySizes };
+  }
+
+  private groupWaterBodies(tiles: Tile[], waterData: WaterBodyData): Tile[][] {
+    const bodies: Tile[][] = Array.from({ length: waterData.bodySizes.length }, () => []);
+    tiles.forEach(tile => {
+      if (tile.terrain !== 'water') return;
+      const bodyId = waterData.bodyByCoord.get(this.coordKey(tile.coordinate));
+      if (bodyId === undefined) return;
+      bodies[bodyId].push(tile);
+    });
+    return bodies;
+  }
+
+  private buildTileIndex(tiles: Tile[]): Map<string, Tile> {
+    const index = new Map<string, Tile>();
+    tiles.forEach(tile => {
+      index.set(this.coordKey(tile.coordinate), tile);
+    });
+    return index;
+  }
+
+  private coordKey(coord: HexCoordinate): string {
+    return `${coord.q},${coord.r},${coord.s}`;
   }
 
   /**
@@ -376,7 +1126,7 @@ export class MapGenerator {
         hexDistance(candidate.coordinate, cityPos) < MAP_GENERATION_CONSTANTS.CITY_MIN_DISTANCE
       );
       
-      if (!candidate.hasCity && !tooClose) {
+      if (!candidate.hasCity && candidate.terrain !== 'water' && !tooClose) {
         candidate.hasCity = true;
         cityPositions.push(candidate.coordinate);
         placed++;
@@ -400,12 +1150,81 @@ export class MapGenerator {
     return Math.max(Math.abs(coord.q), Math.abs(coord.r), Math.abs(coord.s)) <= mapRadius;
   }
 
+  private normalizeFactionId(id?: string): FactionId | null {
+    if (!id) return null;
+    const upper = id.toUpperCase();
+    return (upper in TRIBAL_SPAWN_MODIFIERS) ? (upper as FactionId) : null;
+  }
+
   private getTileAt(tiles: Tile[], coord: HexCoordinate): Tile | undefined {
     return tiles.find(tile =>
       tile.coordinate.q === coord.q &&
       tile.coordinate.r === coord.r &&
       tile.coordinate.s === coord.s
     );
+  }
+
+  private findNearestLandTile(
+    coord: HexCoordinate,
+    tiles: Tile[],
+    mapRadius: number
+  ): HexCoordinate | null {
+    const tileIndex = this.buildTileIndex(tiles);
+    const visited = new Set<string>([this.coordKey(coord)]);
+    const queue: HexCoordinate[] = [coord];
+
+    while (queue.length > 0) {
+      const current = queue.shift() as HexCoordinate;
+      const tile = tileIndex.get(this.coordKey(current));
+      if (tile && tile.terrain !== 'water') {
+        return current;
+      }
+
+      for (const neighbor of hexNeighbors(current)) {
+        if (!this.isWithinMap(neighbor, mapRadius)) continue;
+        const key = this.coordKey(neighbor);
+        if (visited.has(key)) continue;
+        visited.add(key);
+        queue.push(neighbor);
+      }
+    }
+
+    return null;
+  }
+
+  private isValidCapitalCandidate(
+    coord: HexCoordinate,
+    tiles: Tile[],
+    waterData: WaterBodyData,
+    relax: number,
+    playerIndex: number,
+    mapRadius: number
+  ): boolean {
+    const tile = this.getTileAt(tiles, coord);
+    if (!tile || tile.terrain === 'water') return false;
+
+    const factionId = this.normalizeFactionId(this.playerFactions[playerIndex]);
+    const modifiers = factionId ? TRIBAL_SPAWN_MODIFIERS[factionId] : null;
+    const wantsWater = !!modifiers && modifiers.water > 1;
+
+    if (!wantsWater) return true;
+
+    const metrics = this.getCapitalWaterMetrics(coord, tiles, waterData, mapRadius);
+    if (metrics.adjacentWaterTiles < 1) return false;
+
+    const minBodySize = Math.max(
+      4,
+      this.getMulekiteMinBodySize() - relax * 2
+    );
+    const minCoastTiles = Math.max(
+      1,
+      this.getMulekiteMinCoastTiles() - relax
+    );
+
+    if (metrics.connectedBodySize < minBodySize) return false;
+    if (metrics.coastTilesWithinRadius < minCoastTiles) return false;
+
+    return true;
   }
 
   private ensureCityLandTiles(tiles: Tile[]): void {
@@ -417,8 +1236,12 @@ export class MapGenerator {
   }
 
   private ensureCapitalLandAccess(tiles: Tile[], capitalPositions: HexCoordinate[], mapRadius: number): void {
-    const minLandNeighbors = 3;
-    for (const capital of capitalPositions) {
+    for (let i = 0; i < capitalPositions.length; i++) {
+      const capital = capitalPositions[i];
+      const factionId = this.normalizeFactionId(this.playerFactions[i]);
+      const modifiers = factionId ? TRIBAL_SPAWN_MODIFIERS[factionId] : null;
+      const wantsWater = !!modifiers && modifiers.water > 1;
+      const minLandNeighbors = wantsWater ? 2 : 3;
       const neighbors = hexNeighbors(capital)
         .filter(coord => this.isWithinMap(coord, mapRadius))
         .map(coord => this.getTileAt(tiles, coord))
@@ -429,8 +1252,11 @@ export class MapGenerator {
 
       const waterNeighbors = neighbors.filter(tile => tile.terrain === 'water');
       let needed = minLandNeighbors - landNeighbors.length;
+      let remainingWater = waterNeighbors.length;
       for (const tile of waterNeighbors) {
+        if (wantsWater && remainingWater <= 1) break;
         tile.terrain = 'plains';
+        remainingWater -= 1;
         needed -= 1;
         if (needed <= 0) break;
       }
@@ -442,12 +1268,19 @@ export class MapGenerator {
     capitalPositions: HexCoordinate[],
     mapRadius: number
   ): void {
-    const minDist = MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE_FROM_CITY;
-    const maxDist = minDist + 2;
+    const ringBands = this.getVillageRingBands();
+    const minDist = Math.max(
+      MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE_FROM_CITY,
+      ringBands.near.min
+    );
+    const maxDist = ringBands.near.max;
     const cityPositions = tiles.filter(tile => tile.hasCity).map(tile => tile.coordinate);
     const villagePositions = tiles.filter(tile => tile.feature === 'village').map(tile => tile.coordinate);
+    const landmassIndex = this.buildLandmassIndex(tiles);
 
-    for (const capital of capitalPositions) {
+    for (let i = 0; i < capitalPositions.length; i++) {
+      const capital = capitalPositions[i];
+      const capitalLandmass = landmassIndex.get(this.coordKey(capital));
       const hasVillage = villagePositions.some(village => {
         const dist = hexDistance(village, capital);
         return dist >= minDist && dist <= maxDist;
@@ -459,6 +1292,10 @@ export class MapGenerator {
         if (dist < minDist || dist > maxDist) return false;
         if (tile.terrain === 'water') return false;
         if (tile.hasCity || tile.feature === 'village') return false;
+        if (capitalLandmass !== undefined) {
+          const tileLandmass = landmassIndex.get(this.coordKey(tile.coordinate));
+          if (tileLandmass !== capitalLandmass) return false;
+        }
         return this.isValidVillageLocation(tile, cityPositions, villagePositions, mapRadius);
       });
 
@@ -475,36 +1312,296 @@ export class MapGenerator {
    * Pass 2: Pre-terrain villages (future expansion - skipped for now) 
    * Pass 3: Post-terrain villages (main implementation)
    */
-  private placeVillages(tiles: Tile[], mapRadius: number, _capitalPositions: HexCoordinate[]): void {
-    const placedVillages: HexCoordinate[] = [];
+  private placeVillages(tiles: Tile[], mapRadius: number, capitalPositions: HexCoordinate[]): void {
+    if (capitalPositions.length === 0) return;
+
+    // Soft-parity village placement with reachability and ring bias.
+    const placedVillages: HexCoordinate[] = tiles
+      .filter(tile => tile.feature === 'village')
+      .map(tile => tile.coordinate);
     const cityPositions = tiles.filter(tile => tile.hasCity).map(tile => tile.coordinate);
-    
-    // Pass 1: Suburbs (around capitals)
-    // Skipped for initial implementation - can add later for water-heavy maps
-    
-    // Pass 2: Pre-terrain villages 
-    // Skipped for initial implementation - mainly for archipelago/water maps
-    
-    // Pass 3: Post-terrain villages (universal pass)
-    // Keep adding villages until no legal tile remains, with soft cap
-    const maxVillages = Math.floor(tiles.length / MAP_GENERATION_CONSTANTS.VILLAGE_DENSITY_RATIO); // ~4% of land tiles like Polytopia
-    let villagesPlaced = 0;
-    let attempts = 0;
-    const maxAttempts = tiles.length * 2; // Prevent infinite loops
-    
-    while (villagesPlaced < maxVillages && attempts < maxAttempts) {
-      attempts++;
-      
-      // Pick random tile
-      const candidateTile = tiles[Math.floor(this.rng.next() * tiles.length)];
-      
-      if (this.isValidVillageLocation(candidateTile, cityPositions, placedVillages, mapRadius)) {
-        candidateTile.feature = 'village';
-        placedVillages.push(candidateTile.coordinate);
-        villagesPlaced++;
+    const ringBands = this.getVillageRingBands();
+    const earlyRadius = this.getVillageEarlyRadius();
+    const targetEarlyMin = this.getVillageTargetEarlyMin();
+
+    const maxVillages = Math.floor(tiles.length / MAP_GENERATION_CONSTANTS.VILLAGE_DENSITY_RATIO);
+    const targetPlacements = Math.max(0, maxVillages - placedVillages.length);
+
+    const landmassIndex = this.buildLandmassIndex(tiles);
+    const capitalLandmass = capitalPositions.map(cap => landmassIndex.get(this.coordKey(cap)));
+
+    const baseCandidates = tiles.filter(tile =>
+      this.isValidVillageLocation(tile, cityPositions, placedVillages, mapRadius)
+    );
+
+    const candidateEntries: VillageCandidateEntry[] = baseCandidates.map(tile => {
+      const distances = capitalPositions.map(cap => hexDistance(tile.coordinate, cap));
+      const sorted = [...distances].sort((a, b) => a - b);
+      const nearestDistance = sorted[0] ?? Infinity;
+      const secondDistance = sorted[1] ?? Infinity;
+      return {
+        tile,
+        distances,
+        nearestDistance,
+        secondDistance,
+      };
+    });
+
+    const pools = capitalPositions.map(() => ({
+      near: [] as VillageCandidateAssignment[],
+      mid: [] as VillageCandidateAssignment[],
+      far: [] as VillageCandidateAssignment[],
+    }));
+    const fallbackPools = capitalPositions.map(() => ({
+      near: [] as VillageCandidateAssignment[],
+      mid: [] as VillageCandidateAssignment[],
+      far: [] as VillageCandidateAssignment[],
+    }));
+
+    candidateEntries.forEach(entry => {
+      const nearestDistance = entry.nearestDistance;
+      const nearestIndices = entry.distances
+        .map((distance, index) => ({ distance, index }))
+        .filter(item => item.distance === nearestDistance)
+        .map(item => item.index);
+
+      for (const capIndex of nearestIndices) {
+        const capitalLand = capitalLandmass[capIndex];
+        if (capitalLand !== undefined) {
+          const tileLand = landmassIndex.get(this.coordKey(entry.tile.coordinate));
+          if (tileLand !== capitalLand) continue;
+        }
+
+        const distanceToCapital = entry.distances[capIndex];
+        const ring = this.getVillageRing(distanceToCapital, ringBands);
+        if (!ring) continue;
+
+        pools[capIndex][ring].push({
+          entry,
+          distanceToCapital,
+          ring,
+        });
+      }
+
+      for (let capIndex = 0; capIndex < capitalPositions.length; capIndex++) {
+        const capitalLand = capitalLandmass[capIndex];
+        if (capitalLand !== undefined) {
+          const tileLand = landmassIndex.get(this.coordKey(entry.tile.coordinate));
+          if (tileLand !== capitalLand) continue;
+        }
+
+        const distanceToCapital = entry.distances[capIndex];
+        const ring = this.getVillageRing(distanceToCapital, ringBands);
+        if (!ring) continue;
+
+        fallbackPools[capIndex][ring].push({
+          entry,
+          distanceToCapital,
+          ring,
+        });
+      }
+    });
+
+    const assignedCount = new Array(capitalPositions.length).fill(0);
+    const earlyCount = new Array(capitalPositions.length).fill(0);
+    const ringCount = capitalPositions.map(() => ({ near: 0, mid: 0, far: 0 }));
+    let contestedPlaced = 0;
+    const contestedTarget = Math.max(
+      0,
+      Math.round(targetPlacements * MAP_GENERATION_CONSTANTS.VILLAGE_CONTESTED_TARGET_RATIO)
+    );
+
+    const updateVillageCounts = (coord: HexCoordinate) => {
+      capitalPositions.forEach((capital, index) => {
+        const distance = hexDistance(coord, capital);
+        if (distance <= earlyRadius) {
+          earlyCount[index] += 1;
+        }
+        const ring = this.getVillageRing(distance, ringBands);
+        if (ring) {
+          ringCount[index][ring] += 1;
+        }
+      });
+    };
+
+    placedVillages.forEach(coord => {
+      updateVillageCounts(coord);
+      let bestIndex = -1;
+      let bestDistance = Infinity;
+      let tieCount = 0;
+      for (let i = 0; i < capitalPositions.length; i++) {
+        const distance = hexDistance(coord, capitalPositions[i]);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = i;
+          tieCount = 1;
+        } else if (distance === bestDistance) {
+          tieCount += 1;
+          if (this.rng.next() < 1 / tieCount) {
+            bestIndex = i;
+          }
+        }
+      }
+      if (bestIndex >= 0) {
+        assignedCount[bestIndex] += 1;
+      }
+    });
+
+    const commitVillage = (
+      candidate: VillageCandidateAssignment,
+      capIndex: number
+    ) => {
+      candidate.entry.tile.feature = 'village';
+      placedVillages.push(candidate.entry.tile.coordinate);
+      assignedCount[capIndex] += 1;
+      updateVillageCounts(candidate.entry.tile.coordinate);
+      if (this.isVillageContested(candidate.entry, ringBands)) {
+        contestedPlaced += 1;
+      }
+    };
+
+    const pickBestCandidate = (
+      capIndex: number,
+      ring: VillageRing,
+      allowOwnershipPenalty: boolean
+    ): VillageCandidateAssignment | null => {
+      const pool = allowOwnershipPenalty ? fallbackPools[capIndex][ring] : pools[capIndex][ring];
+      if (pool.length === 0) return null;
+
+      const sampleCount = Math.min(MAP_GENERATION_CONSTANTS.VILLAGE_BEST_OF_K, pool.length);
+      let best: VillageCandidateAssignment | null = null;
+      let bestScore = -Infinity;
+
+      for (let i = 0; i < sampleCount; i++) {
+        const pick = pool[Math.floor(this.rng.next() * pool.length)];
+        if (!this.isValidVillageLocation(pick.entry.tile, cityPositions, placedVillages, mapRadius)) {
+          continue;
+        }
+
+        const isOwnershipPenalty =
+          allowOwnershipPenalty && pick.distanceToCapital > pick.entry.nearestDistance;
+        const score = this.scoreVillageCandidate(
+          pick.entry,
+          pick.distanceToCapital,
+          ring,
+          ringBands,
+          mapRadius,
+          placedVillages,
+          contestedTarget,
+          contestedPlaced,
+          isOwnershipPenalty
+        );
+
+        if (score > bestScore) {
+          bestScore = score;
+          best = pick;
+        }
+      }
+
+      if (!best) {
+        for (const pick of pool) {
+          if (!this.isValidVillageLocation(pick.entry.tile, cityPositions, placedVillages, mapRadius)) {
+            continue;
+          }
+
+          const isOwnershipPenalty =
+            allowOwnershipPenalty && pick.distanceToCapital > pick.entry.nearestDistance;
+          const score = this.scoreVillageCandidate(
+            pick.entry,
+            pick.distanceToCapital,
+            ring,
+            ringBands,
+            mapRadius,
+            placedVillages,
+            contestedTarget,
+            contestedPlaced,
+            isOwnershipPenalty
+          );
+          if (score > bestScore) {
+            bestScore = score;
+            best = pick;
+          }
+        }
+      }
+
+      return best;
+    };
+
+    const tryPlaceWithRings = (
+      capIndex: number,
+      ringOrder: VillageRing[],
+      allowOwnershipPenalty: boolean
+    ): boolean => {
+      for (const ring of ringOrder) {
+        const candidate = pickBestCandidate(capIndex, ring, allowOwnershipPenalty);
+        if (candidate) {
+          commitVillage(candidate, capIndex);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Baseline: give each capital +1 mid village when possible (fallback to far).
+    for (let capIndex = 0; capIndex < capitalPositions.length; capIndex++) {
+      if (placedVillages.length >= targetPlacements) break;
+      const placed = tryPlaceWithRings(capIndex, ['mid', 'far'], false);
+      if (!placed) {
+        tryPlaceWithRings(capIndex, ['far'], true);
       }
     }
-    // Village spawning complete - density can be checked via game state if needed
+
+    let attempts = 0;
+    const maxAttempts = tiles.length * 3;
+
+    while (placedVillages.length < targetPlacements && attempts < maxAttempts) {
+      attempts += 1;
+
+      const sortedCapitals = assignedCount
+        .map((count, index) => ({
+          count,
+          index,
+          order: this.rng.next(),
+        }))
+        .sort((a, b) => (a.count - b.count) || (a.order - b.order));
+
+      let placed = false;
+      for (const { index: capIndex } of sortedCapitals) {
+        const needsNear = earlyCount[capIndex] < targetEarlyMin;
+        const ringWeights = needsNear
+          ? { near: 0.4, mid: 0.4, far: 0.2 }
+          : { near: 0, mid: 0.75, far: 0.25 };
+
+        const ring = this.pickVillageRing(ringWeights);
+        const ringOrder: VillageRing[] = [ring];
+        if (ring !== 'mid') ringOrder.push('mid');
+        if (ring !== 'far') ringOrder.push('far');
+        if (needsNear && ring !== 'near') ringOrder.push('near');
+
+        placed = tryPlaceWithRings(capIndex, ringOrder, false);
+        if (!placed) {
+          placed = tryPlaceWithRings(capIndex, ringOrder, true);
+        }
+
+        if (placed) break;
+      }
+
+      if (!placed) break;
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      const earlyMin = Math.min(...earlyCount);
+      const earlyMax = Math.max(...earlyCount);
+      const ringSummary = ringCount
+        .map((counts, index) => `P${index + 1} N${counts.near}/M${counts.mid}/F${counts.far}`)
+        .join(' | ');
+      console.log(
+        `Villages: placed ${placedVillages.length}/${targetPlacements}, contested ${contestedPlaced}/${contestedTarget}, early spread ${earlyMin}-${earlyMax}`
+      );
+      if (ringSummary) {
+        console.log(`Villages: ring counts ${ringSummary}`);
+      }
+    }
   }
 
   /**
@@ -550,6 +1647,144 @@ export class MapGenerator {
     return true;
   }
 
+  private getVillageRingBands(): VillageRingBands {
+    const size = this.config.mapSize;
+    const offset = size === 'tiny' || size === 'small' ? -1 : size === 'large' || size === 'huge' ? 1 : 0;
+    const minFromCity = MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE_FROM_CITY;
+
+    const near: VillageRingBand = { min: 3 + offset, max: 5 + offset };
+    const mid: VillageRingBand = { min: 6 + offset, max: 9 + offset };
+    const far: VillageRingBand = { min: 10 + offset, max: 14 + offset };
+
+    if (near.min < minFromCity) near.min = minFromCity;
+    if (near.max < near.min) near.max = near.min;
+    if (mid.min <= near.max) mid.min = near.max + 1;
+    if (mid.max < mid.min) mid.max = mid.min;
+    if (far.min <= mid.max) far.min = mid.max + 1;
+    if (far.max < far.min) far.max = far.min;
+
+    return { near, mid, far };
+  }
+
+  private getVillageEarlyRadius(): number {
+    return MAP_GENERATION_CONSTANTS.VILLAGE_EARLY_RADIUS_BY_SIZE[this.config.mapSize];
+  }
+
+  private getVillageTargetEarlyMin(): number {
+    return MAP_GENERATION_CONSTANTS.VILLAGE_TARGET_EARLY_MIN;
+  }
+
+  private getVillageRing(distance: number, bands: VillageRingBands): VillageRing | null {
+    if (distance >= bands.near.min && distance <= bands.near.max) return 'near';
+    if (distance >= bands.mid.min && distance <= bands.mid.max) return 'mid';
+    if (distance >= bands.far.min && distance <= bands.far.max) return 'far';
+    return null;
+  }
+
+  private pickVillageRing(weights: Record<VillageRing, number>): VillageRing {
+    const total = weights.near + weights.mid + weights.far;
+    const roll = this.rng.next() * total;
+    if (roll < weights.near) return 'near';
+    if (roll < weights.near + weights.mid) return 'mid';
+    return 'far';
+  }
+
+  private buildLandmassIndex(tiles: Tile[]): Map<string, number> {
+    const tileIndex = this.buildTileIndex(tiles);
+    const visited = new Set<string>();
+    const landmassByCoord = new Map<string, number>();
+    let massId = 0;
+
+    for (const tile of tiles) {
+      if (tile.terrain === 'water') continue;
+      const key = this.coordKey(tile.coordinate);
+      if (visited.has(key)) continue;
+
+      const queue: Tile[] = [tile];
+      visited.add(key);
+
+      while (queue.length > 0) {
+        const current = queue.shift() as Tile;
+        const currentKey = this.coordKey(current.coordinate);
+        landmassByCoord.set(currentKey, massId);
+
+        for (const neighborCoord of hexNeighbors(current.coordinate)) {
+          const neighborKey = this.coordKey(neighborCoord);
+          if (visited.has(neighborKey)) continue;
+          const neighbor = tileIndex.get(neighborKey);
+          if (!neighbor || neighbor.terrain === 'water') continue;
+          visited.add(neighborKey);
+          queue.push(neighbor);
+        }
+      }
+
+      massId += 1;
+    }
+
+    return landmassByCoord;
+  }
+
+  private isVillageContested(
+    candidate: VillageCandidateEntry,
+    bands: VillageRingBands
+  ): boolean {
+    const inMid = candidate.nearestDistance >= bands.mid.min && candidate.nearestDistance <= bands.mid.max;
+    if (!inMid) return false;
+    return candidate.secondDistance <= bands.mid.max + 1;
+  }
+
+  private scoreVillageCandidate(
+    candidate: VillageCandidateEntry,
+    distanceToCapital: number,
+    ring: VillageRing,
+    bands: VillageRingBands,
+    mapRadius: number,
+    placedVillages: HexCoordinate[],
+    contestedTarget: number,
+    contestedPlaced: number,
+    ownershipPenalty: boolean
+  ): number {
+    const band = bands[ring];
+    const center = (band.min + band.max) / 2;
+    const span = Math.max(1, band.max - band.min + 1);
+    const ringScore = 1 - Math.min(1, Math.abs(distanceToCapital - center) / span);
+
+    let contestedScore = 0;
+    if (this.isVillageContested(candidate, bands) && contestedTarget > 0) {
+      const contestedSpan = Math.max(1, bands.mid.max - bands.mid.min + 1);
+      const distanceBonus = Math.max(0, (bands.mid.max + 1 - candidate.secondDistance) / contestedSpan);
+      const ramp = Math.max(
+        0,
+        Math.min(1, (contestedTarget - contestedPlaced) / contestedTarget)
+      );
+      contestedScore = distanceBonus * ramp;
+    }
+
+    const radialDistance = Math.hypot(candidate.tile.coordinate.q, candidate.tile.coordinate.r);
+    const edgeRatio = Math.min(1, radialDistance / Math.max(1, mapRadius));
+    const edgePenalty = edgeRatio > 0.75 ? (edgeRatio - 0.75) / 0.25 : 0;
+
+    let clusterPenalty = 0;
+    if (placedVillages.length > 0) {
+      const nearest = Math.min(...placedVillages.map(pos => hexDistance(pos, candidate.tile.coordinate)));
+      const clusterRadius = MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE + 1;
+      if (nearest <= clusterRadius) {
+        clusterPenalty = 1 - nearest / clusterRadius;
+      }
+    }
+
+    const ownershipPenaltyValue = ownershipPenalty ? 0.4 : 0;
+
+    return (
+      ringScore * 1.2 +
+      contestedScore * 0.8 -
+      edgePenalty * 0.4 -
+      clusterPenalty * 0.5 -
+      ownershipPenaltyValue +
+      this.rng.next() * 0.05
+    );
+  }
+
   /**
    * Step 4: Generate terrain with tribal homeland modifiers
    * Uses Polytopia-style Luxidoor base percentages (48% fields, 38% forests, 14% mountains)
@@ -563,6 +1798,8 @@ export class MapGenerator {
     };
     
     for (const tile of tiles) {
+      if (tile.terrain === 'water') continue;
+
       // Default terrain generation
       let terrainProbs = { ...baseTerrain };
       
@@ -570,8 +1807,8 @@ export class MapGenerator {
       for (let i = 0; i < capitalPositions.length; i++) {
         const distance = hexDistance(tile.coordinate, capitalPositions[i]);
         if (distance <= MAP_GENERATION_CONSTANTS.TRIBAL_HOMELAND_RADIUS) {
-          const factionId = this.playerFactions[i] as FactionId;
-          const modifiers = TRIBAL_SPAWN_MODIFIERS[factionId];
+          const factionId = this.normalizeFactionId(this.playerFactions[i]);
+          const modifiers = factionId ? TRIBAL_SPAWN_MODIFIERS[factionId] : null;
           
           if (modifiers) {
             // Apply tribal homeland modifiers with distance falloff
@@ -582,7 +1819,7 @@ export class MapGenerator {
       }
       
       // Generate terrain based on modified probabilities
-      tile.terrain = this.selectTerrainFromProbabilities(tile.coordinate, terrainProbs, mapRadius, capitalPositions);
+      tile.terrain = this.selectLandTerrainFromProbabilities(tile.coordinate, terrainProbs);
     }
   }
 
@@ -613,49 +1850,17 @@ export class MapGenerator {
   }
 
   /**
-   * Select terrain based on probabilities and noise
-   * Includes tribal water modifier for coast generation
+   * Select land terrain based on probabilities and noise
    */
-  private selectTerrainFromProbabilities(
-    coord: HexCoordinate, 
-    probs: TerrainProbabilities, 
-    mapRadius: number, 
-    capitalPositions: HexCoordinate[]
+  private selectLandTerrainFromProbabilities(
+    coord: HexCoordinate,
+    probs: TerrainProbabilities
   ): TerrainType {
-    // Use noise to add variation
     const noiseValue = this.noise2D(coord.q * 0.1, coord.r * 0.1);
-    const distanceFromCenter = Math.sqrt(coord.q ** 2 + coord.r ** 2) / mapRadius;
-    
-    // Base edge effects (more water near edges) - increased for better Mulekite support
-    let waterChance = distanceFromCenter > MAP_GENERATION_CONSTANTS.WATER_EDGE_THRESHOLD ? 
-      MAP_GENERATION_CONSTANTS.WATER_EDGE_CHANCE : MAP_GENERATION_CONSTANTS.WATER_CENTER_CHANCE;
-    
-    // Apply tribal water modifier if near capitals
-    for (let i = 0; i < this.config.playerCount && i < capitalPositions.length; i++) {
-      const capitalPos = capitalPositions[i];
-      if (capitalPos) {
-        const distance = hexDistance(coord, capitalPos);
-        if (distance <= MAP_GENERATION_CONSTANTS.TRIBAL_HOMELAND_RADIUS) {
-          const factionId = this.playerFactions[i] as FactionId;
-          const modifiers = TRIBAL_SPAWN_MODIFIERS[factionId];
-          
-          if (modifiers) {
-            const influence = Math.max(0, 1 - distance / MAP_GENERATION_CONSTANTS.TRIBAL_INFLUENCE_FALLOFF);
-            const waterMod = 1 + (modifiers.water - 1) * influence;
-            waterChance *= waterMod;
-          }
-        }
-      }
-    }
-    
-    const rand = this.rng.next() + noiseValue * 0.3;
-    
-    if (rand < waterChance) return 'water';
-    
-    const adjustedRand = (rand - waterChance) / (1 - waterChance);
-    
-    if (adjustedRand < probs.mountain) return 'mountain';
-    if (adjustedRand < probs.mountain + probs.forest) return 'forest';
+    const rand = Math.max(0, Math.min(0.999, this.rng.next() + noiseValue * 0.2));
+
+    if (rand < probs.mountain) return 'mountain';
+    if (rand < probs.mountain + probs.forest) return 'forest';
     return 'plains';
   }
 
@@ -702,8 +1907,8 @@ export class MapGenerator {
     // This method is kept for future expansion if needed
     
     for (let i = 0; i < capitalPositions.length; i++) {
-      const factionId = this.playerFactions[i] as FactionId;
-      const modifiers = TRIBAL_SPAWN_MODIFIERS[factionId];
+      const factionId = this.normalizeFactionId(this.playerFactions[i]);
+      const modifiers = factionId ? TRIBAL_SPAWN_MODIFIERS[factionId] : null;
       
       // Future: Add any special tribal features here
       // For now, all tribal bonuses are handled through spawn rate modifiers
@@ -716,16 +1921,23 @@ export class MapGenerator {
    * Strategic resource placement with wilderness exemptions for key resources
    * Basic resources (timber, goats, grain, ore) can spawn beyond city radius to reward expansion
    */
-  private placeResourcesStrategically(tiles: Tile[], capitalPositions: HexCoordinate[]): void {
+  private placeResourcesStrategically(
+    tiles: Tile[],
+    capitalPositions: HexCoordinate[]
+  ): LandResourceConstraintContext {
     // 1. Identify all city coordinates
     const cityTiles = tiles.filter(tile => tile.hasCity);
-    if (cityTiles.length === 0) return; // No cities to place resources around
-    
+    if (cityTiles.length === 0) {
+      return this.buildLandResourceConstraintContext(tiles, capitalPositions);
+    }
+
     const cityCoordinates = cityTiles.map(tile => tile.coordinate);
-    
+
     // 2. Identify spawnable tiles - different rules for different resource types
     const nearCityTiles = tiles.filter(tile => {
       if (tile.hasCity) return false; // Don't place on city tiles
+      if (tile.terrain === 'water') return false;
+      if (tile.feature === 'village') return false;
       
       for (const cityCoord of cityCoordinates) {
         if (hexDistance(tile.coordinate, cityCoord) <= MAP_GENERATION_CONSTANTS.OUTER_CITY_RADIUS) {
@@ -734,10 +1946,12 @@ export class MapGenerator {
       }
       return false;
     });
-    
+
     // 3. All wilderness tiles for exempt resources (timber, goats, grain, ore)
     const wildernessTiles = tiles.filter(tile => {
       if (tile.hasCity) return false; // Don't place on city tiles
+      if (tile.terrain === 'water') return false;
+      if (tile.feature === 'village') return false;
       
       // Check if far enough from any city (3+ tiles away for true wilderness)
       for (const cityCoord of cityCoordinates) {
@@ -747,106 +1961,466 @@ export class MapGenerator {
       }
       return true;
     });
-    
-    // 4. Place city-area resources using distance-based spawn tables
+
+    const candidates: ResourceCandidate[] = [];
+
+    // 4. Determine city-area resource candidates using distance-based spawn tables
     nearCityTiles.forEach(tile => {
       const distanceToNearestCity = Math.min(
         ...cityCoordinates.map(cityCoord => hexDistance(tile.coordinate, cityCoord))
       );
-      
+
       let spawnTable: ResourceSpawnRate;
+      let zone: ResourceCandidate['zone'];
       if (distanceToNearestCity === MAP_GENERATION_CONSTANTS.INNER_CITY_RADIUS) {
         spawnTable = this.getInnerCitySpawnTable(); // Adjacent to city
+        zone = 'inner';
       } else {
         spawnTable = this.getOuterCitySpawnTable(); // 2 tiles from city
+        zone = 'outer';
       }
 
       spawnTable = this.applyTribalModifiersForTile(spawnTable, tile.coordinate, capitalPositions);
-      
-      // Attempt to spawn a resource based on terrain and spawn table
+
       const resourceToSpawn = this.getResourceFromTable(spawnTable, tile.terrain);
-      
-      if (resourceToSpawn) {
-        tile.resources.push(resourceToSpawn);
+      if (resourceToSpawn && this.isLandResourceType(resourceToSpawn)) {
+        candidates.push({
+          tile,
+          resource: resourceToSpawn,
+          zone,
+          distanceToNearestCity,
+          order: this.rng.next(),
+        });
       }
     });
-    
-    // 5. Place wilderness resources (exempt from city radius restriction)
+
+    // 5. Determine wilderness resource candidates (exempt from city radius restriction)
     wildernessTiles.forEach(tile => {
       let wildernessSpawnTable = this.getWildernessSpawnTable();
       wildernessSpawnTable = this.applyTribalModifiersForTile(wildernessSpawnTable, tile.coordinate, capitalPositions);
       const resourceToSpawn = this.getResourceFromTable(wildernessSpawnTable, tile.terrain);
-      
-      if (resourceToSpawn) {
-        tile.resources.push(resourceToSpawn);
+
+      if (resourceToSpawn && this.isLandResourceType(resourceToSpawn)) {
+        const distanceToNearestCity = Math.min(
+          ...cityCoordinates.map(cityCoord => hexDistance(tile.coordinate, cityCoord))
+        );
+        candidates.push({
+          tile,
+          resource: resourceToSpawn,
+          zone: 'wilderness',
+          distanceToNearestCity,
+          order: this.rng.next(),
+        });
       }
     });
-    
-    // 6. Harvest guarantees handled by generateMap after resource placement.
+
+    const context = this.buildLandResourceConstraintContext(tiles, capitalPositions);
+    const zonePriority: Record<ResourceCandidate['zone'], number> = {
+      inner: 0,
+      outer: 1,
+      wilderness: 2,
+    };
+
+    candidates.sort((a, b) => {
+      const zoneDelta = zonePriority[a.zone] - zonePriority[b.zone];
+      if (zoneDelta !== 0) return zoneDelta;
+      if (a.distanceToNearestCity !== b.distanceToNearestCity) {
+        return a.distanceToNearestCity - b.distanceToNearestCity;
+      }
+      return a.order - b.order;
+    });
+
+    for (const candidate of candidates) {
+      if (candidate.tile.resources.length > 0) continue;
+      if (!this.isResourceTerrainCompatible(candidate.resource, candidate.tile.terrain)) continue;
+      this.tryPlaceLandResourceCandidate(candidate, context, tiles);
+    }
+
+    return context;
   }
   
   /**
    * Guarantee each capital has at least 2 harvestable resources within 2 tiles
    * Per blueprint: "randomly upgrade empty field/forest/mountain tiles until count == 2"
    */
-  private guaranteeCapitalHarvestOpportunities(tiles: Tile[], capitalPositions: HexCoordinate[]): void {
-    const harvestableTypes = ['grain_patch', 'wild_goats', 'timber_grove', 'ore_vein'];
-    
-    for (const capitalPos of capitalPositions) {
-      // Count harvestable resources within 2 tiles
+  private guaranteeCapitalHarvestOpportunities(
+    tiles: Tile[],
+    capitalPositions: HexCoordinate[],
+    context: LandResourceConstraintContext
+  ): void {
+    const harvestableTypes: LandResourceType[] = [...LAND_RESOURCE_TYPES];
+    const minimumGuarantee = 2;
+
+    for (let capitalIndex = 0; capitalIndex < capitalPositions.length; capitalIndex++) {
+      const capitalPos = capitalPositions[capitalIndex];
       const nearbyTiles = tiles.filter(tile => {
         const distance = hexDistance(tile.coordinate, capitalPos);
         return distance <= 2 && distance > 0; // Within 2 tiles but not on capital
       });
-      
-      let harvestableCount = 0;
-      nearbyTiles.forEach(tile => {
-        tile.resources.forEach(resource => {
-          if (harvestableTypes.includes(resource)) {
-            harvestableCount++;
-          }
-        });
+
+      const harvestableCount = nearbyTiles.filter(tile =>
+        tile.resources.some(resource => this.isLandResourceType(resource) && harvestableTypes.includes(resource))
+      ).length;
+
+      if (harvestableCount >= minimumGuarantee) continue;
+
+      const upgradableTargets = nearbyTiles.filter(tile => {
+        if (tile.hasCity) return false;
+        if (tile.resources.length > 0) return false;
+        if (tile.terrain === 'water') return false;
+        if (tile.feature === 'village') return false;
+        return true;
       });
-      
-      // If less than 2 harvestable resources, upgrade empty tiles
-      if (harvestableCount < 2) {
-        const upgradableTargets = nearbyTiles.filter(tile => {
-          // Must be empty and suitable terrain
-          if (tile.resources.length > 0) return false;
-          if (tile.terrain === 'water') return false;
-          return true;
-        });
-        
-        // Shuffle for randomness
-        for (let i = upgradableTargets.length - 1; i > 0; i--) {
-          const j = Math.floor(this.rng.next() * (i + 1));
-          [upgradableTargets[i], upgradableTargets[j]] = [upgradableTargets[j], upgradableTargets[i]];
-        }
-        
-        // Upgrade tiles until we have 2 harvestable resources
-        let upgraded = 0;
-        const needed = 2 - harvestableCount;
-        
+
+      this.shuffleTiles(upgradableTargets);
+
+      const needed = minimumGuarantee - harvestableCount;
+      let upgraded = 0;
+
+      const attemptPlacement = (minDistance: number, maxPerCapital: number): number => {
+        let placed = 0;
         for (const tile of upgradableTargets) {
-          if (upgraded >= needed) break;
-          
-          let resourceToAdd = '';
-          
-          // Add terrain-appropriate resource
-          if (tile.terrain === 'plains') {
-            resourceToAdd = this.rng.next() < 0.6 ? 'grain_patch' : 'wild_goats';
-          } else if (tile.terrain === 'forest') {
-            resourceToAdd = this.rng.next() < 0.5 ? 'timber_grove' : 'wild_goats';
-          } else if (tile.terrain === 'mountain') {
-            resourceToAdd = 'ore_vein';
+          if (placed + upgraded >= needed) break;
+          const resourceChoice = this.pickGuaranteeResource(tile);
+          if (!resourceChoice) continue;
+
+          const resourcesToTry: LandResourceType[] = [
+            resourceChoice,
+            ...this.getAlternativeResources(resourceChoice, tile.terrain),
+          ];
+
+          for (const resourceToAdd of resourcesToTry) {
+            if (!this.isResourceTerrainCompatible(resourceToAdd, tile.terrain)) continue;
+            const capIndex = context.homeZoneByCoord.get(this.coordKey(tile.coordinate));
+            const result = this.canPlaceLandResource(
+              tile,
+              resourceToAdd,
+              context,
+              capIndex,
+              { minDistance, maxPerCapital }
+            );
+            if (result.ok) {
+              this.commitLandResource(tile, resourceToAdd, context, capIndex);
+              placed += 1;
+              break;
+            }
+            this.recordLandResourceBlock(context, result.reason);
           }
-          
-          if (resourceToAdd) {
-            tile.resources.push(resourceToAdd);
-            upgraded++;
-          }
+        }
+        return placed;
+      };
+
+      upgraded += attemptPlacement(context.minDistance, context.maxPerCapital);
+
+      let relaxedSpacing = false;
+      const spacingRelaxed = Math.max(0, context.minDistance - 1);
+      if (upgraded < needed && spacingRelaxed !== context.minDistance) {
+        const placed = attemptPlacement(spacingRelaxed, context.maxPerCapital);
+        if (placed > 0) {
+          relaxedSpacing = true;
+          upgraded += placed;
         }
       }
+
+      let relaxedCap = false;
+      if (upgraded < needed) {
+        const placed = attemptPlacement(Math.max(0, spacingRelaxed - 1), 0);
+        if (placed > 0) {
+          relaxedCap = true;
+          upgraded += placed;
+        }
+      }
+
+      if (relaxedSpacing) {
+        context.debug.relaxSpacingUsed[capitalIndex] += 1;
+      }
+      if (relaxedCap) {
+        context.debug.relaxCapUsed[capitalIndex] += 1;
+      }
+    }
+  }
+
+  private buildLandResourceConstraintContext(
+    tiles: Tile[],
+    capitalPositions: HexCoordinate[]
+  ): LandResourceConstraintContext {
+    const minDistance = Math.max(0, this.config.minResourceDistance ?? 0);
+    let maxPerCapital = Math.max(0, this.config.maxResourcesPerPlayer ?? 0);
+    const homeRadius = MAP_GENERATION_CONSTANTS.OUTER_CITY_RADIUS;
+    const minimumGuarantee = 2;
+
+    let maxPerCapitalClamped = false;
+    if (maxPerCapital > 0 && maxPerCapital < minimumGuarantee) {
+      maxPerCapital = minimumGuarantee;
+      maxPerCapitalClamped = true;
+    }
+
+    const homeZoneByCoord = new Map<string, number>();
+    const homeCountByCapital = new Array(capitalPositions.length).fill(0);
+    const tileIndex = this.buildTileIndex(tiles);
+    const resourceCoordsByType = new Map<LandResourceType, HexCoordinate[]>(
+      LAND_RESOURCE_TYPES.map(type => [type, []])
+    );
+    const occupiedCoords = new Set<string>();
+
+    for (const tile of tiles) {
+      let nearestIndex = -1;
+      let nearestDistance = Infinity;
+      for (let index = 0; index < capitalPositions.length; index++) {
+        const distance = hexDistance(tile.coordinate, capitalPositions[index]);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestIndex = index;
+        }
+      }
+      if (nearestIndex >= 0 && nearestDistance <= homeRadius) {
+        homeZoneByCoord.set(this.coordKey(tile.coordinate), nearestIndex);
+      }
+    }
+
+    for (const tile of tiles) {
+      let hasLandResource = false;
+      for (const resource of tile.resources) {
+        if (this.isLandResourceType(resource)) {
+          const list = resourceCoordsByType.get(resource);
+          if (list) {
+            list.push(tile.coordinate);
+          }
+          hasLandResource = true;
+        }
+      }
+
+      if (hasLandResource) {
+        const key = this.coordKey(tile.coordinate);
+        occupiedCoords.add(key);
+        const capIndex = homeZoneByCoord.get(key);
+        if (capIndex !== undefined) {
+          homeCountByCapital[capIndex] += 1;
+        }
+      }
+    }
+
+    return {
+      minDistance,
+      maxPerCapital,
+      homeRadius,
+      homeZoneByCoord,
+      homeCountByCapital,
+      resourceCoordsByType,
+      occupiedCoords,
+      tileIndex,
+      debug: {
+        blockedBySpacing: 0,
+        blockedByCap: 0,
+        blockedByOccupied: 0,
+        fallbackPlaced: 0,
+        relaxSpacingUsed: new Array(capitalPositions.length).fill(0),
+        relaxCapUsed: new Array(capitalPositions.length).fill(0),
+        maxPerCapitalClamped,
+      },
+    };
+  }
+
+  private tryPlaceLandResourceCandidate(
+    candidate: ResourceCandidate,
+    context: LandResourceConstraintContext,
+    tiles: Tile[]
+  ): boolean {
+    if (this.tryCommitLandResource(candidate.tile, candidate.resource, context, false)) return true;
+
+    if (this.tryNearbyLandResource(candidate.tile, candidate.resource, context, tiles)) return true;
+
+    const alternatives = this.getAlternativeResources(candidate.resource, candidate.tile.terrain);
+    for (const alternative of alternatives) {
+      if (this.tryCommitLandResource(candidate.tile, alternative, context, true)) return true;
+      if (this.tryNearbyLandResource(candidate.tile, alternative, context, tiles)) return true;
+    }
+
+    return false;
+  }
+
+  private tryNearbyLandResource(
+    origin: Tile,
+    resource: LandResourceType,
+    context: LandResourceConstraintContext,
+    tiles: Tile[]
+  ): boolean {
+    for (const radius of [1, 2]) {
+      const nearby = tiles.filter(tile => {
+        const distance = hexDistance(tile.coordinate, origin.coordinate);
+        return distance > radius - 1 && distance <= radius;
+      });
+      this.shuffleTiles(nearby);
+
+      for (const tile of nearby) {
+        if (tile === origin) continue;
+        if (tile.hasCity) continue;
+        if (tile.feature === 'village') continue;
+        if (tile.terrain === 'water') continue;
+        if (tile.resources.length > 0) continue;
+        if (!this.isResourceTerrainCompatible(resource, tile.terrain)) continue;
+
+        if (this.tryCommitLandResource(tile, resource, context, true)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private tryCommitLandResource(
+    tile: Tile,
+    resource: LandResourceType,
+    context: LandResourceConstraintContext,
+    markFallback: boolean
+  ): boolean {
+    if (tile.terrain === 'water') return false;
+    if (tile.hasCity) return false;
+    if (tile.feature === 'village') return false;
+    if (tile.resources.length > 0) return false;
+    if (!this.isResourceTerrainCompatible(resource, tile.terrain)) return false;
+
+    const capIndex = context.homeZoneByCoord.get(this.coordKey(tile.coordinate));
+    const result = this.canPlaceLandResource(tile, resource, context, capIndex);
+    if (!result.ok) {
+      this.recordLandResourceBlock(context, result.reason);
+      return false;
+    }
+
+    this.commitLandResource(tile, resource, context, capIndex);
+    if (markFallback) {
+      context.debug.fallbackPlaced += 1;
+    }
+    return true;
+  }
+
+  private canPlaceLandResource(
+    tile: Tile,
+    resource: LandResourceType,
+    context: LandResourceConstraintContext,
+    capIndex?: number,
+    overrides?: { minDistance?: number; maxPerCapital?: number }
+  ): { ok: boolean; reason?: 'occupied' | 'spacing' | 'cap' } {
+    const key = this.coordKey(tile.coordinate);
+    if (context.occupiedCoords.has(key)) {
+      return { ok: false, reason: 'occupied' };
+    }
+
+    const minDistance = overrides?.minDistance ?? context.minDistance;
+    if (minDistance > 0) {
+      const existing = context.resourceCoordsByType.get(resource) ?? [];
+      for (const coord of existing) {
+        if (hexDistance(coord, tile.coordinate) < minDistance) {
+          return { ok: false, reason: 'spacing' };
+        }
+      }
+    }
+
+    const maxPerCapital = overrides?.maxPerCapital ?? context.maxPerCapital;
+    if (maxPerCapital > 0 && capIndex !== undefined) {
+      if (context.homeCountByCapital[capIndex] >= maxPerCapital) {
+        return { ok: false, reason: 'cap' };
+      }
+    }
+
+    return { ok: true };
+  }
+
+  private commitLandResource(
+    tile: Tile,
+    resource: LandResourceType,
+    context: LandResourceConstraintContext,
+    capIndex?: number
+  ): void {
+    tile.resources.push(resource);
+
+    const key = this.coordKey(tile.coordinate);
+    context.occupiedCoords.add(key);
+    const list = context.resourceCoordsByType.get(resource);
+    if (list) {
+      list.push(tile.coordinate);
+    }
+    if (capIndex !== undefined) {
+      context.homeCountByCapital[capIndex] += 1;
+    }
+  }
+
+  private recordLandResourceBlock(
+    context: LandResourceConstraintContext,
+    reason?: 'occupied' | 'spacing' | 'cap'
+  ): void {
+    if (!reason) return;
+    if (reason === 'occupied') context.debug.blockedByOccupied += 1;
+    if (reason === 'spacing') context.debug.blockedBySpacing += 1;
+    if (reason === 'cap') context.debug.blockedByCap += 1;
+  }
+
+  private isLandResourceType(resource: string): resource is LandResourceType {
+    return LAND_RESOURCE_TYPES.includes(resource as LandResourceType);
+  }
+
+  private isResourceTerrainCompatible(resource: LandResourceType, terrain: TerrainType): boolean {
+    return LAND_RESOURCES_BY_TERRAIN[terrain].includes(resource);
+  }
+
+  private getAlternativeResources(
+    resource: LandResourceType,
+    terrain: TerrainType
+  ): LandResourceType[] {
+    return LAND_RESOURCES_BY_TERRAIN[terrain].filter(option => option !== resource);
+  }
+
+  private pickGuaranteeResource(tile: Tile): LandResourceType | null {
+    if (tile.terrain === 'plains') {
+      return this.rng.next() < 0.6 ? 'grain_patch' : 'wild_goats';
+    }
+    if (tile.terrain === 'forest') {
+      return this.rng.next() < 0.5 ? 'timber_grove' : 'wild_goats';
+    }
+    if (tile.terrain === 'mountain') {
+      return 'ore_vein';
+    }
+    return null;
+  }
+
+  private shuffleTiles<T>(items: T[]): void {
+    for (let i = items.length - 1; i > 0; i--) {
+      const j = Math.floor(this.rng.next() * (i + 1));
+      [items[i], items[j]] = [items[j], items[i]];
+    }
+  }
+
+  private logLandResourcePlacementSummary(context: LandResourceConstraintContext): void {
+    if (process.env.NODE_ENV === 'production') return;
+
+    const debug = context.debug;
+    const clampNote = debug.maxPerCapitalClamped ? ' (clamped)' : '';
+    console.log(
+      `Land resources: blocked spacing ${debug.blockedBySpacing}, cap ${debug.blockedByCap}${clampNote}, occupied ${debug.blockedByOccupied}, fallback ${debug.fallbackPlaced}`
+    );
+
+    const relaxedSpacing = debug.relaxSpacingUsed
+      .map((count, index) => (count > 0 ? `P${index + 1}` : ''))
+      .filter(Boolean)
+      .join(', ');
+    if (relaxedSpacing) {
+      console.log(`Land resources: spacing relaxed for ${relaxedSpacing}`);
+    }
+
+    const relaxedCap = debug.relaxCapUsed
+      .map((count, index) => (count > 0 ? `P${index + 1}` : ''))
+      .filter(Boolean)
+      .join(', ');
+    if (relaxedCap) {
+      console.log(`Land resources: cap relaxed for ${relaxedCap}`);
+    }
+
+    const homeCounts = context.homeCountByCapital
+      .map((count, index) => `P${index + 1}=${count}`)
+      .join(', ');
+    if (homeCounts) {
+      console.log(`Land resources: home-zone counts ${homeCounts}`);
     }
   }
   
@@ -927,13 +2501,9 @@ export class MapGenerator {
    * Terrain-resource matching per Polytopia blueprint
    */
   private getResourceFromTable(spawnTable: ResourceSpawnRate, terrain: TerrainType): string | null {
-    // Water-only resources (50% of shallow water gets Fish Shoals per blueprint)
+    // Water resources are handled in a dedicated pass
     if (terrain === 'water') {
-      const roll = this.rng.nextInt(1, 100);
-      if (roll <= 50) { // 50% of shallow water gets Fish Shoals
-        return 'fishing_shoal';
-      }
-      return null; // Empty water
+      return null;
     }
     
     // Land-based resources with terrain matching per blueprint:
@@ -993,8 +2563,8 @@ export class MapGenerator {
       const distance = hexDistance(coord, capitalPos);
       if (distance > MAP_GENERATION_CONSTANTS.TRIBAL_HOMELAND_RADIUS) continue;
 
-      const factionId = this.playerFactions[i] as FactionId;
-      const modifiers = TRIBAL_SPAWN_MODIFIERS[factionId];
+      const factionId = this.normalizeFactionId(this.playerFactions[i]);
+      const modifiers = factionId ? TRIBAL_SPAWN_MODIFIERS[factionId] : null;
       if (!modifiers) continue;
 
       const influence = Math.max(0, 1 - distance / MAP_GENERATION_CONSTANTS.TRIBAL_INFLUENCE_FALLOFF);
