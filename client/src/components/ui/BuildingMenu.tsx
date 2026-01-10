@@ -28,6 +28,7 @@ import { InfoTooltip, ActionTooltip, StarProductionTooltip, FaithSystemTooltip, 
 import { BuildingMenuBackground } from './AnimatedBackground';
 import { PrimaryButton, SuccessButton, GhostButton } from './EnhancedButton';
 import { UNIT_DEFINITIONS } from '@shared/data/units';
+import { getFaction } from '@shared/data/factions';
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '@shared/types/city';
 import { GAME_RULES } from '@shared/data/gameRules';
 import { getPlayerStats } from '../../selectors/player';
@@ -37,6 +38,7 @@ interface BuildingOption {
   name: string;
   description: string;
   lore?: string;
+  factionTag?: string;
   category: 'units' | 'structures' | 'improvements';
   cost: {
     stars?: number;
@@ -84,8 +86,18 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
   const formatTechName = (techId: string) =>
     techId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
+  const resolveFactionNames = (ids: string[]) =>
+    ids.map((id) => {
+      const faction = getFaction(id as any);
+      return faction ? faction.name : String(id);
+    });
+
   const formatUnitRequirements = (unit: (typeof UNIT_DEFINITIONS)[keyof typeof UNIT_DEFINITIONS]) => {
     const out: string[] = [];
+    const factionNames = resolveFactionNames(unit.factionSpecific);
+    if (factionNames.length > 0) {
+      out.push(`Faction: ${factionNames.join(', ')}`);
+    }
     if (unit.requiredTechnology) out.push(`Technology: ${formatTechName(unit.requiredTechnology)}`);
     if (unit.requirements?.faith) out.push(`Faith: ${unit.requirements.faith}+`);
     if (unit.requirements?.pride) out.push(`Pride: ${unit.requirements.pride}+`);
@@ -146,11 +158,18 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
   // Generate building options from actual game data
   const buildingOptions: BuildingOption[] = [
     // Units from game data
-    ...Object.values(UNIT_DEFINITIONS).map(unit => ({
+    ...Object.values(UNIT_DEFINITIONS).map(unit => {
+      const factionNames = resolveFactionNames(unit.factionSpecific);
+      const factionTag = factionNames.length > 0
+        ? (factionNames.length === 1 ? `${factionNames[0]} only` : `Only: ${factionNames.join(', ')}`)
+        : undefined;
+
+      return ({
       id: unit.type,
       name: unit.name,
       description: unit.description,
       lore: loreById[unit.type],
+      factionTag,
       category: 'units' as const,
       cost: { stars: unit.cost },
       requirements: formatUnitRequirements(unit),
@@ -170,7 +189,8 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
         (!unit.requirements?.faith || player.stats.faith >= unit.requirements.faith) &&
         (!unit.requirements?.pride || player.stats.pride >= unit.requirements.pride) &&
         (!unit.requirements?.dissent || player.stats.internalDissent >= unit.requirements.dissent)
-    })),
+    });
+    }),
     
     // Structures from game data
     ...Object.values(STRUCTURE_DEFINITIONS).map(structure => {
@@ -533,6 +553,11 @@ function BuildingCard({
         <div className="flex-1">
           <h3 className="text-lg font-bold text-white font-cinzel">{option.name}</h3>
           <p className="text-sm text-slate-300 line-clamp-2">{option.description}</p>
+          {option.factionTag && (
+            <div className="mt-2 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-200">
+              {option.factionTag}
+            </div>
+          )}
         </div>
       </div>
 

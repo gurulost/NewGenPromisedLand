@@ -89,6 +89,16 @@ export const MAP_GENERATION_CONSTANTS = {
   INNER_CITY_RADIUS: 1,                // Adjacent to city
   OUTER_CITY_RADIUS: 2,                // Two tiles from city
   WILDERNESS_MIN_DISTANCE: 3,          // Minimum distance from city for wilderness resources
+
+  // Ruins placement
+  RUINS_DENSITY: 0.03,                 // Target ruins density per tile
+  RUINS_MIN_DISTANCE: 3,               // Minimum distance between ruins
+  RUINS_MIN_DISTANCE_FROM_CITY: 2,     // Minimum distance from cities/villages
+  RUINS_NEAR_MIN_DISTANCE: 2,          // Min distance from capital for "near" ring
+  RUINS_NEAR_MAX_DISTANCE: 4,          // Max distance from capital for "near" ring
+  RUINS_MID_MAX_DISTANCE: 8,           // Max distance from capital for "mid" ring
+  RUINS_MOUNTAIN_WEIGHT: 1.35,         // Slightly favor mountains for ruins
+  RUINS_FOREST_WEIGHT: 1.1,            // Mild forest preference
   
   // Village density
   VILLAGE_DENSITY_RATIO: 25,           // Tiles per village (tiles.length / 25 = 4% density)
@@ -114,7 +124,7 @@ interface TribalSpawnModifiers {
   wildAnimal: number;  // Applied independently to overlay tiles
   water: number;       // Applied independently to coast tiles
   fish: number;        // Applied independently to water tiles
-  ruins: number;       // Applied independently to overlay tiles
+  ruins: number;       // Legacy modifier (ruins are placed via dedicated pass)
   lore: string;        // Cultural background for this tribe
 }
 
@@ -263,10 +273,13 @@ export class MapGenerator {
     }
     
     // Step 6: Place resources strategically (city zones + wilderness)
-    this.placeResourcesStrategically(tiles);
+    this.placeResourcesStrategically(tiles, capitalPositions);
     
     // Step 6.5: Guarantee opening-ring harvest opportunities (safety pass)
     this.guaranteeCapitalHarvestOpportunities(tiles, capitalPositions);
+
+    // Step 6.75: Place Jaredite ruins as a dedicated pass for fairness and exploration
+    this.placeRuinsStrategically(tiles, capitalPositions);
     
     // Step 7: Place special features
     this.placeSpecialFeatures(tiles, capitalPositions);
@@ -652,7 +665,7 @@ export class MapGenerator {
 
   /**
    * Apply tribal homeland modifiers to resource spawn rates
-   * Water, fish, wild animals, and ruins are applied independently
+   * Water, fish, and wild animals are applied independently
    */
   private applyTribalResourceModifiers(
     baseRates: ResourceSpawnRate, 
@@ -664,18 +677,15 @@ export class MapGenerator {
     // Apply independent modifiers (these don't affect land terrain balance)
     // Updated per blueprint: wildAnimal → wild_goats, legacy identifiers replaced
     const wildGoatsMod = 1 + (modifiers.wildAnimal - 1) * influence;
-    const ruinsMod = 1 + (modifiers.ruins - 1) * influence;
     const fishMod = 1 + (modifiers.fish - 1) * influence;
     
     // Apply modifiers to unified world elements system - blueprint step 3 complete
     modified.wild_goats = Math.round(modified.wild_goats * wildGoatsMod);
-    modified.jaredite_ruins = Math.round(modified.jaredite_ruins * ruinsMod);
     modified.fishing_shoal = Math.round(modified.fishing_shoal * fishMod);
     modified.sea_beast = Math.round(modified.sea_beast * fishMod);
     
     // Clamp values to reasonable ranges
     modified.wild_goats = Math.max(0, Math.min(30, modified.wild_goats));
-    modified.jaredite_ruins = Math.max(0, Math.min(25, modified.jaredite_ruins));
     modified.fishing_shoal = Math.max(0, Math.min(20, modified.fishing_shoal));
     modified.sea_beast = Math.max(0, Math.min(15, modified.sea_beast));
     
@@ -706,7 +716,7 @@ export class MapGenerator {
    * Strategic resource placement with wilderness exemptions for key resources
    * Basic resources (timber, goats, grain, ore) can spawn beyond city radius to reward expansion
    */
-  private placeResourcesStrategically(tiles: Tile[]): void {
+  private placeResourcesStrategically(tiles: Tile[], capitalPositions: HexCoordinate[]): void {
     // 1. Identify all city coordinates
     const cityTiles = tiles.filter(tile => tile.hasCity);
     if (cityTiles.length === 0) return; // No cities to place resources around
@@ -750,6 +760,8 @@ export class MapGenerator {
       } else {
         spawnTable = this.getOuterCitySpawnTable(); // 2 tiles from city
       }
+
+      spawnTable = this.applyTribalModifiersForTile(spawnTable, tile.coordinate, capitalPositions);
       
       // Attempt to spawn a resource based on terrain and spawn table
       const resourceToSpawn = this.getResourceFromTable(spawnTable, tile.terrain);
@@ -761,7 +773,8 @@ export class MapGenerator {
     
     // 5. Place wilderness resources (exempt from city radius restriction)
     wildernessTiles.forEach(tile => {
-      const wildernessSpawnTable = this.getWildernessSpawnTable();
+      let wildernessSpawnTable = this.getWildernessSpawnTable();
+      wildernessSpawnTable = this.applyTribalModifiersForTile(wildernessSpawnTable, tile.coordinate, capitalPositions);
       const resourceToSpawn = this.getResourceFromTable(wildernessSpawnTable, tile.terrain);
       
       if (resourceToSpawn) {
@@ -858,7 +871,7 @@ export class MapGenerator {
       // Water-only resources
       fishing_shoal: 0,     // Water terrain only
       sea_beast: 0,         // Deep water only
-      jaredite_ruins: 4,    // Standard ruins count (4-23 based on map size)
+      jaredite_ruins: 0,    // Ruins placed in dedicated pass
       empty: 30             // Remaining empty tiles (12% fields + 19% forest + 3% mountain = 34% total empty)
     };
   }
@@ -878,7 +891,7 @@ export class MapGenerator {
       // No special/rare resources in wilderness
       fishing_shoal: 0,     // Water only
       sea_beast: 0,         // Deep water only  
-      jaredite_ruins: 0,    // No ruins in pure wilderness
+      jaredite_ruins: 0,    // Ruins placed in dedicated pass
       empty: 89.5           // Mostly empty wilderness
     };
   }
@@ -904,7 +917,7 @@ export class MapGenerator {
       // Water-only resources
       fishing_shoal: 0,     // Water terrain only
       sea_beast: 0,         // Deep water only
-      jaredite_ruins: 4,    // Standard ruins distribution
+      jaredite_ruins: 0,    // Ruins placed in dedicated pass
       empty: 75             // Majority empty in outer zones (36% fields + 32% forest + 11% mountain = 79% total empty)
     };
   }
@@ -952,13 +965,6 @@ export class MapGenerator {
         type: 'ore_vein', 
         rate: spawnTable.ore_vein, 
         terrains: ['mountain'] // Mountain only - tap vs mine choice
-      },
-      
-      // Ruins spawn on any land terrain
-      { 
-        type: 'jaredite_ruins', 
-        rate: spawnTable.jaredite_ruins, 
-        terrains: ['plains', 'forest', 'mountain'] 
       }
     ];
     
@@ -975,8 +981,161 @@ export class MapGenerator {
     return null;
   }
 
-  
+  private applyTribalModifiersForTile(
+    baseRates: ResourceSpawnRate,
+    coord: HexCoordinate,
+    capitalPositions: HexCoordinate[]
+  ): ResourceSpawnRate {
+    let modified = { ...baseRates };
 
+    for (let i = 0; i < this.config.playerCount && i < capitalPositions.length; i++) {
+      const capitalPos = capitalPositions[i];
+      const distance = hexDistance(coord, capitalPos);
+      if (distance > MAP_GENERATION_CONSTANTS.TRIBAL_HOMELAND_RADIUS) continue;
+
+      const factionId = this.playerFactions[i] as FactionId;
+      const modifiers = TRIBAL_SPAWN_MODIFIERS[factionId];
+      if (!modifiers) continue;
+
+      const influence = Math.max(0, 1 - distance / MAP_GENERATION_CONSTANTS.TRIBAL_INFLUENCE_FALLOFF);
+      modified = this.applyTribalResourceModifiers(modified, modifiers, influence);
+    }
+
+    return modified;
+  }
+
+  private placeRuinsStrategically(tiles: Tile[], capitalPositions: HexCoordinate[]): void {
+    if (capitalPositions.length === 0) return;
+
+    const cityPositions = tiles.filter(tile => tile.hasCity).map(tile => tile.coordinate);
+    const villagePositions = tiles.filter(tile => tile.feature === 'village').map(tile => tile.coordinate);
+    const minDistanceFromCity = MAP_GENERATION_CONSTANTS.RUINS_MIN_DISTANCE_FROM_CITY;
+
+    const ruinPools = capitalPositions.map(() => ({
+      near: [] as Tile[],
+      mid: [] as Tile[],
+      far: [] as Tile[],
+    }));
+
+    for (const tile of tiles) {
+      if (tile.terrain === 'water') continue;
+      if (tile.hasCity || tile.feature === 'village') continue;
+      if (tile.resources.length > 0) continue;
+
+      const { index, distance } = this.getNearestCapital(tile.coordinate, capitalPositions);
+      if (index < 0) continue;
+      if (distance < MAP_GENERATION_CONSTANTS.RUINS_NEAR_MIN_DISTANCE) continue;
+
+      if (this.isWithinDistance(tile.coordinate, cityPositions, minDistanceFromCity)) continue;
+      if (this.isWithinDistance(tile.coordinate, villagePositions, minDistanceFromCity)) continue;
+
+      const zone =
+        distance <= MAP_GENERATION_CONSTANTS.RUINS_NEAR_MAX_DISTANCE
+          ? 'near'
+          : distance <= MAP_GENERATION_CONSTANTS.RUINS_MID_MAX_DISTANCE
+            ? 'mid'
+            : 'far';
+
+      ruinPools[index][zone].push(tile);
+    }
+
+    const totalTarget = this.getRuinsTargetCount(tiles.length, capitalPositions.length);
+    const ruinsPlaced: HexCoordinate[] = [];
+    const ruinCounts = new Array(capitalPositions.length).fill(0);
+
+    const placeFromPool = (playerIndex: number, zones: Array<'near' | 'mid' | 'far'>): boolean => {
+      for (const zone of zones) {
+        const candidate = this.pickRuinCandidate(ruinPools[playerIndex][zone], ruinsPlaced);
+        if (!candidate) continue;
+        candidate.resources.push('jaredite_ruins');
+        ruinsPlaced.push(candidate.coordinate);
+        ruinCounts[playerIndex] += 1;
+        return true;
+      }
+      return false;
+    };
+
+    // Phase 1: Ensure each player has at least one near-cap ruin when possible.
+    for (let i = 0; i < capitalPositions.length; i++) {
+      placeFromPool(i, ['near', 'mid', 'far']);
+    }
+
+    let remaining = totalTarget - ruinsPlaced.length;
+    while (remaining > 0) {
+      const orderedPlayers = ruinCounts
+        .map((count, index) => ({ count, index }))
+        .sort((a, b) => a.count - b.count);
+
+      let placed = false;
+      const zoneBias = this.rng.next() < 0.7 ? ['mid', 'far', 'near'] : ['far', 'mid', 'near'];
+
+      for (const { index } of orderedPlayers) {
+        if (placeFromPool(index, zoneBias)) {
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed) break;
+      remaining -= 1;
+    }
+
+    if (process.env.NODE_ENV !== 'production' && ruinsPlaced.length < totalTarget) {
+      console.log(`Ruins placement capped at ${ruinsPlaced.length}/${totalTarget} due to spacing constraints.`);
+    }
+  }
+
+  private getRuinsTargetCount(tileCount: number, playerCount: number): number {
+    const densityTarget = Math.round(tileCount * MAP_GENERATION_CONSTANTS.RUINS_DENSITY);
+    return Math.max(playerCount + 1, densityTarget);
+  }
+
+  private getNearestCapital(
+    coord: HexCoordinate,
+    capitalPositions: HexCoordinate[]
+  ): { index: number; distance: number } {
+    let bestIndex = -1;
+    let bestDistance = Infinity;
+    for (let i = 0; i < capitalPositions.length; i++) {
+      const distance = hexDistance(coord, capitalPositions[i]);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = i;
+      }
+    }
+    return { index: bestIndex, distance: bestDistance };
+  }
+
+  private isWithinDistance(
+    coord: HexCoordinate,
+    positions: HexCoordinate[],
+    minDistance: number
+  ): boolean {
+    return positions.some(pos => hexDistance(coord, pos) < minDistance);
+  }
+
+  private pickRuinCandidate(candidates: Tile[], ruinsPlaced: HexCoordinate[]): Tile | null {
+    const minDistance = MAP_GENERATION_CONSTANTS.RUINS_MIN_DISTANCE;
+    const viable = candidates.filter(tile => {
+      if (tile.resources.length > 0) return false;
+      return ruinsPlaced.every(existing => hexDistance(tile.coordinate, existing) >= minDistance);
+    });
+
+    if (viable.length === 0) return null;
+
+    const weights = viable.map(tile => {
+      if (tile.terrain === 'mountain') return MAP_GENERATION_CONSTANTS.RUINS_MOUNTAIN_WEIGHT;
+      if (tile.terrain === 'forest') return MAP_GENERATION_CONSTANTS.RUINS_FOREST_WEIGHT;
+      return 1;
+    });
+    const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+    let roll = this.rng.next() * totalWeight;
+    for (let i = 0; i < viable.length; i++) {
+      roll -= weights[i];
+      if (roll <= 0) return viable[i];
+    }
+    return viable[viable.length - 1];
+  }
 
   // Static convenience method
   static generateBalancedMap(playerCount: number, seed?: number): GameMap {

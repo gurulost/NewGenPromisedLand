@@ -8,6 +8,7 @@ import { TECHNOLOGIES, type Technology } from '@shared/data/technologies';
 import { UNIT_DEFINITIONS } from '@shared/data/units';
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from '@shared/types/city';
 import { ABILITIES } from '@shared/data/abilities';
+import { getFaction } from '@shared/data/factions';
 import { GAME_RULES } from '@shared/data/gameRules';
 
 interface TechDiscoveryPanelProps {
@@ -15,10 +16,15 @@ interface TechDiscoveryPanelProps {
   onClose: () => void;
 }
 
+type UnlockItem = {
+  label: string;
+  sublabel?: string;
+};
+
 type UnlockGroup = {
   label: string;
   icon: JSX.Element;
-  items: string[];
+  items: UnlockItem[];
 };
 
 const CATEGORY_STYLES: Record<Technology['category'], { accent: string; glow: string; icon: JSX.Element }> = {
@@ -61,6 +67,19 @@ const resolveAbilityName = (abilityId: string) => {
 
 const formatBenefit = (value: string) => (value.includes('_') || value.includes('-') ? titleCase(value) : value);
 
+const getUnitFactionTag = (unitId: string) => {
+  const unitDef = UNIT_DEFINITIONS[unitId as keyof typeof UNIT_DEFINITIONS];
+  if (!unitDef || unitDef.factionSpecific.length === 0) return undefined;
+  const factionNames = unitDef.factionSpecific.map((id) => {
+    const faction = getFaction(id as any);
+    return faction ? faction.name : String(id);
+  });
+  if (factionNames.length === 0) return undefined;
+  return factionNames.length === 1
+    ? `${factionNames[0]} only`
+    : `Only: ${factionNames.join(', ')}`;
+};
+
 export function TechDiscoveryPanel({ techId, onClose }: TechDiscoveryPanelProps) {
   const playSfx = useSfxEngine();
   const [showContent, setShowContent] = useState(false);
@@ -68,23 +87,30 @@ export function TechDiscoveryPanel({ techId, onClose }: TechDiscoveryPanelProps)
 
   const unlockGroups = useMemo<UnlockGroup[]>(() => {
     if (!tech) return [];
-    const units = (tech.unlocks.units || []).map((id) => UNIT_DEFINITIONS[id as keyof typeof UNIT_DEFINITIONS]?.name ?? titleCase(id));
-    const improvements = (tech.unlocks.improvements || []).map((id) => IMPROVEMENT_DEFINITIONS[id as keyof typeof IMPROVEMENT_DEFINITIONS]?.name ?? titleCase(id));
-    const structures = (tech.unlocks.structures || []).map((id) => STRUCTURE_DEFINITIONS[id as keyof typeof STRUCTURE_DEFINITIONS]?.name ?? titleCase(id));
-    const abilities = (tech.unlocks.abilities || []).map(resolveAbilityName);
-    const benefits = (tech.unlocks.benefits || []).map(formatBenefit);
+    const units = (tech.unlocks.units || []).map((id) => {
+      const unitName = UNIT_DEFINITIONS[id as keyof typeof UNIT_DEFINITIONS]?.name ?? titleCase(id);
+      return { label: unitName, sublabel: getUnitFactionTag(id) };
+    });
+    const improvements = (tech.unlocks.improvements || []).map((id) => ({
+      label: IMPROVEMENT_DEFINITIONS[id as keyof typeof IMPROVEMENT_DEFINITIONS]?.name ?? titleCase(id),
+    }));
+    const structures = (tech.unlocks.structures || []).map((id) => ({
+      label: STRUCTURE_DEFINITIONS[id as keyof typeof STRUCTURE_DEFINITIONS]?.name ?? titleCase(id),
+    }));
+    const abilities = (tech.unlocks.abilities || []).map((id) => ({ label: resolveAbilityName(id) }));
+    const benefits = (tech.unlocks.benefits || []).map((id) => ({ label: formatBenefit(id) }));
     const hasSlinger = tech.unlocks.units?.includes('slinger');
     const hasCatapult = tech.unlocks.units?.includes('catapult');
     const hasFortress = tech.unlocks.structures?.includes('fortress');
-    const rules: string[] = [];
+    const rules: UnlockItem[] = [];
     if (hasSlinger || hasCatapult) {
-      rules.push('Ranged: forests reduce damage by 1');
+      rules.push({ label: 'Ranged: forests reduce damage by 1' });
     }
     if (hasCatapult) {
-      rules.push('Siege: range 2-3, cannot fire adjacent; deploy first');
+      rules.push({ label: 'Siege: range 2-3, cannot fire adjacent; deploy first' });
     }
     if (hasFortress) {
-      rules.push(`Fortress: -${GAME_RULES.combat.fortificationBonus} ranged damage taken`);
+      rules.push({ label: `Fortress: -${GAME_RULES.combat.fortificationBonus} ranged damage taken` });
     }
 
     return [
@@ -194,10 +220,15 @@ export function TechDiscoveryPanel({ techId, onClose }: TechDiscoveryPanelProps)
                                   <div className="flex flex-wrap gap-2">
                                     {group.items.map((item) => (
                                       <span
-                                        key={item}
-                                        className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.25)]"
+                                        key={`${group.label}-${item.label}`}
+                                        className="flex flex-col rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.25)]"
                                       >
-                                        {item}
+                                        <span>{item.label}</span>
+                                        {item.sublabel && (
+                                          <span className="text-[10px] font-medium text-amber-200/70">
+                                            {item.sublabel}
+                                          </span>
+                                        )}
                                       </span>
                                     ))}
                                   </div>
