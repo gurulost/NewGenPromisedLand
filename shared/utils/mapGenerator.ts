@@ -2,7 +2,8 @@ import { createNoise2D } from 'simplex-noise';
 import type { GameMap, Tile, TerrainType } from '@shared/types/game';
 import type { HexCoordinate } from '@shared/types/coordinates';
 import type { FactionId } from '@shared/types/faction';
-import { hexDistance, hexNeighbors } from './hex';
+import { GameRuleHelpers } from '@shared/data/gameRules';
+import { hexDistance, hexNeighbors, hexesInRange } from './hex';
 
 /**
  * Type definitions for map generation
@@ -223,6 +224,31 @@ export const MAP_GENERATION_CONSTANTS = {
   VILLAGE_TARGET_EARLY_MIN: 2,
   VILLAGE_CONTESTED_TARGET_RATIO: 0.15,
   VILLAGE_BEST_OF_K: 7,
+
+  // Neutral city placement
+  NEUTRAL_CITY_WORKABLE_MIN_BY_SIZE: {
+    tiny: 6,
+    small: 7,
+    normal: 8,
+    large: 9,
+    huge: 10,
+  },
+  NEUTRAL_CITY_MIN_LANDMASS_BY_SIZE: {
+    tiny: 10,
+    small: 14,
+    normal: 18,
+    large: 22,
+    huge: 26,
+  },
+  NEUTRAL_CITY_EARLY_RADIUS_BY_SIZE: {
+    tiny: 7,
+    small: 7,
+    normal: 8,
+    large: 9,
+    huge: 9,
+  },
+  NEUTRAL_CITY_MIN_LAND_NEIGHBORS: 3,
+  NEUTRAL_CITY_BEST_OF_K: 7,
 } as const;
 
 export const CAPITAL_MIN_DISTANCE_BY_SIZE: Record<MapSize, number> = {
@@ -375,17 +401,22 @@ export class MapGenerator {
     const capitalPositions = this.generateCapitalSpawns(mapRadius, tiles, waterData);
     this.lastCapitalPositions = capitalPositions;
     
-    // Step 4: Place neutral villages/cities
-    this.placeCities(tiles, mapRadius, capitalPositions);
+    // Step 4: Place capital cities
+    this.placeCapitalCities(tiles, capitalPositions);
     
     // Step 5: Generate terrain with faction-specific modifiers (BEFORE villages)
     this.generateFactionBiasedTerrain(tiles, mapRadius, capitalPositions);
 
-    // Step 5.5: Ensure cities are on land and capitals have workable land access
-    this.ensureCityLandTiles(tiles);
+    // Step 5.5: Ensure capitals have workable land access
     this.ensureCapitalLandAccess(tiles, capitalPositions, mapRadius);
 
-    // Step 5.75: Repair water access for water-leaning factions (rare fallback)
+    // Step 5.75: Place neutral cities after terrain is finalized
+    this.placeNeutralCities(tiles, mapRadius, capitalPositions);
+
+    // Step 5.9: Ensure any cities are on land (safety pass)
+    this.ensureCityLandTiles(tiles);
+
+    // Step 5.95: Repair water access for water-leaning factions (rare fallback)
     const repairedWaterData = this.repairCapitalWaterAccess(
       tiles,
       capitalPositions,
@@ -1097,40 +1128,223 @@ export class MapGenerator {
   }
 
   /**
-   * Step 3: Place cities with capital positions reserved for players
+   * Step 3: Place capital cities for players
    */
-  private placeCities(tiles: Tile[], mapRadius: number, capitalPositions: HexCoordinate[]): void {
-    // Mark capital positions as cities
+  private placeCapitalCities(tiles: Tile[], capitalPositions: HexCoordinate[]): void {
     for (const capitalPos of capitalPositions) {
-      const tile = tiles.find(t => 
+      const tile = tiles.find(t =>
         t.coordinate.q === capitalPos.q && t.coordinate.r === capitalPos.r
       );
       if (tile) {
         tile.hasCity = true;
       }
     }
+  }
 
-    // Place additional neutral cities/villages
+  /**
+   * Place neutral cities after terrain generation to avoid low-quality spawns.
+   */
+  private placeNeutralCities(
+    tiles: Tile[],
+    mapRadius: number,
+    capitalPositions: HexCoordinate[]
+  ): void {
+    if (capitalPositions.length === 0) return;
     const additionalCities = Math.max(2, Math.floor(this.config.playerCount * 0.5));
-    let placed = 0;
-    let attempts = 0;
-    const maxAttempts = tiles.length * 10; // Prevent infinite loops on small/tight maps
-    const cityPositions = [...capitalPositions];
-    
-    while (placed < additionalCities && attempts < maxAttempts) {
-      attempts++;
-      const candidate = tiles[Math.floor(this.rng.next() * tiles.length)];
-      
-      // Check distance from existing cities
-      const tooClose = cityPositions.some(cityPos => 
-        hexDistance(candidate.coordinate, cityPos) < MAP_GENERATION_CONSTANTS.CITY_MIN_DISTANCE
-      );
-      
-      if (!candidate.hasCity && candidate.terrain !== 'water' && !tooClose) {
-        candidate.hasCity = true;
-        cityPositions.push(candidate.coordinate);
-        placed++;
+    if (additionalCities <= 0) return;
+
+    const neutralRng = new SeededRandom(this.deriveSeed('neutralCities'));
+    const cityPositions = capitalPositions.map(pos => ({ ...pos }));
+    const landmassData = this.buildLandmassData(tiles);
+    const capitalLandmass = capitalPositions.map(cap =>
+      landmassData.massByCoord.get(this.coordKey(cap))
+    );
+    const minLandNeighbors = MAP_GENERATION_CONSTANTS.NEUTRAL_CITY_MIN_LAND_NEIGHBORS;
+    const minWorkable = this.getNeutralCityWorkableMin();
+    const minLandmass = this.getNeutralCityLandmassMin();
+    const earlyRadius = this.getNeutralCityEarlyRadius();
+    const ringBands = this.getVillageRingBands();
+
+    const tileIndex = this.buildTileIndex(tiles);
+    const workableCountByKey = new Map<string, number>();
+
+    for (const tile of tiles) {
+      const key = this.coordKey(tile.coordinate);
+      let workableCount = 0;
+      for (const coord of hexesInRange(tile.coordinate, 2)) {
+        const neighbor = tileIndex.get(this.coordKey(coord));
+        if (!neighbor) continue;
+        if (!GameRuleHelpers.isTerrainPassable(neighbor.terrain)) continue;
+        workableCount += 1;
       }
+      workableCountByKey.set(key, workableCount);
+    }
+
+    const candidates = tiles
+      .filter(tile => !tile.hasCity && tile.terrain !== 'water')
+      .map(tile => {
+        const landmassId = landmassData.massByCoord.get(this.coordKey(tile.coordinate));
+        const landmassSize = landmassId !== undefined ? landmassData.massSizes[landmassId] ?? 0 : 0;
+        if (landmassSize < minLandmass) return null;
+
+        const landNeighbors = hexNeighbors(tile.coordinate)
+          .map(coord => tileIndex.get(this.coordKey(coord)))
+          .filter((neighbor): neighbor is Tile => !!neighbor && neighbor.terrain !== 'water').length;
+        if (landNeighbors < minLandNeighbors) return null;
+
+        const workableCount = workableCountByKey.get(this.coordKey(tile.coordinate)) ?? 0;
+        if (workableCount < minWorkable) return null;
+
+        const distances = capitalPositions.map(cap => hexDistance(tile.coordinate, cap));
+        const nearestDistance = Math.min(...distances);
+        const radialDistance = Math.hypot(tile.coordinate.q, tile.coordinate.r);
+        const mountainNeighbors = hexNeighbors(tile.coordinate)
+          .map(coord => tileIndex.get(this.coordKey(coord)))
+          .filter((neighbor): neighbor is Tile => !!neighbor && neighbor.terrain === 'mountain').length;
+
+        return {
+          tile,
+          landmassId,
+          distances,
+          nearestDistance,
+          radialDistance,
+          workableCount,
+          landNeighbors,
+          mountainNeighbors,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => !!entry);
+
+    if (candidates.length === 0) return;
+
+    const nonNearCandidates = candidates.filter(entry => entry.nearestDistance > ringBands.near.max);
+    const allowNear = nonNearCandidates.length < additionalCities;
+    const earlyCounts = new Array(capitalPositions.length).fill(0);
+
+    const updateEarlyCounts = (coord: HexCoordinate, candidateLandmass?: number) => {
+      capitalPositions.forEach((capital, index) => {
+        const distance = hexDistance(coord, capital);
+        if (distance > earlyRadius) return;
+        const capLandmass = capitalLandmass[index];
+        if (candidateLandmass !== undefined && capLandmass !== undefined) {
+          if (candidateLandmass !== capLandmass) return;
+        }
+        earlyCounts[index] += 1;
+      });
+    };
+
+    const scoreCandidate = (entry: typeof candidates[number]) => {
+      if (!allowNear && entry.nearestDistance <= ringBands.near.max) return -Infinity;
+
+      const relevantCapitals = entry.landmassId !== undefined
+        ? capitalLandmass
+            .map((landmass, index) => (landmass === entry.landmassId ? index : -1))
+            .filter(index => index >= 0)
+        : capitalPositions.map((_, index) => index);
+      const minEarly = relevantCapitals.length > 0
+        ? Math.min(...relevantCapitals.map(index => earlyCounts[index]))
+        : Math.min(...earlyCounts);
+      const affectedCapitals = entry.distances
+        .map((distance, index) => ({ distance, index }))
+        .filter(item => {
+          if (item.distance > earlyRadius) return false;
+          const capLandmass = capitalLandmass[item.index];
+          if (entry.landmassId !== undefined && capLandmass !== undefined) {
+            return entry.landmassId === capLandmass;
+          }
+          return true;
+        })
+        .map(item => item.index);
+
+      const fairnessPenalty = affectedCapitals.length === 0
+        ? 0
+        : affectedCapitals.reduce((sum, index) => {
+          return sum + Math.max(0, earlyCounts[index] - minEarly);
+        }, 0) / affectedCapitals.length;
+
+      const projectedCounts = relevantCapitals.map(index =>
+        affectedCapitals.includes(index) ? earlyCounts[index] + 1 : earlyCounts[index]
+      );
+      const projectedSpread = projectedCounts.length > 0
+        ? Math.max(...projectedCounts) - Math.min(...projectedCounts)
+        : 0;
+      const spreadPenalty = projectedSpread > 1 ? projectedSpread - 1 : 0;
+
+      const ring = this.getVillageRing(entry.nearestDistance, ringBands);
+      const distanceScore = ring === 'mid' ? 1 : ring === 'far' ? 0.6 : -0.4;
+
+      const radialRatio = Math.min(1, entry.radialDistance / Math.max(1, mapRadius));
+      const edgePenalty = radialRatio > 0.75 ? (radialRatio - 0.75) / 0.25 : 0;
+
+      const mountainPenalty = entry.mountainNeighbors * 0.15;
+
+      const qualityScore = entry.workableCount * 0.4 + entry.landNeighbors * 0.6;
+
+      return (
+        qualityScore +
+        distanceScore -
+        fairnessPenalty * 0.8 -
+        spreadPenalty * 1.2 -
+        edgePenalty * 0.5 -
+        mountainPenalty +
+        neutralRng.next() * 0.05
+      );
+    };
+
+    const isValidNeutralLocation = (entry: typeof candidates[number]) => {
+      if (entry.tile.hasCity || entry.tile.terrain === 'water') return false;
+      return !cityPositions.some(cityPos =>
+        hexDistance(entry.tile.coordinate, cityPos) < MAP_GENERATION_CONSTANTS.CITY_MIN_DISTANCE
+      );
+    };
+
+    const maxAttempts = candidates.length * 4;
+    let attempts = 0;
+    let placed = 0;
+
+    while (placed < additionalCities && attempts < maxAttempts) {
+      attempts += 1;
+
+      const pool = allowNear ? candidates : nonNearCandidates;
+      const sampleCount = Math.min(MAP_GENERATION_CONSTANTS.NEUTRAL_CITY_BEST_OF_K, pool.length);
+      let best: typeof candidates[number] | null = null;
+      let bestScore = -Infinity;
+
+      for (let i = 0; i < sampleCount; i++) {
+        const pick = pool[Math.floor(neutralRng.next() * pool.length)];
+        if (!isValidNeutralLocation(pick)) continue;
+        const score = scoreCandidate(pick);
+        if (score > bestScore) {
+          bestScore = score;
+          best = pick;
+        }
+      }
+
+      if (!best) {
+        for (const entry of pool) {
+          if (!isValidNeutralLocation(entry)) continue;
+          const score = scoreCandidate(entry);
+          if (score > bestScore) {
+            bestScore = score;
+            best = entry;
+          }
+        }
+      }
+
+      if (!best) break;
+
+      best.tile.hasCity = true;
+      cityPositions.push(best.tile.coordinate);
+      updateEarlyCounts(best.tile.coordinate, best.landmassId);
+      placed += 1;
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      const earlyMin = Math.min(...earlyCounts);
+      const earlyMax = Math.max(...earlyCounts);
+      console.log(
+        `Neutral cities: placed ${placed}/${additionalCities}, early spread ${earlyMin}-${earlyMax}`
+      );
     }
   }
 
@@ -1154,6 +1368,15 @@ export class MapGenerator {
     if (!id) return null;
     const upper = id.toUpperCase();
     return (upper in TRIBAL_SPAWN_MODIFIERS) ? (upper as FactionId) : null;
+  }
+
+  private deriveSeed(label: string): number {
+    const baseSeed = this.config.seed ?? Date.now();
+    let hash = 0;
+    for (let i = 0; i < label.length; i++) {
+      hash = (hash * 31 + label.charCodeAt(i)) >>> 0;
+    }
+    return (baseSeed ^ hash ^ (hash << 16)) >>> 0;
   }
 
   private getTileAt(tiles: Tile[], coord: HexCoordinate): Tile | undefined {
@@ -1689,10 +1912,23 @@ export class MapGenerator {
     return 'far';
   }
 
-  private buildLandmassIndex(tiles: Tile[]): Map<string, number> {
+  private getNeutralCityWorkableMin(): number {
+    return MAP_GENERATION_CONSTANTS.NEUTRAL_CITY_WORKABLE_MIN_BY_SIZE[this.config.mapSize];
+  }
+
+  private getNeutralCityLandmassMin(): number {
+    return MAP_GENERATION_CONSTANTS.NEUTRAL_CITY_MIN_LANDMASS_BY_SIZE[this.config.mapSize];
+  }
+
+  private getNeutralCityEarlyRadius(): number {
+    return MAP_GENERATION_CONSTANTS.NEUTRAL_CITY_EARLY_RADIUS_BY_SIZE[this.config.mapSize];
+  }
+
+  private buildLandmassData(tiles: Tile[]): { massByCoord: Map<string, number>; massSizes: number[] } {
     const tileIndex = this.buildTileIndex(tiles);
     const visited = new Set<string>();
-    const landmassByCoord = new Map<string, number>();
+    const massByCoord = new Map<string, number>();
+    const massSizes: number[] = [];
     let massId = 0;
 
     for (const tile of tiles) {
@@ -1702,11 +1938,13 @@ export class MapGenerator {
 
       const queue: Tile[] = [tile];
       visited.add(key);
+      let massSize = 0;
 
       while (queue.length > 0) {
         const current = queue.shift() as Tile;
         const currentKey = this.coordKey(current.coordinate);
-        landmassByCoord.set(currentKey, massId);
+        massByCoord.set(currentKey, massId);
+        massSize += 1;
 
         for (const neighborCoord of hexNeighbors(current.coordinate)) {
           const neighborKey = this.coordKey(neighborCoord);
@@ -1718,10 +1956,15 @@ export class MapGenerator {
         }
       }
 
+      massSizes[massId] = massSize;
       massId += 1;
     }
 
-    return landmassByCoord;
+    return { massByCoord, massSizes };
+  }
+
+  private buildLandmassIndex(tiles: Tile[]): Map<string, number> {
+    return this.buildLandmassData(tiles).massByCoord;
   }
 
   private isVillageContested(
@@ -2048,7 +2291,6 @@ export class MapGenerator {
     capitalPositions: HexCoordinate[],
     context: LandResourceConstraintContext
   ): void {
-    const harvestableTypes: LandResourceType[] = [...LAND_RESOURCE_TYPES];
     const minimumGuarantee = 2;
 
     for (let capitalIndex = 0; capitalIndex < capitalPositions.length; capitalIndex++) {
@@ -2057,12 +2299,6 @@ export class MapGenerator {
         const distance = hexDistance(tile.coordinate, capitalPos);
         return distance <= 2 && distance > 0; // Within 2 tiles but not on capital
       });
-
-      const harvestableCount = nearbyTiles.filter(tile =>
-        tile.resources.some(resource => this.isLandResourceType(resource) && harvestableTypes.includes(resource))
-      ).length;
-
-      if (harvestableCount >= minimumGuarantee) continue;
 
       const upgradableTargets = nearbyTiles.filter(tile => {
         if (tile.hasCity) return false;
@@ -2074,22 +2310,65 @@ export class MapGenerator {
 
       this.shuffleTiles(upgradableTargets);
 
-      const needed = minimumGuarantee - harvestableCount;
-      let upgraded = 0;
+      const guaranteeAdded = new Set<string>();
+
+      const getSummary = () => {
+        const harvestableTiles = nearbyTiles.filter(tile =>
+          tile.resources.some(resource => this.isLandResourceType(resource))
+        );
+        const hasFood = harvestableTiles.some(tile =>
+          tile.resources.some(resource =>
+            this.isLandResourceType(resource) && this.getResourceCategory(resource) === 'food'
+          )
+        );
+        const hasProd = harvestableTiles.some(tile =>
+          tile.resources.some(resource =>
+            this.isLandResourceType(resource) && this.getResourceCategory(resource) === 'prod'
+          )
+        );
+        const entries = harvestableTiles.flatMap(tile =>
+          tile.resources
+            .filter(resource => this.isLandResourceType(resource))
+            .map(resource => ({ tile, resource: resource as LandResourceType }))
+        );
+        return {
+          total: harvestableTiles.length,
+          hasFood,
+          hasProd,
+          entries,
+        };
+      };
+
+      let summary = getSummary();
 
       const attemptPlacement = (minDistance: number, maxPerCapital: number): number => {
         let placed = 0;
+        let needed = Math.max(0, minimumGuarantee - summary.total);
+        if (needed <= 0) return 0;
+
         for (const tile of upgradableTargets) {
-          if (placed + upgraded >= needed) break;
-          const resourceChoice = this.pickGuaranteeResource(tile);
-          if (!resourceChoice) continue;
+          if (placed >= needed) break;
+          const preferredCategories: Array<'food' | 'prod'> = [];
+          if (!summary.hasFood) preferredCategories.push('food');
+          if (!summary.hasProd) preferredCategories.push('prod');
 
-          const resourcesToTry: LandResourceType[] = [
-            resourceChoice,
-            ...this.getAlternativeResources(resourceChoice, tile.terrain),
-          ];
+          let resourcesToTry: LandResourceType[] = [];
+          for (const category of preferredCategories) {
+            resourcesToTry.push(...this.getResourcesForCategory(category, tile.terrain));
+          }
 
-          for (const resourceToAdd of resourcesToTry) {
+          if (resourcesToTry.length === 0) {
+            const resourceChoice = this.pickGuaranteeResource(tile);
+            if (!resourceChoice) continue;
+            resourcesToTry = [
+              resourceChoice,
+              ...this.getAlternativeResources(resourceChoice, tile.terrain),
+            ];
+          }
+
+          const uniqueResources = Array.from(new Set(resourcesToTry));
+
+          for (const resourceToAdd of uniqueResources) {
             if (!this.isResourceTerrainCompatible(resourceToAdd, tile.terrain)) continue;
             const capIndex = context.homeZoneByCoord.get(this.coordKey(tile.coordinate));
             const result = this.canPlaceLandResource(
@@ -2101,33 +2380,151 @@ export class MapGenerator {
             );
             if (result.ok) {
               this.commitLandResource(tile, resourceToAdd, context, capIndex);
+              guaranteeAdded.add(this.coordKey(tile.coordinate));
               placed += 1;
+              summary = getSummary();
               break;
             }
             this.recordLandResourceBlock(context, result.reason);
           }
         }
+
         return placed;
       };
 
-      upgraded += attemptPlacement(context.minDistance, context.maxPerCapital);
+      attemptPlacement(context.minDistance, context.maxPerCapital);
 
       let relaxedSpacing = false;
       const spacingRelaxed = Math.max(0, context.minDistance - 1);
-      if (upgraded < needed && spacingRelaxed !== context.minDistance) {
+      if (summary.total < minimumGuarantee && spacingRelaxed !== context.minDistance) {
         const placed = attemptPlacement(spacingRelaxed, context.maxPerCapital);
         if (placed > 0) {
           relaxedSpacing = true;
-          upgraded += placed;
         }
       }
 
       let relaxedCap = false;
-      if (upgraded < needed) {
+      if (summary.total < minimumGuarantee) {
         const placed = attemptPlacement(Math.max(0, spacingRelaxed - 1), 0);
         if (placed > 0) {
           relaxedCap = true;
-          upgraded += placed;
+        }
+      }
+
+      summary = getSummary();
+
+      let varietyExtraAdded = false;
+      if (!summary.hasFood || !summary.hasProd) {
+        const missingCategory: 'food' | 'prod' = summary.hasFood ? 'prod' : 'food';
+        const overCategory: 'food' | 'prod' = summary.hasFood ? 'food' : 'prod';
+
+        const convertCandidates = summary.entries
+          .filter(entry => this.getResourceCategory(entry.resource) === overCategory)
+          .sort((a, b) => {
+            const aBoost = guaranteeAdded.has(this.coordKey(a.tile.coordinate)) ? 0 : 1;
+            const bBoost = guaranteeAdded.has(this.coordKey(b.tile.coordinate)) ? 0 : 1;
+            return aBoost - bBoost;
+          });
+
+        let converted = false;
+        for (const entry of convertCandidates) {
+          const newResource = this.pickCategoryResource(entry.tile, missingCategory);
+          if (!newResource) continue;
+
+          const capIndex = context.homeZoneByCoord.get(this.coordKey(entry.tile.coordinate));
+          if (!this.removeLandResource(entry.tile, entry.resource, context, capIndex)) continue;
+
+          const result = this.canPlaceLandResource(
+            entry.tile,
+            newResource,
+            context,
+            capIndex,
+            { minDistance: context.minDistance, maxPerCapital: context.maxPerCapital }
+          );
+
+          if (result.ok) {
+            this.commitLandResource(entry.tile, newResource, context, capIndex);
+            guaranteeAdded.add(this.coordKey(entry.tile.coordinate));
+            converted = true;
+            break;
+          }
+
+          this.recordLandResourceBlock(context, result.reason);
+          this.commitLandResource(entry.tile, entry.resource, context, capIndex);
+        }
+
+        summary = getSummary();
+
+        const emptyTargets = nearbyTiles.filter(tile => {
+          if (tile.hasCity) return false;
+          if (tile.resources.length > 0) return false;
+          if (tile.terrain === 'water') return false;
+          if (tile.feature === 'village') return false;
+          return true;
+        });
+
+        const placeMissingCategory = (minDistance: number, maxPerCapital: number): boolean => {
+          this.shuffleTiles(emptyTargets);
+          for (const tile of emptyTargets) {
+            const resourceToAdd = this.pickCategoryResource(tile, missingCategory);
+            if (!resourceToAdd) continue;
+            const capIndex = context.homeZoneByCoord.get(this.coordKey(tile.coordinate));
+            const result = this.canPlaceLandResource(
+              tile,
+              resourceToAdd,
+              context,
+              capIndex,
+              { minDistance, maxPerCapital }
+            );
+            if (result.ok) {
+              this.commitLandResource(tile, resourceToAdd, context, capIndex);
+              guaranteeAdded.add(this.coordKey(tile.coordinate));
+              return true;
+            }
+            this.recordLandResourceBlock(context, result.reason);
+          }
+          return false;
+        };
+
+        let swapped = converted;
+        if (!swapped && (!summary.hasFood || !summary.hasProd)) {
+          const removableEntries = summary.entries
+            .filter(entry => this.getResourceCategory(entry.resource) === overCategory)
+            .sort((a, b) => {
+              const aBoost = guaranteeAdded.has(this.coordKey(a.tile.coordinate)) ? 0 : 1;
+              const bBoost = guaranteeAdded.has(this.coordKey(b.tile.coordinate)) ? 0 : 1;
+              return aBoost - bBoost;
+            });
+
+          const attemptSwap = (minDistance: number, maxPerCapital: number): boolean => {
+            for (const entry of removableEntries) {
+              const capIndex = context.homeZoneByCoord.get(this.coordKey(entry.tile.coordinate));
+              if (!this.removeLandResource(entry.tile, entry.resource, context, capIndex)) continue;
+              const placed = placeMissingCategory(minDistance, maxPerCapital);
+              if (placed) {
+                return true;
+              }
+              this.commitLandResource(entry.tile, entry.resource, context, capIndex);
+            }
+            return false;
+          };
+
+          swapped =
+            attemptSwap(context.minDistance, context.maxPerCapital) ||
+            attemptSwap(spacingRelaxed, context.maxPerCapital) ||
+            attemptSwap(Math.max(0, spacingRelaxed - 1), 0);
+        }
+
+        summary = getSummary();
+
+        if (!swapped && (!summary.hasFood || !summary.hasProd)) {
+          const added =
+            placeMissingCategory(context.minDistance, context.maxPerCapital) ||
+            placeMissingCategory(spacingRelaxed, context.maxPerCapital) ||
+            placeMissingCategory(Math.max(0, spacingRelaxed - 1), 0);
+          if (added) {
+            varietyExtraAdded = true;
+          }
         }
       }
 
@@ -2136,6 +2533,9 @@ export class MapGenerator {
       }
       if (relaxedCap) {
         context.debug.relaxCapUsed[capitalIndex] += 1;
+      }
+      if (varietyExtraAdded && process.env.NODE_ENV !== 'production') {
+        console.log(`Capital ${capitalIndex + 1}: variety required extra resource placement.`);
       }
     }
   }
@@ -2346,6 +2746,38 @@ export class MapGenerator {
     }
   }
 
+  private removeLandResource(
+    tile: Tile,
+    resource: LandResourceType,
+    context: LandResourceConstraintContext,
+    capIndex?: number
+  ): boolean {
+    const index = tile.resources.indexOf(resource);
+    if (index === -1) return false;
+    tile.resources.splice(index, 1);
+
+    const key = this.coordKey(tile.coordinate);
+    const hasOtherLandResource = tile.resources.some(existing => this.isLandResourceType(existing));
+    if (!hasOtherLandResource) {
+      context.occupiedCoords.delete(key);
+      if (capIndex !== undefined) {
+        context.homeCountByCapital[capIndex] = Math.max(0, context.homeCountByCapital[capIndex] - 1);
+      }
+    }
+
+    const list = context.resourceCoordsByType.get(resource);
+    if (list) {
+      const coordIndex = list.findIndex(coord =>
+        coord.q === tile.coordinate.q &&
+        coord.r === tile.coordinate.r &&
+        coord.s === tile.coordinate.s
+      );
+      if (coordIndex >= 0) list.splice(coordIndex, 1);
+    }
+
+    return true;
+  }
+
   private recordLandResourceBlock(
     context: LandResourceConstraintContext,
     reason?: 'occupied' | 'spacing' | 'cap'
@@ -2358,6 +2790,22 @@ export class MapGenerator {
 
   private isLandResourceType(resource: string): resource is LandResourceType {
     return LAND_RESOURCE_TYPES.includes(resource as LandResourceType);
+  }
+
+  private getResourceCategory(resource: LandResourceType): 'food' | 'prod' {
+    if (resource === 'grain_patch' || resource === 'wild_goats') return 'food';
+    return 'prod';
+  }
+
+  private getResourcesForCategory(
+    category: 'food' | 'prod',
+    terrain: TerrainType
+  ): LandResourceType[] {
+    const options = LAND_RESOURCES_BY_TERRAIN[terrain] || [];
+    if (category === 'food') {
+      return options.filter(resource => resource === 'grain_patch' || resource === 'wild_goats');
+    }
+    return options.filter(resource => resource === 'timber_grove' || resource === 'ore_vein');
   }
 
   private isResourceTerrainCompatible(resource: LandResourceType, terrain: TerrainType): boolean {
@@ -2382,6 +2830,16 @@ export class MapGenerator {
       return 'ore_vein';
     }
     return null;
+  }
+
+  private pickCategoryResource(
+    tile: Tile,
+    category: 'food' | 'prod'
+  ): LandResourceType | null {
+    const options = this.getResourcesForCategory(category, tile.terrain);
+    if (options.length === 0) return null;
+    if (options.length === 1) return options[0];
+    return this.rng.next() < 0.6 ? options[0] : options[1];
   }
 
   private shuffleTiles<T>(items: T[]): void {
