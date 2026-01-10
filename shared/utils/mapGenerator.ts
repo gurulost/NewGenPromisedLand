@@ -818,15 +818,15 @@ export class MapGenerator {
       return Math.max(best, waterData.bodySizes[bodyId] ?? 0);
     }, 0);
 
-    const coastTilesWithinRadius = tiles.reduce((count, tile) => {
-      if (tile.terrain !== 'water') return count;
-      const distance = hexDistance(coord, tile.coordinate);
-      if (distance > Math.min(3, mapRadius)) return count;
-      const hasLandNeighbor = hexNeighbors(tile.coordinate)
-        .map(neighbor => tileIndex.get(this.coordKey(neighbor)))
-        .some(neighbor => neighbor && neighbor.terrain !== 'water');
-      return hasLandNeighbor ? count + 1 : count;
-    }, 0);
+    const coastTilesWithinRadius = hexesInRange(coord, Math.min(3, mapRadius))
+      .map(radiusCoord => tileIndex.get(this.coordKey(radiusCoord)))
+      .filter((tile): tile is Tile => !!tile && tile.terrain === 'water')
+      .reduce((count, tile) => {
+        const hasLandNeighbor = hexNeighbors(tile.coordinate)
+          .map(neighbor => tileIndex.get(this.coordKey(neighbor)))
+          .some(neighbor => neighbor && neighbor.terrain !== 'water');
+        return hasLandNeighbor ? count + 1 : count;
+      }, 0);
 
     return {
       adjacentWaterTiles: adjacentWater.length,
@@ -2292,13 +2292,13 @@ export class MapGenerator {
     context: LandResourceConstraintContext
   ): void {
     const minimumGuarantee = 2;
+    const tileIndex = this.buildTileIndex(tiles);
 
     for (let capitalIndex = 0; capitalIndex < capitalPositions.length; capitalIndex++) {
       const capitalPos = capitalPositions[capitalIndex];
-      const nearbyTiles = tiles.filter(tile => {
-        const distance = hexDistance(tile.coordinate, capitalPos);
-        return distance <= 2 && distance > 0; // Within 2 tiles but not on capital
-      });
+      const nearbyTiles = hexesInRange(capitalPos, 2)
+        .map(coord => tileIndex.get(this.coordKey(coord)))
+        .filter((tile): tile is Tile => !!tile && hexDistance(tile.coordinate, capitalPos) > 0);
 
       const upgradableTargets = nearbyTiles.filter(tile => {
         if (tile.hasCity) return false;
