@@ -4,6 +4,16 @@ import type { HexCoordinate } from '@shared/types/coordinates';
 import type { FactionId } from '@shared/types/faction';
 import { GameRuleHelpers } from '@shared/data/gameRules';
 import { hexDistance, hexNeighbors, hexesInRange } from './hex';
+import {
+  CAPITAL_MIN_DISTANCE_BY_SIZE,
+  MAP_GENERATION_CONSTANTS,
+  MAP_SIZE_CONFIGS,
+  type MapSize,
+  type MapSizeConfig,
+} from './mapGenerationConstants';
+
+export { MAP_GENERATION_CONSTANTS, MAP_SIZE_CONFIGS, CAPITAL_MIN_DISTANCE_BY_SIZE };
+export type { MapSize, MapSizeConfig };
 
 /**
  * Type definitions for map generation
@@ -44,6 +54,7 @@ interface LandResourceConstraintDebug {
   fallbackPlaced: number;
   relaxSpacingUsed: number[];
   relaxCapUsed: number[];
+  varietyExtraGranted: number[];
   maxPerCapitalClamped: boolean;
 }
 
@@ -79,6 +90,11 @@ interface VillageRingBands {
 }
 
 type VillageRing = keyof VillageRingBands;
+
+interface VillageSpacingOverrides {
+  minVillageDistance?: number;
+  minDistanceFromCity?: number;
+}
 
 interface VillageCandidateEntry {
   tile: Tile;
@@ -124,140 +140,6 @@ interface MapGenerationConfig {
   maxResourcesPerPlayer?: number;
 }
 
-export type MapSize = 'tiny' | 'small' | 'normal' | 'large' | 'huge';
-
-export interface MapSizeConfig {
-  tiles: number;
-  dimensions: number;
-  maxPlayers: number;
-  name: string;
-}
-
-export const MAP_SIZE_CONFIGS: Record<MapSize, MapSizeConfig> = {
-  tiny: { tiles: 121, dimensions: 11, maxPlayers: 8, name: 'Tiny' },
-  small: { tiles: 196, dimensions: 14, maxPlayers: 8, name: 'Small' },
-  normal: { tiles: 256, dimensions: 16, maxPlayers: 8, name: 'Normal' },
-  large: { tiles: 324, dimensions: 18, maxPlayers: 8, name: 'Large' },
-  huge: { tiles: 400, dimensions: 20, maxPlayers: 8, name: 'Huge' }
-};
-
-/**
- * Map Generation Constants
- * Centralized configuration for all map generation parameters
- */
-export const MAP_GENERATION_CONSTANTS = {
-  // Tribal homeland influence
-  TRIBAL_HOMELAND_RADIUS: 4,           // Tiles from capital where tribal modifiers apply
-  TRIBAL_INFLUENCE_FALLOFF: 4,         // Distance divisor for influence calculation
-  
-  // Capital placement
-  CAPITAL_SPAWN_RADIUS_RATIO: 0.6,     // Ratio of map radius for capital placement
-  
-  // City and village spacing
-  CITY_MIN_DISTANCE: 6,                // Minimum distance between cities
-  VILLAGE_MIN_DISTANCE: 3,             // Minimum distance between villages
-  VILLAGE_MIN_DISTANCE_FROM_CITY: 4,   // Minimum distance from any city
-  MAP_EDGE_BUFFER: 2,                  // Buffer distance from map edge
-  VILLAGE_EDGE_RADIUS_RATIO: 0.85,     // Max radial distance ratio from center
-  
-  // Water generation
-  WATER_EDGE_THRESHOLD: 0.8,           // Distance ratio for increased water at edges
-  WATER_EDGE_CHANCE: 0.4,              // Water probability at map edges
-  WATER_CENTER_CHANCE: 0.15,           // Water probability in center
-
-  WATER_RATIO_BY_SIZE: {
-    tiny: { min: 0.12, max: 0.2 },
-    small: { min: 0.14, max: 0.22 },
-    normal: { min: 0.16, max: 0.24 },
-    large: { min: 0.18, max: 0.28 },
-    huge: { min: 0.2, max: 0.3 },
-  },
-  WATER_MIN_BODY_SIZE_BY_SIZE: {
-    tiny: 6,
-    small: 8,
-    normal: 10,
-    large: 12,
-    huge: 14,
-  },
-  WATER_MULEKITE_MIN_BODY_SIZE_BY_SIZE: {
-    tiny: 8,
-    small: 10,
-    normal: 12,
-    large: 14,
-    huge: 16,
-  },
-  WATER_MULEKITE_MIN_COAST_TILES_BY_SIZE: {
-    tiny: 2,
-    small: 2,
-    normal: 3,
-    large: 3,
-    huge: 3,
-  },
-  WATER_REPAIR_BUDGET: 3,
-  WATER_REPAIR_SEARCH_RADIUS: 6,
-  WATER_SMOOTH_PASSES: 1,
-  
-  // Resource placement
-  INNER_CITY_RADIUS: 1,                // Adjacent to city
-  OUTER_CITY_RADIUS: 2,                // Two tiles from city
-  WILDERNESS_MIN_DISTANCE: 3,          // Minimum distance from city for wilderness resources
-
-  // Ruins placement
-  RUINS_DENSITY: 0.03,                 // Target ruins density per tile
-  RUINS_MIN_DISTANCE: 3,               // Minimum distance between ruins
-  RUINS_MIN_DISTANCE_FROM_CITY: 2,     // Minimum distance from cities/villages
-  RUINS_NEAR_MIN_DISTANCE: 2,          // Min distance from capital for "near" ring
-  RUINS_NEAR_MAX_DISTANCE: 4,          // Max distance from capital for "near" ring
-  RUINS_MID_MAX_DISTANCE: 8,           // Max distance from capital for "mid" ring
-  RUINS_MOUNTAIN_WEIGHT: 1.35,         // Slightly favor mountains for ruins
-  RUINS_FOREST_WEIGHT: 1.1,            // Mild forest preference
-  
-  // Village density
-  VILLAGE_DENSITY_RATIO: 25,           // Tiles per village (tiles.length / 25 = 4% density)
-  VILLAGE_EARLY_RADIUS_BY_SIZE: {
-    tiny: 7,
-    small: 7,
-    normal: 8,
-    large: 9,
-    huge: 9,
-  },
-  VILLAGE_TARGET_EARLY_MIN: 2,
-  VILLAGE_CONTESTED_TARGET_RATIO: 0.15,
-  VILLAGE_BEST_OF_K: 7,
-
-  // Neutral city placement
-  NEUTRAL_CITY_WORKABLE_MIN_BY_SIZE: {
-    tiny: 6,
-    small: 7,
-    normal: 8,
-    large: 9,
-    huge: 10,
-  },
-  NEUTRAL_CITY_MIN_LANDMASS_BY_SIZE: {
-    tiny: 10,
-    small: 14,
-    normal: 18,
-    large: 22,
-    huge: 26,
-  },
-  NEUTRAL_CITY_EARLY_RADIUS_BY_SIZE: {
-    tiny: 7,
-    small: 7,
-    normal: 8,
-    large: 9,
-    huge: 9,
-  },
-  NEUTRAL_CITY_MIN_LAND_NEIGHBORS: 3,
-  NEUTRAL_CITY_BEST_OF_K: 7,
-} as const;
-
-export const CAPITAL_MIN_DISTANCE_BY_SIZE: Record<MapSize, number> = {
-  tiny: 4,
-  small: 5,
-  normal: 6,
-  large: 7,
-  huge: 8,
-};
 
 /**
  * Tribal Homeland Generation System
@@ -350,28 +232,172 @@ interface ResourceSpawnRate {
   empty: number;
 }
 
+interface GenerationSpread {
+  min: number;
+  max: number;
+}
+
+interface NeutralCityRejectionCounts {
+  landmassTooSmall: number;
+  landNeighbors: number;
+  workableTiles: number;
+  spacing: number;
+}
+
+interface VillageRejectionCounts {
+  water: number;
+  city: number;
+  existingVillage: number;
+  edge: number;
+  spacing: number;
+  cityDistance: number;
+}
+
+interface GenerationDiagnostics {
+  neutralCities: NeutralCityRejectionCounts;
+  villages: VillageRejectionCounts;
+}
+
+interface CapitalGenerationReport {
+  index: number;
+  position: HexCoordinate;
+  harvestablesR2: number;
+  hasFood: boolean;
+  hasProd: boolean;
+  earlyVillages: number;
+  earlyNeutralCities: number;
+  water: {
+    adjacentWaterTiles: number;
+    connectedBodySize: number;
+    coastTilesWithinRadius: number;
+  };
+  homeLandResources: number;
+  guaranteeRelaxSpacingUsed: number;
+  guaranteeRelaxCapUsed: number;
+  varietyExtraGranted: number;
+  expansionVillageRelaxed: number;
+  expansionVillageFailed: number;
+  waterRepairTiles: number;
+}
+
+interface MapGenerationReport {
+  seed: number;
+  mapSize: MapSize;
+  playerCount: number;
+  water: {
+    motif: 'coastal' | 'inland_sea' | 'straits' | null;
+    ratio: number;
+    bodySizes: number[];
+    repairsByCapital: number[];
+  };
+  villages: {
+    placed: number;
+    target: number;
+    contested: number;
+    contestedTarget: number;
+    earlySpread: GenerationSpread;
+    earlyCounts: number[];
+    ringCounts: Array<{ near: number; mid: number; far: number }>;
+  };
+  neutralCities: {
+    placed: number;
+    target: number;
+    earlySpread: GenerationSpread;
+    earlyCounts: number[];
+  };
+  resources: {
+    homeCounts: number[];
+    blockedBySpacing: number;
+    blockedByCap: number;
+    blockedByOccupied: number;
+    fallbackPlaced: number;
+    relaxSpacingUsed: number[];
+    relaxCapUsed: number[];
+    varietyExtraGranted: number[];
+  };
+  ruins: {
+    placed: number;
+    target: number;
+    perCapital: number[];
+  };
+  diagnostics: GenerationDiagnostics;
+  capitals: CapitalGenerationReport[];
+}
+
 export class MapGenerator {
-  private rng: SeededRandom;
-  private noise2D: ReturnType<typeof createNoise2D>;
+  private seed: number;
+  private rngStreams: {
+    terrain: SeededRandom;
+    water: SeededRandom;
+    capitals: SeededRandom;
+    neutralCities: SeededRandom;
+    villages: SeededRandom;
+    resourcesLand: SeededRandom;
+    resourcesWater: SeededRandom;
+    ruins: SeededRandom;
+  };
+  private terrainNoise2D: ReturnType<typeof createNoise2D>;
+  private waterNoise2D: ReturnType<typeof createNoise2D>;
   private config: MapGenerationConfig;
   private playerFactions: string[] = [];
   private lastCapitalPositions: HexCoordinate[] = [];
+  private lastWaterMotif: 'coastal' | 'inland_sea' | 'straits' | null = null;
+  private lastReport: MapGenerationReport | null = null;
+  private lastWaterRepairByCapital: number[] = [];
+  private lastVillageGuaranteeRelaxed: number[] = [];
+  private lastVillageGuaranteeFailed: number[] = [];
+  private lastDiagnostics: GenerationDiagnostics | null = null;
 
   constructor(config: MapGenerationConfig, playerFactions?: string[]) {
-    this.config = config;
+    this.seed = config.seed ?? Date.now();
+    this.config = { ...config, seed: this.seed };
     this.playerFactions = playerFactions || [];
-    this.rng = new SeededRandom(config.seed);
-    // Create seeded noise function
-    this.noise2D = createNoise2D(() => this.rng.next());
+    this.rngStreams = {
+      terrain: new SeededRandom(this.deriveSeed('terrain')),
+      water: new SeededRandom(this.deriveSeed('water')),
+      capitals: new SeededRandom(this.deriveSeed('capitals')),
+      neutralCities: new SeededRandom(this.deriveSeed('neutralCities')),
+      villages: new SeededRandom(this.deriveSeed('villages')),
+      resourcesLand: new SeededRandom(this.deriveSeed('resourcesLand')),
+      resourcesWater: new SeededRandom(this.deriveSeed('resourcesWater')),
+      ruins: new SeededRandom(this.deriveSeed('ruins')),
+    };
+    this.terrainNoise2D = createNoise2D(() => this.rngStreams.terrain.next());
+    this.waterNoise2D = createNoise2D(() => this.rngStreams.water.next());
   }
 
   getCapitalPositions(): HexCoordinate[] {
     return this.lastCapitalPositions.map(pos => ({ ...pos }));
   }
 
+  getGenerationReport(): MapGenerationReport | null {
+    return this.lastReport;
+  }
+
   generateMap(): GameMap {
     const tiles: Tile[] = [];
     const mapRadius = Math.min(this.config.width, this.config.height);
+    this.lastReport = null;
+    this.lastWaterMotif = null;
+    this.lastWaterRepairByCapital = new Array(this.config.playerCount).fill(0);
+    this.lastVillageGuaranteeRelaxed = new Array(this.config.playerCount).fill(0);
+    this.lastVillageGuaranteeFailed = new Array(this.config.playerCount).fill(0);
+    this.lastDiagnostics = {
+      neutralCities: {
+        landmassTooSmall: 0,
+        landNeighbors: 0,
+        workableTiles: 0,
+        spacing: 0,
+      },
+      villages: {
+        water: 0,
+        city: 0,
+        existingVillage: 0,
+        edge: 0,
+        spacing: 0,
+        cityDistance: 0,
+      },
+    };
 
     // Step 1: Generate base hex grid
     for (let q = -mapRadius; q <= mapRadius; q++) {
@@ -411,7 +437,7 @@ export class MapGenerator {
     this.ensureCapitalLandAccess(tiles, capitalPositions, mapRadius);
 
     // Step 5.75: Place neutral cities after terrain is finalized
-    this.placeNeutralCities(tiles, mapRadius, capitalPositions);
+    this.placeNeutralCities(tiles, mapRadius, capitalPositions, this.lastDiagnostics?.neutralCities);
 
     // Step 5.9: Ensure any cities are on land (safety pass)
     this.ensureCityLandTiles(tiles);
@@ -428,7 +454,7 @@ export class MapGenerator {
     this.ensureCapitalExpansionVillage(tiles, capitalPositions, mapRadius);
 
     // Step 6.5: Place capturable villages (AFTER terrain is generated)
-    this.placeVillages(tiles, mapRadius, capitalPositions);
+    this.placeVillages(tiles, mapRadius, capitalPositions, this.lastDiagnostics?.villages);
 
     const villageCount = tiles.filter(tile => tile.feature === 'village').length;
     if (process.env.NODE_ENV !== 'production') {
@@ -452,10 +478,202 @@ export class MapGenerator {
     // Step 8: Place special features
     this.placeSpecialFeatures(tiles, capitalPositions);
 
+    this.lastReport = this.buildGenerationReport(
+      tiles,
+      capitalPositions,
+      repairedWaterData,
+      landResourceContext
+    );
+
     return {
       tiles,
       width: this.config.width,
       height: this.config.height,
+    };
+  }
+
+  private buildGenerationReport(
+    tiles: Tile[],
+    capitalPositions: HexCoordinate[],
+    waterData: WaterBodyData,
+    landResourceContext: LandResourceConstraintContext
+  ): MapGenerationReport {
+    const tileIndex = this.buildTileIndex(tiles);
+    const landmassData = this.buildLandmassData(tiles);
+    const capitalLandmass = capitalPositions.map(cap => landmassData.massByCoord.get(this.coordKey(cap)));
+    const ringBands = this.getVillageRingBands();
+    const villageEarlyRadius = this.getVillageEarlyRadius();
+    const neutralEarlyRadius = this.getNeutralCityEarlyRadius();
+
+    const villages = tiles.filter(tile => tile.feature === 'village');
+    const neutralCities = tiles.filter(tile => tile.hasCity && !capitalPositions.some(cap => this.coordKey(cap) === this.coordKey(tile.coordinate)));
+    const villageEarlyCounts = new Array(capitalPositions.length).fill(0);
+    const neutralEarlyCounts = new Array(capitalPositions.length).fill(0);
+    const ringCounts = capitalPositions.map(() => ({ near: 0, mid: 0, far: 0 }));
+    let contestedCount = 0;
+
+    for (const village of villages) {
+      const distances = capitalPositions.map(cap => hexDistance(village.coordinate, cap));
+      const sorted = [...distances].sort((a, b) => a - b);
+      const entry: VillageCandidateEntry = {
+        tile: village,
+        distances,
+        nearestDistance: sorted[0] ?? Infinity,
+        secondDistance: sorted[1] ?? Infinity,
+      };
+      if (this.isVillageContested(entry, ringBands)) {
+        contestedCount += 1;
+      }
+
+      distances.forEach((distance, index) => {
+        const capLandmass = capitalLandmass[index];
+        const villageLandmass = landmassData.massByCoord.get(this.coordKey(village.coordinate));
+        if (capLandmass !== undefined && villageLandmass !== undefined && capLandmass !== villageLandmass) {
+          return;
+        }
+        if (distance <= villageEarlyRadius) {
+          villageEarlyCounts[index] += 1;
+        }
+        const ring = this.getVillageRing(distance, ringBands);
+        if (ring) {
+          ringCounts[index][ring] += 1;
+        }
+      });
+    }
+
+    for (const neutral of neutralCities) {
+      capitalPositions.forEach((capital, index) => {
+        const capLandmass = capitalLandmass[index];
+        const neutralLandmass = landmassData.massByCoord.get(this.coordKey(neutral.coordinate));
+        if (capLandmass !== undefined && neutralLandmass !== undefined && capLandmass !== neutralLandmass) {
+          return;
+        }
+        const distance = hexDistance(neutral.coordinate, capital);
+        if (distance <= neutralEarlyRadius) {
+          neutralEarlyCounts[index] += 1;
+        }
+      });
+    }
+
+    const earlyVillageSpread = {
+      min: villageEarlyCounts.length ? Math.min(...villageEarlyCounts) : 0,
+      max: villageEarlyCounts.length ? Math.max(...villageEarlyCounts) : 0,
+    };
+    const earlyNeutralSpread = {
+      min: neutralEarlyCounts.length ? Math.min(...neutralEarlyCounts) : 0,
+      max: neutralEarlyCounts.length ? Math.max(...neutralEarlyCounts) : 0,
+    };
+
+    const ruins = tiles.filter(tile => tile.resources.includes('jaredite_ruins'));
+    const ruinsPerCapital = new Array(capitalPositions.length).fill(0);
+    for (const ruin of ruins) {
+      const nearest = this.getNearestCapital(ruin.coordinate, capitalPositions);
+      if (nearest.index >= 0) {
+        ruinsPerCapital[nearest.index] += 1;
+      }
+    }
+
+    const capitalReports: CapitalGenerationReport[] = capitalPositions.map((capital, index) => {
+      const nearbyTiles = hexesInRange(capital, 2)
+        .map(coord => tileIndex.get(this.coordKey(coord)))
+        .filter((tile): tile is Tile => !!tile && hexDistance(tile.coordinate, capital) > 0);
+      const harvestableTiles = nearbyTiles.filter(tile =>
+        tile.resources.some(resource => this.isLandResourceType(resource))
+      );
+      const hasFood = harvestableTiles.some(tile =>
+        tile.resources.some(resource =>
+          this.isLandResourceType(resource) && this.getResourceCategory(resource) === 'food'
+        )
+      );
+      const hasProd = harvestableTiles.some(tile =>
+        tile.resources.some(resource =>
+          this.isLandResourceType(resource) && this.getResourceCategory(resource) === 'prod'
+        )
+      );
+      const waterMetrics = this.getCapitalWaterMetrics(capital, tiles, waterData, Math.min(this.config.width, this.config.height));
+
+      return {
+        index,
+        position: capital,
+        harvestablesR2: harvestableTiles.length,
+        hasFood,
+        hasProd,
+        earlyVillages: villageEarlyCounts[index] ?? 0,
+        earlyNeutralCities: neutralEarlyCounts[index] ?? 0,
+        water: waterMetrics,
+        homeLandResources: landResourceContext.homeCountByCapital[index] ?? 0,
+        guaranteeRelaxSpacingUsed: landResourceContext.debug.relaxSpacingUsed[index] ?? 0,
+        guaranteeRelaxCapUsed: landResourceContext.debug.relaxCapUsed[index] ?? 0,
+        varietyExtraGranted: landResourceContext.debug.varietyExtraGranted[index] ?? 0,
+        expansionVillageRelaxed: this.lastVillageGuaranteeRelaxed[index] ?? 0,
+        expansionVillageFailed: this.lastVillageGuaranteeFailed[index] ?? 0,
+        waterRepairTiles: this.lastWaterRepairByCapital[index] ?? 0,
+      };
+    });
+
+    const maxVillages = Math.floor(tiles.length / MAP_GENERATION_CONSTANTS.VILLAGE_DENSITY_RATIO);
+    const contestedTarget = Math.max(
+      0,
+      Math.round(maxVillages * MAP_GENERATION_CONSTANTS.VILLAGE_CONTESTED_TARGET_RATIO)
+    );
+
+    return {
+      seed: this.seed,
+      mapSize: this.config.mapSize,
+      playerCount: this.config.playerCount,
+      water: {
+        motif: this.lastWaterMotif,
+        ratio: tiles.filter(tile => tile.terrain === 'water').length / Math.max(1, tiles.length),
+        bodySizes: waterData.bodySizes,
+        repairsByCapital: this.lastWaterRepairByCapital,
+      },
+      villages: {
+        placed: villages.length,
+        target: maxVillages,
+        contested: contestedCount,
+        contestedTarget,
+        earlySpread: earlyVillageSpread,
+        earlyCounts: villageEarlyCounts,
+        ringCounts,
+      },
+      neutralCities: {
+        placed: neutralCities.length,
+        target: Math.max(2, Math.floor(this.config.playerCount * 0.5)),
+        earlySpread: earlyNeutralSpread,
+        earlyCounts: neutralEarlyCounts,
+      },
+      resources: {
+        homeCounts: landResourceContext.homeCountByCapital,
+        blockedBySpacing: landResourceContext.debug.blockedBySpacing,
+        blockedByCap: landResourceContext.debug.blockedByCap,
+        blockedByOccupied: landResourceContext.debug.blockedByOccupied,
+        fallbackPlaced: landResourceContext.debug.fallbackPlaced,
+        relaxSpacingUsed: landResourceContext.debug.relaxSpacingUsed,
+        relaxCapUsed: landResourceContext.debug.relaxCapUsed,
+        varietyExtraGranted: landResourceContext.debug.varietyExtraGranted,
+      },
+      ruins: {
+        placed: ruins.length,
+        target: this.getRuinsTargetCount(tiles.length, capitalPositions.length),
+        perCapital: ruinsPerCapital,
+      },
+      diagnostics: this.lastDiagnostics ?? {
+        neutralCities: {
+          landmassTooSmall: 0,
+          landNeighbors: 0,
+          workableTiles: 0,
+          spacing: 0,
+        },
+        villages: {
+          water: 0,
+          city: 0,
+          existingVillage: 0,
+          edge: 0,
+          spacing: 0,
+          cityDistance: 0,
+        },
+      },
+      capitals: capitalReports,
     };
   }
 
@@ -467,6 +685,7 @@ export class MapGenerator {
     tiles: Tile[],
     waterData: WaterBodyData
   ): HexCoordinate[] {
+    const rng = this.rngStreams.capitals;
     const playerCount = this.config.playerCount;
     const baseMinDistance = this.getCapitalMinDistance();
     const { minRadius, maxRadius } = this.getCapitalSpawnRadiusBand(mapRadius);
@@ -478,8 +697,8 @@ export class MapGenerator {
       for (let i = 0; i < playerCount; i++) {
         let placed = false;
         for (let attempt = 0; attempt < 80; attempt++) {
-          const angle = (i * angleStep) + (this.rng.next() - 0.5) * angleJitter;
-          const radius = this.rng.nextInt(minRadius, maxRadius);
+          const angle = (i * angleStep) + (rng.next() - 0.5) * angleJitter;
+          const radius = rng.nextInt(minRadius, maxRadius);
           const q = Math.round(radius * Math.cos(angle));
           const r = Math.round(radius * Math.sin(angle));
           const s = -q - r;
@@ -521,9 +740,10 @@ export class MapGenerator {
   }
 
   private generateWaterMask(tiles: Tile[], mapRadius: number): WaterBodyData {
+    const rng = this.rngStreams.water;
     const motif = this.pickWaterMotif();
     const { min, max } = this.getWaterRatioRange();
-    const targetRatio = min + (max - min) * this.rng.next();
+    const targetRatio = min + (max - min) * rng.next();
     const targetCount = Math.round(tiles.length * targetRatio);
     const scoreByKey = this.scoreWaterTiles(tiles, mapRadius, motif);
 
@@ -566,10 +786,12 @@ export class MapGenerator {
       console.log(`Water motif: ${motif}, ratio: ${(tiles.filter(t => t.terrain === 'water').length / tiles.length).toFixed(2)}`);
     }
 
+    this.lastWaterMotif = motif;
     return waterData;
   }
 
   private pickWaterMotif(): 'coastal' | 'inland_sea' | 'straits' {
+    const rng = this.rngStreams.water;
     const hasWaterFaction = this.playerFactions.some((factionId) => {
       const normalized = this.normalizeFactionId(factionId);
       if (!normalized) return false;
@@ -589,7 +811,7 @@ export class MapGenerator {
         ];
 
     const totalWeight = weights.reduce((sum, entry) => sum + entry.weight, 0);
-    let roll = this.rng.next() * totalWeight;
+    let roll = rng.next() * totalWeight;
     for (const entry of weights) {
       roll -= entry.weight;
       if (roll <= 0) return entry.motif;
@@ -604,6 +826,7 @@ export class MapGenerator {
   ): Map<string, number> {
     const scores = new Map<string, number>();
     const center = { q: 0, r: 0, s: 0 };
+    const rng = this.rngStreams.water;
 
     let seaCenter = center;
     let seaRadius = mapRadius * 0.5;
@@ -612,23 +835,23 @@ export class MapGenerator {
     let straitWidth = Math.max(2, Math.round(mapRadius * 0.18));
 
     if (motif === 'inland_sea') {
-      const angle = this.rng.next() * Math.PI * 2;
+      const angle = rng.next() * Math.PI * 2;
       const offsetRadius = mapRadius * 0.2;
       const offsetQ = Math.round(offsetRadius * Math.cos(angle));
       const offsetR = Math.round(offsetRadius * Math.sin(angle));
       seaCenter = { q: offsetQ, r: offsetR, s: -offsetQ - offsetR };
-      seaRadius = mapRadius * (0.45 + this.rng.next() * 0.15);
+      seaRadius = mapRadius * (0.45 + rng.next() * 0.15);
     }
 
     if (motif === 'straits') {
-      const axisRoll = this.rng.next();
+      const axisRoll = rng.next();
       straitAxis = axisRoll < 0.33 ? 'q' : axisRoll < 0.66 ? 'r' : 's';
-      straitOffset = Math.round((this.rng.next() - 0.5) * mapRadius * 0.4);
+      straitOffset = Math.round((rng.next() - 0.5) * mapRadius * 0.4);
       straitWidth = Math.max(2, Math.round(mapRadius * 0.16));
     }
 
     tiles.forEach(tile => {
-      const noiseValue = this.noise2D(tile.coordinate.q * 0.08, tile.coordinate.r * 0.08);
+      const noiseValue = this.waterNoise2D(tile.coordinate.q * 0.08, tile.coordinate.r * 0.08);
       const distanceFromCenter = hexDistance(tile.coordinate, center) / mapRadius;
       let score = 0;
 
@@ -653,7 +876,7 @@ export class MapGenerator {
         score = straitBias + edgeBias * 0.25 + noiseValue * 0.2;
       }
 
-      const jitter = this.rng.next() * 0.05;
+      const jitter = rng.next() * 0.05;
       scores.set(this.coordKey(tile.coordinate), score + jitter);
     });
 
@@ -746,6 +969,7 @@ export class MapGenerator {
     mapRadius: number
   ): WaterBodyData {
     let updatedWaterData = waterData;
+    const repairsByCapital = new Array(capitalPositions.length).fill(0);
 
     for (let i = 0; i < capitalPositions.length; i++) {
       const factionId = this.normalizeFactionId(this.playerFactions[i]);
@@ -764,24 +988,32 @@ export class MapGenerator {
       }
 
       const tileIndex = this.buildTileIndex(tiles);
-      const path = this.findPathToWater(capital, tileIndex);
+      const minBodySize = this.getMulekiteMinBodySize();
+      const path = this.findPathToWater(capital, tileIndex, updatedWaterData, minBodySize);
       if (path.length > 0 && path.length <= MAP_GENERATION_CONSTANTS.WATER_REPAIR_BUDGET) {
-        path.forEach(tile => {
-          if (!tile.hasCity && tile.feature !== 'village' && tile.resources.length === 0) {
+        const neighbors = hexNeighbors(capital)
+          .map(coord => tileIndex.get(this.coordKey(coord)))
+          .filter((tile): tile is Tile => !!tile);
+        const landNeighbors = neighbors.filter(tile => tile.terrain !== 'water').length;
+        const adjacentPathTiles = path.filter(tile => hexDistance(tile.coordinate, capital) === 1);
+        const minLandNeighbors = wantsWater ? 2 : 3;
+        const canSpare = landNeighbors - adjacentPathTiles.length >= minLandNeighbors;
+        const canConvertAll = path.every(tile =>
+          !tile.hasCity && tile.feature !== 'village' && tile.resources.length === 0
+        );
+
+        if (canSpare && canConvertAll) {
+          path.forEach(tile => {
             tile.terrain = 'water';
-          }
-        });
-      } else if (path.length > 0) {
-        path.slice(0, MAP_GENERATION_CONSTANTS.WATER_REPAIR_BUDGET).forEach(tile => {
-          if (!tile.hasCity && tile.feature !== 'village' && tile.resources.length === 0) {
-            tile.terrain = 'water';
-          }
-        });
+            repairsByCapital[i] += 1;
+          });
+        }
       }
 
       updatedWaterData = this.buildWaterBodyIndex(tiles);
     }
 
+    this.lastWaterRepairByCapital = repairsByCapital;
     return updatedWaterData;
   }
 
@@ -837,7 +1069,9 @@ export class MapGenerator {
 
   private findPathToWater(
     start: HexCoordinate,
-    tileIndex: Map<string, Tile>
+    tileIndex: Map<string, Tile>,
+    waterData: WaterBodyData,
+    minBodySize: number
   ): Tile[] {
     const visited = new Set<string>([this.coordKey(start)]);
     const queue: HexCoordinate[] = [start];
@@ -854,6 +1088,11 @@ export class MapGenerator {
       if (depth > maxDepth) continue;
 
       if (currentTile.terrain === 'water') {
+        const bodyId = waterData.bodyByCoord.get(currentKey);
+        const bodySize = bodyId !== undefined ? (waterData.bodySizes[bodyId] ?? 0) : 0;
+        if (bodySize < minBodySize) {
+          continue;
+        }
         const path: Tile[] = [];
         let walkerKey = currentKey;
         while (parent.has(walkerKey)) {
@@ -888,6 +1127,7 @@ export class MapGenerator {
     capitalPositions: HexCoordinate[],
     waterData: WaterBodyData
   ): void {
+    const rng = this.rngStreams.resourcesWater;
     const waterBodies = this.groupWaterBodies(tiles, waterData);
     const tileIndex = this.buildTileIndex(tiles);
 
@@ -896,16 +1136,16 @@ export class MapGenerator {
       if (bodySize === 0) return;
 
       const fishTarget = Math.max(1, Math.round(bodySize * 0.12));
-      this.placeResourceClusters(body, tileIndex, 'fishing_shoal', fishTarget, 2, 4);
+      this.placeResourceClusters(body, tileIndex, 'fishing_shoal', fishTarget, 2, 4, rng);
 
       const seaBeastTarget = bodySize >= 12 ? Math.max(1, Math.floor(bodySize * 0.015)) : 0;
       if (seaBeastTarget > 0) {
-        this.placeDeepWaterResources(body, tileIndex, 'sea_beast', seaBeastTarget);
+        this.placeDeepWaterResources(body, tileIndex, 'sea_beast', seaBeastTarget, rng);
       }
     });
 
     this.ensureCapitalFishAccess(tiles, capitalPositions, waterData);
-    this.ensureSharedWaterOpportunities(tiles, capitalPositions, waterData);
+    this.ensureSharedWaterOpportunities(tiles, capitalPositions, waterData, rng);
   }
 
   private placeResourceClusters(
@@ -914,18 +1154,19 @@ export class MapGenerator {
     resource: string,
     target: number,
     minClusterSize: number,
-    maxClusterSize: number
+    maxClusterSize: number,
+    rng: SeededRandom
   ): void {
     let remaining = target;
     const maxClusters = Math.max(1, Math.round(bodyTiles.length / 12));
     let clusters = 0;
 
     while (remaining > 0 && clusters < maxClusters) {
-      const seed = this.pickAvailableWaterTile(bodyTiles);
+      const seed = this.pickAvailableWaterTile(bodyTiles, rng);
       if (!seed) break;
 
-      const clusterSize = Math.min(remaining, this.rng.nextInt(minClusterSize, maxClusterSize));
-      const clusterTiles = this.expandCluster(seed, tileIndex, clusterSize);
+      const clusterSize = Math.min(remaining, rng.nextInt(minClusterSize, maxClusterSize));
+      const clusterTiles = this.expandCluster(seed, tileIndex, clusterSize, rng);
       clusterTiles.forEach(tile => {
         if (!tile.resources.includes(resource)) {
           tile.resources.push(resource);
@@ -936,7 +1177,7 @@ export class MapGenerator {
     }
 
     while (remaining > 0) {
-      const tile = this.pickAvailableWaterTile(bodyTiles);
+      const tile = this.pickAvailableWaterTile(bodyTiles, rng);
       if (!tile) break;
       tile.resources.push(resource);
       remaining -= 1;
@@ -947,7 +1188,8 @@ export class MapGenerator {
     bodyTiles: Tile[],
     tileIndex: Map<string, Tile>,
     resource: string,
-    target: number
+    target: number,
+    rng: SeededRandom
   ): void {
     let remaining = target;
     const deepTiles = bodyTiles.filter(tile => {
@@ -958,7 +1200,7 @@ export class MapGenerator {
     });
 
     while (remaining > 0 && deepTiles.length > 0) {
-      const pick = deepTiles[Math.floor(this.rng.next() * deepTiles.length)];
+      const pick = deepTiles[Math.floor(rng.next() * deepTiles.length)];
       if (pick.resources.length === 0) {
         pick.resources.push(resource);
         remaining -= 1;
@@ -968,25 +1210,30 @@ export class MapGenerator {
     }
   }
 
-  private pickAvailableWaterTile(bodyTiles: Tile[]): Tile | null {
+  private pickAvailableWaterTile(bodyTiles: Tile[], rng: SeededRandom): Tile | null {
     const candidates = bodyTiles.filter(tile => tile.resources.length === 0);
     if (candidates.length === 0) return null;
-    return candidates[Math.floor(this.rng.next() * candidates.length)];
+    return candidates[Math.floor(rng.next() * candidates.length)];
   }
 
-  private expandCluster(seed: Tile, tileIndex: Map<string, Tile>, size: number): Tile[] {
+  private expandCluster(
+    seed: Tile,
+    tileIndex: Map<string, Tile>,
+    size: number,
+    rng: SeededRandom
+  ): Tile[] {
     const cluster: Tile[] = [seed];
     const visited = new Set<string>([this.coordKey(seed.coordinate)]);
 
     while (cluster.length < size) {
-      const anchor = cluster[Math.floor(this.rng.next() * cluster.length)];
+      const anchor = cluster[Math.floor(rng.next() * cluster.length)];
       const neighbors = hexNeighbors(anchor.coordinate)
         .map(coord => tileIndex.get(this.coordKey(coord)))
         .filter((tile): tile is Tile => !!tile && tile.terrain === 'water' && tile.resources.length === 0)
         .filter(tile => !visited.has(this.coordKey(tile.coordinate)));
 
       if (neighbors.length === 0) break;
-      const next = neighbors[Math.floor(this.rng.next() * neighbors.length)];
+      const next = neighbors[Math.floor(rng.next() * neighbors.length)];
       cluster.push(next);
       visited.add(this.coordKey(next.coordinate));
     }
@@ -1032,7 +1279,8 @@ export class MapGenerator {
   private ensureSharedWaterOpportunities(
     tiles: Tile[],
     capitalPositions: HexCoordinate[],
-    waterData: WaterBodyData
+    waterData: WaterBodyData,
+    rng: SeededRandom
   ): void {
     const tileIndex = this.buildTileIndex(tiles);
     const waterBodies = this.groupWaterBodies(tiles, waterData);
@@ -1061,7 +1309,7 @@ export class MapGenerator {
       if (farTiles.length === 0) continue;
       const hasFarFish = farTiles.some(tile => tile.resources.includes('fishing_shoal'));
       if (!hasFarFish) {
-        const pick = farTiles[Math.floor(this.rng.next() * farTiles.length)];
+        const pick = farTiles[Math.floor(rng.next() * farTiles.length)];
         pick.resources.push('fishing_shoal');
       }
     }
@@ -1147,13 +1395,14 @@ export class MapGenerator {
   private placeNeutralCities(
     tiles: Tile[],
     mapRadius: number,
-    capitalPositions: HexCoordinate[]
+    capitalPositions: HexCoordinate[],
+    diagnostics?: NeutralCityRejectionCounts
   ): void {
     if (capitalPositions.length === 0) return;
     const additionalCities = Math.max(2, Math.floor(this.config.playerCount * 0.5));
     if (additionalCities <= 0) return;
 
-    const neutralRng = new SeededRandom(this.deriveSeed('neutralCities'));
+    const neutralRng = this.rngStreams.neutralCities;
     const cityPositions = capitalPositions.map(pos => ({ ...pos }));
     const landmassData = this.buildLandmassData(tiles);
     const capitalLandmass = capitalPositions.map(cap =>
@@ -1185,15 +1434,24 @@ export class MapGenerator {
       .map(tile => {
         const landmassId = landmassData.massByCoord.get(this.coordKey(tile.coordinate));
         const landmassSize = landmassId !== undefined ? landmassData.massSizes[landmassId] ?? 0 : 0;
-        if (landmassSize < minLandmass) return null;
+        if (landmassSize < minLandmass) {
+          diagnostics && (diagnostics.landmassTooSmall += 1);
+          return null;
+        }
 
         const landNeighbors = hexNeighbors(tile.coordinate)
           .map(coord => tileIndex.get(this.coordKey(coord)))
           .filter((neighbor): neighbor is Tile => !!neighbor && neighbor.terrain !== 'water').length;
-        if (landNeighbors < minLandNeighbors) return null;
+        if (landNeighbors < minLandNeighbors) {
+          diagnostics && (diagnostics.landNeighbors += 1);
+          return null;
+        }
 
         const workableCount = workableCountByKey.get(this.coordKey(tile.coordinate)) ?? 0;
-        if (workableCount < minWorkable) return null;
+        if (workableCount < minWorkable) {
+          diagnostics && (diagnostics.workableTiles += 1);
+          return null;
+        }
 
         const distances = capitalPositions.map(cap => hexDistance(tile.coordinate, cap));
         const nearestDistance = Math.min(...distances);
@@ -1273,6 +1531,10 @@ export class MapGenerator {
       const ring = this.getVillageRing(entry.nearestDistance, ringBands);
       const distanceScore = ring === 'mid' ? 1 : ring === 'far' ? 0.6 : -0.4;
 
+      const earlyPenalty = entry.nearestDistance <= earlyRadius
+        ? 1 - entry.nearestDistance / Math.max(1, earlyRadius)
+        : 0;
+
       const radialRatio = Math.min(1, entry.radialDistance / Math.max(1, mapRadius));
       const edgePenalty = radialRatio > 0.75 ? (radialRatio - 0.75) / 0.25 : 0;
 
@@ -1285,6 +1547,7 @@ export class MapGenerator {
         distanceScore -
         fairnessPenalty * 0.8 -
         spreadPenalty * 1.2 -
+        earlyPenalty * 1.2 -
         edgePenalty * 0.5 -
         mountainPenalty +
         neutralRng.next() * 0.05
@@ -1293,9 +1556,13 @@ export class MapGenerator {
 
     const isValidNeutralLocation = (entry: typeof candidates[number]) => {
       if (entry.tile.hasCity || entry.tile.terrain === 'water') return false;
-      return !cityPositions.some(cityPos =>
+      const blocked = cityPositions.some(cityPos =>
         hexDistance(entry.tile.coordinate, cityPos) < MAP_GENERATION_CONSTANTS.CITY_MIN_DISTANCE
       );
+      if (blocked && diagnostics) {
+        diagnostics.spacing += 1;
+      }
+      return !blocked;
     };
 
     const maxAttempts = candidates.length * 4;
@@ -1371,7 +1638,7 @@ export class MapGenerator {
   }
 
   private deriveSeed(label: string): number {
-    const baseSeed = this.config.seed ?? Date.now();
+    const baseSeed = this.seed;
     let hash = 0;
     for (let i = 0; i < label.length; i++) {
       hash = (hash * 31 + label.charCodeAt(i)) >>> 0;
@@ -1491,12 +1758,21 @@ export class MapGenerator {
     capitalPositions: HexCoordinate[],
     mapRadius: number
   ): void {
+    const rng = this.rngStreams.villages;
     const ringBands = this.getVillageRingBands();
     const minDist = Math.max(
       MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE_FROM_CITY,
       ringBands.near.min
     );
     const maxDist = ringBands.near.max;
+    const relaxedMinVillageDistance = Math.max(
+      1,
+      MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE - MAP_GENERATION_CONSTANTS.MAX_SPACING_RELAX
+    );
+    const relaxedMinDistanceFromCity = Math.max(
+      1,
+      MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE_FROM_CITY - MAP_GENERATION_CONSTANTS.MAX_SPACING_RELAX
+    );
     const cityPositions = tiles.filter(tile => tile.hasCity).map(tile => tile.coordinate);
     const villagePositions = tiles.filter(tile => tile.feature === 'village').map(tile => tile.coordinate);
     const landmassIndex = this.buildLandmassIndex(tiles);
@@ -1510,7 +1786,7 @@ export class MapGenerator {
       });
       if (hasVillage) continue;
 
-      const candidates = tiles.filter(tile => {
+      const buildCandidates = (overrides?: VillageSpacingOverrides) => tiles.filter(tile => {
         const dist = hexDistance(tile.coordinate, capital);
         if (dist < minDist || dist > maxDist) return false;
         if (tile.terrain === 'water') return false;
@@ -1519,11 +1795,39 @@ export class MapGenerator {
           const tileLandmass = landmassIndex.get(this.coordKey(tile.coordinate));
           if (tileLandmass !== capitalLandmass) return false;
         }
-        return this.isValidVillageLocation(tile, cityPositions, villagePositions, mapRadius);
+        return this.isValidVillageLocation(
+          tile,
+          cityPositions,
+          villagePositions,
+          mapRadius,
+          undefined,
+          overrides
+        );
       });
 
-      if (candidates.length === 0) continue;
-      const pick = candidates[Math.floor(this.rng.next() * candidates.length)];
+      let candidates = buildCandidates();
+      let relaxed = false;
+
+      if (candidates.length === 0) {
+        candidates = buildCandidates({
+          minVillageDistance: relaxedMinVillageDistance,
+          minDistanceFromCity: relaxedMinDistanceFromCity,
+        });
+        if (candidates.length > 0) {
+          relaxed = true;
+        }
+      }
+
+      if (candidates.length === 0) {
+        this.lastVillageGuaranteeFailed[i] += 1;
+        continue;
+      }
+
+      if (relaxed) {
+        this.lastVillageGuaranteeRelaxed[i] += 1;
+      }
+
+      const pick = candidates[Math.floor(rng.next() * candidates.length)];
       pick.feature = 'village';
       villagePositions.push(pick.coordinate);
     }
@@ -1535,10 +1839,16 @@ export class MapGenerator {
    * Pass 2: Pre-terrain villages (future expansion - skipped for now) 
    * Pass 3: Post-terrain villages (main implementation)
    */
-  private placeVillages(tiles: Tile[], mapRadius: number, capitalPositions: HexCoordinate[]): void {
+  private placeVillages(
+    tiles: Tile[],
+    mapRadius: number,
+    capitalPositions: HexCoordinate[],
+    diagnostics?: VillageRejectionCounts
+  ): void {
     if (capitalPositions.length === 0) return;
 
     // Soft-parity village placement with reachability and ring bias.
+    const rng = this.rngStreams.villages;
     const placedVillages: HexCoordinate[] = tiles
       .filter(tile => tile.feature === 'village')
       .map(tile => tile.coordinate);
@@ -1548,13 +1858,20 @@ export class MapGenerator {
     const targetEarlyMin = this.getVillageTargetEarlyMin();
 
     const maxVillages = Math.floor(tiles.length / MAP_GENERATION_CONSTANTS.VILLAGE_DENSITY_RATIO);
-    const targetPlacements = Math.max(0, maxVillages - placedVillages.length);
+    const targetTotal = Math.max(0, maxVillages);
+    const targetPlacements = Math.max(0, targetTotal - placedVillages.length);
+    if (targetPlacements <= 0) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Villages: placed ${placedVillages.length}/${targetTotal}, no additional placement needed`);
+      }
+      return;
+    }
 
     const landmassIndex = this.buildLandmassIndex(tiles);
     const capitalLandmass = capitalPositions.map(cap => landmassIndex.get(this.coordKey(cap)));
 
     const baseCandidates = tiles.filter(tile =>
-      this.isValidVillageLocation(tile, cityPositions, placedVillages, mapRadius)
+      this.isValidVillageLocation(tile, cityPositions, placedVillages, mapRadius, diagnostics)
     );
 
     const candidateEntries: VillageCandidateEntry[] = baseCandidates.map(tile => {
@@ -1631,11 +1948,16 @@ export class MapGenerator {
     let contestedPlaced = 0;
     const contestedTarget = Math.max(
       0,
-      Math.round(targetPlacements * MAP_GENERATION_CONSTANTS.VILLAGE_CONTESTED_TARGET_RATIO)
+      Math.round(targetTotal * MAP_GENERATION_CONSTANTS.VILLAGE_CONTESTED_TARGET_RATIO)
     );
 
     const updateVillageCounts = (coord: HexCoordinate) => {
+      const villageLandmass = landmassIndex.get(this.coordKey(coord));
       capitalPositions.forEach((capital, index) => {
+        const capLandmass = capitalLandmass[index];
+        if (capLandmass !== undefined && villageLandmass !== undefined && capLandmass !== villageLandmass) {
+          return;
+        }
         const distance = hexDistance(coord, capital);
         if (distance <= earlyRadius) {
           earlyCount[index] += 1;
@@ -1660,7 +1982,7 @@ export class MapGenerator {
           tieCount = 1;
         } else if (distance === bestDistance) {
           tieCount += 1;
-          if (this.rng.next() < 1 / tieCount) {
+          if (rng.next() < 1 / tieCount) {
             bestIndex = i;
           }
         }
@@ -1686,7 +2008,8 @@ export class MapGenerator {
     const pickBestCandidate = (
       capIndex: number,
       ring: VillageRing,
-      allowOwnershipPenalty: boolean
+      allowOwnershipPenalty: boolean,
+      needsNear: boolean
     ): VillageCandidateAssignment | null => {
       const pool = allowOwnershipPenalty ? fallbackPools[capIndex][ring] : pools[capIndex][ring];
       if (pool.length === 0) return null;
@@ -1696,7 +2019,7 @@ export class MapGenerator {
       let bestScore = -Infinity;
 
       for (let i = 0; i < sampleCount; i++) {
-        const pick = pool[Math.floor(this.rng.next() * pool.length)];
+        const pick = pool[Math.floor(rng.next() * pool.length)];
         if (!this.isValidVillageLocation(pick.entry.tile, cityPositions, placedVillages, mapRadius)) {
           continue;
         }
@@ -1712,7 +2035,12 @@ export class MapGenerator {
           placedVillages,
           contestedTarget,
           contestedPlaced,
-          isOwnershipPenalty
+          earlyCount,
+          earlyRadius,
+          capIndex,
+          needsNear,
+          isOwnershipPenalty,
+          rng
         );
 
         if (score > bestScore) {
@@ -1738,7 +2066,12 @@ export class MapGenerator {
             placedVillages,
             contestedTarget,
             contestedPlaced,
-            isOwnershipPenalty
+            earlyCount,
+            earlyRadius,
+            capIndex,
+            needsNear,
+            isOwnershipPenalty,
+            rng
           );
           if (score > bestScore) {
             bestScore = score;
@@ -1753,10 +2086,11 @@ export class MapGenerator {
     const tryPlaceWithRings = (
       capIndex: number,
       ringOrder: VillageRing[],
-      allowOwnershipPenalty: boolean
+      allowOwnershipPenalty: boolean,
+      needsNear: boolean
     ): boolean => {
       for (const ring of ringOrder) {
-        const candidate = pickBestCandidate(capIndex, ring, allowOwnershipPenalty);
+        const candidate = pickBestCandidate(capIndex, ring, allowOwnershipPenalty, needsNear);
         if (candidate) {
           commitVillage(candidate, capIndex);
           return true;
@@ -1767,43 +2101,54 @@ export class MapGenerator {
 
     // Baseline: give each capital +1 mid village when possible (fallback to far).
     for (let capIndex = 0; capIndex < capitalPositions.length; capIndex++) {
-      if (placedVillages.length >= targetPlacements) break;
-      const placed = tryPlaceWithRings(capIndex, ['mid', 'far'], false);
+      if (placedVillages.length >= targetTotal) break;
+      const needsNear = earlyCount[capIndex] < targetEarlyMin;
+      const ringOrder = earlyCount[capIndex] > Math.min(...earlyCount)
+        ? ['far', 'mid']
+        : ['mid', 'far'];
+      const placed = tryPlaceWithRings(capIndex, ringOrder, false, needsNear);
       if (!placed) {
-        tryPlaceWithRings(capIndex, ['far'], true);
+        tryPlaceWithRings(capIndex, ['far'], true, needsNear);
       }
     }
 
     let attempts = 0;
     const maxAttempts = tiles.length * 3;
 
-    while (placedVillages.length < targetPlacements && attempts < maxAttempts) {
+    while (placedVillages.length < targetTotal && attempts < maxAttempts) {
       attempts += 1;
 
       const sortedCapitals = assignedCount
         .map((count, index) => ({
           count,
+          early: earlyCount[index],
           index,
-          order: this.rng.next(),
+          order: rng.next(),
         }))
-        .sort((a, b) => (a.count - b.count) || (a.order - b.order));
+        .sort((a, b) => (a.early - b.early) || (a.count - b.count) || (a.order - b.order));
 
       let placed = false;
       for (const { index: capIndex } of sortedCapitals) {
         const needsNear = earlyCount[capIndex] < targetEarlyMin;
+        const minEarly = Math.min(...earlyCount);
+        const earlyLead = earlyCount[capIndex] - minEarly;
         const ringWeights = needsNear
           ? { near: 0.4, mid: 0.4, far: 0.2 }
-          : { near: 0, mid: 0.75, far: 0.25 };
+          : earlyLead >= 2
+            ? { near: 0, mid: 0.25, far: 0.75 }
+            : earlyLead === 1
+              ? { near: 0, mid: 0.5, far: 0.5 }
+              : { near: 0, mid: 0.75, far: 0.25 };
 
-        const ring = this.pickVillageRing(ringWeights);
+        const ring = this.pickVillageRing(ringWeights, rng);
         const ringOrder: VillageRing[] = [ring];
         if (ring !== 'mid') ringOrder.push('mid');
         if (ring !== 'far') ringOrder.push('far');
         if (needsNear && ring !== 'near') ringOrder.push('near');
 
-        placed = tryPlaceWithRings(capIndex, ringOrder, false);
+        placed = tryPlaceWithRings(capIndex, ringOrder, false, needsNear);
         if (!placed) {
-          placed = tryPlaceWithRings(capIndex, ringOrder, true);
+          placed = tryPlaceWithRings(capIndex, ringOrder, true, needsNear);
         }
 
         if (placed) break;
@@ -1819,7 +2164,7 @@ export class MapGenerator {
         .map((counts, index) => `P${index + 1} N${counts.near}/M${counts.mid}/F${counts.far}`)
         .join(' | ');
       console.log(
-        `Villages: placed ${placedVillages.length}/${targetPlacements}, contested ${contestedPlaced}/${contestedTarget}, early spread ${earlyMin}-${earlyMax}`
+        `Villages: placed ${placedVillages.length}/${targetTotal}, contested ${contestedPlaced}/${contestedTarget}, early spread ${earlyMin}-${earlyMax}`
       );
       if (ringSummary) {
         console.log(`Villages: ring counts ${ringSummary}`);
@@ -1834,35 +2179,59 @@ export class MapGenerator {
     tile: Tile, 
     cityPositions: HexCoordinate[],
     existingVillages: HexCoordinate[], 
-    mapRadius: number
+    mapRadius: number,
+    diagnostics?: VillageRejectionCounts,
+    overrides?: VillageSpacingOverrides
   ): boolean {
+    const minVillageDistance =
+      overrides?.minVillageDistance ?? MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE;
+    const minDistanceFromCity =
+      overrides?.minDistanceFromCity ?? MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE_FROM_CITY;
+
     // Must be land (not water)
-    if (tile.terrain === 'water') return false;
+    if (tile.terrain === 'water') {
+      diagnostics && (diagnostics.water += 1);
+      return false;
+    }
     
     // Can't place on cities
-    if (tile.hasCity) return false;
+    if (tile.hasCity) {
+      diagnostics && (diagnostics.city += 1);
+      return false;
+    }
     
     // Already has a village
-    if (tile.feature === 'village') return false;
+    if (tile.feature === 'village') {
+      diagnostics && (diagnostics.existingVillage += 1);
+      return false;
+    }
     
     // Must be ≥ 2 tiles inside map edge (Polytopia rule)
     const distanceFromCenter = hexDistance(tile.coordinate, { q: 0, r: 0, s: 0 });
-    if (distanceFromCenter > mapRadius - MAP_GENERATION_CONSTANTS.MAP_EDGE_BUFFER) return false;
+    if (distanceFromCenter > mapRadius - MAP_GENERATION_CONSTANTS.MAP_EDGE_BUFFER) {
+      diagnostics && (diagnostics.edge += 1);
+      return false;
+    }
 
     const radialDistance = Math.hypot(tile.coordinate.q, tile.coordinate.r);
     const maxRadialDistance = mapRadius * MAP_GENERATION_CONSTANTS.VILLAGE_EDGE_RADIUS_RATIO;
-    if (radialDistance > maxRadialDistance) return false;
+    if (radialDistance > maxRadialDistance) {
+      diagnostics && (diagnostics.edge += 1);
+      return false;
+    }
     
     // Must be ≥ 2 tiles from any existing village (Polytopia spacing rule)
     for (const villagePos of existingVillages) {
-      if (hexDistance(tile.coordinate, villagePos) < MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE) {
+      if (hexDistance(tile.coordinate, villagePos) < minVillageDistance) {
+        diagnostics && (diagnostics.spacing += 1);
         return false;
       }
     }
     
     // Must be ≥ N tiles from any city (prevent blocking starting areas / neutral cities)
     for (const cityPos of cityPositions) {
-      if (hexDistance(tile.coordinate, cityPos) < MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE_FROM_CITY) {
+      if (hexDistance(tile.coordinate, cityPos) < minDistanceFromCity) {
+        diagnostics && (diagnostics.cityDistance += 1);
         return false;
       }
     }
@@ -1904,9 +2273,12 @@ export class MapGenerator {
     return null;
   }
 
-  private pickVillageRing(weights: Record<VillageRing, number>): VillageRing {
+  private pickVillageRing(
+    weights: Record<VillageRing, number>,
+    rng: SeededRandom
+  ): VillageRing {
     const total = weights.near + weights.mid + weights.far;
-    const roll = this.rng.next() * total;
+    const roll = rng.next() * total;
     if (roll < weights.near) return 'near';
     if (roll < weights.near + weights.mid) return 'mid';
     return 'far';
@@ -1985,7 +2357,12 @@ export class MapGenerator {
     placedVillages: HexCoordinate[],
     contestedTarget: number,
     contestedPlaced: number,
-    ownershipPenalty: boolean
+    earlyCounts: number[],
+    earlyRadius: number,
+    capIndex: number,
+    needsNear: boolean,
+    ownershipPenalty: boolean,
+    rng: SeededRandom
   ): number {
     const band = bands[ring];
     const center = (band.min + band.max) / 2;
@@ -2016,6 +2393,33 @@ export class MapGenerator {
       }
     }
 
+    let earlyPenalty = 0;
+    if (distanceToCapital <= earlyRadius && earlyCounts.length > 0) {
+      const currentMin = Math.min(...earlyCounts);
+      const currentMax = Math.max(...earlyCounts);
+      const currentSpread = currentMax - currentMin;
+      if (!needsNear && currentSpread >= 3 && earlyCounts[capIndex] > currentMin) {
+        return -Infinity;
+      }
+
+      const projected = earlyCounts.map((count, index) =>
+        candidate.distances[index] <= earlyRadius ? count + 1 : count
+      );
+      const minProjected = Math.min(...projected);
+      const maxProjected = Math.max(...projected);
+      const surplus = projected[capIndex] - minProjected;
+      if (surplus > 0) {
+        earlyPenalty += surplus;
+      }
+      const spread = maxProjected - minProjected;
+      if (spread > 3) {
+        earlyPenalty += (spread - 3) * 2;
+      }
+      if (currentSpread >= 3) {
+        earlyPenalty += 2;
+      }
+    }
+
     const ownershipPenaltyValue = ownershipPenalty ? 0.4 : 0;
 
     return (
@@ -2023,8 +2427,9 @@ export class MapGenerator {
       contestedScore * 0.8 -
       edgePenalty * 0.4 -
       clusterPenalty * 0.5 -
+      earlyPenalty * 1.6 -
       ownershipPenaltyValue +
-      this.rng.next() * 0.05
+      rng.next() * 0.05
     );
   }
 
@@ -2099,8 +2504,8 @@ export class MapGenerator {
     coord: HexCoordinate,
     probs: TerrainProbabilities
   ): TerrainType {
-    const noiseValue = this.noise2D(coord.q * 0.1, coord.r * 0.1);
-    const rand = Math.max(0, Math.min(0.999, this.rng.next() + noiseValue * 0.2));
+    const noiseValue = this.terrainNoise2D(coord.q * 0.1, coord.r * 0.1);
+    const rand = Math.max(0, Math.min(0.999, this.rngStreams.terrain.next() + noiseValue * 0.2));
 
     if (rand < probs.mountain) return 'mountain';
     if (rand < probs.mountain + probs.forest) return 'forest';
@@ -2168,6 +2573,7 @@ export class MapGenerator {
     tiles: Tile[],
     capitalPositions: HexCoordinate[]
   ): LandResourceConstraintContext {
+    const rng = this.rngStreams.resourcesLand;
     // 1. Identify all city coordinates
     const cityTiles = tiles.filter(tile => tile.hasCity);
     if (cityTiles.length === 0) {
@@ -2225,14 +2631,14 @@ export class MapGenerator {
 
       spawnTable = this.applyTribalModifiersForTile(spawnTable, tile.coordinate, capitalPositions);
 
-      const resourceToSpawn = this.getResourceFromTable(spawnTable, tile.terrain);
+      const resourceToSpawn = this.getResourceFromTable(spawnTable, tile.terrain, rng);
       if (resourceToSpawn && this.isLandResourceType(resourceToSpawn)) {
         candidates.push({
           tile,
           resource: resourceToSpawn,
           zone,
           distanceToNearestCity,
-          order: this.rng.next(),
+          order: rng.next(),
         });
       }
     });
@@ -2241,7 +2647,7 @@ export class MapGenerator {
     wildernessTiles.forEach(tile => {
       let wildernessSpawnTable = this.getWildernessSpawnTable();
       wildernessSpawnTable = this.applyTribalModifiersForTile(wildernessSpawnTable, tile.coordinate, capitalPositions);
-      const resourceToSpawn = this.getResourceFromTable(wildernessSpawnTable, tile.terrain);
+      const resourceToSpawn = this.getResourceFromTable(wildernessSpawnTable, tile.terrain, rng);
 
       if (resourceToSpawn && this.isLandResourceType(resourceToSpawn)) {
         const distanceToNearestCity = Math.min(
@@ -2252,7 +2658,7 @@ export class MapGenerator {
           resource: resourceToSpawn,
           zone: 'wilderness',
           distanceToNearestCity,
-          order: this.rng.next(),
+          order: rng.next(),
         });
       }
     });
@@ -2276,7 +2682,7 @@ export class MapGenerator {
     for (const candidate of candidates) {
       if (candidate.tile.resources.length > 0) continue;
       if (!this.isResourceTerrainCompatible(candidate.resource, candidate.tile.terrain)) continue;
-      this.tryPlaceLandResourceCandidate(candidate, context, tiles);
+      this.tryPlaceLandResourceCandidate(candidate, context, tiles, rng);
     }
 
     return context;
@@ -2291,7 +2697,7 @@ export class MapGenerator {
     capitalPositions: HexCoordinate[],
     context: LandResourceConstraintContext
   ): void {
-    const minimumGuarantee = 2;
+    const minimumGuarantee = MAP_GENERATION_CONSTANTS.MIN_HARVESTABLES_R2;
     const tileIndex = this.buildTileIndex(tiles);
 
     for (let capitalIndex = 0; capitalIndex < capitalPositions.length; capitalIndex++) {
@@ -2308,7 +2714,7 @@ export class MapGenerator {
         return true;
       });
 
-      this.shuffleTiles(upgradableTargets);
+      this.shuffleTiles(upgradableTargets, this.rngStreams.resourcesLand);
 
       const guaranteeAdded = new Set<string>();
 
@@ -2358,7 +2764,7 @@ export class MapGenerator {
           }
 
           if (resourcesToTry.length === 0) {
-            const resourceChoice = this.pickGuaranteeResource(tile);
+            const resourceChoice = this.pickGuaranteeResource(tile, this.rngStreams.resourcesLand);
             if (!resourceChoice) continue;
             resourcesToTry = [
               resourceChoice,
@@ -2395,7 +2801,10 @@ export class MapGenerator {
       attemptPlacement(context.minDistance, context.maxPerCapital);
 
       let relaxedSpacing = false;
-      const spacingRelaxed = Math.max(0, context.minDistance - 1);
+      const spacingRelaxed = Math.max(
+        0,
+        context.minDistance - MAP_GENERATION_CONSTANTS.MAX_SPACING_RELAX
+      );
       if (summary.total < minimumGuarantee && spacingRelaxed !== context.minDistance) {
         const placed = attemptPlacement(spacingRelaxed, context.maxPerCapital);
         if (placed > 0) {
@@ -2405,9 +2814,14 @@ export class MapGenerator {
 
       let relaxedCap = false;
       if (summary.total < minimumGuarantee) {
-        const placed = attemptPlacement(Math.max(0, spacingRelaxed - 1), 0);
-        if (placed > 0) {
-          relaxedCap = true;
+        const capOverage = context.maxPerCapital > 0
+          ? context.maxPerCapital + MAP_GENERATION_CONSTANTS.MAX_CAP_OVERAGE_FOR_GUARANTEE
+          : 0;
+        if (capOverage !== context.maxPerCapital) {
+          const placed = attemptPlacement(spacingRelaxed, capOverage);
+          if (placed > 0) {
+            relaxedCap = true;
+          }
         }
       }
 
@@ -2428,7 +2842,7 @@ export class MapGenerator {
 
         let converted = false;
         for (const entry of convertCandidates) {
-          const newResource = this.pickCategoryResource(entry.tile, missingCategory);
+          const newResource = this.pickCategoryResource(entry.tile, missingCategory, this.rngStreams.resourcesLand);
           if (!newResource) continue;
 
           const capIndex = context.homeZoneByCoord.get(this.coordKey(entry.tile.coordinate));
@@ -2464,9 +2878,9 @@ export class MapGenerator {
         });
 
         const placeMissingCategory = (minDistance: number, maxPerCapital: number): boolean => {
-          this.shuffleTiles(emptyTargets);
+          this.shuffleTiles(emptyTargets, this.rngStreams.resourcesLand);
           for (const tile of emptyTargets) {
-            const resourceToAdd = this.pickCategoryResource(tile, missingCategory);
+            const resourceToAdd = this.pickCategoryResource(tile, missingCategory, this.rngStreams.resourcesLand);
             if (!resourceToAdd) continue;
             const capIndex = context.homeZoneByCoord.get(this.coordKey(tile.coordinate));
             const result = this.canPlaceLandResource(
@@ -2509,19 +2923,25 @@ export class MapGenerator {
             return false;
           };
 
+          const capOverage = context.maxPerCapital > 0
+            ? context.maxPerCapital + MAP_GENERATION_CONSTANTS.MAX_CAP_OVERAGE_FOR_GUARANTEE
+            : 0;
           swapped =
             attemptSwap(context.minDistance, context.maxPerCapital) ||
             attemptSwap(spacingRelaxed, context.maxPerCapital) ||
-            attemptSwap(Math.max(0, spacingRelaxed - 1), 0);
+            attemptSwap(spacingRelaxed, capOverage);
         }
 
         summary = getSummary();
 
         if (!swapped && (!summary.hasFood || !summary.hasProd)) {
+          const capOverage = context.maxPerCapital > 0
+            ? context.maxPerCapital + MAP_GENERATION_CONSTANTS.MAX_CAP_OVERAGE_FOR_GUARANTEE
+            : 0;
           const added =
             placeMissingCategory(context.minDistance, context.maxPerCapital) ||
             placeMissingCategory(spacingRelaxed, context.maxPerCapital) ||
-            placeMissingCategory(Math.max(0, spacingRelaxed - 1), 0);
+            placeMissingCategory(spacingRelaxed, capOverage);
           if (added) {
             varietyExtraAdded = true;
           }
@@ -2533,6 +2953,9 @@ export class MapGenerator {
       }
       if (relaxedCap) {
         context.debug.relaxCapUsed[capitalIndex] += 1;
+      }
+      if (varietyExtraAdded) {
+        context.debug.varietyExtraGranted[capitalIndex] += 1;
       }
       if (varietyExtraAdded && process.env.NODE_ENV !== 'production') {
         console.log(`Capital ${capitalIndex + 1}: variety required extra resource placement.`);
@@ -2546,8 +2969,8 @@ export class MapGenerator {
   ): LandResourceConstraintContext {
     const minDistance = Math.max(0, this.config.minResourceDistance ?? 0);
     let maxPerCapital = Math.max(0, this.config.maxResourcesPerPlayer ?? 0);
-    const homeRadius = MAP_GENERATION_CONSTANTS.OUTER_CITY_RADIUS;
-    const minimumGuarantee = 2;
+    const homeRadius = MAP_GENERATION_CONSTANTS.HOME_RADIUS_RESOURCES;
+    const minimumGuarantee = MAP_GENERATION_CONSTANTS.MIN_HARVESTABLES_R2;
 
     let maxPerCapitalClamped = false;
     if (maxPerCapital > 0 && maxPerCapital < minimumGuarantee) {
@@ -2616,6 +3039,7 @@ export class MapGenerator {
         fallbackPlaced: 0,
         relaxSpacingUsed: new Array(capitalPositions.length).fill(0),
         relaxCapUsed: new Array(capitalPositions.length).fill(0),
+        varietyExtraGranted: new Array(capitalPositions.length).fill(0),
         maxPerCapitalClamped,
       },
     };
@@ -2624,16 +3048,17 @@ export class MapGenerator {
   private tryPlaceLandResourceCandidate(
     candidate: ResourceCandidate,
     context: LandResourceConstraintContext,
-    tiles: Tile[]
+    tiles: Tile[],
+    rng: SeededRandom
   ): boolean {
     if (this.tryCommitLandResource(candidate.tile, candidate.resource, context, false)) return true;
 
-    if (this.tryNearbyLandResource(candidate.tile, candidate.resource, context, tiles)) return true;
+    if (this.tryNearbyLandResource(candidate.tile, candidate.resource, context, tiles, rng)) return true;
 
     const alternatives = this.getAlternativeResources(candidate.resource, candidate.tile.terrain);
     for (const alternative of alternatives) {
       if (this.tryCommitLandResource(candidate.tile, alternative, context, true)) return true;
-      if (this.tryNearbyLandResource(candidate.tile, alternative, context, tiles)) return true;
+      if (this.tryNearbyLandResource(candidate.tile, alternative, context, tiles, rng)) return true;
     }
 
     return false;
@@ -2643,14 +3068,15 @@ export class MapGenerator {
     origin: Tile,
     resource: LandResourceType,
     context: LandResourceConstraintContext,
-    tiles: Tile[]
+    tiles: Tile[],
+    rng: SeededRandom
   ): boolean {
     for (const radius of [1, 2]) {
       const nearby = tiles.filter(tile => {
         const distance = hexDistance(tile.coordinate, origin.coordinate);
         return distance > radius - 1 && distance <= radius;
       });
-      this.shuffleTiles(nearby);
+      this.shuffleTiles(nearby, rng);
 
       for (const tile of nearby) {
         if (tile === origin) continue;
@@ -2819,12 +3245,12 @@ export class MapGenerator {
     return LAND_RESOURCES_BY_TERRAIN[terrain].filter(option => option !== resource);
   }
 
-  private pickGuaranteeResource(tile: Tile): LandResourceType | null {
+  private pickGuaranteeResource(tile: Tile, rng: SeededRandom): LandResourceType | null {
     if (tile.terrain === 'plains') {
-      return this.rng.next() < 0.6 ? 'grain_patch' : 'wild_goats';
+      return rng.next() < 0.6 ? 'grain_patch' : 'wild_goats';
     }
     if (tile.terrain === 'forest') {
-      return this.rng.next() < 0.5 ? 'timber_grove' : 'wild_goats';
+      return rng.next() < 0.5 ? 'timber_grove' : 'wild_goats';
     }
     if (tile.terrain === 'mountain') {
       return 'ore_vein';
@@ -2834,17 +3260,18 @@ export class MapGenerator {
 
   private pickCategoryResource(
     tile: Tile,
-    category: 'food' | 'prod'
+    category: 'food' | 'prod',
+    rng: SeededRandom
   ): LandResourceType | null {
     const options = this.getResourcesForCategory(category, tile.terrain);
     if (options.length === 0) return null;
     if (options.length === 1) return options[0];
-    return this.rng.next() < 0.6 ? options[0] : options[1];
+    return rng.next() < 0.6 ? options[0] : options[1];
   }
 
-  private shuffleTiles<T>(items: T[]): void {
+  private shuffleTiles<T>(items: T[], rng: SeededRandom): void {
     for (let i = items.length - 1; i > 0; i--) {
-      const j = Math.floor(this.rng.next() * (i + 1));
+      const j = Math.floor(rng.next() * (i + 1));
       [items[i], items[j]] = [items[j], items[i]];
     }
   }
@@ -2958,14 +3385,18 @@ export class MapGenerator {
    * Select resource from spawn table based on terrain requirements and blueprint specs
    * Terrain-resource matching per Polytopia blueprint
    */
-  private getResourceFromTable(spawnTable: ResourceSpawnRate, terrain: TerrainType): string | null {
+  private getResourceFromTable(
+    spawnTable: ResourceSpawnRate,
+    terrain: TerrainType,
+    rng: SeededRandom
+  ): string | null {
     // Water resources are handled in a dedicated pass
     if (terrain === 'water') {
       return null;
     }
     
     // Land-based resources with terrain matching per blueprint:
-    const roll = this.rng.nextInt(1, 100);
+    const roll = rng.nextInt(1, 100);
     let cumulative = 0;
     
     const resourceChecks = [
@@ -3035,6 +3466,7 @@ export class MapGenerator {
   private placeRuinsStrategically(tiles: Tile[], capitalPositions: HexCoordinate[]): void {
     if (capitalPositions.length === 0) return;
 
+    const rng = this.rngStreams.ruins;
     const cityPositions = tiles.filter(tile => tile.hasCity).map(tile => tile.coordinate);
     const villagePositions = tiles.filter(tile => tile.feature === 'village').map(tile => tile.coordinate);
     const minDistanceFromCity = MAP_GENERATION_CONSTANTS.RUINS_MIN_DISTANCE_FROM_CITY;
@@ -3073,7 +3505,7 @@ export class MapGenerator {
 
     const placeFromPool = (playerIndex: number, zones: Array<'near' | 'mid' | 'far'>): boolean => {
       for (const zone of zones) {
-        const candidate = this.pickRuinCandidate(ruinPools[playerIndex][zone], ruinsPlaced);
+        const candidate = this.pickRuinCandidate(ruinPools[playerIndex][zone], ruinsPlaced, rng);
         if (!candidate) continue;
         candidate.resources.push('jaredite_ruins');
         ruinsPlaced.push(candidate.coordinate);
@@ -3095,7 +3527,7 @@ export class MapGenerator {
         .sort((a, b) => a.count - b.count);
 
       let placed = false;
-      const zoneBias = this.rng.next() < 0.7 ? ['mid', 'far', 'near'] : ['far', 'mid', 'near'];
+      const zoneBias = rng.next() < 0.7 ? ['mid', 'far', 'near'] : ['far', 'mid', 'near'];
 
       for (const { index } of orderedPlayers) {
         if (placeFromPool(index, zoneBias)) {
@@ -3142,7 +3574,11 @@ export class MapGenerator {
     return positions.some(pos => hexDistance(coord, pos) < minDistance);
   }
 
-  private pickRuinCandidate(candidates: Tile[], ruinsPlaced: HexCoordinate[]): Tile | null {
+  private pickRuinCandidate(
+    candidates: Tile[],
+    ruinsPlaced: HexCoordinate[],
+    rng: SeededRandom
+  ): Tile | null {
     const minDistance = MAP_GENERATION_CONSTANTS.RUINS_MIN_DISTANCE;
     const viable = candidates.filter(tile => {
       if (tile.resources.length > 0) return false;
@@ -3157,7 +3593,7 @@ export class MapGenerator {
       return 1;
     });
     const totalWeight = weights.reduce((sum, value) => sum + value, 0);
-    let roll = this.rng.next() * totalWeight;
+    let roll = rng.next() * totalWeight;
     for (let i = 0; i < viable.length; i++) {
       roll -= weights[i];
       if (roll <= 0) return viable[i];
