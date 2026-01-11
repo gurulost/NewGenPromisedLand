@@ -31,6 +31,7 @@ export const MAP_GENERATION_CONSTANTS = {
   VILLAGE_EDGE_RADIUS_RATIO: 0.85,     // Max radial distance ratio from center
   MAX_SPACING_RELAX: 1,                // Bounded spacing relax for guarantees
   MAX_CAP_OVERAGE_FOR_GUARANTEE: 1,    // Bounded cap overage for guarantees
+  MAX_ATTEMPTS_PER_GUARANTEE: 2000,    // Shared cap for guarantee attempt loops
 
   // Water generation
   WATER_EDGE_THRESHOLD: 0.8,           // Distance ratio for increased water at edges
