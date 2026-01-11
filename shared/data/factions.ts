@@ -136,7 +136,7 @@ export const FACTIONS: Record<FactionId, Faction> = {
         requirements: { faith: 80 },
       }
     ],
-    uniqueUnits: ['missionary', 'guard'],
+    uniqueUnits: ['missionary', 'stripling_warrior', 'guard'],
     playstyle: 'Peaceful conversion and defense',
     strengths: ['Unit conversion', 'High faith', 'Cultural victory'],
     weaknesses: ['Cannot initiate combat', 'Limited military options'],

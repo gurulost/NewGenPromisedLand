@@ -116,7 +116,7 @@ const RAW_UNIT_DEFINITIONS = {
   stripling_warrior: {
     type: 'stripling_warrior',
     name: 'Stripling Warrior',
-    description: 'Elite Nephite warriors - young faithful soldiers with divine protection',
+    description: 'Elite covenant warriors - young faithful soldiers with divine protection',
     baseStats: {
       hp: 20,
       attack: 5,
@@ -127,7 +127,7 @@ const RAW_UNIT_DEFINITIONS = {
     },
     cost: 12,
     requirements: { faith: 70 },
-    factionSpecific: ['NEPHITES'], // Nephites only
+    factionSpecific: ['NEPHITES', 'ANTI_NEPHI_LEHIES'], // Nephites + Anti-Nephi-Lehies
     abilities: ['FAITHFUL_DEFENSE', 'YOUNG_VIGOR'],
   },
 

@@ -98,7 +98,7 @@ const FACTION_PERSONALITIES: Record<string, Partial<FactionPersonality>> = {
     preferredVictory: 'faith',
     buildingPriorities: ['temple', 'granary', 'academy', 'library'],
     techPriorities: ['spirituality', 'agriculture', 'philosophy', 'navigation'],
-    unitPreferences: ['missionary', 'worker', 'guard'],
+    unitPreferences: ['missionary', 'stripling_warrior', 'guard', 'worker'],
     retreatThreshold: 0.7,
     attackThreshold: 0.9, // Almost never attack
     settlementSpacing: 3
