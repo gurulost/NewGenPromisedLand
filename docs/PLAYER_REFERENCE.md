@@ -68,7 +68,7 @@ Note on “starting stats”: factions define intended starting Faith/Pride/Diss
 
 ### Anti-Nephi-Lehies
 - Theme: covenant peace, defensive endurance
-- Faction-locked units: Missionary, Peacekeeping Guard
+- Faction-locked units: Missionary, Stripling Warrior, Peacekeeping Guard
 - Strategy: high Faith tools and strong defense; win by stability and conversion pressure.
 
 ### Lamanites
@@ -506,7 +506,7 @@ Units are listed by role; each includes cost, unlock tech (if any), stat require
 
 ### F) Elite / special
 
-#### Stripling Warrior (Nephites)
+#### Stripling Warrior (Nephites, Anti-Nephi-Lehies)
 - Cost: 12 Stars
 - Requirement: Faith 70+
 - Role: elite defensive soldier

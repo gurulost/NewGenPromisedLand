@@ -14,7 +14,7 @@ export const UnitTypeSchema = z.enum([
   'catapult',
 
   // Faction-specific special units
-  'stripling_warrior',      // Nephites
+  'stripling_warrior',      // Nephites, Anti-Nephi-Lehies
   'missionary',             // Nephites, Anti-Nephi-Lehies
   'priestcraft_preacher',   // Zoramites
   'converted_missionary',   // Lamanites (late/unlocked)
