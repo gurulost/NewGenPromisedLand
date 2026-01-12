@@ -220,16 +220,28 @@ function ResourceWithTooltip({
 // Model preloading is now handled by the centralized modelManager.ts
 
 export default function MapFeatures() {
-  const { gameState } = useLocalGame();
+  const { gameState, onlineSession } = useLocalGame();
   const isDev = import.meta.env.DEV;
   const { showSpawnDebug } = useGameState();
   
-  // Get current player for visibility calculations
-  const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+  const activePlayer = gameState?.players[gameState.currentPlayerIndex];
+  const viewPlayer = useMemo(() => {
+    if (!gameState) return null;
+    if (onlineSession?.myPlayerIds?.length) {
+      return gameState.players.find(player => onlineSession.myPlayerIds.includes(player.id))
+        ?? activePlayer
+        ?? gameState.players[0];
+    }
+    const humanPlayers = gameState.players.filter(player => !player.isAI);
+    if (humanPlayers.length === 1) {
+      return humanPlayers[0];
+    }
+    return activePlayer ?? gameState.players[0];
+  }, [gameState, onlineSession, activePlayer?.id]);
   
   // Memoize visible features to avoid recalculating on every render
   const { visibleCities, visibleTiles, exploredTiles, visibleImprovements, visibleStructures, visibleVillages } = useMemo(() => {
-    if (!gameState || !currentPlayer) return { 
+    if (!gameState || !viewPlayer) return { 
       visibleCities: [], 
       visibleTiles: new Set(), 
       exploredTiles: new Set(),
@@ -245,14 +257,14 @@ export default function MapFeatures() {
     // Add explored tiles
     gameState.map.tiles.forEach(tile => {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-      if (tile.exploredBy.includes(currentPlayer.id)) {
+      if (tile.exploredBy.includes(viewPlayer.id)) {
         explored.add(tileKey);
       }
     });
     
     // Add currently visible tiles from units using proper line-of-sight
     gameState.units
-      .filter(unit => unit.playerId === currentPlayer.id)
+      .filter(unit => unit.playerId === viewPlayer.id)
       .forEach(unit => {
         // Use unit's actual vision radius from definition
         const unitDef = getUnitDefinition(unit.type);
@@ -272,7 +284,7 @@ export default function MapFeatures() {
 
     // Add visibility around owned cities
     const CITY_VISION_RADIUS = 2;
-    const ownedCities = gameState.cities?.filter(city => city.ownerId === currentPlayer.id) || [];
+    const ownedCities = gameState.cities?.filter(city => city.ownerId === viewPlayer.id) || [];
     ownedCities.forEach(city => {
       gameState.map.tiles.forEach(tile => {
         const distance = hexDistance(city.coordinate, tile.coordinate);
@@ -291,7 +303,7 @@ export default function MapFeatures() {
       return (
         visible.has(cityKey) ||
         explored.has(cityKey) ||
-        currentPlayer.citiesOwned.includes(city.id)
+        viewPlayer.citiesOwned.includes(city.id)
       );
     }) || [];
     
@@ -312,7 +324,7 @@ export default function MapFeatures() {
       const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
       const isCurrentlyVisible = visible.has(tileKey); // Currently visible
       const isExplored = explored.has(tileKey);
-      const isOwnedByPlayer = tile.cityOwner === currentPlayer.id;
+      const isOwnedByPlayer = tile.cityOwner === viewPlayer.id;
       const isVillage = tile.feature === 'village';
 
       return isVillage && (isCurrentlyVisible || isExplored || isOwnedByPlayer);
@@ -326,7 +338,7 @@ export default function MapFeatures() {
       visibleStructures: structures,
       visibleVillages: villages
     };
-  }, [gameState, currentPlayer]);
+  }, [gameState, viewPlayer]);
 
   const spawnDebugMarkers = useMemo(() => {
     if (!isDev || !showSpawnDebug || !gameState) return null;
@@ -648,7 +660,7 @@ export default function MapFeatures() {
       {/* Render Cities */}
       {visibleCities.map((city, cityIndex) => {
         const position = hexToPixel(city.coordinate, 1);
-        const isPlayerCity = city.ownerId === currentPlayer?.id;
+        const isPlayerCity = city.ownerId === viewPlayer?.id;
         
         // Get structures for this city
         const cityStructures = visibleStructures.filter(structure => structure.cityId === city.id);
@@ -738,7 +750,7 @@ export default function MapFeatures() {
       })}
       
       {/* Render ongoing construction */}
-      {currentPlayer && gameState.players.map(player => 
+      {viewPlayer && gameState.players.map(player => 
         player.constructionQueue?.map(construction => (
           <Construction
             key={construction.id}

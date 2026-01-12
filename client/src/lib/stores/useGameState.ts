@@ -73,6 +73,7 @@ interface GameStateStore {
   showSpawnDebug: boolean;
 
   setSelectedUnit: (unit: Unit | null) => void;
+  syncSelectedUnit: (unit: Unit | null) => void;
   setHoveredTile: (tile: { x: number; z: number; tile: Tile } | null) => void;
   setReachableTiles: (tiles: string[]) => void;
   setReachableCoordinates: (coordinates: Array<{ q: number; r: number; s: number }>) => void;
@@ -180,6 +181,7 @@ export const useGameState = create<GameStateStore>((set) => ({
       roadBuildUnitId: null,
       attackableTargets: [],
     }),
+  syncSelectedUnit: (unit) => set({ selectedUnit: unit }),
   setHoveredTile: (tile) => set({ hoveredTile: tile }),
   setReachableTiles: (tiles) => set({ reachableTiles: tiles }),
   setReachableCoordinates: (coordinates) => set({ reachableCoordinates: coordinates }),

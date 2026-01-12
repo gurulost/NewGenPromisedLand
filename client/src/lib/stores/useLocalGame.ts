@@ -106,6 +106,16 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     const newGameState = gameReducer(gameState, action);
     if (newGameState === gameState) return { applied: false };
     set({ gameState: newGameState });
+    const selectionStore = useGameState.getState();
+    const selected = selectionStore.selectedUnit;
+    if (selected) {
+      const updated = newGameState.units.find(unit => unit.id === selected.id);
+      if (!updated) {
+        selectionStore.setSelectedUnit(null);
+      } else if (updated !== selected) {
+        selectionStore.syncSelectedUnit(updated);
+      }
+    }
     markAutosaveDirty();
     return { applied: true, state: newGameState };
   };

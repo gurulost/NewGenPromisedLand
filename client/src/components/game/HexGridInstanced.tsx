@@ -113,7 +113,7 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
 }
 
 export default function HexGridInstanced({ map }: HexGridInstancedProps) {
-  const { gameState, moveUnit, attackUnit } = useLocalGame();
+  const { gameState, moveUnit, attackUnit, onlineSession } = useLocalGame();
   const { setHoveredTile, selectedUnit, reachableTiles, setSelectedUnit, setReachableTiles, constructionMode, cancelConstruction, spawnSelectionMode, cancelSpawnSelection, isMovementMode, setMovementMode, isAttackMode, setAttackMode, attackableTargets, isRoadBuildMode, roadBuildUnitId, cancelRoadBuild, openTileContextMenu, closeTileContextMenu } = useGameState();
   const { camera, raycaster, gl } = useThree();
 
@@ -148,8 +148,20 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const sandTexture = useLoader(TextureLoader, "/textures/sand.jpg");
   const woodTexture = useLoader(TextureLoader, "/textures/wood.jpg");
 
-  // Get current player and memoized visibility calculations
-  const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+  const activePlayer = gameState?.players[gameState.currentPlayerIndex];
+  const viewPlayer = useMemo(() => {
+    if (!gameState) return null;
+    if (onlineSession?.myPlayerIds?.length) {
+      return gameState.players.find(player => onlineSession.myPlayerIds.includes(player.id))
+        ?? activePlayer
+        ?? gameState.players[0];
+    }
+    const humanPlayers = gameState.players.filter(player => !player.isAI);
+    if (humanPlayers.length === 1) {
+      return humanPlayers[0];
+    }
+    return activePlayer ?? gameState.players[0];
+  }, [gameState, onlineSession, activePlayer?.id]);
 
   // Memoized fog of war calculation with line-of-sight - massive CPU performance boost
   const { visibleTileKeys, exploredTileKeys, tileInstanceData } = useMemo(() => {
@@ -162,7 +174,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       textureId: number;
     }> = [];
 
-    if (!gameState || !currentPlayer) {
+    if (!gameState || !viewPlayer) {
       // Show all tiles clearly when no game state (for debugging)
       map.tiles.forEach((tile, index) => {
         const pixelPos = hexToPixel(tile.coordinate, HEX_SIZE);
@@ -181,7 +193,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     }
 
     // Calculate currently visible tiles using line-of-sight
-    const playerUnits = gameState.units.filter(unit => unit.playerId === currentPlayer.id);
+    const playerUnits = gameState.units.filter(unit => unit.playerId === viewPlayer.id);
     playerUnits.forEach(unit => {
       // Use unit's actual vision radius from definition
       const unitDef = getUnitDefinition(unit.type);
@@ -201,7 +213,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
 
     // Calculate explored tiles
     map.tiles.forEach(tile => {
-      if (tile.exploredBy.includes(currentPlayer.id)) {
+      if (tile.exploredBy.includes(viewPlayer.id)) {
         explored.add(`${tile.coordinate.q},${tile.coordinate.r}`);
       }
     });
@@ -284,7 +296,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     });
 
     return { visibleTileKeys: visible, exploredTileKeys: explored, tileInstanceData: instanceData };
-  }, [gameState?.units, currentPlayer?.id, map.tiles, spawnSelectionMode.isActive, spawnSelectionMode.validSpawnTiles]);
+  }, [gameState?.units, viewPlayer?.id, map.tiles, spawnSelectionMode.isActive, spawnSelectionMode.validSpawnTiles]);
 
   // Create hex geometry once
   const hexGeometry = useMemo(() => {
@@ -382,7 +394,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         const clickedTile = map.tiles[instanceId];
         console.log('Tile clicked:', clickedTile.coordinate);
 
-        const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+        const currentPlayer = activePlayer;
         const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
 
         // Check if there's a visible unit on this tile
@@ -394,12 +406,12 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             return false;
           }
 
-          if (!currentPlayer) return true;
-          if (unit.playerId === currentPlayer.id) return true;
+          if (!viewPlayer) return true;
+          if (unit.playerId === viewPlayer.id) return true;
           return visibleTileKeys.has(tileKey);
         });
 
-        if (currentPlayer && !currentPlayer.exploredTiles?.includes(tileKey)) {
+        if (viewPlayer && !viewPlayer.exploredTiles?.includes(tileKey)) {
           closeTileContextMenu();
           return;
         }
@@ -733,7 +745,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
 
       if (instanceId !== undefined && instanceId < map.tiles.length) {
         const hoveredTile = map.tiles[instanceId];
-        const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+        const currentPlayer = viewPlayer;
         const tileKey = `${hoveredTile.coordinate.q},${hoveredTile.coordinate.r}`;
         if (currentPlayer && !currentPlayer.exploredTiles?.includes(tileKey)) {
           setHoveredTile(null);
@@ -775,7 +787,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         const instanceId = intersects[0].instanceId;
         if (instanceId !== undefined && instanceId < map.tiles.length) {
           const hoveredTile = map.tiles[instanceId];
-          const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+          const currentPlayer = viewPlayer;
           const tileKey = `${hoveredTile.coordinate.q},${hoveredTile.coordinate.r}`;
 
           // Only show preview for explored tiles
