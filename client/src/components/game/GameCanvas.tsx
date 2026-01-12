@@ -15,7 +15,6 @@ import { hexToPixel } from "@shared/utils/hex";
 import { gsap } from "gsap";
 import * as THREE from "three";
 import { UnitSelectionEffects, useUnitSelection } from "../effects/UnitSelection";
-import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import MovementOverlay from "./MovementOverlay";
 import { ParticleEffectsContainer } from "../effects/ParticleEffects";
 import { MapPulseEffects } from "../effects/MapPulseEffects";
@@ -41,16 +40,6 @@ export default function GameCanvas() {
     clearSelection,
     hoverTile
   } = useUnitSelection();
-
-  // Calculate reachable tiles when movement mode is activated
-  useEffect(() => {
-    if (isMovementMode && selectedUnit && gameState) {
-      const reachable = calculateReachableTiles(selectedUnit, gameState);
-      setReachableCoordinates(reachable);
-    } else {
-      setReachableCoordinates([]);
-    }
-  }, [isMovementMode, selectedUnit, gameState, setReachableCoordinates]);
 
   // Calculate attackable targets when attack mode is activated
   useEffect(() => {

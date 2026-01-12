@@ -21,7 +21,6 @@ export default function MovementOverlay({
 }: MovementOverlayProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const hoveredMeshRef = useRef<THREE.InstancedMesh>(null);
-  const selectedMeshRef = useRef<THREE.InstancedMesh>(null);
   const timeRef = useRef(0);
 
   // Create hex geometry for overlays
@@ -200,35 +199,7 @@ export default function MovementOverlay({
         count={0}
       />
 
-      {/* Movement Range Indicators - Subtle arrows or dots */}
-      {reachableTiles.map((coord, index) => {
-        const pixelPos = hexToPixel(coord, HEX_SIZE);
-        return (
-          <mesh
-            key={`indicator-${coord.q}-${coord.r}`}
-            position={[pixelPos.x, 0.07, pixelPos.y]}
-            onClick={(e) => {
-              e.stopPropagation();
-              onTileClick?.(coord);
-            }}
-            onPointerEnter={(e) => {
-              e.stopPropagation();
-              onTileHover?.(coord);
-            }}
-            onPointerLeave={(e) => {
-              e.stopPropagation();
-              onTileHover?.(null);
-            }}
-          >
-            <cylinderGeometry args={[0.08, 0.08, 0.02, 8]} />
-            <meshBasicMaterial 
-              color={0x10b981} 
-              transparent 
-              opacity={0.9}
-            />
-          </mesh>
-        );
-      })}
+      {/* Movement Range Indicators intentionally removed to avoid dueling overlays */}
     </group>
   );
 }

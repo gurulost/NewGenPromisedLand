@@ -144,7 +144,7 @@ const HEX_SIZE = 1;
 export default function Unit({ unit, isSelected }: UnitProps) {
   const isDev = import.meta.env.DEV;
   const meshRef = useRef<THREE.Group>(null);
-  const { setSelectedUnit, setReachableTiles, isMovementMode } = useGameState();
+  const { setSelectedUnit, setReachableTiles, setReachableCoordinates, isMovementMode } = useGameState();
   const { gameState } = useLocalGame();
   const { getReachableTiles: getReachableTilesWorker } = usePathfindingWorker();
 
@@ -171,7 +171,11 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   }
 
   useEffect(() => {
-    if (isSelected && isMovementMode && gameState) {
+    if (!isSelected) {
+      return;
+    }
+
+    if (isMovementMode && gameState) {
       if (isDev) {
         console.log("Calculating reachable tiles for unit:", unit.id, "Movement:", unit.remainingMovement);
       }
@@ -189,6 +193,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
         if (error) {
           console.error("Pathfinding worker error:", error);
           setReachableTiles([]);
+          setReachableCoordinates([]);
           return;
         }
 
@@ -197,9 +202,11 @@ export default function Unit({ unit, isSelected }: UnitProps) {
           console.log("Reachable tiles:", reachableKeys);
         }
         setReachableTiles(reachableKeys);
+        setReachableCoordinates(reachable);
       });
-    } else if (!isSelected || !isMovementMode) {
+    } else {
       setReachableTiles([]);
+      setReachableCoordinates([]);
     }
   }, [
     isSelected,
@@ -208,6 +215,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
     unit.remainingMovement,
     gameState,
     setReachableTiles,
+    setReachableCoordinates,
     getReachableTilesWorker,
     isDev,
     unit.id,
