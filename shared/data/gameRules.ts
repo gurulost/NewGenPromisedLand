@@ -7,8 +7,25 @@ export interface GameRules {
   // Victory Conditions
   victory: {
     faithThreshold: number;
+    faithDissentMax: number;
     territoryControlThreshold: number; // Percentage of cities needed for territorial victory
     eliminationRequired: boolean;
+    economic: {
+      incomeBase: number;
+      incomePerPlayer: number;
+      treasuryBase: number;
+      treasuryPerPlayer: number;
+      techPercent: number;
+    };
+    cultural: {
+      populationBase: number;
+      populationPerPlayer: number;
+      structureBase: number;
+      structurePerPlayer: number;
+      dissentMax: number;
+      structureTypes: string[];
+      improvementTypes: string[];
+    };
   };
 
   // Resource Generation
@@ -159,8 +176,25 @@ export interface GameRules {
 export const GAME_RULES: GameRules = {
   victory: {
     faithThreshold: 90,
+    faithDissentMax: 10,
     territoryControlThreshold: 0.8, // 80% of cities
     eliminationRequired: true,
+    economic: {
+      incomeBase: 15,
+      incomePerPlayer: 3,
+      treasuryBase: 60,
+      treasuryPerPlayer: 15,
+      techPercent: 0.75,
+    },
+    cultural: {
+      populationBase: 20,
+      populationPerPlayer: 6,
+      structureBase: 3,
+      structurePerPlayer: 1,
+      dissentMax: 10,
+      structureTypes: ['temple', 'cathedral', 'library', 'academy'],
+      improvementTypes: ['shrine'],
+    },
   },
 
   resources: {
@@ -333,6 +367,62 @@ export const GameRuleHelpers = {
    */
   hasFaithVictory: (faith: number): boolean => {
     return faith >= GAME_RULES.victory.faithThreshold;
+  },
+
+  /**
+   * Victory thresholds for economic victory scaled by player count.
+   */
+  getEconomicVictoryThresholds: (playerCount: number) => {
+    const count = Math.max(1, playerCount);
+    return {
+      income: GAME_RULES.victory.economic.incomeBase + GAME_RULES.victory.economic.incomePerPlayer * count,
+      treasury: GAME_RULES.victory.economic.treasuryBase + GAME_RULES.victory.economic.treasuryPerPlayer * count,
+      techPercent: GAME_RULES.victory.economic.techPercent,
+    };
+  },
+
+  /**
+   * Check if player has achieved economic victory using provided inputs.
+   */
+  hasEconomicVictory: (
+    player: { stars: number; researchedTechs: string[] },
+    incomePerTurn: number,
+    totalTechs: number,
+    thresholds: { income: number; treasury: number; techPercent: number }
+  ): boolean => {
+    if (totalTechs <= 0) return false;
+    const techPercent = player.researchedTechs.length / totalTechs;
+    return incomePerTurn >= thresholds.income &&
+      player.stars >= thresholds.treasury &&
+      techPercent >= thresholds.techPercent;
+  },
+
+  /**
+   * Victory thresholds for cultural victory scaled by player count.
+   */
+  getCulturalVictoryThresholds: (playerCount: number) => {
+    const count = Math.max(1, playerCount);
+    return {
+      population: GAME_RULES.victory.cultural.populationBase + GAME_RULES.victory.cultural.populationPerPlayer * count,
+      structures: GAME_RULES.victory.cultural.structureBase + GAME_RULES.victory.cultural.structurePerPlayer * count,
+      dissentMax: GAME_RULES.victory.cultural.dissentMax,
+      structureTypes: GAME_RULES.victory.cultural.structureTypes,
+      improvementTypes: GAME_RULES.victory.cultural.improvementTypes,
+    };
+  },
+
+  /**
+   * Check if player has achieved cultural victory using provided inputs.
+   */
+  hasCulturalVictory: (
+    player: { stats: { internalDissent: number } },
+    population: number,
+    culturalSites: number,
+    thresholds: { population: number; structures: number; dissentMax: number }
+  ): boolean => {
+    return population >= thresholds.population &&
+      culturalSites >= thresholds.structures &&
+      player.stats.internalDissent <= thresholds.dissentMax;
   },
 
   /**

@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { gameReducer } from './gameReducer';
+import { GAME_RULES } from '../data/gameRules';
+import { TECHNOLOGIES } from '../data/technologies';
 import type { GameState, GameAction, PlayerState } from '../types/game';
 import type { Unit } from '../types/unit';
 import type { HexCoordinate } from '../types/coordinates';
@@ -172,6 +174,195 @@ describe('Game Reducer', () => {
       const target = newState.units.find(u => u.id === 'enemy1');
       
       expect(target).toBeUndefined(); // Unit should be removed
+    });
+  });
+
+  describe('Victory conditions', () => {
+    const makePlayer = (overrides: Partial<PlayerState> = {}): PlayerState => ({
+      id: overrides.id ?? 'player1',
+      name: overrides.name ?? 'Player',
+      factionId: overrides.factionId ?? 'nephites',
+      isEliminated: overrides.isEliminated ?? false,
+      stats: overrides.stats ?? { faith: 0, pride: 0, internalDissent: 0 },
+      stars: overrides.stars ?? 0,
+      researchedTechs: overrides.researchedTechs ?? [],
+      turnOrder: overrides.turnOrder ?? 0,
+      visibilityMask: overrides.visibilityMask ?? [],
+      exploredTiles: overrides.exploredTiles ?? [],
+      researchProgress: overrides.researchProgress ?? 0,
+      citiesOwned: overrides.citiesOwned ?? []
+    });
+
+    const makeCity = (id: string, ownerId: string, overrides: Partial<HexCoordinate> & Partial<{ population: number; starProduction: number }> = {}) => ({
+      id,
+      name: id,
+      coordinate: { q: overrides.q ?? 0, r: overrides.r ?? 0, s: overrides.s ?? 0 },
+      ownerId,
+      population: overrides.population ?? 1,
+      maxPopulation: 4,
+      level: 1,
+      starProduction: overrides.starProduction ?? 0,
+      unrestTurns: 0,
+      improvements: [],
+      structures: [],
+      harvestedResources: []
+    });
+
+    const makeState = (players: PlayerState[], cities: any[]): GameState => ({
+      id: 'victory-test',
+      rngSeed: 0,
+      players,
+      currentPlayerIndex: 0,
+      turn: 1,
+      phase: 'playing',
+      map: { width: 5, height: 5, tiles: [] },
+      units: [],
+      cities,
+      improvements: [],
+      structures: [],
+      winner: undefined,
+      victoryType: undefined,
+    });
+
+    it('awards faith victory when threshold and dissent are met', () => {
+      const player1 = makePlayer({
+        id: 'player1',
+        stats: { faith: 95, pride: 0, internalDissent: 0 },
+        citiesOwned: ['city1']
+      });
+      const player2 = makePlayer({
+        id: 'player2',
+        turnOrder: 1,
+        stats: { faith: 10, pride: 0, internalDissent: 0 },
+        citiesOwned: ['city2']
+      });
+      const state = makeState([player1, player2], [
+        makeCity('city1', 'player1', { q: 0, r: 0, s: 0 }),
+        makeCity('city2', 'player2', { q: 1, r: 0, s: -1 })
+      ]);
+      const result = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+      expect(result.winner).toBe('player1');
+      expect(result.victoryType).toBe('faith');
+    });
+
+    it('awards economic victory when income, treasury, and techs meet thresholds', () => {
+      const allTechs = Object.keys(TECHNOLOGIES);
+      const player1 = makePlayer({
+        id: 'player1',
+        stats: { faith: 0, pride: 0, internalDissent: 0 },
+        stars: 200,
+        researchedTechs: allTechs,
+        citiesOwned: ['city1']
+      });
+      const player2 = makePlayer({
+        id: 'player2',
+        turnOrder: 1,
+        stats: { faith: 0, pride: 0, internalDissent: 0 },
+        citiesOwned: ['city2']
+      });
+      const state = makeState([player1, player2], [
+        makeCity('city1', 'player1', { q: 0, r: 0, s: 0, starProduction: 30 }),
+        makeCity('city2', 'player2', { q: 1, r: 0, s: -1 })
+      ]);
+      const result = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+      expect(result.winner).toBe('player1');
+      expect(result.victoryType).toBe('economic');
+    });
+
+    it('awards cultural victory when population, sites, and dissent meet thresholds', () => {
+      const player1 = makePlayer({
+        id: 'player1',
+        stats: { faith: 0, pride: 0, internalDissent: 0 },
+        citiesOwned: ['city1']
+      });
+      const player2 = makePlayer({
+        id: 'player2',
+        turnOrder: 1,
+        stats: { faith: 0, pride: 0, internalDissent: 0 },
+        citiesOwned: ['city2']
+      });
+      const state = makeState([player1, player2], [
+        makeCity('city1', 'player1', { q: 0, r: 0, s: 0, population: 100 }),
+        makeCity('city2', 'player2', { q: 1, r: 0, s: -1 })
+      ]);
+      state.structures = [
+        { id: 's1', type: 'temple', ownerId: 'player1', cityId: 'city1', constructionTurns: 0, effects: { starProduction: 0, unitProduction: 0, defenseBonus: 0, populationGrowth: 0, faithProduction: 0 } },
+        { id: 's2', type: 'cathedral', ownerId: 'player1', cityId: 'city1', constructionTurns: 0, effects: { starProduction: 0, unitProduction: 0, defenseBonus: 0, populationGrowth: 0, faithProduction: 0 } },
+        { id: 's3', type: 'library', ownerId: 'player1', cityId: 'city1', constructionTurns: 0, effects: { starProduction: 0, unitProduction: 0, defenseBonus: 0, populationGrowth: 0, faithProduction: 0 } },
+        { id: 's4', type: 'academy', ownerId: 'player1', cityId: 'city1', constructionTurns: 0, effects: { starProduction: 0, unitProduction: 0, defenseBonus: 0, populationGrowth: 0, faithProduction: 0 } },
+        { id: 's5', type: 'temple', ownerId: 'player1', cityId: 'city1', constructionTurns: 0, effects: { starProduction: 0, unitProduction: 0, defenseBonus: 0, populationGrowth: 0, faithProduction: 0 } },
+      ];
+      const result = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+      expect(result.winner).toBe('player1');
+      expect(result.victoryType).toBe('cultural');
+    });
+
+    it('awards territorial victory when city control reaches threshold', () => {
+      const player1 = makePlayer({
+        id: 'player1',
+        stats: { faith: 0, pride: 0, internalDissent: 0 },
+        citiesOwned: ['city1', 'city2', 'city3', 'city4']
+      });
+      const player2 = makePlayer({
+        id: 'player2',
+        turnOrder: 1,
+        stats: { faith: 0, pride: 0, internalDissent: 0 },
+        citiesOwned: ['city5']
+      });
+      const state = makeState([player1, player2], [
+        makeCity('city1', 'player1', { q: 0, r: 0, s: 0 }),
+        makeCity('city2', 'player1', { q: 1, r: 0, s: -1 }),
+        makeCity('city3', 'player1', { q: 2, r: 0, s: -2 }),
+        makeCity('city4', 'player1', { q: 3, r: 0, s: -3 }),
+        makeCity('city5', 'player2', { q: 4, r: 0, s: -4 })
+      ]);
+      const result = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+      expect(result.winner).toBe('player1');
+      expect(result.victoryType).toBe('territorial');
+    });
+
+    it('awards elimination victory when only one player has cities', () => {
+      const player1 = makePlayer({
+        id: 'player1',
+        stats: { faith: 0, pride: 0, internalDissent: 0 },
+        citiesOwned: ['city1']
+      });
+      const player2 = makePlayer({
+        id: 'player2',
+        turnOrder: 1,
+        stats: { faith: 0, pride: 0, internalDissent: 0 },
+        citiesOwned: []
+      });
+      const state = makeState([player1, player2], [
+        makeCity('city1', 'player1', { q: 0, r: 0, s: 0 })
+      ]);
+      const result = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+      expect(result.winner).toBe('player1');
+      expect(result.victoryType).toBe('elimination');
+    });
+
+    it('awards domination victory when max turns are reached', () => {
+      const player1 = makePlayer({
+        id: 'player1',
+        stats: { faith: 0, pride: 0, internalDissent: 0 },
+        citiesOwned: ['city1', 'city2']
+      });
+      const player2 = makePlayer({
+        id: 'player2',
+        turnOrder: 1,
+        stats: { faith: 0, pride: 0, internalDissent: 0 },
+        citiesOwned: ['city3']
+      });
+      const state = makeState([player1, player2], [
+        makeCity('city1', 'player1', { q: 0, r: 0, s: 0 }),
+        makeCity('city2', 'player1', { q: 1, r: 0, s: -1 }),
+        makeCity('city3', 'player2', { q: 2, r: 0, s: -2 })
+      ]);
+      state.turn = GAME_RULES.turns.maxTurnsPerGame - 1;
+      state.currentPlayerIndex = 1;
+      const result = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'player2' } });
+      expect(result.winner).toBe('player1');
+      expect(result.victoryType).toBe('domination');
     });
   });
 
@@ -523,7 +714,14 @@ describe('Game Reducer', () => {
       const stateWithTwoPlayers = {
         ...mockGameState,
         players: [...mockGameState.players, player2],
-        units: [...mockGameState.units, enemyUnit]
+        units: [...mockGameState.units, enemyUnit],
+        map: {
+          ...mockGameState.map,
+          tiles: [
+            ...mockGameState.map.tiles,
+            { coordinate: { q: 2, r: 0, s: -2 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [] }
+          ]
+        }
       };
       
       // Step 1: Move unit closer to enemy

@@ -16,7 +16,7 @@ import { useHotkeys } from "../../hooks/useHotkeys";
 
 interface VictoryScreenProps {
   winnerId: string;
-  victoryType: 'faith' | 'territorial' | 'elimination' | 'domination';
+  victoryType: 'faith' | 'territorial' | 'elimination' | 'economic' | 'cultural' | 'domination';
   onPlayAgain: () => void;
   onMainMenu: () => void;
 }
@@ -51,6 +51,8 @@ export default function VictoryScreen({
       case 'faith': return <Church className="w-8 h-8 text-blue-400" />;
       case 'territorial': return <Crown className="w-8 h-8 text-purple-400" />;
       case 'elimination': return <Shield className="w-8 h-8 text-red-400" />;
+      case 'economic': return <Star className="w-8 h-8 text-amber-300" />;
+      case 'cultural': return <Users className="w-8 h-8 text-emerald-300" />;
       case 'domination': return <Trophy className="w-8 h-8 text-yellow-400" />;
       default: return <Star className="w-8 h-8 text-white" />;
     }
@@ -61,6 +63,8 @@ export default function VictoryScreen({
       case 'faith': return 'Divine Victory';
       case 'territorial': return 'Territorial Conquest';
       case 'elimination': return 'Total Domination';
+      case 'economic': return 'Economic Supremacy';
+      case 'cultural': return 'Cultural Ascendancy';
       case 'domination': return 'Strategic Supremacy';
       default: return 'Victory';
     }
@@ -74,6 +78,10 @@ export default function VictoryScreen({
         return 'By controlling the majority of cities and territories, you have established your dominion over the promised land.';
       case 'elimination': 
         return 'Through strategic warfare and tactical brilliance, you have eliminated all opposing forces.';
+      case 'economic':
+        return 'Your thriving economy and mastery of commerce have secured prosperity beyond all rivals.';
+      case 'cultural':
+        return 'Your people have forged a lasting legacy of learning, worship, and civic harmony.';
       case 'domination': 
         return 'Your superior strategy and leadership have led your people to complete victory.';
       default: 
@@ -277,16 +285,25 @@ export default function VictoryScreen({
             <div className="space-y-2">
               {gameState.players
                 .sort((a, b) => {
-                  // Sort by victory (winner first), then by faith + cities + units
+                  // Sort by victory (winner first), then by cities + faith + techs + units
                   if (a.id === winnerId) return -1;
                   if (b.id === winnerId) return 1;
                   
-                  const scoreA = a.stats.faith + a.citiesOwned.length * 10 + 
-                    gameState.units.filter(u => u.playerId === a.id).length * 5;
-                  const scoreB = b.stats.faith + b.citiesOwned.length * 10 + 
-                    gameState.units.filter(u => u.playerId === b.id).length * 5;
-                  
-                  return scoreB - scoreA;
+                  const aCities = a.citiesOwned.length;
+                  const bCities = b.citiesOwned.length;
+                  if (aCities !== bCities) return bCities - aCities;
+
+                  const aFaith = a.stats.faith;
+                  const bFaith = b.stats.faith;
+                  if (aFaith !== bFaith) return bFaith - aFaith;
+
+                  const aTechs = a.researchedTechs.length;
+                  const bTechs = b.researchedTechs.length;
+                  if (aTechs !== bTechs) return bTechs - aTechs;
+
+                  const aUnits = gameState.units.filter(u => u.playerId === a.id).length;
+                  const bUnits = gameState.units.filter(u => u.playerId === b.id).length;
+                  return bUnits - aUnits;
                 })
                 .map((player, index) => {
                   const playerFaction = getFaction(player.factionId as any);

@@ -1191,33 +1191,7 @@ export default function GameUI() {
 
 
 
-  // Check for victory conditions
-  useEffect(() => {
-    if (gameState?.winner) {
-      // Victory screen will be shown
-      return;
-    }
-
-    // Check faith victory
-    const faithWinner = gameState?.players.find(p => p.stats.faith >= 100);
-    if (faithWinner) {
-      // Set winner and trigger victory screen
-      const updatedState = { ...gameState, winner: faithWinner.id };
-      // This would ideally be handled by the game reducer
-      return;
-    }
-
-    // Check elimination victory
-    const activePlayers = gameState?.players.filter(p => !p.isEliminated);
-    if (activePlayers && activePlayers.length === 1) {
-      // Set winner and trigger victory screen
-      const updatedState = { ...gameState, winner: activePlayers[0].id };
-      // This would ideally be handled by the game reducer
-      return;
-    }
-  }, [gameState]);
-
-  // Remove duplicate - using enhanced version above
+  // Victory conditions are resolved in the reducer to keep UI consistent.
 
   if (!gameState) {
     console.warn('[GameUI] gameState is null, returning null');
@@ -1659,7 +1633,7 @@ export default function GameUI() {
       {gameState?.winner && (
         <VictoryScreen
           winnerId={gameState.winner}
-          victoryType="faith" // This would be determined by victory conditions
+          victoryType={gameState.victoryType ?? 'faith'}
           onPlayAgain={() => {
             resetGame();
             setGamePhase('menu');

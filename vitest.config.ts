@@ -36,7 +36,9 @@ export default defineConfig({
       }
     },
     include: [
-      'test/**/*.{test,spec}.{js,ts,jsx,tsx}'
+      'test/**/*.{test,spec}.{js,ts,jsx,tsx}',
+      'shared/**/*.{test,spec}.{js,ts,jsx,tsx}',
+      'client/**/*.{test,spec}.{js,ts,jsx,tsx}'
     ],
     exclude: [
       'test/e2e/**/*',

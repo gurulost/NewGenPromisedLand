@@ -1,16 +1,19 @@
-import React, { useMemo } from 'react';
-import { Star, TrendingUp, Book, Hammer, Info } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Star, TrendingUp, Book, Hammer, Info, Trophy, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { HUDShell } from '../primitives/HUDShell';
 import { AvatarBadge } from '../primitives/AvatarBadge';
 import { GlowingButton } from '../primitives/GlowingButton';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Progress } from '../ui/progress';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { InfoTooltip } from '../primitives/InfoTooltip';
 import { DissentSystemTooltip, FaithSystemTooltip, PrideSystemTooltip, StarProductionTooltip } from '../ui/TooltipSystem';
 
 import { PlayerState, GameState } from '@shared/types/game';
 import { getFaction } from '@shared/data/factions';
+import { GameRuleHelpers, GAME_RULES } from '@shared/data/gameRules';
+import { TECHNOLOGIES } from '@shared/data/technologies';
 import { getPlayerStats, PlayerStats } from '../../selectors/player';
 import { useAutosaveStatus } from '../../lib/stores/useAutosaveStatus';
 
@@ -37,6 +40,7 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
   const faction = getFaction(player.factionId as any);
   const handleEndTurn = onEndTurn ?? (() => { });
   const autosaveStatus = useAutosaveStatus();
+  const [victoryOpen, setVictoryOpen] = useState(false);
 
   // Moved expensive calculations to selector
   const playerStats = useMemo(() =>
@@ -121,6 +125,15 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
 
           {/* Faith/Pride/Dissent Progress Bars */}
           <ResourceProgressSection playerStats={playerStats} testimonyPressureLastTurn={testimonyPressureLastTurn} />
+
+          {/* Victory Progress */}
+          <VictoryProgressSection
+            player={player}
+            gameState={gameState}
+            playerStats={playerStats}
+            isOpen={victoryOpen}
+            onToggle={setVictoryOpen}
+          />
 
           {/* Action Buttons */}
           <ActionButtonsSection
@@ -232,6 +245,130 @@ const ResourceProgressSection = React.memo(({ playerStats, testimonyPressureLast
     </div>
   </div>
 ));
+
+const VictoryProgressSection = React.memo(({ player, gameState, playerStats, isOpen, onToggle }: {
+  player: PlayerState;
+  gameState: GameState;
+  playerStats: PlayerStats;
+  isOpen: boolean;
+  onToggle: (open: boolean) => void;
+}) => {
+  const playerCount = gameState.players.length;
+  const economicTargets = GameRuleHelpers.getEconomicVictoryThresholds(playerCount);
+  const culturalTargets = GameRuleHelpers.getCulturalVictoryThresholds(playerCount);
+  const totalTechs = Object.keys(TECHNOLOGIES).length || 1;
+  const techPercent = Math.round((player.researchedTechs.length / totalTechs) * 100);
+
+  const ownedCities = (gameState.cities || []).filter(c => c.ownerId === player.id);
+  const population = ownedCities.reduce((sum, city) => sum + (city.population || 0), 0);
+
+  const culturalStructureCount =
+    (gameState.structures || []).filter(
+      s => s.ownerId === player.id &&
+        s.constructionTurns === 0 &&
+        culturalTargets.structureTypes.includes(s.type)
+    ).length +
+    (gameState.improvements || []).filter(
+      i => i.ownerId === player.id &&
+        i.constructionTurns === 0 &&
+        culturalTargets.improvementTypes.includes(i.type)
+    ).length;
+
+  const totalOwnedCities = gameState.players.reduce((sum, p) => sum + p.citiesOwned.length, 0);
+  const territoryPercent = totalOwnedCities > 0
+    ? Math.round((player.citiesOwned.length / totalOwnedCities) * 100)
+    : 0;
+  const territoryTarget = Math.round(GAME_RULES.victory.territoryControlThreshold * 100);
+  const maxTurns = GAME_RULES.turns.maxTurnsPerGame;
+  const turnLabel = maxTurns > 0 ? `${gameState.turn}/${maxTurns}` : `${gameState.turn}/no cap`;
+
+  const summaryItems = [
+    { label: 'F', value: `${player.stats.faith}/${GAME_RULES.victory.faithThreshold}` },
+    { label: 'E', value: `+${playerStats.starProduction}/${economicTargets.income}` },
+    { label: 'C', value: `${population}/${culturalTargets.population}` },
+    { label: 'T', value: `${territoryPercent}%/${territoryTarget}%` },
+  ];
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={onToggle} className="space-y-2">
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="w-full rounded-lg border border-amber-500/20 bg-slate-900/40 px-3 py-2 text-left transition-colors hover:bg-slate-800/50"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm text-amber-100 font-cinzel font-semibold">
+              <Trophy className="w-4 h-4 text-amber-400" />
+              <span>Victory</span>
+              <InfoTooltip content={
+                <div className="space-y-1 text-xs">
+                  <div>Faith: reach threshold with low dissent.</div>
+                  <div>Economic: income + treasury + tech percent.</div>
+                  <div>Cultural: population + cultural sites + low dissent.</div>
+                  <div>Territory: share of owned cities.</div>
+                </div>
+              }>
+                <Info
+                  className="w-3 h-3 text-amber-400/60 hover:text-amber-400 cursor-help transition-colors"
+                  onClick={(event) => event.stopPropagation()}
+                />
+              </InfoTooltip>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-amber-200/70">
+              <span>{turnLabel}</span>
+              {isOpen ? (
+                <ChevronUp className="w-3 h-3 text-amber-300" />
+              ) : (
+                <ChevronDown className="w-3 h-3 text-amber-300" />
+              )}
+            </div>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-amber-200/80 font-body">
+            {summaryItems.map(item => (
+              <span key={item.label} className="flex items-center gap-1">
+                <span className="text-amber-300/80">{item.label}</span>
+                <span>{item.value}</span>
+              </span>
+            ))}
+          </div>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="grid grid-cols-2 gap-2 text-xs text-amber-200/80 font-body">
+          <div>
+            <div className="text-amber-200">Faith</div>
+            <div className="text-amber-100">
+              {player.stats.faith}/{GAME_RULES.victory.faithThreshold}
+              <span className="text-amber-200/70"> (dissent &lt;= {GAME_RULES.victory.faithDissentMax})</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-amber-200">Territory</div>
+            <div className="text-amber-100">{territoryPercent}% / {territoryTarget}%</div>
+          </div>
+          <div>
+            <div className="text-amber-200">Economic</div>
+            <div className="text-amber-100">
+              +{playerStats.starProduction}/{economicTargets.income} stars
+            </div>
+            <div className="text-amber-100">
+              {player.stars}/{economicTargets.treasury} stars | {techPercent}%/{Math.round(economicTargets.techPercent * 100)}%
+            </div>
+          </div>
+          <div>
+            <div className="text-amber-200">Cultural</div>
+            <div className="text-amber-100">
+              Pop {population}/{culturalTargets.population}
+            </div>
+            <div className="text-amber-100">
+              Sites {culturalStructureCount}/{culturalTargets.structures} | Dissent &lt;= {culturalTargets.dissentMax}
+            </div>
+          </div>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+});
 
 const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHall, onShowDiplomacy, onEndTurn }: {
   onShowTechPanel: () => void;
