@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
@@ -28,27 +28,6 @@ export function UnitSelectionEffects({
       {hoveredCoordinate && (
         <SelectionGlow coordinate={hoveredCoordinate} type="hovered" />
       )}
-
-      {/* Movement Range Indicators */}
-      {validMoveCoordinates.map((coord, index) => {
-        console.log('🎯 Rendering movement indicator for:', coord, 'at index:', index);
-        return (
-          <MovementIndicator 
-            key={`move-${coord.q}-${coord.r}-${coord.s}`}
-            coordinate={coord}
-            delay={index * 0.05}
-          />
-        );
-      })}
-
-      {/* Attack Range Indicators */}
-      {validAttackCoordinates.map((coord, index) => (
-        <AttackIndicator 
-          key={`attack-${coord.q}-${coord.r}-${coord.s}`}
-          coordinate={coord}
-          delay={index * 0.03}
-        />
-      ))}
     </group>
   );
 }
@@ -107,130 +86,6 @@ function SelectionGlow({
   );
 }
 
-function MovementIndicator({ 
-  coordinate, 
-  delay = 0 
-}: { 
-  coordinate: HexCoordinate; 
-  delay?: number; 
-}) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
-  const outerRingRef = useRef<THREE.Mesh>(null);
-  const outerMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
-
-  const hexPosition = coordinateToWorldPosition(coordinate);
-
-  useFrame((state) => {
-    if (!materialRef.current || !meshRef.current || !outerMaterialRef.current || !outerRingRef.current) return;
-
-    const time = state.clock.getElapsedTime() + delay;
-    
-    // Elegant pulsing animation with wave effect
-    const pulse = 0.5 + Math.sin(time * 2.5) * 0.3;
-    const outerPulse = 0.2 + Math.sin(time * 3 + 0.5) * 0.2;
-    
-    materialRef.current.opacity = pulse;
-    outerMaterialRef.current.opacity = outerPulse;
-    
-    // Gentle scale animation with offset
-    const scale = 1 + Math.sin(time * 1.8) * 0.15;
-    const outerScale = 1 + Math.sin(time * 2.2 + 1) * 0.1;
-    
-    meshRef.current.scale.setScalar(scale);
-    outerRingRef.current.scale.setScalar(outerScale);
-    
-    // Subtle rotation for elegance
-    outerRingRef.current.rotation.z = time * 0.3;
-  });
-
-  return (
-    <group position={[hexPosition.x, 0.03, hexPosition.z]}>
-      {/* Main movement indicator */}
-      <mesh
-        ref={meshRef}
-        rotation={[Math.PI / 2, 0, 0]}
-      >
-        <circleGeometry args={[0.7, 32]} />
-        <meshBasicMaterial
-          ref={materialRef}
-          color="#00E5FF"
-          transparent
-          opacity={0.5}
-        />
-      </mesh>
-      
-      {/* Outer elegant ring */}
-      <mesh
-        ref={outerRingRef}
-        rotation={[Math.PI / 2, 0, 0]}
-      >
-        <ringGeometry args={[0.8, 1.0, 32]} />
-        <meshBasicMaterial
-          ref={outerMaterialRef}
-          color="#40E0D0"
-          transparent
-          opacity={0.2}
-        />
-      </mesh>
-      
-      {/* Hexagonal border for precision */}
-      <mesh
-        position={[0, 0.001, 0]}
-        rotation={[Math.PI / 2, 0, 0]}
-      >
-        <ringGeometry args={[0.85, 0.95, 6]} />
-        <meshBasicMaterial
-          color="#FFFFFF"
-          transparent
-          opacity={0.6}
-        />
-      </mesh>
-    </group>
-  );
-}
-
-function AttackIndicator({ 
-  coordinate, 
-  delay = 0 
-}: { 
-  coordinate: HexCoordinate; 
-  delay?: number; 
-}) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
-
-  const hexPosition = coordinateToWorldPosition(coordinate);
-
-  useFrame((state) => {
-    if (!materialRef.current || !meshRef.current) return;
-
-    const time = state.clock.getElapsedTime() + delay;
-    
-    // More aggressive pulsing for attack indicators
-    const pulse = 0.3 + Math.sin(time * 3) * 0.3;
-    materialRef.current.opacity = pulse;
-    
-    // Slight rotation
-    meshRef.current.rotation.z = time * 0.8;
-  });
-
-  return (
-    <mesh
-      ref={meshRef}
-      position={[hexPosition.x, 0.01, hexPosition.z]}
-      rotation={[Math.PI / 2, 0, 0]}
-    >
-      <ringGeometry args={[0.4, 0.8, 6]} />
-      <meshBasicMaterial
-        ref={materialRef}
-        color="#FF4444"
-        transparent
-        opacity={0.3}
-      />
-    </mesh>
-  );
-}
 
 // UI Selection Polish Component
 export function UnitSelectionUI({ 
