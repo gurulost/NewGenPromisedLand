@@ -11,131 +11,376 @@ interface ConstructionProps {
 }
 
 const HEX_SIZE = 1;
+const PARTICLE_COUNT = 24;
+
+// Holographic shader for the ghostly construction effect
+const holographicVertexShader = `
+  varying vec3 vNormal;
+  varying vec3 vWorldPosition;
+  varying vec2 vUv;
+  uniform float time;
+  
+  void main() {
+    vNormal = normalize(normalMatrix * normal);
+    vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+    vUv = uv;
+    
+    // Subtle vertex displacement for shimmer
+    vec3 pos = position;
+    pos.y += sin(position.x * 10.0 + time * 3.0) * 0.01;
+    pos.y += sin(position.z * 8.0 + time * 2.5) * 0.01;
+    
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+  }
+`;
+
+const holographicFragmentShader = `
+  varying vec3 vNormal;
+  varying vec3 vWorldPosition;
+  varying vec2 vUv;
+  uniform float time;
+  uniform float progress;
+  uniform float baseOpacity;
+  uniform vec3 baseColor;
+  uniform vec3 cameraPos;
+  
+  void main() {
+    // Fresnel edge glow - use passed camera position
+    vec3 viewDir = normalize(cameraPos - vWorldPosition);
+    float fresnel = pow(1.0 - abs(dot(viewDir, vNormal)), 2.0);
+    
+    // Animated scan lines moving upward
+    float scanLine = sin(vWorldPosition.y * 20.0 - time * 4.0) * 0.5 + 0.5;
+    scanLine = smoothstep(0.4, 0.6, scanLine);
+    
+    // Shimmer effect
+    float shimmer = sin(time * 5.0 + vWorldPosition.x * 15.0 + vWorldPosition.z * 12.0) * 0.5 + 0.5;
+    
+    // Combine effects
+    vec3 glowColor = vec3(1.0, 0.85, 0.4); // Golden glow
+    vec3 holoColor = mix(baseColor, glowColor, fresnel * 0.6);
+    holoColor += glowColor * scanLine * 0.15;
+    holoColor += vec3(0.1, 0.12, 0.15) * shimmer * 0.2;
+    
+    // Progress-based opacity - more visible as construction completes
+    float alpha = baseOpacity + fresnel * 0.25;
+    alpha += scanLine * 0.08;
+    alpha = clamp(alpha, 0.2, 0.85);
+    
+    gl_FragColor = vec4(holoColor, alpha);
+  }
+`;
+
+// Glow disc shader
+const glowDiscFragmentShader = `
+  varying vec2 vUv;
+  uniform float time;
+  uniform vec3 glowColor;
+  
+  void main() {
+    vec2 center = vUv - 0.5;
+    float dist = length(center) * 2.0;
+    
+    // Radial gradient with soft edges
+    float alpha = 1.0 - smoothstep(0.0, 1.0, dist);
+    alpha = pow(alpha, 1.8);
+    
+    // Smooth pulsing animation
+    float pulse = sin(time * 2.0) * 0.12 + 0.88;
+    alpha *= pulse;
+    
+    // Subtle concentric rings
+    float rings = sin(dist * 10.0 - time * 2.5) * 0.08 + 0.92;
+    alpha *= rings;
+    
+    // Soft glow color with slight warmth boost
+    vec3 finalColor = glowColor + vec3(0.1, 0.05, 0.0);
+    
+    gl_FragColor = vec4(finalColor, alpha * 0.45);
+  }
+`;
+
+// Rising particle dust component
+function RisingParticles({ color, progress }: { color: THREE.Color; progress: number }) {
+  const pointsRef = useRef<THREE.Points | null>(null);
+
+  const { positions, velocities, geometry } = useMemo(() => {
+    const positions = new Float32Array(PARTICLE_COUNT * 3);
+    const velocities = new Float32Array(PARTICLE_COUNT);
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      // Random position in a disc around the construction
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * 0.35;
+      positions[i * 3] = Math.cos(angle) * radius;
+      positions[i * 3 + 1] = Math.random() * 0.6; // Start at various heights
+      positions[i * 3 + 2] = Math.sin(angle) * radius;
+      velocities[i] = 0.25 + Math.random() * 0.35; // Random upward speed
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    return { positions, velocities, geometry: geo };
+  }, []);
+
+  // Cleanup geometry on unmount
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+    };
+  }, [geometry]);
+
+  useFrame((state, delta) => {
+    if (!pointsRef.current) return;
+
+    const posAttr = pointsRef.current.geometry.attributes.position;
+    const posArray = posAttr.array as Float32Array;
+    const time = state.clock.elapsedTime;
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      // Move particles upward
+      posArray[i * 3 + 1] += velocities[i] * delta;
+
+      // Reset particles that go too high
+      if (posArray[i * 3 + 1] > 1.0) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = Math.random() * 0.35;
+        posArray[i * 3] = Math.cos(angle) * radius;
+        posArray[i * 3 + 1] = 0;
+        posArray[i * 3 + 2] = Math.sin(angle) * radius;
+      }
+
+      // Gentle spiral drift
+      const driftScale = 0.0015;
+      posArray[i * 3] += Math.sin(time * 1.5 + i * 0.5) * driftScale;
+      posArray[i * 3 + 2] += Math.cos(time * 1.2 + i * 0.7) * driftScale;
+    }
+
+    posAttr.needsUpdate = true;
+  });
+
+  return (
+    <points ref={pointsRef} geometry={geometry}>
+      <pointsMaterial
+        color={color}
+        size={0.025}
+        transparent
+        opacity={0.5 + progress * 0.35}
+        sizeAttenuation
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </points>
+  );
+}
+
+// Pulsing ground glow component
+function PulsingGlow({ color }: { color: THREE.Color }) {
+  const materialRef = useRef<THREE.ShaderMaterial | null>(null);
+
+  const shaderMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+        glowColor: { value: color },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: glowDiscFragmentShader,
+      transparent: true,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+  }, [color]);
+
+  useEffect(() => {
+    materialRef.current = shaderMaterial;
+    return () => {
+      shaderMaterial.dispose();
+    };
+  }, [shaderMaterial]);
+
+  useFrame((state) => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+    }
+  });
+
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+      <circleGeometry args={[0.55, 32]} />
+      <primitive object={shaderMaterial} attach="material" />
+    </mesh>
+  );
+}
+
+// Animated progress pip that pulses smoothly
+function ProgressPip({ color, progress }: { color: THREE.Color; progress: number }) {
+  const meshRef = useRef<THREE.Mesh | null>(null);
+
+  useFrame((state) => {
+    if (meshRef.current) {
+      const pulse = Math.sin(state.clock.elapsedTime * 3) * 0.15 + 0.85;
+      meshRef.current.scale.setScalar(pulse);
+    }
+  });
+
+  return (
+    <mesh ref={meshRef} position={[0, 0.02, 0]}>
+      <sphereGeometry args={[0.05, 8, 8]} />
+      <meshBasicMaterial
+        color={color}
+        transparent
+        opacity={0.7 + progress * 0.2}
+      />
+    </mesh>
+  );
+}
+
+// Get color based on construction category
+function getCategoryColor(category: string): THREE.Color {
+  switch (category) {
+    case 'units':
+      return new THREE.Color(0x5BA3E8); // Softer blue for units
+    case 'improvements':
+      return new THREE.Color(0x8AE05A); // Vibrant green for improvements
+    case 'structures':
+    default:
+      return new THREE.Color(0xF5A623); // Warm amber for structures
+  }
+}
 
 export default function Construction({ construction }: ConstructionProps) {
-  const meshRef = useRef<THREE.Group>(null);
-  
-  // Calculate opacity based on construction progress
+  const meshRef = useRef<THREE.Group | null>(null);
+  const hologramMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
+
+  // Calculate progress
   const progress = (construction.totalTurns - construction.turnsRemaining) / construction.totalTurns;
-  const opacity = Math.max(0.2, progress); // Minimum 20% opacity for visibility
-  
-  // Position the construction at the correct hex coordinate
+  const opacity = Math.max(0.25, progress * 0.5 + 0.25);
+
+  // Position at hex coordinate
   const coord = construction.coordinate ?? { q: 0, r: 0, s: 0 };
   const pixelPos = hexToPixel(coord, HEX_SIZE);
-  
-  // Load shared assets once (useGLTF caches by URL). We clone for per-instance material edits.
+
+  // Category-based color
+  const categoryColor = useMemo(() => getCategoryColor(construction.category), [construction.category]);
+
+  // Load boat model
   const { scene: boatScene } = useGLTF("/models/boat.glb");
 
+  // Create holographic shader material
+  const hologramMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+        progress: { value: progress },
+        baseOpacity: { value: opacity },
+        baseColor: { value: categoryColor },
+        cameraPos: { value: new THREE.Vector3() },
+      },
+      vertexShader: holographicVertexShader,
+      fragmentShader: holographicFragmentShader,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+  }, [categoryColor]);
+
+  // Clone model with holographic material
   const clonedModel = useMemo(() => {
     if (construction.type !== "boat") return null;
 
     const clone = boatScene.clone();
     clone.traverse((child) => {
-      if (!(child instanceof THREE.Mesh)) return;
-      if (!child.material) return;
-
-      const cloneMaterial = (m: any) => (m && typeof m.clone === 'function' ? m.clone() : m);
-      const clonedMaterial = Array.isArray(child.material)
-        ? child.material.map(cloneMaterial)
-        : cloneMaterial(child.material);
-      child.material = clonedMaterial;
-
-      const materials = Array.isArray(clonedMaterial) ? clonedMaterial : [clonedMaterial];
-      for (const material of materials) {
-        material.transparent = true;
-        material.opacity = opacity;
-        if ("emissive" in material) {
-          (material as THREE.MeshStandardMaterial).emissive.setHex(0x404040);
-          (material as THREE.MeshStandardMaterial).emissiveIntensity = 0.1;
-        }
+      if (child instanceof THREE.Mesh) {
+        child.material = hologramMaterial;
       }
     });
 
     return clone;
-  }, [boatScene, construction.type]); // do not re-clone every render
+  }, [boatScene, construction.type, hologramMaterial]);
 
-  // Update ghost opacity without re-cloning.
   useEffect(() => {
-    if (!clonedModel) return;
-    clonedModel.traverse((child) => {
-      if (!(child instanceof THREE.Mesh)) return;
-      const material = child.material as any;
-      if (material && typeof material.opacity === "number") {
-        material.opacity = opacity;
-        material.transparent = true;
-        material.needsUpdate = true;
-      }
-    });
-  }, [clonedModel, opacity]);
+    hologramMaterialRef.current = hologramMaterial;
+  }, [hologramMaterial]);
 
+  // Update uniforms each frame
+  useFrame((state) => {
+    if (hologramMaterialRef.current) {
+      hologramMaterialRef.current.uniforms.time.value = state.clock.elapsedTime;
+      hologramMaterialRef.current.uniforms.progress.value = progress;
+      hologramMaterialRef.current.uniforms.baseOpacity.value = opacity;
+      // Pass camera position for fresnel calculation
+      hologramMaterialRef.current.uniforms.cameraPos.value.copy(state.camera.position);
+    }
+
+    // Gentle bobbing
+    if (meshRef.current) {
+      meshRef.current.position.y = 0.1 + Math.sin(state.clock.elapsedTime * 2) * 0.025;
+    }
+  });
+
+  // Cleanup
   useEffect(() => {
     return () => {
       disposeClonedMaterials(clonedModel);
+      hologramMaterial.dispose();
     };
-  }, [clonedModel]);
-  
-  // Animation - gentle bobbing for ghost effect
-  useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.position.y = 0.1 + Math.sin(state.clock.elapsedTime * 2) * 0.05;
-    }
-  });
-  
+  }, [clonedModel, hologramMaterial]);
+
   return (
-    <group
-      ref={meshRef}
-      position={[pixelPos.x, 0.1, pixelPos.y]}
-      scale={[0.8, 0.8, 0.8]} // Scale to fit within one tile
-    >
-      {clonedModel ? (
-        // Use the loaded 3D model
-        <primitive 
-          object={clonedModel}
-          scale={[1, 1, 1]}
-        />
-      ) : (
-        // Fallback to simple geometry (sized to fit within one tile)
-        <mesh>
-          {construction.type === 'boat' ? (
-            <boxGeometry args={[0.6, 0.2, 1.0]} />
-          ) : construction.category === 'units' ? (
-            <cylinderGeometry args={[0.15, 0.15, 0.4]} />
-          ) : (
-            <boxGeometry args={[0.4, 0.4, 0.4]} />
-          )}
-          <meshStandardMaterial 
-            color={
-              construction.category === 'units' ? '#4A90E2' : 
-              construction.category === 'improvements' ? '#7ED321' : 
-              '#F5A623'
-            }
+    <group position={[pixelPos.x, 0, pixelPos.y]}>
+      {/* Pulsing ground glow */}
+      <PulsingGlow color={categoryColor} />
+
+      {/* Rising particle dust */}
+      <RisingParticles color={categoryColor} progress={progress} />
+
+      {/* Main construction model/placeholder */}
+      <group ref={meshRef} position={[0, 0.1, 0]} scale={[0.8, 0.8, 0.8]}>
+        {clonedModel ? (
+          <primitive object={clonedModel} scale={[1, 1, 1]} />
+        ) : (
+          <mesh material={hologramMaterial}>
+            {construction.type === 'boat' ? (
+              <boxGeometry args={[0.6, 0.2, 1.0]} />
+            ) : construction.category === 'units' ? (
+              <cylinderGeometry args={[0.15, 0.15, 0.4, 12]} />
+            ) : (
+              <boxGeometry args={[0.4, 0.4, 0.4]} />
+            )}
+          </mesh>
+        )}
+      </group>
+
+      {/* Progress ring - positioned above */}
+      <group position={[0, 0.65, 0]}>
+        {/* Background ring */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.16, 0.22, 24]} />
+          <meshBasicMaterial color="#1a1a1a" transparent opacity={0.7} />
+        </mesh>
+
+        {/* Progress fill */}
+        <mesh rotation={[-Math.PI / 2, 0, -Math.PI / 2]} position={[0, 0.005, 0]}>
+          <ringGeometry args={[0.16, 0.22, 24, 1, 0, Math.PI * 2 * progress]} />
+          <meshBasicMaterial
+            color={categoryColor}
             transparent
-            opacity={opacity}
-            emissive={0x404040}
-            emissiveIntensity={0.1}
+            opacity={0.85}
           />
         </mesh>
-      )}
-      
-      {/* Construction progress indicator - sized for single tile */}
-      <mesh position={[0, 0.6, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.2, 0.3, 8]} />
-        <meshBasicMaterial 
-          color="#FFD700" 
-          transparent 
-          opacity={0.8}
-        />
-      </mesh>
-      
-      {/* Progress fill */}
-      <mesh position={[0, 0.61, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.2, 0.3, 8, 1, 0, Math.PI * 2 * progress]} />
-        <meshBasicMaterial 
-          color="#00FF00" 
-          transparent 
-          opacity={0.9}
-        />
-      </mesh>
+
+        {/* Glowing center pip - animated separately */}
+        <ProgressPip color={categoryColor} progress={progress} />
+      </group>
     </group>
   );
 }
