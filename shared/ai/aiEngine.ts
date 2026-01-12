@@ -14,6 +14,7 @@ import { emitTelemetry } from '../logic/telemetry';
 import { getTechCostDetails } from '../logic/technologyHelpers';
 import { calculateReachableTiles, canUnitReachCoordinate, getUnitActionsRemaining } from '../logic/unitLogic';
 import { resolveCombat } from '../logic/combatResolver';
+import { getFriendlyBuildAnchors, isTileExploredByPlayer, isWithinFriendlyBuildRadius, STRUCTURE_BUILD_RADIUS } from '../logic/constructionRules';
 import type { Technology } from '../data/technologies';
 import type { City, StructureDefinition, StructureType } from '../types/city';
 import type { Tile } from '../types/game';
@@ -1227,12 +1228,15 @@ export class AIEngine {
     const decisions: AIDecision[] = [];
     const availableStars = this.strategy?.budget?.availableStars ?? this.aiPlayer.stars;
     const researched = new Set(this.aiPlayer.researchedTechs);
+    const anchorCoords = getFriendlyBuildAnchors(this.gameState, this.aiPlayer.id);
+    const structurePlacement = this.findStructurePlacementCoordinate(city, anchorCoords);
 
     // Structures the city does not already have
     Object.values(STRUCTURE_DEFINITIONS).forEach(struct => {
       if (city.structures.includes(struct.id)) return;
       if (struct.requiredTech && !researched.has(struct.requiredTech)) return;
       if (struct.cost > availableStars) return;
+      if (!structurePlacement) return;
 
       const benefit =
         (struct.effects.starProduction || 0) * 3 +
@@ -1245,6 +1249,7 @@ export class AIEngine {
         cityId: city.id,
         buildingType: struct.id,
         constructionCategory: 'structures',
+        targetCoordinate: structurePlacement,
         priority,
       });
     });
@@ -1256,10 +1261,18 @@ export class AIEngine {
         imp => `${imp.coordinate.q},${imp.coordinate.r}`,
       ),
     );
+    const queuedKeys = new Set(
+      (this.aiPlayer.constructionQueue || [])
+        .filter(item => item.coordinate)
+        .map(item => `${item.coordinate!.q},${item.coordinate!.r}`),
+    );
 
     workableTiles.forEach(tile => {
       const key = `${tile.coordinate.q},${tile.coordinate.r}`;
       if (occupiedKeys.has(key)) return;
+      if (queuedKeys.has(key)) return;
+      if (!isTileExploredByPlayer(this.gameState, this.aiPlayer.id, tile.coordinate)) return;
+      if (!isWithinFriendlyBuildRadius(anchorCoords, tile.coordinate)) return;
 
       Object.values(IMPROVEMENT_DEFINITIONS).forEach(imp => {
         if (imp.requiredTech && !researched.has(imp.requiredTech)) return;
@@ -1744,6 +1757,55 @@ export class AIEngine {
       const tile = this.gameState.map.tiles.find(t => t.coordinate.q === coord.q && t.coordinate.r === coord.r);
       return tile?.terrain === 'water';
     });
+  }
+
+  private findStructurePlacementCoordinate(city: City, anchorCoords: HexCoordinate[]): HexCoordinate | null {
+    const occupiedKeys = new Set(
+      (this.gameState.improvements || []).map(imp => `${imp.coordinate.q},${imp.coordinate.r}`),
+    );
+
+    const structureKeys = new Set(
+      (this.gameState.structures || [])
+        .filter(structure => structure.coordinate)
+        .map(structure => `${structure.coordinate!.q},${structure.coordinate!.r}`),
+    );
+
+    const queuedKeys = new Set(
+      (this.aiPlayer.constructionQueue || [])
+        .filter(item => item.coordinate)
+        .map(item => `${item.coordinate!.q},${item.coordinate!.r}`),
+    );
+
+    const cityKeys = new Set(
+      (this.gameState.cities || []).map(c => `${c.coordinate.q},${c.coordinate.r}`),
+    );
+
+    const unitKeys = new Set(
+      this.gameState.units.map(u => `${u.coordinate.q},${u.coordinate.r}`),
+    );
+
+    const candidates = this.gameState.map.tiles.filter(tile => {
+      if (!isTileExploredByPlayer(this.gameState, this.aiPlayer.id, tile.coordinate)) return false;
+      if (!isWithinFriendlyBuildRadius(anchorCoords, tile.coordinate, STRUCTURE_BUILD_RADIUS)) return false;
+      if (tile.terrain === 'water') return false;
+      if (tile.feature === 'village') return false;
+
+      const key = `${tile.coordinate.q},${tile.coordinate.r}`;
+      if (occupiedKeys.has(key)) return false;
+      if (structureKeys.has(key)) return false;
+      if (queuedKeys.has(key)) return false;
+      if (cityKeys.has(key)) return false;
+      if (unitKeys.has(key)) return false;
+      return true;
+    });
+
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) =>
+      hexDistance(city.coordinate, a.coordinate) - hexDistance(city.coordinate, b.coordinate),
+    );
+
+    return candidates[0].coordinate;
   }
 
   private getCityWorkableTiles(city: City): Tile[] {

@@ -46,6 +46,7 @@ import { useAutosaveStatus } from "../../lib/stores/useAutosaveStatus";
 import { isUnitVisibleToPlayer } from "@shared/logic/unitLogic";
 import { hexDistance } from "@shared/utils/hex";
 import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
+import { getValidSpawnTiles } from "@shared/logic/gameReducer";
 import type { Unit } from "@shared/types/unit";
 import type { GameState } from "@shared/types/game";
 
@@ -1423,7 +1424,10 @@ export default function GameUI() {
           <div className="bg-black/90 text-white px-4 py-3 rounded-lg border-2 border-yellow-400 shadow-lg backdrop-blur-sm max-w-xs">
             <div className="text-center">
               <h3 className="text-sm font-bold mb-1">Construction Mode</h3>
-              <p className="text-xs mb-2">Select a tile to build: <span className="font-semibold text-yellow-300">{constructionMode.buildingType}</span></p>
+              <p className="text-xs mb-2">
+                Select a tile within 3 of a friendly city, village, or building to build{" "}
+                <span className="font-semibold text-yellow-300">{constructionMode.buildingType}</span>
+              </p>
               <button
                 onClick={cancelConstruction}
                 className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-xs text-white font-medium transition-colors"
@@ -1459,7 +1463,7 @@ export default function GameUI() {
           <div className="bg-black/90 text-white px-4 py-3 rounded-lg border-2 border-cyan-400 shadow-lg backdrop-blur-sm max-w-xs">
             <div className="text-center">
               <h3 className="text-sm font-bold mb-1">Select Spawn Location</h3>
-              <p className="text-xs mb-2">Click a <span className="text-cyan-300 font-semibold">highlighted tile</span> to spawn your <span className="font-semibold text-cyan-300">{spawnSelectionMode.unitType}</span></p>
+              <p className="text-xs mb-2">Click a <span className="text-cyan-300 font-semibold">highlighted tile</span> to place your <span className="font-semibold text-cyan-300">{spawnSelectionMode.unitType}</span> build site</p>
               <button
                 onClick={cancelSpawnSelection}
                 className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-xs text-white font-medium transition-colors"
@@ -1550,6 +1554,40 @@ export default function GameUI() {
                   category = 'units';
                 } else {
                   category = 'improvements';
+                }
+
+                if (category === 'units') {
+                  const city = gameState.cities?.find(c => c.id === selectedCityId);
+                  if (!city) return;
+                  const validTiles = getValidSpawnTiles(gameState, city.coordinate, optionId as any, currentPlayer.id);
+
+                  if (validTiles.length === 0) {
+                    alert(`Cannot recruit ${optionId}: No valid spawn locations available.`);
+                    return;
+                  }
+
+                  const { startSpawnSelection } = useGameState.getState();
+                  startSpawnSelection({
+                    unitType: optionId as any,
+                    cityId: selectedCityId,
+                    cityCoordinate: city.coordinate,
+                    playerId: currentPlayer.id,
+                    validSpawnTiles: validTiles,
+                    onSelectTile: (coordinate) => {
+                      useLocalGame.getState().dispatch({
+                        type: 'START_CONSTRUCTION',
+                        payload: {
+                          playerId: currentPlayer.id,
+                          buildingType: optionId,
+                          category: 'units',
+                          coordinate,
+                          cityId: selectedCityId
+                        }
+                      });
+                    }
+                  });
+                  setShowConstructionHall(false);
+                  return;
                 }
 
                 // Use the game state construction system

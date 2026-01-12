@@ -57,14 +57,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
     : 0;
 
   const handleBuildStructure = (structureType: StructureType) => {
-    dispatch({
-      type: 'BUILD_STRUCTURE',
-      payload: {
-        playerId: currentPlayer.id,
-        cityId,
-        structureType
-      }
-    });
+    startConstruction(structureType, 'structures', city.id, currentPlayer.id);
+    onClose();
   };
 
   const handleRecruitUnit = (unitType: UnitType) => {
@@ -77,21 +71,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
       alert(`Cannot recruit ${unitType}: No valid spawn locations available. All nearby tiles are blocked or at capacity.`);
       return;
     }
-    
-    // If only one valid tile, spawn directly there
-    if (validTiles.length === 1) {
-      dispatch({
-        type: 'RECRUIT_UNIT',
-        payload: {
-          playerId: currentPlayer.id,
-          cityId,
-          unitType,
-          spawnCoordinate: validTiles[0]
-        }
-      });
-      return;
-    }
-    
+
     // Multiple valid tiles - enter spawn selection mode
     onClose(); // Close the city panel
     startSpawnSelection({
@@ -102,12 +82,13 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
       validSpawnTiles: validTiles,
       onSelectTile: (coordinate: HexCoordinate) => {
         dispatch({
-          type: 'RECRUIT_UNIT',
+          type: 'START_CONSTRUCTION',
           payload: {
             playerId: currentPlayer.id,
-            cityId,
-            unitType,
-            spawnCoordinate: coordinate
+            buildingType: unitType,
+            category: 'units',
+            coordinate,
+            cityId
           }
         });
       }
@@ -147,7 +128,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
 
   const canAffordUnit = (unitType: UnitType) => {
     const unitDef = getUnitDefinition(unitType);
-    const hasSpace = cityUnits.length < 4; // Max 4 units per city
+    const validTiles = getValidSpawnTiles(gameState, city.coordinate, unitType, currentPlayer.id);
+    const hasSpace = validTiles.length > 0;
     const hasRequiredTech = !unitDef.requiredTechnology || currentPlayer.researchedTechs.includes(unitDef.requiredTechnology);
     const meetsRequirements = !unitDef.requirements ||
       ((!unitDef.requirements.faith || currentPlayer.stats.faith >= unitDef.requirements.faith) &&
@@ -161,11 +143,12 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
 
   const getUnitRecruitMessage = (unitType: UnitType) => {
     const unitDef = getUnitDefinition(unitType);
-    const hasSpace = cityUnits.length < 4;
+    const validTiles = getValidSpawnTiles(gameState, city.coordinate, unitType, currentPlayer.id);
+    const hasSpace = validTiles.length > 0;
     const hasEnoughStars = currentPlayer.stars >= unitDef.cost;
 
     if (!hasSpace) {
-      return "City Full (4/4)";
+      return "No open spawn tiles";
     }
 
     const factionMatch = unitDef.factionSpecific.length === 0 ||

@@ -147,7 +147,7 @@ export class AITurnManager {
               }
             };
 
-            if (decision.constructionCategory === 'improvements' && decision.targetCoordinate) {
+            if ((decision.constructionCategory === 'improvements' || decision.constructionCategory === 'structures') && decision.targetCoordinate) {
               payload.payload.coordinate = decision.targetCoordinate;
             }
 

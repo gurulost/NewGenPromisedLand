@@ -88,7 +88,30 @@ export function getActionAvailability(
     tile.coordinate.r === unit.coordinate.r
   );
   const canHarvest = isPlayerTurn && actionsRemaining > 0 && currentTile?.resources && currentTile.resources.length > 0;
-  const canBuild = isPlayerTurn && actionsRemaining > 0 && unit.type === 'worker' && currentTile && !currentTile.hasCity;
+  const hasImprovement = (gameState.improvements || []).some(imp =>
+    imp.coordinate.q === unit.coordinate.q && imp.coordinate.r === unit.coordinate.r
+  );
+  const hasStructure = (gameState.structures || []).some(structure =>
+    structure.coordinate &&
+    structure.coordinate.q === unit.coordinate.q &&
+    structure.coordinate.r === unit.coordinate.r
+  );
+  const hasQueuedConstruction = gameState.players.some(player =>
+    (player.constructionQueue || []).some(item =>
+      item.coordinate &&
+      item.coordinate.q === unit.coordinate.q &&
+      item.coordinate.r === unit.coordinate.r
+    )
+  );
+  const canBuild = isPlayerTurn &&
+    actionsRemaining > 0 &&
+    unit.type === 'worker' &&
+    currentTile &&
+    !currentTile.hasCity &&
+    !hasImprovement &&
+    !hasStructure &&
+    !hasQueuedConstruction &&
+    currentTile.feature !== 'village';
 
   return {
     canMove,
