@@ -366,6 +366,7 @@ export const GameActionSchema = z.discriminatedUnion('type', [
       playerId: z.string(),
       cityId: z.string(),
       structureType: z.string(),
+      coordinate: HexCoordinateSchema.optional(),
     }),
   }),
   z.object({

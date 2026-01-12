@@ -45,6 +45,7 @@ export type Improvement = z.infer<typeof ImprovementSchema>;
 export const StructureSchema = z.object({
   id: z.string(),
   type: StructureTypeSchema,
+  coordinate: HexCoordinateSchema.optional(),
   cityId: z.string(),
   ownerId: z.string(),
   constructionTurns: z.number().default(0), // If > 0, still under construction

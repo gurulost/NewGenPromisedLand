@@ -11,6 +11,7 @@ import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState, TileContextMenuOption } from "../../lib/stores/useGameState";
 import { getWorldElementRequirementSummary } from "../../utils/worldElementRequirements";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
+import { getFriendlyBuildAnchors, isTileExploredByPlayer, isWithinFriendlyBuildRadius } from "@shared/logic/constructionRules";
 import { createCloudShader } from './cloudShader';
 
 interface HexGridInstancedProps {
@@ -23,6 +24,8 @@ const HEX_SIZE = 1;
 function getValidConstructionTiles(gameState: any, buildingType: string, category: string, cityId: string) {
   const validTiles: string[] = [];
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  if (!currentPlayer) return validTiles;
+  const anchorCoords = getFriendlyBuildAnchors(gameState, currentPlayer.id);
 
   // Get city for reference
   const city = gameState.cities?.find((c: any) => c.id === cityId);
@@ -30,7 +33,7 @@ function getValidConstructionTiles(gameState: any, buildingType: string, categor
 
   // For each visible tile, check if it's valid for construction
   gameState.map.tiles.forEach((tile: any) => {
-    if (isValidConstructionTile(gameState, tile.coordinate, buildingType, category, cityId)) {
+    if (isValidConstructionTile(gameState, tile.coordinate, buildingType, category, cityId, anchorCoords)) {
       validTiles.push(`${tile.coordinate.q},${tile.coordinate.r}`);
     }
   });
@@ -38,7 +41,14 @@ function getValidConstructionTiles(gameState: any, buildingType: string, categor
   return validTiles;
 }
 
-function isValidConstructionTile(gameState: any, coordinate: any, buildingType: string, category: string, cityId: string): boolean {
+function isValidConstructionTile(
+  gameState: any,
+  coordinate: any,
+  buildingType: string,
+  category: string,
+  cityId: string,
+  anchorCoords?: Array<{ q: number; r: number; s?: number }>
+): boolean {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const city = gameState.cities?.find((c: any) => c.id === cityId);
 
@@ -62,9 +72,12 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
     }
   }
 
-  // Check if tile is explored/visible to current player
-  const tileKey = `${coordinate.q},${coordinate.r}`;
-  if (!currentPlayer.exploredTiles?.includes(tileKey)) return false;
+  // Check if tile is explored to current player
+  if (!isTileExploredByPlayer(gameState, currentPlayer.id, coordinate)) return false;
+
+  const buildAnchors = anchorCoords ?? getFriendlyBuildAnchors(gameState, currentPlayer.id);
+  const requiresAnchor = category === 'structures' || category === 'improvements';
+  if (requiresAnchor && !isWithinFriendlyBuildRadius(buildAnchors, coordinate)) return false;
 
   // Find the tile
   const tile = gameState.map.tiles.find((t: any) =>
@@ -79,34 +92,60 @@ function isValidConstructionTile(gameState: any, coordinate: any, buildingType: 
   const hasImprovement = gameState.improvements?.some((i: any) =>
     i.coordinate.q === coordinate.q && i.coordinate.r === coordinate.r
   );
-  const hasStructureInCity = gameState.structures?.some((s: any) =>
-    s.cityId === cityId && s.type === buildingType
+  const hasStructureOnTile = gameState.structures?.some((s: any) =>
+    s.coordinate &&
+    s.coordinate.q === coordinate.q &&
+    s.coordinate.r === coordinate.r
+  );
+  const hasQueuedConstruction = gameState.players?.some((p: any) =>
+    (p.constructionQueue || []).some((item: any) =>
+      item.coordinate &&
+      item.coordinate.q === coordinate.q &&
+      item.coordinate.r === coordinate.r
+    )
+  );
+  const hasCity = gameState.cities?.some((c: any) =>
+    c.coordinate.q === coordinate.q && c.coordinate.r === coordinate.r
   );
 
   if (category === 'units') {
     // Units can be placed on:
     if (buildingType === 'boat') {
-      // Boats need water tiles or adjacent to city
-      return tile.terrain === 'water' ||
-        (tile.coordinate.q === city.coordinate.q && tile.coordinate.r === city.coordinate.r);
-    } else {
-      // Other units need land tiles without obstacles
-      return tile.terrain !== 'water' && !hasUnit && !hasImprovement;
+      // Boats need adjacent water tiles or city on water
+      const isCityTile = tile.coordinate.q === city.coordinate.q && tile.coordinate.r === city.coordinate.r;
+      if (isCityTile && tile.terrain === 'water') return true;
+      return tile.terrain === 'water' && hexDistance(tile.coordinate, city.coordinate) === 1 && !hasUnit;
     }
+
+    // Other units need land tiles within spawn radius
+    return tile.terrain !== 'water' &&
+      hexDistance(tile.coordinate, city.coordinate) <= 2 &&
+      !hasUnit &&
+      !hasQueuedConstruction;
   } else if (category === 'improvements') {
-    // Improvements have terrain requirements
-    if (buildingType === 'forest_camp') {
-      return tile.terrain === 'forest' && !hasImprovement;
-    } else if (buildingType === 'mine') {
-      return tile.terrain === 'mountain' && !hasImprovement;
-    } else if (buildingType === 'farm') {
-      return tile.terrain === 'plains' && !hasImprovement;
-    }
-    // Default: any land tile without obstacles
-    return tile.terrain !== 'water' && !hasImprovement;
+    const improvementDef = IMPROVEMENT_DEFINITIONS[buildingType as keyof typeof IMPROVEMENT_DEFINITIONS];
+    if (!improvementDef) return false;
+
+    return improvementDef.validTerrain.includes(tile.terrain) &&
+      !hasImprovement &&
+      !hasStructureOnTile &&
+      !hasQueuedConstruction &&
+      !hasCity &&
+      !hasUnit &&
+      tile.feature !== 'village';
   } else if (category === 'structures') {
     // Structures can be built on most land tiles
-    return tile.terrain !== 'water' && !hasImprovement && !hasStructureInCity;
+    const hasStructureInCity = gameState.structures?.some((s: any) =>
+      s.cityId === cityId && s.type === buildingType
+    );
+    return tile.terrain !== 'water' &&
+      !hasImprovement &&
+      !hasStructureOnTile &&
+      !hasQueuedConstruction &&
+      !hasCity &&
+      !hasUnit &&
+      tile.feature !== 'village' &&
+      !hasStructureInCity;
   }
 
   return false;

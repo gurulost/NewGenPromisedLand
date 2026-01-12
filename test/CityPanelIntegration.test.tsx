@@ -15,9 +15,13 @@ vi.mock('../client/src/components/ui/BuildingMenu', () => ({
 
 const mockDispatch = vi.fn();
 const mockStartConstruction = vi.fn();
+const mockStartSpawnSelection = vi.fn();
 
 vi.mock('../client/src/lib/stores/useGameState', () => ({
-  useGameState: () => ({ startConstruction: mockStartConstruction, startSpawnSelection: vi.fn() }),
+  useGameState: () => ({
+    startConstruction: mockStartConstruction,
+    startSpawnSelection: mockStartSpawnSelection
+  }),
 }));
 
 const mockUseLocalGame = vi.fn();
@@ -39,6 +43,7 @@ describe('CityPanel Integration Tests', () => {
       stats: { faith: 50, pride: 30, internalDissent: 10 },
       researchedTechs: ['organization'],
       citiesOwned: ['city1'],
+      exploredTiles: ['0,0'],
     };
 
     const mockCity: any = {
@@ -133,13 +138,19 @@ describe('CityPanel Integration Tests', () => {
     await user.click(screen.getByText('Construction Hall'));
     await user.click(screen.getByText('Build Warrior'));
 
+    expect(mockStartSpawnSelection).toHaveBeenCalled();
+    const selectionArgs = mockStartSpawnSelection.mock.calls[0][0];
+    expect(selectionArgs.unitType).toBe('warrior');
+    selectionArgs.onSelectTile({ q: 0, r: 0, s: 0 });
+
     expect(mockDispatch).toHaveBeenCalledWith({
-      type: 'RECRUIT_UNIT',
+      type: 'START_CONSTRUCTION',
       payload: {
         playerId: 'player1',
-        cityId: 'city1',
-        unitType: 'warrior',
-        spawnCoordinate: { q: 0, r: 0, s: 0 }
+        buildingType: 'warrior',
+        category: 'units',
+        coordinate: { q: 0, r: 0, s: 0 },
+        cityId: 'city1'
       }
     });
   });

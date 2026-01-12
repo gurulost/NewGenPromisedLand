@@ -16,6 +16,7 @@ import { executeAbility } from "./abilitySystem";
 import { executeElementHarvest, executeElementBuild } from "./worldElementActions";
 import { HexCoordinate } from "../types/coordinates";
 import { getMovementCostToCoordinate, getUnitActionsRemaining, isPassableForUnit, resetUnitActions, spendUnitActions } from "./unitLogic";
+import { getFriendlyBuildAnchors, isTileExploredByPlayer, isWithinFriendlyBuildRadius } from "./constructionRules";
 import { emitTelemetry } from "./telemetry";
 import {
   areCitiesConnectedByRoad,
@@ -37,6 +38,13 @@ function getUnitSpawnCoordinate(
 ): HexCoordinate | null {
   const SPAWN_RADIUS = 2;
   const MAX_UNITS_PER_TILE = GAME_RULES.units.maxUnitsPerCity;
+  const queuedKeys = new Set(
+    state.players.flatMap(player =>
+      (player.constructionQueue || [])
+        .filter(item => item.category === 'units' && item.coordinate)
+        .map(item => `${item.coordinate!.q},${item.coordinate!.r}`)
+    )
+  );
   
   // Helper to count units on a tile using q,r (axial coords - s is derived)
   const getUnitsOnTile = (coord: HexCoordinate) => 
@@ -50,6 +58,7 @@ function getUnitSpawnCoordinate(
     const hasEnemy = unitsOnTile.some(u => u.playerId !== playerId);
     if (hasEnemy) return false;
     if (unitsOnTile.length >= MAX_UNITS_PER_TILE) return false;
+    if (queuedKeys.has(`${coord.q},${coord.r}`)) return false;
     return true;
   };
   
@@ -272,6 +281,32 @@ function handleStartConstruction(
   // Get building cost and time based on category
   let cost = { stars: 0, faith: 0, pride: 0 };
   let buildTime = 1;
+  const anchorCoords = getFriendlyBuildAnchors(state, playerId);
+
+  const hasBlockingUnit = (coord: HexCoordinate) =>
+    state.units?.some(u => u.coordinate.q === coord.q && u.coordinate.r === coord.r);
+
+  const hasBlockingImprovement = (coord: HexCoordinate) =>
+    (state.improvements || []).some(i => i.coordinate.q === coord.q && i.coordinate.r === coord.r);
+
+  const hasBlockingStructure = (coord: HexCoordinate) =>
+    (state.structures || []).some(s =>
+      s.coordinate &&
+      s.coordinate.q === coord.q &&
+      s.coordinate.r === coord.r
+    );
+
+  const hasBlockingCity = (coord: HexCoordinate) =>
+    state.cities?.some(c => c.coordinate.q === coord.q && c.coordinate.r === coord.r);
+
+  const hasBlockingConstruction = (coord: HexCoordinate) =>
+    state.players.some(p =>
+      (p.constructionQueue || []).some(item =>
+        item.coordinate &&
+        item.coordinate.q === coord.q &&
+        item.coordinate.r === coord.r
+      )
+    );
 
   if (category === 'improvements') {
     const improvement = IMPROVEMENT_DEFINITIONS[buildingType as keyof typeof IMPROVEMENT_DEFINITIONS];
@@ -284,16 +319,40 @@ function handleStartConstruction(
     if (!coordinate) return state;
     const tile = state.map.tiles.find(t => t.coordinate.q === coordinate.q && t.coordinate.r === coordinate.r);
     if (!tile) return state;
+    if (!isTileExploredByPlayer(state, playerId, coordinate)) return state;
+    if (!isWithinFriendlyBuildRadius(anchorCoords, coordinate)) return state;
     if (!improvement.validTerrain.includes(tile.terrain)) return state;
 
-    const hasImprovement = (state.improvements || []).some(i => i.coordinate.q === coordinate.q && i.coordinate.r === coordinate.r);
-    if (hasImprovement) return state;
+    if (tile.feature === 'village') return state;
+    if (hasBlockingCity(coordinate)) return state;
+    if (hasBlockingUnit(coordinate)) return state;
+    if (hasBlockingImprovement(coordinate)) return state;
+    if (hasBlockingStructure(coordinate)) return state;
+    if (hasBlockingConstruction(coordinate)) return state;
   } else if (category === 'structures') {
     const structure = STRUCTURE_DEFINITIONS[buildingType as keyof typeof STRUCTURE_DEFINITIONS];
     if (!structure) return state;
     if (!player.researchedTechs.includes(structure.requiredTech)) return state;
     cost.stars = structure.cost;
     buildTime = 1; // Default build time for structures
+
+    if (!coordinate) return state;
+    const tile = state.map.tiles.find(t => t.coordinate.q === coordinate.q && t.coordinate.r === coordinate.r);
+    if (!tile) return state;
+    if (!isTileExploredByPlayer(state, playerId, coordinate)) return state;
+    if (!isWithinFriendlyBuildRadius(anchorCoords, coordinate)) return state;
+    if (tile.terrain === 'water') return state;
+    if (tile.feature === 'village') return state;
+    if (hasBlockingCity(coordinate)) return state;
+    if (hasBlockingUnit(coordinate)) return state;
+    if (hasBlockingImprovement(coordinate)) return state;
+    if (hasBlockingStructure(coordinate)) return state;
+    if (hasBlockingConstruction(coordinate)) return state;
+
+    const hasStructureInCity = (state.structures || []).some(s =>
+      s.cityId === cityId && s.type === buildingType
+    );
+    if (hasStructureInCity) return state;
   } else if (category === 'units') {
     const unitDef = getUnitDefinition(buildingType as any);
     if (!unitDef) {
@@ -308,34 +367,14 @@ function handleStartConstruction(
       if (unitDef.requirements.pride && player.stats.pride < unitDef.requirements.pride) return state;
       if (unitDef.requirements.dissent && player.stats.internalDissent < unitDef.requirements.dissent) return state;
     }
-
-    // Special validation for boats - they need coastal access
-    if (buildingType === 'boat') {
-      const city = state.cities?.find(c => c.id === cityId);
-      if (city) {
-        // Check if city has coastal access (adjacent to water)
-        const cityTile = state.map.tiles.find(t =>
-          t.coordinate.q === city.coordinate.q &&
-          t.coordinate.r === city.coordinate.r
-        );
-
-        if (cityTile && cityTile.terrain === 'water') {
-          // City is on water, allow boat building
-        } else {
-          // Check for adjacent water tiles
-          const adjacentWater = state.map.tiles.some(tile => {
-            const distance = Math.abs(tile.coordinate.q - city.coordinate.q) +
-              Math.abs(tile.coordinate.r - city.coordinate.r) +
-              Math.abs(tile.coordinate.s - city.coordinate.s);
-            return distance === 2 && tile.terrain === 'water'; // Adjacent hex distance is 2 in cube coordinates
-          });
-
-          if (!adjacentWater) {
-            return state;
-          }
-        }
-      }
-    }
+    if (!coordinate) return state;
+    const city = state.cities?.find(c => c.id === cityId);
+    if (!city) return state;
+    const validSpawnTiles = getValidSpawnTiles(state, city.coordinate, buildingType as UnitType, playerId);
+    const isValidSpawn = validSpawnTiles.some(tile =>
+      tile.q === coordinate.q && tile.r === coordinate.r
+    );
+    if (!isValidSpawn) return state;
   }
 
   // Check if player can afford
@@ -413,14 +452,35 @@ function handleBuildImprovement(
   // Validate terrain compatibility
   if (!improvementDef.validTerrain.includes(targetTile.terrain)) return state;
 
-  // Check if tile is explored by player
-  if (!targetTile.exploredBy.includes(playerId)) return state;
-
   // Check if tile already has an improvement
   const existingImprovement = state.improvements?.find(imp =>
     imp.coordinate.q === coordinate.q && imp.coordinate.r === coordinate.r
   );
   if (existingImprovement) return state;
+
+  // Prevent overlap with structures, cities, villages, or queued construction
+  const hasStructure = state.structures?.some(structure =>
+    structure.coordinate &&
+    structure.coordinate.q === coordinate.q &&
+    structure.coordinate.r === coordinate.r
+  );
+  if (hasStructure) return state;
+
+  const hasCity = state.cities?.some(city =>
+    city.coordinate.q === coordinate.q && city.coordinate.r === coordinate.r
+  );
+  if (hasCity) return state;
+
+  if (targetTile.feature === 'village') return state;
+
+  const hasQueuedConstruction = state.players.some(p =>
+    (p.constructionQueue || []).some(item =>
+      item.coordinate &&
+      item.coordinate.q === coordinate.q &&
+      item.coordinate.r === coordinate.r
+    )
+  );
+  if (hasQueuedConstruction) return state;
 
   let rngSeed = state.rngSeed ?? 0;
   const improvementIdResult = nextId(rngSeed, `${improvementType}_${coordinate.q}_${coordinate.r}`);
@@ -453,9 +513,9 @@ function handleBuildImprovement(
 // Build Structure Handler
 function handleBuildStructure(
   state: GameState,
-  payload: { playerId: string; cityId: string; structureType: string }
+  payload: { playerId: string; cityId: string; structureType: string; coordinate?: HexCoordinate }
 ): GameState {
-  const { playerId, cityId, structureType } = payload;
+  const { playerId, cityId, structureType, coordinate } = payload;
 
   const structureDef = STRUCTURE_DEFINITIONS[structureType as keyof typeof STRUCTURE_DEFINITIONS];
   if (!structureDef) return state;
@@ -476,6 +536,33 @@ function handleBuildStructure(
   // Check if player owns the city
   if (!player.citiesOwned.includes(cityId)) return state;
 
+  const targetCoordinate = coordinate ?? targetCity.coordinate;
+  const tile = state.map.tiles.find(t => t.coordinate.q === targetCoordinate.q && t.coordinate.r === targetCoordinate.r);
+  if (!tile) return state;
+  const anchors = getFriendlyBuildAnchors(state, playerId);
+  if (!isTileExploredByPlayer(state, playerId, targetCoordinate)) return state;
+  if (!isWithinFriendlyBuildRadius(anchors, targetCoordinate)) return state;
+  if (tile.terrain === 'water') return state;
+  if (tile.feature === 'village') return state;
+  const hasBlockingUnit = state.units?.some(u => u.coordinate.q === targetCoordinate.q && u.coordinate.r === targetCoordinate.r);
+  if (hasBlockingUnit) return state;
+  const hasBlockingImprovement = (state.improvements || []).some(i => i.coordinate.q === targetCoordinate.q && i.coordinate.r === targetCoordinate.r);
+  if (hasBlockingImprovement) return state;
+  const hasBlockingStructure = (state.structures || []).some(s =>
+    s.coordinate &&
+    s.coordinate.q === targetCoordinate.q &&
+    s.coordinate.r === targetCoordinate.r
+  );
+  if (hasBlockingStructure) return state;
+  const hasBlockingConstruction = state.players.some(p =>
+    (p.constructionQueue || []).some(item =>
+      item.coordinate &&
+      item.coordinate.q === targetCoordinate.q &&
+      item.coordinate.r === targetCoordinate.r
+    )
+  );
+  if (hasBlockingConstruction) return state;
+
   // Check if city already has this structure type
   const existingStructure = state.structures?.find(structure =>
     structure.cityId === cityId && structure.type === structureType
@@ -490,6 +577,7 @@ function handleBuildStructure(
   const newStructure = {
     id: structureIdResult.id,
     type: structureType as keyof typeof STRUCTURE_DEFINITIONS,
+    coordinate: targetCoordinate,
     cityId,
     ownerId: playerId,
     constructionTurns: 0, // Built immediately for now
@@ -2147,7 +2235,13 @@ function handleEndTurn(
           const city = state.cities?.find(c => c.id === construction.cityId);
           if (city) {
             const unitDef = getUnitDefinition(construction.type as any);
-            const spawnCoordinate = getUnitSpawnCoordinate(state, construction.type as UnitType, city.coordinate, construction.playerId);
+            const spawnCoordinate = getUnitSpawnCoordinate(
+              state,
+              construction.type as UnitType,
+              city.coordinate,
+              construction.playerId,
+              construction.coordinate
+            );
             if (!spawnCoordinate) return;
             const unitIdResult = nextId(rngSeed, "unit");
             rngSeed = unitIdResult.seed;
@@ -2192,6 +2286,7 @@ function handleEndTurn(
           const newStructure = {
             id: construction.id,
             type: construction.type,
+            coordinate: construction.coordinate,
             ownerId: construction.playerId,
             effects: {
               starProduction: structureDef?.effects?.starProduction ?? 0,
@@ -3859,6 +3954,13 @@ export function getValidSpawnTiles(
 ): HexCoordinate[] {
   const SPAWN_RADIUS = 2;
   const MAX_UNITS_PER_TILE = GAME_RULES.units.maxUnitsPerCity;
+  const queuedKeys = new Set(
+    state.players.flatMap(player =>
+      (player.constructionQueue || [])
+        .filter(item => item.category === 'units' && item.coordinate)
+        .map(item => `${item.coordinate!.q},${item.coordinate!.r}`)
+    )
+  );
   
   const getUnitsOnTile = (coord: HexCoordinate) => 
     state.units.filter(u => 
@@ -3879,7 +3981,11 @@ export function getValidSpawnTiles(
         t.coordinate.q === neighbor.q && t.coordinate.r === neighbor.r
       ))
       .filter((tile): tile is NonNullable<typeof tile> => 
-        !!tile && tile.terrain === 'water' && isValidSpawnTile(tile.coordinate)
+        !!tile &&
+        tile.terrain === 'water' &&
+        isTileExploredByPlayer(state, playerId, tile.coordinate) &&
+        isValidSpawnTile(tile.coordinate) &&
+        !queuedKeys.has(`${tile.coordinate.q},${tile.coordinate.r}`)
       )
       .map(tile => tile.coordinate);
   }
@@ -3890,6 +3996,11 @@ export function getValidSpawnTiles(
   );
   
   return tilesInRange
-    .filter(tile => tile.terrain !== 'water' && isValidSpawnTile(tile.coordinate))
+    .filter(tile =>
+      tile.terrain !== 'water' &&
+      isTileExploredByPlayer(state, playerId, tile.coordinate) &&
+      isValidSpawnTile(tile.coordinate) &&
+      !queuedKeys.has(`${tile.coordinate.q},${tile.coordinate.r}`)
+    )
     .map(tile => tile.coordinate);
 }

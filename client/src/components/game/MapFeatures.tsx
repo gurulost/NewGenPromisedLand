@@ -313,8 +313,16 @@ export default function MapFeatures() {
       return visible.has(impKey); // Only currently visible, not explored
     }) || [];
     
-    // Filter structures in visible cities
+    // Filter structures based on visibility or city ownership
     const structures = gameState.structures?.filter(structure => {
+      if (structure.coordinate) {
+        const key = `${structure.coordinate.q},${structure.coordinate.r}`;
+        const isVisible = visible.has(key);
+        const isExplored = explored.has(key);
+        const isOwned = structure.ownerId === viewPlayer.id;
+        return isVisible || (isExplored && isOwned);
+      }
+
       const city = cities.find(c => c.id === structure.cityId);
       return city !== undefined;
     }) || [];
@@ -587,11 +595,13 @@ export default function MapFeatures() {
 
   // Function to render structure models (in cities)
   const renderStructure = (structure: any, cityPosition: { x: number; y: number }, index: number, key: string) => {
-    const offsetAngle = (index * Math.PI * 2) / 6; // Distribute around city
+    const hasCoordinate = Boolean(structure.coordinate);
+    const tilePosition = hasCoordinate ? hexToPixel(structure.coordinate, 1) : cityPosition;
+    const offsetAngle = (index * Math.PI * 2) / 6; // Distribute around city when no tile coordinate
     const offsetDistance = 0.4;
-    const x = cityPosition.x + Math.cos(offsetAngle) * offsetDistance;
-    const z = cityPosition.y + Math.sin(offsetAngle) * offsetDistance;
-    const y = 0.4;
+    const x = hasCoordinate ? tilePosition.x : tilePosition.x + Math.cos(offsetAngle) * offsetDistance;
+    const z = hasCoordinate ? tilePosition.y : tilePosition.y + Math.sin(offsetAngle) * offsetDistance;
+    const y = hasCoordinate ? 0.3 : 0.4;
     
     switch (structure.type) {
       case 'temple':
@@ -663,7 +673,9 @@ export default function MapFeatures() {
         const isPlayerCity = city.ownerId === viewPlayer?.id;
         
         // Get structures for this city
-        const cityStructures = visibleStructures.filter(structure => structure.cityId === city.id);
+        const cityStructures = visibleStructures.filter(structure =>
+          structure.cityId === city.id && !structure.coordinate
+        );
         
         return (
           <group key={city.id}>
@@ -681,6 +693,14 @@ export default function MapFeatures() {
           </group>
         );
       })}
+
+      {/* Render structures with explicit tile coordinates */}
+      {visibleStructures
+        .filter(structure => structure.coordinate)
+        .map(structure => {
+          const tilePosition = hexToPixel(structure.coordinate, 1);
+          return renderStructure(structure, tilePosition, 0, `tile-${structure.id}`);
+        })}
       
       {/* Render Improvements on Tiles */}
       {visibleImprovements.map(improvement => {
@@ -750,13 +770,25 @@ export default function MapFeatures() {
       })}
       
       {/* Render ongoing construction */}
-      {viewPlayer && gameState.players.map(player => 
-        player.constructionQueue?.map(construction => (
-          <Construction
-            key={construction.id}
-            construction={construction}
-          />
-        ))
+      {viewPlayer && gameState.players.map(player =>
+        player.constructionQueue?.map(construction => {
+          const city = gameState.cities?.find(c => c.id === construction.cityId);
+          const coordinate = construction.coordinate ?? city?.coordinate;
+          if (!coordinate) return null;
+
+          const key = `${coordinate.q},${coordinate.r}`;
+          const isVisible = visibleTiles.has(key);
+          const isExplored = exploredTiles.has(key);
+          const isOwned = player.id === viewPlayer.id;
+          if (!isVisible && !isExplored && !isOwned) return null;
+
+          return (
+            <Construction
+              key={construction.id}
+              construction={{ ...construction, coordinate }}
+            />
+          );
+        })
       )}
 
       {spawnDebugMarkers && (
