@@ -317,9 +317,9 @@ export class AISandbox {
 
   private checkVictoryConditions(): string | null {
     // Simplified victory conditions for sandbox
-    const alivePlayers = this.gameState.players.filter(p => !p.isEliminated);
-    if (alivePlayers.length === 1) {
-      return alivePlayers[0].id;
+    const playersWithCities = this.gameState.players.filter(p => p.citiesOwned.length > 0);
+    if (playersWithCities.length === 1) {
+      return playersWithCities[0].id;
     }
     return null;
   }

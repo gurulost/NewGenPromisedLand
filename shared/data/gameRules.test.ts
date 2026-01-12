@@ -18,8 +18,15 @@ describe('GameRules', () => {
 
   it('should have reasonable victory thresholds', () => {
     expect(GAME_RULES.victory.faithThreshold).toBeGreaterThan(0);
+    expect(GAME_RULES.victory.faithDissentMax).toBeGreaterThanOrEqual(0);
     expect(GAME_RULES.victory.territoryControlThreshold).toBeGreaterThan(0);
-    expect(GAME_RULES.victory.territoryControlThreshold).toBeLessThanOrEqual(100);
+    expect(GAME_RULES.victory.territoryControlThreshold).toBeLessThanOrEqual(1);
+    expect(GAME_RULES.victory.economic.incomeBase).toBeGreaterThan(0);
+    expect(GAME_RULES.victory.economic.treasuryBase).toBeGreaterThan(0);
+    expect(GAME_RULES.victory.economic.techPercent).toBeGreaterThan(0);
+    expect(GAME_RULES.victory.economic.techPercent).toBeLessThanOrEqual(1);
+    expect(GAME_RULES.victory.cultural.populationBase).toBeGreaterThan(0);
+    expect(GAME_RULES.victory.cultural.structureBase).toBeGreaterThan(0);
   });
 
   it('should have positive resource generation values', () => {
@@ -98,6 +105,34 @@ describe('GameRuleHelpers', () => {
   it('should check faith victory correctly', () => {
     expect(GameRuleHelpers.hasFaithVictory(95)).toBe(true);
     expect(GameRuleHelpers.hasFaithVictory(30)).toBe(false);
+  });
+
+  it('should calculate economic victory thresholds', () => {
+    const thresholds = GameRuleHelpers.getEconomicVictoryThresholds(3);
+    expect(thresholds.income).toBeGreaterThan(0);
+    expect(thresholds.treasury).toBeGreaterThan(0);
+    expect(thresholds.techPercent).toBeGreaterThan(0);
+  });
+
+  it('should calculate cultural victory thresholds', () => {
+    const thresholds = GameRuleHelpers.getCulturalVictoryThresholds(3);
+    expect(thresholds.population).toBeGreaterThan(0);
+    expect(thresholds.structures).toBeGreaterThan(0);
+    expect(thresholds.dissentMax).toBeGreaterThanOrEqual(0);
+  });
+
+  it('should evaluate economic victory correctly', () => {
+    const thresholds = GameRuleHelpers.getEconomicVictoryThresholds(2);
+    const player = { stars: thresholds.treasury, researchedTechs: ['a', 'b', 'c', 'd'] };
+    expect(GameRuleHelpers.hasEconomicVictory(player, thresholds.income, 4, thresholds)).toBe(true);
+    expect(GameRuleHelpers.hasEconomicVictory(player, thresholds.income - 1, 4, thresholds)).toBe(false);
+  });
+
+  it('should evaluate cultural victory correctly', () => {
+    const thresholds = GameRuleHelpers.getCulturalVictoryThresholds(2);
+    const player = { stats: { internalDissent: thresholds.dissentMax } };
+    expect(GameRuleHelpers.hasCulturalVictory(player, thresholds.population, thresholds.structures, thresholds)).toBe(true);
+    expect(GameRuleHelpers.hasCulturalVictory(player, thresholds.population - 1, thresholds.structures, thresholds)).toBe(false);
   });
 
   it('should check territorial victory correctly', () => {

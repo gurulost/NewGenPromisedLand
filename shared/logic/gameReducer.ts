@@ -29,6 +29,11 @@ import { computeUnitPassiveEffectsForPlayer } from "./unitPassiveEffects";
 import { nextFloat, nextId, nextInt } from "./rng";
 import { resolveCombat } from "./combatResolver";
 
+type VictoryType = 'faith' | 'territorial' | 'elimination' | 'economic' | 'cultural' | 'domination';
+type VictoryResult = { winnerId: string; victoryType: VictoryType };
+type TradeRoute = NonNullable<PlayerState['tradeRoutes']>[number];
+type UnitPassiveEffects = ReturnType<typeof computeUnitPassiveEffectsForPlayer>;
+
 function getUnitSpawnCoordinate(
   state: GameState, 
   unitType: UnitType, 
@@ -223,6 +228,118 @@ function calculateRoadConnectedCityStarBonus(state: GameState, playerId: string)
   // Trade amplifies connected-city commerce.
   const multiplier = player.researchedTechs?.includes('trade') ? 2 : 1;
   return bonus * multiplier;
+}
+
+function getValidTradeRoutes(state: GameState, player: PlayerState): TradeRoute[] {
+  const rawRoutes = player.tradeRoutes || [];
+  if (rawRoutes.length === 0) return [];
+  return rawRoutes.filter(route => {
+    if (!player.citiesOwned.includes(route.fromCityId)) return false;
+    if (!player.citiesOwned.includes(route.toCityId)) return false;
+    return areCitiesConnectedByRoad(state, player.id, route.fromCityId, route.toCityId);
+  });
+}
+
+function calculatePlayerStarIncome(
+  state: GameState,
+  player: PlayerState,
+  options?: {
+    unitPassive?: UnitPassiveEffects;
+    validTradeRoutes?: TradeRoute[];
+    statsOverride?: PlayerState['stats'];
+  }
+): number {
+  const stats = options?.statsOverride ?? player.stats;
+  const unitPassive = options?.unitPassive ?? computeUnitPassiveEffectsForPlayer(state, player.id, stats);
+  const validTradeRoutes = options?.validTradeRoutes ?? getValidTradeRoutes(state, player);
+
+  let starIncome = 0;
+  const playerCityObjects = state.cities?.filter(city => city.ownerId === player.id) || [];
+  playerCityObjects.forEach(city => {
+    const unrestTurns = city.unrestTurns || 0;
+    const unrestPenalty = unrestTurns > 0 ? GAME_RULES.morale.unrestIncomePenaltyPerCity : 0;
+    starIncome += Math.max(0, city.starProduction - unrestPenalty);
+  });
+
+  if (playerCityObjects.length === 0) {
+    starIncome = GameRuleHelpers.calculateStarIncome(player.citiesOwned.length);
+  }
+
+  const playerImprovements = state.improvements?.filter(imp => imp.ownerId === player.id) || [];
+  playerImprovements.forEach(improvement => {
+    const improvementDef = IMPROVEMENT_DEFINITIONS[improvement.type as keyof typeof IMPROVEMENT_DEFINITIONS];
+    if (improvementDef && improvement.constructionTurns === 0) {
+      let production = improvement.starProduction;
+      if (improvement.type === 'port' && player.researchedTechs?.includes('seafaring')) {
+        production += 1;
+      }
+      starIncome += production;
+    }
+  });
+
+  const playerStructures = state.structures?.filter(struct => struct.ownerId === player.id) || [];
+  playerStructures.forEach(structure => {
+    const structureDef = STRUCTURE_DEFINITIONS[structure.type as keyof typeof STRUCTURE_DEFINITIONS];
+    if (structureDef && structure.constructionTurns === 0) {
+      starIncome += structure.effects.starProduction;
+    }
+  });
+
+  const convertedVillages = state.map.tiles.filter(tile =>
+    tile.feature === 'village' &&
+    tile.cityOwner === player.id &&
+    tile.captureType === 'converted' &&
+    tile.starBonus
+  );
+  const villageBonus = convertedVillages.reduce((sum, tile) => sum + (tile.starBonus || 0), 0);
+  starIncome += villageBonus;
+
+  const roadBonus = calculateRoadConnectedCityStarBonus(state, player.id);
+  starIncome += roadBonus;
+
+  const tradeIncome = validTradeRoutes.reduce((sum, r) => sum + (r.starsPerTurn || 0), 0);
+  starIncome += tradeIncome;
+
+  starIncome += unitPassive.perTurn.stars || 0;
+
+  return starIncome;
+}
+
+function getPlayerPopulation(state: GameState, playerId: string): number {
+  const cities = (state.cities || []).filter(c => c.ownerId === playerId);
+  return cities.reduce((sum, city) => sum + (city.population || 0), 0);
+}
+
+function getCulturalStructureCount(state: GameState, playerId: string): number {
+  const targets = GameRuleHelpers.getCulturalVictoryThresholds(state.players.length);
+  const structureCount = (state.structures || []).filter(
+    s => s.ownerId === playerId && s.constructionTurns === 0 && targets.structureTypes.includes(s.type)
+  ).length;
+  const improvementCount = (state.improvements || []).filter(
+    i => i.ownerId === playerId && i.constructionTurns === 0 && targets.improvementTypes.includes(i.type)
+  ).length;
+  return structureCount + improvementCount;
+}
+
+function getVictoryTiebreakStats(state: GameState, player: PlayerState) {
+  return {
+    cities: player.citiesOwned.length,
+    faith: player.stats.faith,
+    techs: player.researchedTechs.length,
+    units: state.units.filter(u => u.playerId === player.id).length,
+  };
+}
+
+function pickWinnerByTiebreaker(state: GameState, candidates: PlayerState[]): PlayerState | undefined {
+  if (candidates.length === 0) return undefined;
+  return [...candidates].sort((a, b) => {
+    const aStats = getVictoryTiebreakStats(state, a);
+    const bStats = getVictoryTiebreakStats(state, b);
+    if (aStats.cities !== bStats.cities) return bStats.cities - aStats.cities;
+    if (aStats.faith !== bStats.faith) return bStats.faith - aStats.faith;
+    if (aStats.techs !== bStats.techs) return bStats.techs - aStats.techs;
+    return bStats.units - aStats.units;
+  })[0];
 }
 
 // Tech Research Handler
@@ -654,6 +771,10 @@ function handleCaptureCity(
     }
     return p;
   });
+  const normalizedPlayers = updatedPlayers.map(p => ({
+    ...p,
+    isEliminated: p.citiesOwned.length === 0
+  }));
 
   // Update city ownership
   const updatedCities = state.cities?.map(city =>
@@ -709,7 +830,7 @@ function handleCaptureCity(
 
   return {
     ...state,
-    players: updatedPlayers,
+    players: normalizedPlayers,
     cities: updatedCities,
     structures: updatedStructures,
     improvements: updatedImprovements,
@@ -1978,70 +2099,14 @@ function handleEndTurn(
         missionaryFaith +
         (unitPassive.perTurn.faith || 0);
 
-      // Calculate star income based on city levels and production
-      let starIncome = 0;
-      const playerCityObjects = state.cities?.filter(city => city.ownerId === player.id) || [];
-      playerCityObjects.forEach(city => {
-        const unrestTurns = city.unrestTurns || 0;
-        const unrestPenalty = unrestTurns > 0 ? GAME_RULES.morale.unrestIncomePenaltyPerCity : 0;
-        starIncome += Math.max(0, city.starProduction - unrestPenalty);
-      });
-
-      // Add base star income if no cities (fallback)
-      if (playerCityObjects.length === 0) {
-        starIncome = GameRuleHelpers.calculateStarIncome(playerCities);
-      }
-
-      // Add income from improvements
-      const playerImprovements = state.improvements?.filter(imp => imp.ownerId === player.id) || [];
-
-      playerImprovements.forEach(improvement => {
-        const improvementDef = IMPROVEMENT_DEFINITIONS[improvement.type as keyof typeof IMPROVEMENT_DEFINITIONS];
-        if (improvementDef && improvement.constructionTurns === 0) {
-          let production = improvement.starProduction;
-          if (improvement.type === 'port' && player.researchedTechs?.includes('seafaring')) {
-            production += 1;
-          }
-          starIncome += production;
-        }
-      });
-
-      // Add income from structures
-      const playerStructures = state.structures?.filter(struct => struct.ownerId === player.id) || [];
-
-      playerStructures.forEach(structure => {
-        const structureDef = STRUCTURE_DEFINITIONS[structure.type as keyof typeof STRUCTURE_DEFINITIONS];
-        if (structureDef && structure.constructionTurns === 0) {
-          starIncome += structure.effects.starProduction;
-        }
-      });
-
-      // Add income from converted villages
-      const convertedVillages = state.map.tiles.filter(tile =>
-        tile.feature === 'village' &&
-        tile.cityOwner === player.id &&
-        tile.captureType === 'converted' &&
-        tile.starBonus
-      );
-      const villageBonus = convertedVillages.reduce((sum, tile) => sum + (tile.starBonus || 0), 0);
-      starIncome += villageBonus;
-
-      // Road trade bonus: cities connected by road grant extra stars
-      const roadBonus = calculateRoadConnectedCityStarBonus(state, player.id);
-      starIncome += roadBonus;
-
       // Trade route income: persistent per-turn income, and validated (routes can disappear if the network breaks).
-      const rawRoutes = player.tradeRoutes || [];
-      const validTradeRoutes = rawRoutes.filter(route => {
-        if (!player.citiesOwned.includes(route.fromCityId)) return false;
-        if (!player.citiesOwned.includes(route.toCityId)) return false;
-        return areCitiesConnectedByRoad(state, player.id, route.fromCityId, route.toCityId);
-      });
-      const tradeIncome = validTradeRoutes.reduce((sum, r) => sum + (r.starsPerTurn || 0), 0);
-      starIncome += tradeIncome;
+      const validTradeRoutes = getValidTradeRoutes(state, player);
 
-      // Passive unit income (e.g., Priestcraft Preachers).
-      starIncome += unitPassive.perTurn.stars || 0;
+      const starIncome = calculatePlayerStarIncome(state, player, {
+        unitPassive,
+        validTradeRoutes,
+        statsOverride: updatedStats
+      });
 
       // Passive per-turn moral shifts from units should influence this turn's morale outcomes.
       if (unitPassive.perTurn.pride || unitPassive.perTurn.dissent) {
@@ -2449,8 +2514,15 @@ function handleEndTurn(
     }
   }
 
-  // Check for victory conditions
-  const winner = checkVictoryConditions(state, updatedPlayers);
+  const nextTurnValue = isNewTurn ? state.turn + 1 : state.turn;
+  const victoryState: GameState = {
+    ...state,
+    units: updatedUnits,
+    improvements: updatedImprovements,
+    structures: updatedStructures,
+    cities: updatedCities,
+  };
+  const victory = checkVictoryConditions(victoryState, updatedPlayers, { turnOverride: nextTurnValue });
 
   return {
     ...state,
@@ -2460,8 +2532,9 @@ function handleEndTurn(
     structures: updatedStructures,
     cities: updatedCities,
     currentPlayerIndex: nextPlayerIndex,
-    turn: isNewTurn ? state.turn + 1 : state.turn,
-    winner,
+    turn: nextTurnValue,
+    winner: victory?.winnerId,
+    victoryType: victory?.victoryType,
     rngSeed,
     lastAction: endTurnEvents.length > 0
       ? { type: 'END_TURN_RESOLUTION', payload: { endingPlayerId: payload.playerId, nextPlayerId: updatedPlayers[nextPlayerIndex].id, events: endTurnEvents } }
@@ -2906,30 +2979,69 @@ function handleResearchTechnology(
   });
 }
 
-function checkVictoryConditions(state: GameState, players: PlayerState[]): string | undefined {
-  // Check if any player has achieved dominance
-  for (const player of players) {
-    const { faith, pride, internalDissent } = player.stats;
+function checkVictoryConditions(
+  state: GameState,
+  players: PlayerState[],
+  context?: { turnOverride?: number }
+): VictoryResult | undefined {
+  const playerCount = players.length;
+  const totalTechs = Object.keys(TECHNOLOGIES).length || 1;
+  const economicTargets = GameRuleHelpers.getEconomicVictoryThresholds(playerCount);
+  const culturalTargets = GameRuleHelpers.getCulturalVictoryThresholds(playerCount);
+  const activePlayers = players.filter(p => p.citiesOwned.length > 0);
+  const totalOwnedCities = players.reduce((sum, p) => sum + p.citiesOwned.length, 0);
+  const turn = context?.turnOverride ?? state.turn;
 
-    // Faith Victory: Using centralized rules
-    if (GameRuleHelpers.hasFaithVictory(faith) && internalDissent < 10) {
-      return player.id;
-    }
+  const faithCandidates = activePlayers.filter(player =>
+    GameRuleHelpers.hasFaithVictory(player.stats.faith) &&
+    player.stats.internalDissent <= GAME_RULES.victory.faithDissentMax
+  );
+  const faithWinner = pickWinnerByTiebreaker(state, faithCandidates);
+  if (faithWinner) {
+    return { winnerId: faithWinner.id, victoryType: 'faith' };
+  }
 
-    // Territorial Victory: Using centralized rules
-    const totalCities = state.map.tiles.filter(tile => tile.hasCity).length;
-    const playerCities = player.citiesOwned.length;
+  const economicCandidates = activePlayers.filter(player => {
+    const income = calculatePlayerStarIncome(state, player);
+    return GameRuleHelpers.hasEconomicVictory(player, income, totalTechs, economicTargets);
+  });
+  const economicWinner = pickWinnerByTiebreaker(state, economicCandidates);
+  if (economicWinner) {
+    return { winnerId: economicWinner.id, victoryType: 'economic' };
+  }
 
-    if (totalCities > 0 && GameRuleHelpers.hasTerritorialVictory(playerCities, totalCities)) {
-      return player.id;
+  const culturalCandidates = activePlayers.filter(player => {
+    const population = getPlayerPopulation(state, player.id);
+    const structures = getCulturalStructureCount(state, player.id);
+    return GameRuleHelpers.hasCulturalVictory(player, population, structures, culturalTargets);
+  });
+  const culturalWinner = pickWinnerByTiebreaker(state, culturalCandidates);
+  if (culturalWinner) {
+    return { winnerId: culturalWinner.id, victoryType: 'cultural' };
+  }
+
+  if (GAME_RULES.victory.eliminationRequired) {
+    const playersWithCities = players.filter(p => p.citiesOwned.length > 0);
+    if (playersWithCities.length === 1) {
+      return { winnerId: playersWithCities[0].id, victoryType: 'elimination' };
     }
   }
 
-  // Elimination Victory: Only one player with units left
-  if (GAME_RULES.victory.eliminationRequired) {
-    const playersWithUnits = new Set(state.units.map(unit => unit.playerId));
-    if (playersWithUnits.size === 1) {
-      return Array.from(playersWithUnits)[0];
+  const territorialCandidates = activePlayers.filter(player => {
+    if (totalOwnedCities <= 0) return false;
+    return GameRuleHelpers.hasTerritorialVictory(player.citiesOwned.length, totalOwnedCities);
+  });
+  const territorialWinner = pickWinnerByTiebreaker(state, territorialCandidates);
+  if (territorialWinner) {
+    return { winnerId: territorialWinner.id, victoryType: 'territorial' };
+  }
+
+  const maxTurns = GAME_RULES.turns.maxTurnsPerGame;
+  if (maxTurns > 0 && turn >= maxTurns) {
+    const eligible = players.filter(p => p.citiesOwned.length > 0);
+    const winner = pickWinnerByTiebreaker(state, eligible.length > 0 ? eligible : players);
+    if (winner) {
+      return { winnerId: winner.id, victoryType: 'domination' };
     }
   }
 
@@ -3651,26 +3763,32 @@ function handleConvertCity(
 
   const currentOwnerId = city.ownerId;
 
+  const updatedPlayers = state.players.map(p => {
+    if (p.id === playerId) {
+      return {
+        ...p,
+        citiesOwned: p.citiesOwned.includes(cityId) ? p.citiesOwned : [...p.citiesOwned, cityId],
+        stats: { ...p.stats, ...statChanges }
+      };
+    } else if (currentOwnerId && p.id === currentOwnerId) {
+      return {
+        ...p,
+        citiesOwned: p.citiesOwned.filter(id => id !== cityId)
+      };
+    }
+    return p;
+  });
+  const normalizedPlayers = updatedPlayers.map(p => ({
+    ...p,
+    isEliminated: p.citiesOwned.length === 0
+  }));
+
   return {
     ...state,
     units: state.units.map(u =>
       u.id === actingMissionary.id ? spendUnitActions(u) : u
     ),
-    players: state.players.map(p => {
-      if (p.id === playerId) {
-        return {
-          ...p,
-          citiesOwned: p.citiesOwned.includes(cityId) ? p.citiesOwned : [...p.citiesOwned, cityId],
-          stats: { ...p.stats, ...statChanges }
-        };
-      } else if (currentOwnerId && p.id === currentOwnerId) {
-        return {
-          ...p,
-          citiesOwned: p.citiesOwned.filter(id => id !== cityId)
-        };
-      }
-      return p;
-    }),
+    players: normalizedPlayers,
     cities: (state.cities || []).map(c =>
       c.id === cityId ? { ...c, ownerId: playerId } : c
     ),

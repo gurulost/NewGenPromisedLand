@@ -129,6 +129,20 @@ describe('VictoryScreen', () => {
     expect(screen.getByText(/Through strategic warfare and tactical brilliance/)).toBeInTheDocument();
   });
 
+  it('shows economic victory correctly', () => {
+    render(<VictoryScreen {...mockProps} victoryType="economic" />);
+
+    expect(screen.getByText('Economic Supremacy')).toBeInTheDocument();
+    expect(screen.getByText(/thriving economy and mastery of commerce/i)).toBeInTheDocument();
+  });
+
+  it('shows cultural victory correctly', () => {
+    render(<VictoryScreen {...mockProps} victoryType="cultural" />);
+
+    expect(screen.getByText('Cultural Ascendancy')).toBeInTheDocument();
+    expect(screen.getByText(/lasting legacy of learning, worship, and civic harmony/i)).toBeInTheDocument();
+  });
+
   it('shows domination victory correctly', () => {
     render(<VictoryScreen {...mockProps} victoryType="domination" />);
     

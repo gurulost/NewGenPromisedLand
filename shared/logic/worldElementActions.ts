@@ -644,13 +644,19 @@ function executeRuinExploration(
     }
 
     case 'reveal': {
-      // Find nearest enemy city
-      const enemyCities: City[] = gameState.cities.filter(c => !player.citiesOwned.includes(c.id));
+      const enemyCities: City[] = gameState.cities.filter(
+        c => c.ownerId && c.ownerId !== playerId
+      );
+      const unseenEnemyCities = enemyCities.filter(city => {
+        const key = `${city.coordinate.q},${city.coordinate.r}`;
+        return !player.exploredTiles.includes(key);
+      });
+      const candidateCities = unseenEnemyCities.length > 0 ? unseenEnemyCities : [];
 
       let closestEnemyCity: City | null = null;
       let minDistance = Infinity;
 
-      enemyCities.forEach(city => {
+      candidateCities.forEach(city => {
         const dist = Math.sqrt(
           Math.pow(city.coordinate.q - coordinate.q, 2) +
           Math.pow(city.coordinate.r - coordinate.r, 2)
@@ -662,7 +668,7 @@ function executeRuinExploration(
       });
 
       if (closestEnemyCity !== null) {
-        const enemyCity = closestEnemyCity as City; // Type assertion for TypeScript
+        const enemyCity = closestEnemyCity as City;
         message += ` and revealed the location of an enemy city!`;
         const cityCoordKey = `${enemyCity.coordinate.q},${enemyCity.coordinate.r}`;
 
@@ -683,10 +689,11 @@ function executeRuinExploration(
           }
         }
       } else {
-        // Fallback if no enemies
+        // Fallback if no unseen enemy cities remain
         starGain = 10;
         reward.type = 'stars';
         reward.value = 10;
+        reward.description = 'No new enemy cities remain; ancient maps point to a small cache of stars.';
         message += ` and found 10 stars!`;
       }
       break;

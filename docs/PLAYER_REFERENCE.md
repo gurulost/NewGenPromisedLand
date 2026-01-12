@@ -560,8 +560,11 @@ Each tech unlocks specific units/improvements/structures/abilities; use the tech
 
 The game checks these conditions at end of turn:
 - Faith Victory: reach Faith threshold (90+) while keeping Dissent low (under 10).
-- Territorial Victory: control most of the map’s cities (about 80%).
-- Elimination Victory: only one player has units remaining (if elimination is enabled).
+- Economic Victory: income >= 15 + 3x players, treasury >= 60 + 15x players, tech >= 75%.
+- Cultural Victory: population >= 20 + 6x players, cultural sites (temple/shrine/library/academy/cathedral) >= 3 + players, Dissent <= 10.
+- Territorial Victory: control most owned cities (about 80%; neutral cities do not count).
+- Elimination Victory: only one player has cities remaining (if elimination is enabled).
+- Turn Cap: if max turns are reached, the winner is determined by score (cities > faith > techs > units).
 
 ---
 

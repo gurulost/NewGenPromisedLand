@@ -179,6 +179,7 @@ export const GameStateSchema = z.object({
     z.object({ type: z.string(), payload: z.unknown() }) // Fallback for other actions
   ]).optional(),
   winner: z.string().optional(),
+  victoryType: z.enum(['faith', 'territorial', 'elimination', 'economic', 'cultural', 'domination']).optional(),
 });
 
 export type GameState = z.infer<typeof GameStateSchema>;

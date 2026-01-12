@@ -4,7 +4,7 @@ import { HexCoordinate } from '../types/coordinates';
 import { hexDistance, hexNeighbors } from '../utils/hex';
 import { UNIT_DEFINITIONS, getUnitDefinition } from '../data/units';
 import { TECHNOLOGIES } from '../data/technologies';
-import { GAME_RULES } from '../data/gameRules';
+import { GAME_RULES, GameRuleHelpers } from '../data/gameRules';
 import { getFaction } from '../data/factions';
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '../types/city';
 import { TacticalEngine, TacticalTarget } from './aiTacticalEngine';
@@ -2192,24 +2192,43 @@ export class AIEngine {
       : 50;
 
     // --- Faith Progress ---
-    const faithTarget = 100; // Target faith level
-    const faithProgress = Math.min(100, (this.aiPlayer.stats.faith / faithTarget) * 100);
+    const faithTarget = GAME_RULES.victory.faithThreshold;
+    const faithDissentMax = GAME_RULES.victory.faithDissentMax;
+    const faithBase = Math.min(100, (this.aiPlayer.stats.faith / faithTarget) * 100);
+    const faithDissent = this.aiPlayer.stats.internalDissent;
+    const dissentClamp = Math.max(1, faithDissentMax);
+    const dissentFactor = faithDissent <= faithDissentMax
+      ? 1
+      : Math.max(0, 1 - ((faithDissent - faithDissentMax) / dissentClamp));
+    const faithProgress = Math.min(100, faithBase * dissentFactor);
 
     // --- Economic Progress ---
     const techCount = this.aiPlayer.researchedTechs.length;
-    const totalTechs = Object.keys(TECHNOLOGIES).length;
+    const totalTechs = Object.keys(TECHNOLOGIES).length || 1;
     const income = this.strategy.budget?.incomePerTurn || 0;
-    const economicProgress = Math.min(100,
-      (techCount / totalTechs) * 60 + // 60% from tech
-      (income / 20) * 40               // 40% from income
-    );
+    const economicTargets = GameRuleHelpers.getEconomicVictoryThresholds(this.gameState.players.length);
+    const incomeProgress = Math.min(100, (income / economicTargets.income) * 100);
+    const treasuryProgress = Math.min(100, (this.aiPlayer.stars / economicTargets.treasury) * 100);
+    const techProgress = Math.min(100, ((techCount / totalTechs) / economicTargets.techPercent) * 100);
+    const economicProgress = Math.min(100, (incomeProgress + treasuryProgress + techProgress) / 3);
 
     // --- Cultural Progress ---
-    const totalPop = this.getMyCities().reduce((sum, c) => sum + (c.population || 1), 0);
-    const improvements = (this.gameState.improvements || []).filter(
-      i => i.ownerId === this.aiPlayer.id
+    const totalPop = this.getMyCities().reduce((sum, c) => sum + (c.population || 0), 0);
+    const culturalTargets = GameRuleHelpers.getCulturalVictoryThresholds(this.gameState.players.length);
+    const structureCount = (this.gameState.structures || []).filter(
+      s => s.ownerId === this.aiPlayer.id && s.constructionTurns === 0 && culturalTargets.structureTypes.includes(s.type)
     ).length;
-    const culturalProgress = Math.min(100, totalPop * 5 + improvements * 3);
+    const improvementCount = (this.gameState.improvements || []).filter(
+      i => i.ownerId === this.aiPlayer.id && i.constructionTurns === 0 && culturalTargets.improvementTypes.includes(i.type)
+    ).length;
+    const culturalSites = structureCount + improvementCount;
+    const populationProgress = Math.min(100, (totalPop / culturalTargets.population) * 100);
+    const sitesProgress = Math.min(100, (culturalSites / culturalTargets.structures) * 100);
+    const dissent = this.aiPlayer.stats.internalDissent;
+    const dissentProgress = dissent <= culturalTargets.dissentMax
+      ? 100
+      : Math.max(0, 100 - ((dissent - culturalTargets.dissentMax) / culturalTargets.dissentMax) * 100);
+    const culturalProgress = Math.min(100, (populationProgress + sitesProgress + dissentProgress) / 3);
 
     // Determine if we should pivot strategy
     const progressMap = { conquest: conquestProgress, faith: faithProgress, economic: economicProgress, cultural: culturalProgress };

@@ -539,6 +539,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
           structures: [],
           lastAction: undefined,
           winner: undefined,
+          victoryType: undefined,
         };
 
         set({
