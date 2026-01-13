@@ -49,6 +49,31 @@ const hasAbility = (abilities: Set<string>, abilityId: string) =>
 
 const isFastUnit = (unit: Unit) => unit.movement >= 4 || unit.type === "scout";
 
+/**
+ * Determines if an attack is ranged (distance > 1).
+ * Uses attackRange from unit, defaulting to 2 if unit has RANGED_ATTACK ability but no range set.
+ */
+const getEffectiveAttackRange = (unit: Unit): number => {
+  if (unit.attackRange && unit.attackRange >= 1) {
+    return unit.attackRange;
+  }
+  // If unit has RANGED_ATTACK ability but no attackRange, default to 2
+  const abilities = getAbilitySet(unit);
+  if (hasAbility(abilities, 'RANGED_ATTACK')) {
+    return 2;
+  }
+  return 1;
+};
+
+/**
+ * Check if an attack is "ranged" - distance > 1 AND within attack range
+ */
+export const isRangedAttack = (unit: Unit, targetDistance: number): boolean => {
+  if (targetDistance <= 1) return false;
+  const effectiveRange = getEffectiveAttackRange(unit);
+  return effectiveRange >= targetDistance;
+};
+
 const isDefenderProtectedByFortress = (defender: Unit, state: GameState) => {
   const city = state.cities.find(
     c => c.coordinate.q === defender.coordinate.q && c.coordinate.r === defender.coordinate.r
@@ -284,6 +309,7 @@ export function resolveCombat(
   let attackerDefense = attacker.defense;
   let defenderAttack = defender.attack;
   let defenderDefense = defender.defense;
+  const baseDefense = defender.defense; // Capture base for capping bonuses
 
   // Testimony pressure: temporary attack penalty (applied via statusEffects).
   const testimonyPressurePenalty = (() => {
@@ -315,8 +341,72 @@ export function resolveCombat(
     specialEffects.push("Forest ambush");
   }
   if (defender.status === "formation") {
-    defenderDefense += 2;
-    defenderModifiers.push("+2 Defense (Formation)");
+    let formationBonus = 2; // Base bonus
+
+    // Shield Wall Synergy: +1 if adjacent to another ally in formation
+    const hasShieldWall = state.units.some(u =>
+      u.playerId === defender.playerId &&
+      u.id !== defender.id &&
+      u.status === "formation" &&
+      hexDistance(u.coordinate, defender.coordinate) === 1
+    );
+
+    if (hasShieldWall) {
+      formationBonus += 1;
+      specialEffects.push("Shield Wall Synergy");
+      defenderModifiers.push("Shield Wall");
+    }
+
+    // Cap at +3 total (redundant since 2+1=3, but good for safety)
+    formationBonus = Math.min(3, formationBonus);
+
+    defenderDefense += formationBonus;
+    defenderModifiers.push(`+${formationBonus} Defense (Formation)`);
+  }
+
+  // FAITHFUL_DEFENSE: Stripling Warriors gain defense bonus based on Faith when in defensive posture
+  if (hasAbility(defenderAbilities, "FAITHFUL_DEFENSE")) {
+    const defenderFaith = defenderPlayer?.stats.faith ?? 0;
+    const defendingCity = state.cities.find(
+      c => c.coordinate.q === defender.coordinate.q && c.coordinate.r === defender.coordinate.r
+    );
+    // Defensive posture: in city, formation, fortified, OR did not move this turn
+    const didNotMove = defender.remainingMovement === defender.movement;
+    const isDefensivePosture =
+      defendingCity !== undefined ||
+      defender.status === "formation" ||
+      defender.status === "fortified" ||
+      didNotMove;
+
+    if (isDefensivePosture) {
+      // Tiered bonus: Faith 80-94: +1, Faith 95-100: +2
+      const faithBonus = defenderFaith >= 95 ? 2 : defenderFaith >= 80 ? 1 : 0;
+      if (faithBonus > 0) {
+        defenderDefense += faithBonus;
+        defenderModifiers.push(`+${faithBonus} Defense (Faithful Defense)`);
+        specialEffects.push("Faithful defense");
+      }
+    }
+  }
+
+  // INTIMIDATED status effect: -1 Attack (but YOUNG_VIGOR units are immune)
+  const defenderIntimidated = (() => {
+    const effects = Array.isArray((defender as any).statusEffects) ? (defender as any).statusEffects : [];
+    return effects.some((e: any) => e?.type === "INTIMIDATED");
+  })();
+  if (defenderIntimidated && !hasAbility(defenderAbilities, "YOUNG_VIGOR")) {
+    defenderAttack = Math.max(0, defenderAttack - 1);
+    defenderModifiers.push("-1 Attack (Intimidated)");
+  }
+
+  // Also check attacker for intimidation (for counter-attacks)
+  const attackerIntimidated = (() => {
+    const effects = Array.isArray((attacker as any).statusEffects) ? (attacker as any).statusEffects : [];
+    return effects.some((e: any) => e?.type === "INTIMIDATED");
+  })();
+  if (attackerIntimidated && !hasAbility(attackerAbilities, "YOUNG_VIGOR")) {
+    attackerAttack = Math.max(0, attackerAttack - 1);
+    attackerModifiers.push("-1 Attack (Intimidated)");
   }
 
   // Anti-cavalry bonus (spearmen vs fast units).
@@ -413,6 +503,13 @@ export function resolveCombat(
       defenderModifiers.push(`+${structureDefenseBonus} Defense (City Structures)`);
       specialEffects.push("City structure defense bonus");
     }
+  }
+
+  // Cap total defense bonuses to prevent stalemates (Warning 6b)
+  const totalBonus = defenderDefense - baseDefense;
+  if (totalBonus > 4) {
+    defenderDefense = baseDefense + 4;
+    defenderModifiers.push(`(Defense bonus capped at +4)`);
   }
 
   // Calculate final damage

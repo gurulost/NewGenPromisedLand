@@ -178,8 +178,9 @@ Faith is clamped to `0–100`.
 - The defender can **counterattack** if alive and in range (using their Attack vs attacker Defense).
 - Range matters: you can only attack if the target is within your unit’s `attackRange`.
 
-### Terrain defense
+### Terrain and city defense
 Defenders get terrain defense bonuses (forests, mountains, swamps).
+Units defending inside a city also benefit from any completed city structure defense bonuses.
 
 ### Stealth
 - Stealthed units can’t be targeted at range > 1 (you must be adjacent).
@@ -189,14 +190,15 @@ Defenders get terrain defense bonuses (forests, mountains, swamps).
 Bombardment attacks at range require:
 - Unit is in `siege_mode`
 - Unit has not moved this turn (must be stationary to fire at range)
+- Artillery cannot fire at adjacent targets (minimum range 2)
 Bombardment can apply splash damage to enemies adjacent to the target.
 
 ### Rallied / Formation / Defending
 Some actions and abilities set unit statuses that modify combat:
-- `rallied`: attacker gets an attack boost
-- `siege_mode`: attacker gets a larger attack boost (and enables ranged bombardment)
-- `formation`: defender gets a defense boost
-- `defending`: defender gets a small defense boost
+- `rallied`: attacker gets +2 Attack
+- `siege_mode`: attacker gets +3 Attack (and enables ranged bombardment)
+- `formation`: defender gets +2 Defense
+- `defending` / `fortified`: only grants a defense bonus if the unit has the Fortify ability (+4 Defense)
 
 ### Faith synergy bonuses
 Faith provides combat advantages:
@@ -251,6 +253,11 @@ Declaring war:
 Roads are built tile-by-tile and serve two purposes:
 1. **City-network income** (automatic Stars/turn for connected city groups)
 2. **Trade route infrastructure** (trade routes require road connectivity)
+3. **Movement**: friendly units pay reduced movement cost on road tiles
+
+Road build rules:
+- Costs 3 Stars, requires Organization technology.
+- Cannot be built on water or mountains.
 
 ### Trade Routes (requires Trade tech)
 Establishing a trade route:
@@ -342,7 +349,7 @@ World elements appear on tiles and usually present two paths:
 
 ### Great Sea Beast (water)
 Terrain: deep water.
-- Expedition Harvest (requires a “naval commander”): `+10 Stars` (Pride +3, Dissent +3)
+- Expedition Harvest (requires a Boat or other naval transport unit): `+10 Stars` (Pride +3, Dissent +3)
 - Build Sea Platform (5 Stars): `+2 Pop`, `+2 Faith`
 - Tech: Navigation
 
@@ -360,8 +367,8 @@ Improvements are built on valid terrain and require the listed tech.
 |---|---:|---:|---:|---|---|
 | Farm | 5 | +2 | +0 | Organization | Plains/Desert |
 | Mine | 8 | +3 | +0 | Mining | Mountain |
-| Forest Camp | 6 | +2 | +0 | Organization | Forest |
-| Lumber Hut | 5 | +1 | +0 | Organization | Forest |
+| Forest Camp | 6 | +2 | +0 | Forestry | Forest |
+| Lumber Hut | 5 | +1 | +0 | Forestry | Forest |
 | Sawmill | 10 | +3 | +0 | Construction | Forest |
 | Plantation | 12 | +4 | +0 | Agriculture | Plains/Forest |
 | Irrigation | 10 | +3 | +0 | Irrigation | Plains/Desert |
@@ -377,13 +384,13 @@ Improvements are built on valid terrain and require the listed tech.
 
 | Structure | Cost | Stars/turn | Faith/turn | Tech | Other effects |
 |---|---:|---:|---:|---|---|
-| Temple | 8 | +1 | +5 | Spirituality | +Pop growth |
-| Cathedral | 25 | +3 | +4 | Priesthood | +Defense, +Pop growth |
-| Granary | 10 | +0 | +0 | Agriculture | +Pop growth |
-| Lighthouse | 12 | +2 | +0 | Sailing | +Unit production |
-| Academy | 30 | +4 | +0 | Philosophy | +Pop growth |
-| Library | 20 | +2 | +0 | Philosophy | +Pop growth |
-| Fortress | 35 | +0 | +0 | Engineering | +Defense, +Unit production |
+| Temple | 8 | +1 | +5 | Spirituality | +1 Population on completion |
+| Cathedral | 25 | +3 | +4 | Priesthood | +1 City Defense, +2 Population on completion |
+| Granary | 10 | +0 | +0 | Agriculture | +2 Population on completion |
+| Lighthouse | 12 | +2 | +0 | Sailing | Unit Production (not yet implemented) |
+| Academy | 30 | +4 | +0 | Philosophy | +1 Population on completion |
+| Library | 20 | +2 | +0 | Philosophy | +1 Population on completion |
+| Fortress | 35 | +0 | +0 | Engineering | +3 City Defense, ranged attacks deal -2 damage to defenders, Unit Production (not yet implemented) |
 
 ---
 
@@ -464,7 +471,7 @@ Units are listed by role; each includes cost, unlock tech (if any), stat require
 - Tags: civilian, influence
 - Base stats: HP 18, Atk 1, Def 2, Move 3
 - Actions:
-  - Heal nearby allies (radius 2): costs 5 Faith, restores up to 10 HP to each damaged ally in range.
+  - Heal nearby allies (radius 2): costs 5 Faith, restores up to 3 HP to each damaged ally in range.
   - Convert enemy unit (range 2): costs 20 Faith; success chance depends on Faith advantage.
   - Convert city (adjacent): consumes the missionary’s action; choose one:
     - Faith conversion: costs 20 Faith
@@ -539,7 +546,9 @@ Tech costs scale by how many techs you already have (as shown in the Tech panel)
 
 ### Tier 2 (expansion and specialization)
 - Agriculture → Irrigation
+- Husbandry
 - Mining
+- Woodcraft
 - Construction
 - Bronze Working
 - Sailing → Seafaring → Fishing
@@ -574,3 +583,13 @@ The game checks these conditions at end of turn:
 - **Villages are long-term decisions**: conversion is an investment; conquest is a spike with instability.
 - **Keep Dissent controlled**: high Dissent increases rebellion/desertion odds and can cut city income via unrest.
 - **Faith is both economy and combat**: shrines/temples/cathedrals can be “military spending” indirectly.
+
+---
+
+## Implementation Status / Known Gaps (for developers)
+
+These items are visible in data or UI but are not fully wired into gameplay yet:
+
+- **Unit Production**: Lighthouse and Fortress list `unitProduction`, but it currently has no effect on unit cost, build time, or stats.
+- **Data-only unit abilities** (no gameplay effect yet): `FAITHFUL_DEFENSE`, `YOUNG_VIGOR`, `PROTECTIVE_STANCE`, `FOREST_STEALTH`, `INTELLIGENCE`, `GIANT_STRENGTH`, `INTIMIDATE`, `SIEGE_BREAKER`, `PACIFIST_DEFENSE`, `NON_VIOLENCE`, `RANGED_ATTACK`.
+- **Stubbed actions**: `COASTAL_EXPLORATION` is defined for boats but does not currently reveal map tiles or grant rewards.

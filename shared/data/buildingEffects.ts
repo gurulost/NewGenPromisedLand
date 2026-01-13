@@ -76,9 +76,9 @@ const getAbilityDescriptor = (abilityId: string): EffectDescriptor => {
       iconKey: "ability",
     }),
     CLEAR_FOREST: () => ({
-      id: `ability_${normalized}`,
-      label: name,
-      value: "Clear adjacent forest for 5 stars (requires Forestry).",
+      id: `ability_CLEAR_FOREST`,
+      label: "Clear Forest",
+      value: "Clear adjacent forest to gain +2 Stars, +1 Pride, +1 Dissent (requires Forestry).",
       iconKey: "special",
     }),
     BUILD_ROAD: () => ({
@@ -112,15 +112,15 @@ const getAbilityDescriptor = (abilityId: string): EffectDescriptor => {
       iconKey: "attack",
     }),
     RALLY_TROOPS: () => ({
-      id: `ability_${normalized}`,
-      label: name,
-      value: "Spend 1 action + 5 Pride to rally allies within 2 tiles (+2 attack until next turn).",
+      id: `ability_RALLY_TROOPS`,
+      label: "Rally Troops",
+      value: "Rally allies within 2 tiles, granting +2 attack until next turn. Gains +1 Pride.",
       iconKey: "ability",
     }),
     RALLY: () => ({
-      id: `ability_${normalized}`,
-      label: name,
-      value: "Spend 1 action + 5 Pride to rally allies within 2 tiles (+2 attack until next turn).",
+      id: `ability_RALLY`,
+      label: "Rally",
+      value: "Rally allies within 2 tiles, granting +2 attack until next turn. Gains +1 Pride.",
       iconKey: "ability",
     }),
     LEADERSHIP: () => ({
@@ -136,9 +136,9 @@ const getAbilityDescriptor = (abilityId: string): EffectDescriptor => {
       iconKey: "naval",
     }),
     COASTAL_EXPLORATION: () => ({
-      id: `ability_${normalized}`,
-      label: name,
-      value: "Coastal exploration action.",
+      id: `ability_COASTAL_EXPLORATION`,
+      label: "Coastal Exploration",
+      value: "Reveal tiles within radius 2 (or 3 with Navigation tech). Earn up to 2 Stars for new discoveries.",
       iconKey: "naval",
     }),
     NAVAL_COMMAND: () => ({
@@ -154,9 +154,9 @@ const getAbilityDescriptor = (abilityId: string): EffectDescriptor => {
       iconKey: "attack",
     }),
     HEAL: () => ({
-      id: `ability_${normalized}`,
-      label: name,
-      value: `Spend 5 Faith to heal allies within ${GAME_RULES.abilities.healRadius} tiles for +${GAME_RULES.units.healingAmount} HP.`,
+      id: `ability_HEAL`,
+      label: "Heal",
+      value: `Spend 5 Faith to heal allies within 2 tiles for +3 HP and cleanse morale debuffs.`,
       iconKey: "faith",
     }),
     CONVERT: () => ({

@@ -468,6 +468,13 @@ export const GameActionSchema = z.discriminatedUnion('type', [
       newName: z.string(),
     }),
   }),
+  z.object({
+    type: z.literal('COASTAL_EXPLORE'),
+    payload: z.object({
+      unitId: z.string(),
+      playerId: z.string(),
+    }),
+  }),
 ]);
 
 export type GameAction = z.infer<typeof GameActionSchema>;
