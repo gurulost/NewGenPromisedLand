@@ -9,8 +9,17 @@ import { Star, Building, Sword, Hammer, Users, Sparkles, Pencil, Check, X, Info 
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS, type ImprovementType, type StructureType } from "@shared/types/city";
 import { getUnitDefinition, UNIT_DEFINITIONS } from "@shared/data/units";
 import { getFaction } from "@shared/data/factions";
-import { GAME_RULES } from "@shared/data/gameRules";
 import type { UnitType } from "@shared/types/unit";
+import {
+  getStructureEffectSummary,
+  getUnitEffectSummary,
+  type EffectDescriptor,
+} from "@shared/data/buildingEffects";
+import {
+  getStructureBuildRequirements,
+  getUnitBuildRequirements,
+  type BuildRequirement,
+} from "@shared/logic/buildingRequirements";
 import { BuildingMenu } from "./BuildingMenu";
 import { ActionTooltip } from "./TooltipSystem";
 import { Input } from "./input";
@@ -95,35 +104,32 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
     });
   };
 
-  const canAffordStructure = (structureType: StructureType) => {
-    const structureDef = STRUCTURE_DEFINITIONS[structureType];
-    return currentPlayer.stars >= structureDef.cost &&
-      currentPlayer.researchedTechs.includes(structureDef.requiredTech) &&
-      !cityStructures.find(s => s.type === structureType);
-  };
-
-  const getStructureBuildMessage = (structureType: StructureType) => {
-    const structureDef = STRUCTURE_DEFINITIONS[structureType];
-    const hasStructure = cityStructures.find(s => s.type === structureType);
-
+  const getStructureBuildMessage = (
+    hasStructure: boolean,
+    structureCost: number,
+    requirements: BuildRequirement[]
+  ) => {
     if (hasStructure) {
       return "Built";
     }
 
-    const hasRequiredTech = currentPlayer.researchedTechs.includes(structureDef.requiredTech);
-    const hasEnoughStars = currentPlayer.stars >= structureDef.cost;
+    const unmet = requirements.find(req => req.status === "unmet");
+    if (!unmet) return "Build";
 
-    if (!hasRequiredTech) {
-      // Find the tech name for better UX
-      const techName = structureDef.requiredTech.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-      return `Requires ${techName}`;
+    if (unmet.id === "technology") {
+      return unmet.value ? `Requires ${unmet.value}` : "Requires technology";
+    }
+    if (unmet.id === "stars_cost") {
+      return `Need ${structureCost - currentPlayer.stars} more stars`;
+    }
+    if (unmet.id === "valid_tiles") {
+      return "No valid build tiles";
+    }
+    if (unmet.id === "owns_city") {
+      return "Not your city";
     }
 
-    if (!hasEnoughStars) {
-      return `Need ${structureDef.cost - currentPlayer.stars} more stars`;
-    }
-
-    return "Build";
+    return unmet.label;
   };
 
   const canAffordUnit = (unitType: UnitType) => {
@@ -180,6 +186,14 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
     }
 
     return "Recruit";
+  };
+
+  const formatEffectLine = (effect: EffectDescriptor) =>
+    effect.value ? `${effect.label}: ${effect.value}` : effect.label;
+
+  const formatRequirementLine = (req: BuildRequirement) => {
+    const status = req.status === "info" ? "•" : req.status === "met" ? "✓" : "✗";
+    return `${status} ${req.value ? `${req.label}: ${req.value}` : req.label}`;
   };
 
   return (
@@ -478,8 +492,10 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               <h3 className="font-semibold mb-4 text-amber-100">Available Structures</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.values(STRUCTURE_DEFINITIONS).map(structure => {
-                  const canAfford = canAffordStructure(structure.id);
                   const hasStructure: boolean = cityStructures.some(s => s.type === structure.id);
+                  const structureEffects = getStructureEffectSummary(structure);
+                  const structureRequirements = getStructureBuildRequirements(gameState, currentPlayer, city.id, structure);
+                  const canBuild = !structureRequirements.some(req => req.status === "unmet");
 
                   return (
                     <Card key={structure.id} className="p-4">
@@ -496,41 +512,33 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                       <div className="mb-3">
                         <p className="text-xs font-medium text-slate-400 mb-1">Requirements:</p>
                         <div className="text-xs space-y-1 text-slate-300">
-                          <p>Technology: {structure.requiredTech.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                            {currentPlayer.researchedTechs.includes(structure.requiredTech) ?
-                              <span className="text-green-600 ml-1">✓</span> :
-                              <span className="text-red-500 ml-1">✗</span>
-                            }
-                          </p>
+                          {structureRequirements.map(req => (
+                            <p key={req.id}>{formatRequirementLine(req)}</p>
+                          ))}
                         </div>
                       </div>
 
                       <div className="mb-3">
                         <p className="text-xs font-medium text-slate-400 mb-1">Effects:</p>
-                        <div className="text-xs space-y-1 text-slate-300">
-                          {structure.effects.starProduction > 0 && (
-                            <p>+{structure.effects.starProduction} stars/turn</p>
-                          )}
-                          {structure.effects.unitProduction > 0 && (
-                            <p>+{structure.effects.unitProduction} unit production</p>
-                          )}
-                          {structure.effects.defenseBonus > 0 && (
-                            <p>+{structure.effects.defenseBonus} defense</p>
-                          )}
-                          {structure.id === 'fortress' && (
-                            <p>-{GAME_RULES.combat.fortificationBonus} ranged damage taken</p>
-                          )}
-                        </div>
+                        {structureEffects.length > 0 ? (
+                          <div className="text-xs space-y-1 text-slate-300">
+                            {structureEffects.map(effect => (
+                              <p key={effect.id}>{formatEffectLine(effect)}</p>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400">No effects listed</p>
+                        )}
                       </div>
 
                       <Button
                         onClick={() => handleBuildStructure(structure.id)}
-                        disabled={!canAfford || hasStructure}
+                        disabled={!canBuild}
                         className="w-full"
-                        variant={canAfford && !hasStructure ? "default" : "outline"}
+                        variant={canBuild ? "default" : "outline"}
                         size="sm"
                       >
-                        {getStructureBuildMessage(structure.id as StructureType)}
+                        {getStructureBuildMessage(hasStructure, structure.cost, structureRequirements)}
                       </Button>
                     </Card>
                   );
@@ -555,7 +563,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                   })
                   .map(unit => {
                     const canAfford = canAffordUnit(unit.type);
-                    const hasRequiredTech = !unit.requiredTechnology || currentPlayer.researchedTechs.includes(unit.requiredTechnology);
+                    const unitEffects = getUnitEffectSummary(unit);
+                    const unitRequirements = getUnitBuildRequirements(gameState, currentPlayer, city.id, unit);
                     const factionTag = unit.factionSpecific.length > 0
                       ? (() => {
                           const names = unit.factionSpecific.map((id) => {
@@ -586,69 +595,22 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                         <p className="text-sm text-slate-300 mb-3">{unit.description}</p>
 
                         <div className="mb-3">
-                          <p className="text-xs font-medium text-slate-400 mb-1">Stats:</p>
-                          <div className="grid grid-cols-2 gap-1 text-xs text-slate-300">
-                            <span>HP: {unit.baseStats.hp}</span>
-                            <span>Attack: {unit.baseStats.attack}</span>
-                            <span>Defense: {unit.baseStats.defense}</span>
-                            <span>Movement: {unit.baseStats.movement}</span>
+                          <p className="text-xs font-medium text-slate-400 mb-1">Effects:</p>
+                          <div className="text-xs space-y-1 text-slate-300">
+                            {unitEffects.map(effect => (
+                              <p key={effect.id}>{formatEffectLine(effect)}</p>
+                            ))}
                           </div>
                         </div>
 
-                        {unit.requirements && (
-                          <div className="mb-3">
-                            <p className="text-xs font-medium text-slate-400 mb-1">Requirements:</p>
-                            <div className="text-xs space-y-1 text-slate-300">
-                              {unit.requirements.faith && (
-                                <p>Faith: {unit.requirements.faith}+ (have: {currentPlayer.stats.faith})</p>
-                              )}
-                              {unit.requirements.pride && (
-                                <p>Pride: {unit.requirements.pride}+ (have: {currentPlayer.stats.pride})</p>
-                              )}
-                              {unit.requirements.dissent && (
-                                <p>Dissent: {unit.requirements.dissent}+ (have: {currentPlayer.stats.internalDissent})</p>
-                              )}
-                            </div>
+                        <div className="mb-3">
+                          <p className="text-xs font-medium text-slate-400 mb-1">Requirements:</p>
+                          <div className="text-xs space-y-1 text-slate-300">
+                            {unitRequirements.map(req => (
+                              <p key={req.id}>{formatRequirementLine(req)}</p>
+                            ))}
                           </div>
-                        )}
-
-                        {unit.passiveEffects && (
-                          <div className="mb-3">
-                            <p className="text-xs font-medium text-slate-400 mb-1">Per Turn:</p>
-                            <div className="text-xs space-y-1 text-slate-300">
-                              {unit.passiveEffects.perTurn?.stars && (
-                                <p>{unit.passiveEffects.perTurn.stars > 0 ? '+' : ''}{unit.passiveEffects.perTurn.stars}★</p>
-                              )}
-                              {unit.passiveEffects.perTurn?.faith && (
-                                <p>{unit.passiveEffects.perTurn.faith > 0 ? '+' : ''}{unit.passiveEffects.perTurn.faith} Faith</p>
-                              )}
-                              {unit.passiveEffects.perTurn?.pride && (
-                                <p>{unit.passiveEffects.perTurn.pride > 0 ? '+' : ''}{unit.passiveEffects.perTurn.pride} Pride</p>
-                              )}
-                              {unit.passiveEffects.perTurn?.dissent && (
-                                <p>{unit.passiveEffects.perTurn.dissent > 0 ? '+' : ''}{unit.passiveEffects.perTurn.dissent} Dissent</p>
-                              )}
-                              {(unit.passiveEffects.perTurnWhen || []).map((cond, idx) => {
-                                const statLabel = cond.stat === 'internalDissent' ? 'Dissent' : (cond.stat.charAt(0).toUpperCase() + cond.stat.slice(1));
-                                const condition = typeof cond.gte === 'number'
-                                  ? `${statLabel} ≥ ${cond.gte}`
-                                  : typeof cond.lte === 'number'
-                                    ? `${statLabel} ≤ ${cond.lte}`
-                                    : statLabel;
-                                const parts: string[] = [];
-                                if (cond.perTurn.stars) parts.push(`${cond.perTurn.stars > 0 ? '+' : ''}${cond.perTurn.stars}★`);
-                                if (cond.perTurn.faith) parts.push(`${cond.perTurn.faith > 0 ? '+' : ''}${cond.perTurn.faith} Faith`);
-                                if (cond.perTurn.pride) parts.push(`${cond.perTurn.pride > 0 ? '+' : ''}${cond.perTurn.pride} Pride`);
-                                if (cond.perTurn.dissent) parts.push(`${cond.perTurn.dissent > 0 ? '+' : ''}${cond.perTurn.dissent} Dissent`);
-                                if (parts.length === 0) return null;
-                                return <p key={idx}>When {condition}: {parts.join(', ')}</p>;
-                              })}
-                              {unit.passiveEffects.diplomacyCooldownDelta?.perTurn.requestTrade && (
-                                <p>Request Trade cooldown: {unit.passiveEffects.diplomacyCooldownDelta.perTurn.requestTrade}/turn</p>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                        </div>
 
                         <Button
                           onClick={() => handleRecruitUnit(unit.type)}

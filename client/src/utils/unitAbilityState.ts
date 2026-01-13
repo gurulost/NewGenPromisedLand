@@ -3,6 +3,7 @@ import { ABILITIES } from "@shared/data/abilities";
 import type { GameState, PlayerState } from "@shared/types/game";
 import type { Unit } from "@shared/types/unit";
 import { hexDistance } from "@shared/utils/hex";
+import { GAME_RULES } from "@shared/data/gameRules";
 
 export type UnitAbilityStatus = 'ready' | 'locked' | 'exhausted' | 'passive';
 
@@ -59,8 +60,9 @@ const abilityConfigs: AbilityConfig[] = [
     unitTypes: ['missionary'],
     displayName: 'Convert Enemy',
     evaluate: ({ unit, player, gameState }) => {
-      if (player.stats.faith < 10) {
-        return { status: 'locked', reason: 'Needs 10 Faith' };
+      const faithCost = GAME_RULES.conversion.costs.unit;
+      if (player.stats.faith < faithCost) {
+        return { status: 'locked', reason: `Needs ${faithCost} Faith` };
       }
       if (getActionsRemaining(unit) <= 0) {
         return { status: 'exhausted', reason: 'Unit already acted this turn' };

@@ -6,18 +6,15 @@ import {
   Shield, 
   Zap, 
   Star, 
-  Coins, 
   Clock, 
-  CheckCircle,
   Lock,
   TrendingUp,
   Users,
   Swords,
   Heart,
   Eye,
-  Mountain,
-  Wheat,
-  Pickaxe,
+  Anchor,
+  Target,
   Home,
   Castle,
   AlertTriangle
@@ -30,8 +27,20 @@ import { PrimaryButton, SuccessButton, GhostButton } from './EnhancedButton';
 import { UNIT_DEFINITIONS } from '@shared/data/units';
 import { getFaction } from '@shared/data/factions';
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '@shared/types/city';
-import { GAME_RULES } from '@shared/data/gameRules';
 import { getPlayerStats } from '../../selectors/player';
+import {
+  getImprovementEffectSummary,
+  getStructureEffectSummary,
+  getUnitEffectSummary,
+  type EffectDescriptor,
+  type EffectIconKey,
+} from '@shared/data/buildingEffects';
+import {
+  getImprovementBuildRequirements,
+  getStructureBuildRequirements,
+  getUnitBuildRequirements,
+  type BuildRequirement,
+} from '@shared/logic/buildingRequirements';
 
 interface BuildingOption {
   id: string;
@@ -45,16 +54,11 @@ interface BuildingOption {
     faith?: number;
     pride?: number;
   };
-  requirements?: string[];
-  effects: {
-    description: string;
-    icon: React.ReactNode;
-    value: string;
-  }[];
+  requirements?: BuildRequirement[];
+  effects: EffectDescriptor[];
   buildTime: number;
   icon: React.ReactNode;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  unlocked: boolean;
 }
 
 interface BuildingMenuProps {
@@ -65,6 +69,28 @@ interface BuildingMenuProps {
   onClose: () => void;
   onShowCities?: () => void;
 }
+
+const effectIconMap: Record<EffectIconKey, React.ReactNode> = {
+  attack: <Swords className="w-4 h-4" />,
+  defense: <Shield className="w-4 h-4" />,
+  health: <Heart className="w-4 h-4" />,
+  movement: <TrendingUp className="w-4 h-4" />,
+  vision: <Eye className="w-4 h-4" />,
+  range: <Target className="w-4 h-4" />,
+  actions: <Zap className="w-4 h-4" />,
+  stars: <Star className="w-4 h-4" />,
+  faith: <Crown className="w-4 h-4" />,
+  pride: <Swords className="w-4 h-4" />,
+  dissent: <AlertTriangle className="w-4 h-4" />,
+  population: <Users className="w-4 h-4" />,
+  unitProduction: <Users className="w-4 h-4" />,
+  defenseBonus: <Shield className="w-4 h-4" />,
+  road: <TrendingUp className="w-4 h-4" />,
+  naval: <Anchor className="w-4 h-4" />,
+  ability: <Zap className="w-4 h-4" />,
+  cooldown: <Clock className="w-4 h-4" />,
+  special: <Zap className="w-4 h-4" />,
+};
 
 export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShowCities }: BuildingMenuProps) {
   const [selectedCategory, setSelectedCategory] = useState<'units' | 'structures' | 'improvements'>('units');
@@ -83,70 +109,11 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
     console.log(`Playing ${soundType} sound`);
   };
 
-  const formatTechName = (techId: string) =>
-    techId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-
   const resolveFactionNames = (ids: string[]) =>
     ids.map((id) => {
       const faction = getFaction(id as any);
       return faction ? faction.name : String(id);
     });
-
-  const formatUnitRequirements = (unit: (typeof UNIT_DEFINITIONS)[keyof typeof UNIT_DEFINITIONS]) => {
-    const out: string[] = [];
-    const factionNames = resolveFactionNames(unit.factionSpecific);
-    if (factionNames.length > 0) {
-      out.push(`Faction: ${factionNames.join(', ')}`);
-    }
-    if (unit.requiredTechnology) out.push(`Technology: ${formatTechName(unit.requiredTechnology)}`);
-    if (unit.requirements?.faith) out.push(`Faith: ${unit.requirements.faith}+`);
-    if (unit.requirements?.pride) out.push(`Pride: ${unit.requirements.pride}+`);
-    if (unit.requirements?.dissent) out.push(`Dissent: ${unit.requirements.dissent}+`);
-    return out;
-  };
-
-  const getUnitPassiveEffects = (unit: (typeof UNIT_DEFINITIONS)[keyof typeof UNIT_DEFINITIONS]): BuildingOption['effects'] => {
-    const effects: BuildingOption['effects'] = [];
-    const passive = unit.passiveEffects;
-    if (!passive) return effects;
-
-    const parts: string[] = [];
-    if (passive.perTurn?.stars) parts.push(`${passive.perTurn.stars > 0 ? '+' : ''}${passive.perTurn.stars}★/turn`);
-    if (passive.perTurn?.faith) parts.push(`${passive.perTurn.faith > 0 ? '+' : ''}${passive.perTurn.faith} Faith/turn`);
-    if (passive.perTurn?.pride) parts.push(`${passive.perTurn.pride > 0 ? '+' : ''}${passive.perTurn.pride} Pride/turn`);
-    if (passive.perTurn?.dissent) parts.push(`${passive.perTurn.dissent > 0 ? '+' : ''}${passive.perTurn.dissent} Dissent/turn`);
-    if (parts.length > 0) {
-      effects.push({ description: 'Per Turn', icon: <Zap className="w-4 h-4" />, value: parts.join(', ') });
-    }
-
-    (passive.perTurnWhen || []).forEach(cond => {
-      const statLabel =
-        cond.stat === 'internalDissent' ? 'Dissent' : cond.stat.charAt(0).toUpperCase() + cond.stat.slice(1);
-      const condition = typeof cond.gte === 'number'
-        ? `${statLabel} ≥ ${cond.gte}`
-        : typeof cond.lte === 'number'
-          ? `${statLabel} ≤ ${cond.lte}`
-          : statLabel;
-      const deltaParts: string[] = [];
-      if (cond.perTurn.stars) deltaParts.push(`${cond.perTurn.stars > 0 ? '+' : ''}${cond.perTurn.stars}★/turn`);
-      if (cond.perTurn.faith) deltaParts.push(`${cond.perTurn.faith > 0 ? '+' : ''}${cond.perTurn.faith} Faith/turn`);
-      if (cond.perTurn.pride) deltaParts.push(`${cond.perTurn.pride > 0 ? '+' : ''}${cond.perTurn.pride} Pride/turn`);
-      if (cond.perTurn.dissent) deltaParts.push(`${cond.perTurn.dissent > 0 ? '+' : ''}${cond.perTurn.dissent} Dissent/turn`);
-      if (deltaParts.length > 0) {
-        effects.push({ description: `When ${condition}`, icon: <Zap className="w-4 h-4" />, value: deltaParts.join(', ') });
-      }
-    });
-
-    if (passive.diplomacyCooldownDelta?.perTurn.requestTrade) {
-      effects.push({
-        description: 'Request Trade Cooldown',
-        icon: <Clock className="w-4 h-4" />,
-        value: `${passive.diplomacyCooldownDelta.perTurn.requestTrade}/turn`,
-      });
-    }
-
-    return effects;
-  };
 
   const loreById: Record<string, string> = {
     slinger: '"armed with stones and slings" (Alma 43:19)',
@@ -172,54 +139,16 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       factionTag,
       category: 'units' as const,
       cost: { stars: unit.cost },
-      requirements: formatUnitRequirements(unit),
-      effects: [
-        { description: 'Attack', icon: <Swords className="w-4 h-4" />, value: `${unit.baseStats.attack}` },
-        { description: 'Defense', icon: <Shield className="w-4 h-4" />, value: `${unit.baseStats.defense}` },
-        { description: 'Health', icon: <Heart className="w-4 h-4" />, value: `${unit.baseStats.hp} HP` },
-        { description: 'Movement', icon: <TrendingUp className="w-4 h-4" />, value: `${unit.baseStats.movement}` },
-        ...getUnitPassiveEffects(unit),
-      ],
+      requirements: getUnitBuildRequirements(gameState, player, city.id, unit),
+      effects: getUnitEffectSummary(unit),
       buildTime: 1,
       icon: <Users className="w-6 h-6" />,
-      rarity: unit.factionSpecific.length > 0 ? 'rare' : 'common' as const,
-      unlocked:
-        (unit.factionSpecific.length === 0 || unit.factionSpecific.includes(player.factionId)) &&
-        (!unit.requiredTechnology || player.researchedTechs.includes(unit.requiredTechnology)) &&
-        (!unit.requirements?.faith || player.stats.faith >= unit.requirements.faith) &&
-        (!unit.requirements?.pride || player.stats.pride >= unit.requirements.pride) &&
-        (!unit.requirements?.dissent || player.stats.internalDissent >= unit.requirements.dissent)
+      rarity: unit.factionSpecific.length > 0 ? 'rare' : 'common' as const
     });
     }),
     
     // Structures from game data
     ...Object.values(STRUCTURE_DEFINITIONS).map(structure => {
-      const effects = [
-        ...(structure.effects.starProduction > 0 ? [{
-          description: 'Star Production',
-          icon: <Star className="w-4 h-4" />,
-          value: `+${structure.effects.starProduction}/turn`
-        }] : []),
-        ...(structure.effects.defenseBonus > 0 ? [{
-          description: 'Defense Bonus',
-          icon: <Shield className="w-4 h-4" />,
-          value: `+${structure.effects.defenseBonus}`
-        }] : []),
-        ...(structure.effects.unitProduction > 0 ? [{
-          description: 'Unit Production',
-          icon: <Users className="w-4 h-4" />,
-          value: `+${structure.effects.unitProduction}`
-        }] : [])
-      ];
-
-      if (structure.id === 'fortress') {
-        effects.push({
-          description: 'Ranged Damage Taken',
-          icon: <Shield className="w-4 h-4" />,
-          value: `-${GAME_RULES.combat.fortificationBonus}`
-        });
-      }
-
       return {
         id: structure.id,
         name: structure.name,
@@ -227,12 +156,11 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
         lore: loreById[structure.id],
         category: 'structures' as const,
         cost: { stars: structure.cost },
-        requirements: [structure.requiredTech],
-        effects,
-        buildTime: 1,
+        requirements: getStructureBuildRequirements(gameState, player, city.id, structure),
+        effects: getStructureEffectSummary(structure),
+        buildTime: structure.constructionTime,
         icon: <Castle className="w-6 h-6" />,
-        rarity: structure.effects.starProduction >= 3 ? 'epic' : 'common' as const,
-        unlocked: player.researchedTechs.includes(structure.requiredTech)
+        rarity: structure.effects.starProduction >= 3 ? 'epic' : 'common' as const
       };
     }),
     
@@ -243,17 +171,11 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       description: improvement.description,
       category: 'improvements' as const,
       cost: { stars: improvement.cost },
-      effects: [
-        ...(improvement.starProduction > 0 ? [{ 
-          description: 'Star Production', 
-          icon: <Star className="w-4 h-4" />, 
-          value: `+${improvement.starProduction}/turn` 
-        }] : [])
-      ],
+      requirements: getImprovementBuildRequirements(gameState, player, city.id, improvement),
+      effects: getImprovementEffectSummary(improvement),
       buildTime: improvement.constructionTime,
       icon: <TrendingUp className="w-6 h-6" />,
-      rarity: improvement.starProduction >= 3 ? 'rare' : 'common' as const,
-      unlocked: player.researchedTechs.includes(improvement.requiredTech)
+      rarity: improvement.starProduction >= 3 ? 'rare' : 'common' as const
     }))
   ] as BuildingOption[];
 
@@ -298,6 +220,17 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
   const canAfford = (option: BuildingOption) => {
     return (option.cost.stars || 0) <= player.stars;
   };
+
+  const meetsNonCostRequirements = (option: BuildingOption) => {
+    if (!option.requirements || option.requirements.length === 0) return true;
+    return option.requirements.every(req => req.status !== "unmet" || req.id === "stars_cost");
+  };
+
+  const formatRequirement = (req: BuildRequirement) =>
+    req.value ? `${req.label}: ${req.value}` : req.label;
+
+  const requirementSummary = (reqs?: BuildRequirement[]) =>
+    (reqs || []).map(formatRequirement).join(" • ");
 
   return (
     <div 
@@ -449,12 +382,13 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
                     option={option}
                     isSelected={selectedOption === option.id}
                     canAfford={canAfford(option)}
+                    meetsRequirements={meetsNonCostRequirements(option)}
                     onClick={() => {
                       setSelectedOption(option.id);
                       playSound('hover');
                     }}
                     onBuild={() => {
-                      if (canAfford(option) && option.unlocked) {
+                      if (canAfford(option) && meetsNonCostRequirements(option)) {
                         onBuild(option.id);
                         playSound('build');
                       } else {
@@ -478,6 +412,7 @@ function BuildingCard({
   option,
   isSelected,
   canAfford,
+  meetsRequirements,
   onClick,
   onBuild,
   delay
@@ -485,6 +420,7 @@ function BuildingCard({
   option: BuildingOption;
   isSelected: boolean;
   canAfford: boolean;
+  meetsRequirements: boolean;
   onClick: () => void;
   onBuild: () => void;
   delay: number;
@@ -514,7 +450,7 @@ function BuildingCard({
         ${getRarityColor(option.rarity)}
         ${getRarityGlow(option.rarity)}
         ${isSelected ? 'ring-2 ring-blue-400 scale-105' : ''}
-        ${!option.unlocked ? 'opacity-60' : ''}
+        ${!meetsRequirements ? 'opacity-60' : ''}
         hover:scale-102 hover:shadow-xl
       `}
       onClick={onClick}
@@ -534,7 +470,7 @@ function BuildingCard({
       </div>
 
       {/* Lock Overlay */}
-      {!option.unlocked && (
+      {!meetsRequirements && (
         <div className="absolute inset-0 bg-black/50 rounded-xl flex items-center justify-center">
           <Lock className="w-8 h-8 text-slate-400" />
         </div>
@@ -563,13 +499,20 @@ function BuildingCard({
 
       {/* Effects */}
       <div className="space-y-2 mb-4">
-        {option.effects.map((effect, index) => (
-          <div key={index} className="flex items-center gap-2 text-sm">
-            <div className="text-blue-400">{effect.icon}</div>
-            <span className="text-slate-300">{effect.description}:</span>
-            <span className="text-green-400 font-semibold">{effect.value}</span>
-          </div>
-        ))}
+        {option.effects.map((effect) => {
+          const icon = effectIconMap[effect.iconKey] ?? <Zap className="w-4 h-4" />;
+          return (
+            <div key={effect.id} className="flex items-start gap-2 text-sm">
+              <div className="text-blue-400 mt-0.5">{icon}</div>
+              <div className="flex-1">
+                <span className="text-slate-300">{effect.label}</span>
+                {effect.value && (
+                  <span className="text-green-400 font-semibold">: {effect.value}</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {option.lore && (
@@ -580,9 +523,23 @@ function BuildingCard({
 
       {/* Requirements */}
       {option.requirements && option.requirements.length > 0 && (
-        <div className="mb-4 text-xs text-slate-400">
-          <span className="text-slate-300 font-semibold">Requires:</span>{' '}
-          {option.requirements.join(' • ')}
+        <div className="mb-4 text-xs text-slate-400 space-y-1">
+          <span className="text-slate-300 font-semibold">Requirements:</span>
+          {option.requirements.map((req) => {
+            const statusColor =
+              req.status === "met"
+                ? "text-green-400"
+                : req.status === "unmet"
+                  ? "text-red-400"
+                  : "text-slate-400";
+            const statusGlyph = req.status === "info" ? "•" : req.status === "met" ? "✓" : "✗";
+            return (
+              <div key={req.id} className="flex items-start gap-2">
+                <span className={`${statusColor} mt-0.5`}>{statusGlyph}</span>
+                <span className="text-slate-300">{formatRequirement(req)}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -610,7 +567,7 @@ function BuildingCard({
           <motion.button
             className={`
               px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2
-              ${canAfford && option.unlocked
+              ${canAfford && meetsRequirements
                 ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white'
                 : 'bg-slate-600 text-slate-400 cursor-not-allowed'
               }
@@ -619,11 +576,11 @@ function BuildingCard({
               e.stopPropagation();
               onBuild();
             }}
-            disabled={!canAfford || !option.unlocked}
-            whileHover={canAfford && option.unlocked ? { scale: 1.05 } : {}}
-            whileTap={canAfford && option.unlocked ? { scale: 0.95 } : {}}
+            disabled={!canAfford || !meetsRequirements}
+            whileHover={canAfford && meetsRequirements ? { scale: 1.05 } : {}}
+            whileTap={canAfford && meetsRequirements ? { scale: 0.95 } : {}}
           >
-            {canAfford && option.unlocked ? (
+            {canAfford && meetsRequirements ? (
               <>
                 <Hammer className="w-4 h-4" />
                 Build
@@ -636,10 +593,10 @@ function BuildingCard({
             )}
           </motion.button>
           <ActionTooltip
-            title={canAfford && option.unlocked ? "Build Now" : "Cannot Build"}
+            title={canAfford && meetsRequirements ? "Build Now" : "Cannot Build"}
             description={
-              !option.unlocked
-                ? `Requirements: ${option.requirements?.join(' • ') || 'Not met'}`
+              !meetsRequirements
+                ? `Requirements: ${requirementSummary(option.requirements) || 'Not met'}`
                 : !canAfford
                   ? "Insufficient stars"
                   : `Build ${option.name}`

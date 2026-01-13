@@ -614,6 +614,14 @@ function handleBuildImprovement(
     constructionTurns: 0 // Built immediately for now
   };
 
+  const populationGain = improvementDef.effects?.populationGrowth ?? 0;
+  const updatedCities =
+    populationGain > 0
+      ? (state.cities || []).map(c =>
+          c.id === cityId ? applyPopulationGain(c, populationGain) : c
+        )
+      : state.cities;
+
   return {
     ...state,
     players: state.players.map(p =>
@@ -623,6 +631,7 @@ function handleBuildImprovement(
     ),
     units: state.units.map(u => u.id === unitId ? spendUnitActions(u) : u),
     improvements: [...(state.improvements || []), newImprovement],
+    cities: updatedCities,
     rngSeed,
   };
 }
@@ -704,6 +713,14 @@ function handleBuildStructure(
     }
   };
 
+  const populationGain = structureDef.effects.populationGrowth ?? 0;
+  const updatedCities =
+    populationGain > 0
+      ? (state.cities || []).map(city =>
+          city.id === cityId ? applyPopulationGain(city, populationGain) : city
+        )
+      : state.cities;
+
   return {
     ...state,
     players: state.players.map(p =>
@@ -712,6 +729,7 @@ function handleBuildStructure(
         : p
     ),
     structures: [...(state.structures || []), newStructure],
+    cities: updatedCities,
     rngSeed,
   };
 }
@@ -2335,16 +2353,23 @@ function handleEndTurn(
           }
         } else if (construction.category === 'improvements') {
           // Create new improvement
+          const improvementDef = IMPROVEMENT_DEFINITIONS[construction.type as keyof typeof IMPROVEMENT_DEFINITIONS];
           const newImprovement = {
             id: construction.id,
             type: construction.type,
             coordinate: construction.coordinate,
             ownerId: construction.playerId,
-            starProduction: IMPROVEMENT_DEFINITIONS[construction.type as keyof typeof IMPROVEMENT_DEFINITIONS]?.starProduction || 0,
+            starProduction: improvementDef?.starProduction || 0,
             cityId: construction.cityId,
             constructionTurns: 0,
           };
           updatedImprovements.push(newImprovement);
+          const populationGain = improvementDef?.effects?.populationGrowth ?? 0;
+          if (populationGain > 0) {
+            updatedCities = updatedCities.map(city =>
+              city.id === construction.cityId ? applyPopulationGain(city, populationGain) : city
+            );
+          }
         } else if (construction.category === 'structures') {
           // Create new structure
           const structureDef = STRUCTURE_DEFINITIONS[construction.type as keyof typeof STRUCTURE_DEFINITIONS];
@@ -2364,6 +2389,12 @@ function handleEndTurn(
             constructionTurns: 0,
           };
           updatedStructures.push(newStructure);
+          const populationGain = structureDef?.effects?.populationGrowth ?? 0;
+          if (populationGain > 0) {
+            updatedCities = updatedCities.map(city =>
+              city.id === construction.cityId ? applyPopulationGain(city, populationGain) : city
+            );
+          }
         }
       });
 
