@@ -400,6 +400,21 @@ export function resolveCombat(
     }
   }
 
+  // City structure defense bonuses
+  const defendingCity = state.cities.find(
+    c => c.coordinate.q === defender.coordinate.q && c.coordinate.r === defender.coordinate.r
+  );
+  if (defendingCity) {
+    const structureDefenseBonus = (state.structures || [])
+      .filter(structure => structure.cityId === defendingCity.id && (structure.constructionTurns ?? 0) <= 0)
+      .reduce((sum, structure) => sum + (structure.effects?.defenseBonus ?? 0), 0);
+    if (structureDefenseBonus > 0) {
+      defenderDefense += structureDefenseBonus;
+      defenderModifiers.push(`+${structureDefenseBonus} Defense (City Structures)`);
+      specialEffects.push("City structure defense bonus");
+    }
+  }
+
   // Calculate final damage
   let attackerDamage = Math.max(1, attackerAttack - defenderDefense);
 
