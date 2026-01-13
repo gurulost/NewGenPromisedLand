@@ -2356,6 +2356,27 @@ function handleEndTurn(
         );
       }
 
+      // Apply population growth from structures (Temple, Granary, etc.)
+      updatedCities = updatedCities.map(city => {
+        if (city.ownerId !== player.id) return city;
+        
+        // Calculate population growth from structures in this city
+        const cityStructures = (state.structures || []).filter(
+          s => s.cityId === city.id && s.constructionTurns === 0
+        );
+        const populationGrowth = cityStructures.reduce((sum, s) => {
+          const def = STRUCTURE_DEFINITIONS[s.type as keyof typeof STRUCTURE_DEFINITIONS];
+          return sum + (s.effects?.populationGrowth ?? def?.effects?.populationGrowth ?? 0);
+        }, 0);
+        
+        if (populationGrowth <= 0) return city;
+        
+        return {
+          ...city,
+          population: (city.population || 0) + populationGrowth
+        };
+      });
+
       return {
         ...player,
         stats: updatedStats,
