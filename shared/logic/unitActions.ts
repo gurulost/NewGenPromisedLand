@@ -10,6 +10,7 @@ import { attemptUnitConversion, getUnitConversionFaithCost } from "./conversion"
 import { nextId } from "./rng";
 import { applyPopulationGain } from "./cityGrowth";
 import { spendUnitActions } from "./unitLogic";
+import { gameReducer } from "./gameReducer";
 
 /**
  * Unit Action System - Handles special unit abilities and actions
@@ -44,15 +45,15 @@ export function executeWorkerAction(
   buildingType?: string
 ): UnitActionResult {
   const unitDef = getUnitDefinition(unit.type);
-  
+
   if (!unitDef.abilities.includes('BUILD')) {
     return { success: false, message: "Unit cannot build" };
   }
 
   // Get hex for target location if provided
-  const hex = target ? state.map?.tiles.find(tile => 
+  const hex = target ? state.map?.tiles.find(tile =>
     tile.coordinate.q === target.q && tile.coordinate.r === target.r
-  ) : state.map?.tiles.find(tile => 
+  ) : state.map?.tiles.find(tile =>
     tile.coordinate.q === unit.coordinate.q && tile.coordinate.r === unit.coordinate.r
   );
 
@@ -104,7 +105,7 @@ function executeHarvestAction(
   const player = state.players.find(p => p.units.some(u => u.id === unit.id));
   if (!player) return { success: false, message: "Player not found" };
 
-  const playerCities = state.cities?.filter(city => 
+  const playerCities = state.cities?.filter(city =>
     player.citiesOwned.includes(city.id)
   ) || [];
 
@@ -115,7 +116,7 @@ function executeHarvestAction(
   // Find closest city
   let closestCity = playerCities[0];
   let closestDistance = hexDistance(unit.coordinate, closestCity.coordinate);
-  
+
   for (const city of playerCities) {
     const distance = hexDistance(unit.coordinate, city.coordinate);
     if (distance < closestDistance) {
@@ -126,15 +127,15 @@ function executeHarvestAction(
 
   // Apply harvest bonus based on unified world element system
   const resource = hex.resources.find(r => harvestableResources.includes(r));
-  const harvestBonus = resource === 'grain_patch' ? 2 : 
-                      resource === 'timber_grove' ? 1 : 
-                      resource === 'wild_goats' ? 1 : 
-                      resource === 'ore_vein' ? 1 : 1;
+  const harvestBonus = resource === 'grain_patch' ? 2 :
+    resource === 'timber_grove' ? 1 :
+      resource === 'wild_goats' ? 1 :
+        resource === 'ore_vein' ? 1 : 1;
 
   const newState = {
     ...state,
-    cities: state.cities?.map(city => 
-      city.id === closestCity.id 
+    cities: state.cities?.map(city =>
+      city.id === closestCity.id
         ? applyPopulationGain(city, harvestBonus)
         : city
     ),
@@ -142,9 +143,9 @@ function executeHarvestAction(
       ...state.map,
       tiles: state.map.tiles.map(tile =>
         tile.coordinate.q === hex.coordinate.q && tile.coordinate.r === hex.coordinate.r
-          ? { 
-            ...tile, 
-            terrain: 'plains', 
+          ? {
+            ...tile,
+            terrain: 'plains',
             resources: (tile.resources || []).filter(r => r !== resource)
           }
           : tile
@@ -156,7 +157,7 @@ function executeHarvestAction(
     success: true,
     message: `Harvested ${hex.terrain} - ${closestCity.name} gained ${harvestBonus} population`,
     newState,
-    effects: { }
+    effects: {}
   };
 }
 
@@ -169,43 +170,22 @@ function executeClearForestAction(
   unit: Unit,
   hex: any
 ): UnitActionResult {
-  if (hex.terrain !== 'forest') {
-    return { success: false, message: "Can only clear forest tiles" };
-  }
-
-  const player = state.players.find(p => p.units.some(u => u.id === unit.id));
-  if (!player) {
-    return { success: false, message: "Player not found" };
-  }
-
-  // Check if player has Forestry technology
-  if (!player.researchedTechs.includes('forestry')) {
-    return { success: false, message: "Need Forestry technology to clear forests" };
-  }
-
-  // Polytopia-style: Clear forest gives +2 stars immediately (no cost)
-  const newState = {
-    ...state,
-    players: state.players.map(p => 
-      p.id === player.id 
-        ? { ...p, stars: p.stars + 2 }
-        : p
-    ),
-    map: {
-      ...state.map,
-      tiles: state.map.tiles.map(tile =>
-        tile.coordinate.q === hex.coordinate.q && tile.coordinate.r === hex.coordinate.r
-          ? { ...tile, terrain: 'plains', resources: [] } // Remove any wood resources
-          : tile
-      )
-    }
+  const action = {
+    type: 'CLEAR_FOREST' as const,
+    payload: { unitId: unit.id, targetCoordinate: hex.coordinate, playerId: unit.playerId }
   };
+  const newState = gameReducer(state, action);
+
+  // Check if state changed (success)
+  if (newState === state) {
+    return { success: false, message: "Cannot clear forest (check tech, cost, or terrain)" };
+  }
 
   return {
     success: true,
-    message: "Forest cleared - gained 2 stars and tile converted to plains",
+    message: "Forest cleared (+2 Stars, +1 Pride, +1 Dissent)",
     newState,
-    effects: { }
+    effects: {}
   };
 }
 
@@ -218,53 +198,19 @@ function executeBuildRoadAction(
   unit: Unit,
   hex: any
 ): UnitActionResult {
-  if (hex.terrain === 'water' || hex.terrain === 'mountain') {
-    return { success: false, message: "Cannot build roads on water or mountains" };
-  }
-
-  // Check if road already exists
-  const existingRoad = state.improvements?.find(imp => 
-    imp.coordinate.q === hex.coordinate.q && 
-    imp.coordinate.r === hex.coordinate.r &&
-    imp.type === 'road'
-  );
-
-  if (existingRoad) {
-    return { success: false, message: "Road already exists on this tile" };
-  }
-
-  const player = state.players.find(p => p.id === unit.playerId);
-  if (!player || player.stars < 3) {
-    return { success: false, message: "Need 3 stars to build road" };
-  }
-
-  let rngSeed = state.rngSeed ?? 0;
-  const roadIdResult = nextId(rngSeed, `road_${hex.coordinate.q}_${hex.coordinate.r}`);
-  rngSeed = roadIdResult.seed;
-  const roadImprovement = {
-    id: roadIdResult.id,
-    type: 'road' as const,
-    coordinate: hex.coordinate,
-    ownerId: player.id,
-    starProduction: 0,
-    cityId: '',
-    constructionTurns: 0,
+  const action = {
+    type: 'BUILD_ROAD' as const,
+    payload: { unitId: unit.id, targetCoordinate: hex.coordinate, playerId: unit.playerId }
   };
+  const newState = gameReducer(state, action);
 
-  const newState = {
-    ...state,
-    players: state.players.map(p => 
-      p.id === player.id 
-        ? { ...p, stars: p.stars - 3 }
-        : p
-    ),
-    improvements: [...(state.improvements || []), roadImprovement],
-    rngSeed,
-  };
+  if (newState === state) {
+    return { success: false, message: "Cannot build road (check tech, cost, or terrain)" };
+  }
 
   return {
     success: true,
-    message: "Road built - reduces movement cost for friendly units",
+    message: "Road built (Cost: 3 Stars)",
     newState,
     effects: { construction: true }
   };
@@ -279,24 +225,23 @@ export function executeScoutAction(
   action: 'STEALTH' | 'EXTENDED_VISION' | 'REVEAL_AREA'
 ): UnitActionResult {
   const unitDef = getUnitDefinition(unit.type);
-  
-  if (action === 'STEALTH' && unitDef.abilities.includes('STEALTH')) {
-    // Toggle stealth mode - invisible to enemies unless adjacent
-    const newStatus = unit.status === 'defending' ? 'active' : 'defending';
-    const newState = {
-      ...state,
-      units: state.units.map(u => 
-        u.id === unit.id 
-          ? { ...u, status: newStatus as 'active' | 'defending' }
-          : u
-      )
+
+  if (action === 'STEALTH' && unitDef.abilities.includes('stealth')) {
+    const reduxAction = {
+      type: 'APPLY_STEALTH' as const,
+      payload: { unitId: unit.id, playerId: unit.playerId }
     };
-    
+    const newState = gameReducer(state, reduxAction);
+
+    // Check if status changed
+    const newUnit = newState.units.find(u => u.id === unit.id);
+    const success = newUnit?.status === 'stealthed';
+
     return {
-      success: true,
-      message: newStatus === 'active' ? "Scout revealed" : "Scout hidden",
+      success,
+      message: success ? "Unit entered stealth" : "Failed to enter stealth",
       newState,
-      effects: { }
+      effects: {}
     };
   }
 
@@ -306,7 +251,7 @@ export function executeScoutAction(
     return {
       success: true,
       message: `Revealed area within ${revealRadius} tiles`,
-      effects: { }
+      effects: {}
     };
   }
 
@@ -323,22 +268,21 @@ export function executeSpearmanAction(
   allies?: Unit[]
 ): UnitActionResult {
   const unitDef = getUnitDefinition(unit.type);
-  
-  if (action === 'FORMATION' && unitDef.abilities.includes('FORMATION_FIGHTING')) {
-    // When adjacent to other spearmen, gain defense bonus
-    const adjacentSpearmen = state.units.filter(u => 
-      u.playerId === unit.playerId && 
-      u.type === 'spearman' && 
-      u.id !== unit.id &&
-      hexDistance(u.coordinate, unit.coordinate) === 1
-    );
-    
-    const defenseBonus = adjacentSpearmen.length * 2;
-    
+
+  if (action === 'FORMATION' && unitDef.abilities.includes('formation_fighting')) {
+    const reduxAction = {
+      type: 'FORMATION_FIGHTING' as const,
+      payload: { unitId: unit.id, playerId: unit.playerId }
+    };
+    const newState = gameReducer(state, reduxAction);
+    const newUnit = newState.units.find(u => u.id === unit.id);
+    const success = newUnit?.status === 'formation';
+
     return {
-      success: true,
-      message: `Formation bonus: +${defenseBonus} defense`,
-      effects: { }
+      success,
+      message: success ? "Formation established (+2 Defense)" : "Failed to form formation",
+      newState,
+      effects: {}
     };
   }
 
@@ -347,7 +291,7 @@ export function executeSpearmanAction(
     return {
       success: true,
       message: "Prepared to counter cavalry charges",
-      effects: { }
+      effects: {}
     };
   }
 
@@ -365,16 +309,16 @@ export function executeBoatAction(
   passengers?: Unit[]
 ): UnitActionResult {
   const unitDef = getUnitDefinition(unit.type);
-  
+
   if (action === 'TRANSPORT' && unitDef.abilities.includes('NAVAL_TRANSPORT')) {
     // Can carry up to 2 land units
     const maxCapacity = 2;
     const currentPassengers = passengers?.length || 0;
-    
+
     if (currentPassengers >= maxCapacity) {
       return { success: false, message: "Boat at full capacity" };
     }
-    
+
     return {
       success: true,
       message: `Transporting ${currentPassengers}/${maxCapacity} units`,
@@ -383,11 +327,21 @@ export function executeBoatAction(
   }
 
   if (action === 'COASTAL_EXPLORE' && unitDef.abilities.includes('COASTAL_EXPLORATION')) {
-    // Reveal coastal areas and find resources
+    const reduxAction = {
+      type: 'COASTAL_EXPLORE' as const,
+      payload: { unitId: unit.id, playerId: unit.playerId }
+    };
+    const newState = gameReducer(state, reduxAction);
+
+    if (newState === state) {
+      return { success: false, message: "Exploration failed (already acted?)" };
+    }
+
     return {
       success: true,
       message: "Exploring coastal waters",
-      effects: { }
+      newState,
+      effects: {}
     };
   }
 
@@ -404,25 +358,25 @@ export function executeCatapultAction(
   target?: HexCoordinate
 ): UnitActionResult {
   const unitDef = getUnitDefinition(unit.type);
-  
+
   if (action === 'SIEGE_ATTACK' && unitDef.abilities.includes('SIEGE_WEAPON')) {
     if (!target) {
       return { success: false, message: "No target specified" };
     }
-    
+
     const distance = hexDistance(unit.coordinate, target);
     if (distance > unit.attackRange) {
       return { success: false, message: "Target out of range" };
     }
-    
+
     // Extra damage to structures and cities
     const baseDamage = unit.attack;
     const siegeDamage = baseDamage * 2; // Double damage to structures
-    
+
     return {
       success: true,
       message: `Siege attack deals ${siegeDamage} damage`,
-      effects: { }
+      effects: {}
     };
   }
 
@@ -431,24 +385,24 @@ export function executeCatapultAction(
     if (!target) {
       return { success: false, message: "No target specified" };
     }
-    
+
     const distance = hexDistance(unit.coordinate, target);
     if (distance > unit.attackRange) {
       return { success: false, message: "Target out of bombardment range" };
     }
-    
+
     // Calculate area of effect - center tile + all neighbors (7 tiles total)
     const affectedTiles = [target, ...hexNeighbors(target)];
-    const affectedUnits = state.units.filter(u => 
-      affectedTiles.some(tile => 
+    const affectedUnits = state.units.filter(u =>
+      affectedTiles.some(tile =>
         tile.q === u.coordinate.q && tile.r === u.coordinate.r
       )
     );
-    
+
     // Enhanced bombardment damage calculation
     const centerDamage = Math.floor(unit.attack * 0.8); // 80% damage to center
     const areaDamage = Math.floor(unit.attack * 0.5);   // 50% damage to surrounding tiles
-    
+
     const newState = {
       ...state,
       units: state.units.map(u => {
@@ -463,13 +417,13 @@ export function executeCatapultAction(
         return u;
       }).filter(u => u.hp > 0) // Remove destroyed units
     };
-    
+
     return {
       success: true,
       message: `Bombardment hit ${affectedUnits.length} units across ${affectedTiles.length} tiles`,
       newState,
-      effects: { 
-        areaEffect: true, 
+      effects: {
+        areaEffect: true,
         range: unit.attackRange,
         areaRadius: 1,
         centerDamage,
@@ -482,18 +436,18 @@ export function executeCatapultAction(
     // Enter siege mode (spends an action; moving will break siege).
     const newState = {
       ...state,
-      units: state.units.map(u => 
-        u.id === unit.id 
+      units: state.units.map(u =>
+        u.id === unit.id
           ? { ...spendUnitActions(u), status: 'siege_mode' as const }
           : u
       )
     };
-    
+
     return {
       success: true,
       message: "Catapult setup for siege",
       newState,
-      effects: { }
+      effects: {}
     };
   }
 
@@ -511,7 +465,7 @@ export function executeMissionaryAction(
 ): UnitActionResult {
   const unitDef = getUnitDefinition(unit.type);
   const player = state.players.find(p => p.id === unit.playerId);
-  
+
   if (!player) {
     return { success: false, message: "Player not found" };
   }
@@ -520,7 +474,7 @@ export function executeMissionaryAction(
     if (!target || !('id' in target)) {
       return { success: false, message: "No target unit specified" };
     }
-    
+
     const targetUnit = target as Unit;
 
     const outcome = attemptUnitConversion(state, unit.id, targetUnit.id);
@@ -528,11 +482,11 @@ export function executeMissionaryAction(
       const faithCost = getUnitConversionFaithCost();
       const reason =
         outcome.reason === 'not_owner_turn' ? 'Not your turn' :
-        outcome.reason === 'same_player' ? 'Cannot convert allied units' :
-          outcome.reason === 'out_of_range' ? `Target too far away (range ${GAME_RULES.abilities.conversionRadius})` :
-            outcome.reason === 'exhausted' ? 'Unit has already acted this turn' :
-              outcome.reason === 'insufficient_faith' ? `Insufficient faith (need ${faithCost})` :
-                'Conversion attempt is not valid';
+          outcome.reason === 'same_player' ? 'Cannot convert allied units' :
+            outcome.reason === 'out_of_range' ? `Target too far away (range ${GAME_RULES.abilities.conversionRadius})` :
+              outcome.reason === 'exhausted' ? 'Unit has already acted this turn' :
+                outcome.reason === 'insufficient_faith' ? `Insufficient faith (need ${faithCost})` :
+                  'Conversion attempt is not valid';
       return { success: false, message: reason };
     }
 
@@ -546,32 +500,20 @@ export function executeMissionaryAction(
     };
   }
 
-  if (action === 'HEAL' && unitDef.abilities.includes('HEAL')) {
-    const healingRange = 2;
-    const healingAmount = GAME_RULES.units.healingAmount;
-    
-    const nearbyAllies = state.units.filter(u => 
-      u.playerId === unit.playerId && 
-      u.id !== unit.id &&
-      hexDistance(u.coordinate, unit.coordinate) <= healingRange &&
-      u.hp < u.maxHp
-    );
-    
-    const newState = {
-      ...state,
-      units: state.units.map(u => {
-        if (nearbyAllies.some(ally => ally.id === u.id)) {
-          return { ...u, hp: Math.min(u.maxHp, u.hp + healingAmount) };
-        }
-        return u;
-      })
+  if (action === 'HEAL' && unitDef.abilities.includes('heal')) {
+    const reduxAction = {
+      type: 'HEAL_UNIT' as const,
+      payload: { unitId: unit.id, playerId: unit.playerId }
     };
-    
+    const newState = gameReducer(state, reduxAction);
+
+    // If state changed, it succeeded
+    const success = newState !== state;
     return {
-      success: true,
-      message: `Healed ${nearbyAllies.length} nearby allies`,
+      success,
+      message: success ? "Allies healed" : "Healing failed (no targets or insufficient faith)",
       newState,
-      effects: { healing: healingAmount }
+      effects: success ? { healing: 3 } : undefined
     };
   }
 
@@ -588,73 +530,20 @@ export function executeCommanderAction(
   target?: HexCoordinate
 ): UnitActionResult {
   const unitDef = getUnitDefinition(unit.type);
-  
-  if (action === 'RALLY' && unitDef.abilities.includes('rally_troops')) {
-    const rallyRange = 3;
-    const nearbyAllies = state.units.filter(u => 
-      u.playerId === unit.playerId && 
-      u.id !== unit.id &&
-      hexDistance(u.coordinate, unit.coordinate) <= rallyRange
-    );
-    
-    // Enhanced rally effects: restore movement, remove negative status, add temp buffs
-    const newState = {
-      ...state,
-      units: state.units.map(u => {
-        if (nearbyAllies.some(ally => ally.id === u.id)) {
-          return { 
-            ...u, 
-            remainingMovement: Math.min(u.movement, u.remainingMovement + 2), // More movement restoration
-            status: 'active' as const, // Clear all negative status effects
-            // Add temporary rally bonus (handled in combat calculations)
-            rallyBuff: true
-          };
-        }
-        if (u.id === unit.id) {
-          return spendUnitActions(u);
-        }
-        return u;
-      })
-    };
-    
-    return {
-      success: true,
-      message: `Rallied ${nearbyAllies.length} units (+2 movement, combat bonus, clear status)`,
-      newState,
-      effects: { areaEffect: true, range: rallyRange }
-    };
-  }
 
-  if (action === 'TACTICAL_COMMAND' && unitDef.abilities.includes('rally_troops')) {
-    // Allow coordinated attacks - nearby units can attack after moving
-    const commandRange = 2;
-    const commandedUnits = state.units.filter(u => 
-      u.playerId === unit.playerId && 
-      u.id !== unit.id &&
-      hexDistance(u.coordinate, unit.coordinate) <= commandRange
-    );
-    
-    const newState = {
-      ...state,
-      units: state.units.map(u => {
-        if (commandedUnits.some(cmd => cmd.id === u.id)) {
-          return { 
-            ...u, 
-            tacticalCommand: true // Mark for coordinated attack bonus
-          };
-        }
-        if (u.id === unit.id) {
-          return spendUnitActions(u);
-        }
-        return u;
-      })
+  if (action === 'RALLY' && unitDef.abilities.includes('rally_troops')) {
+    const reduxAction = {
+      type: 'RALLY_TROOPS' as const,
+      payload: { unitId: unit.id, playerId: unit.playerId }
     };
-    
+    const newState = gameReducer(state, reduxAction);
+    const success = newState !== state;
+
     return {
-      success: true,
-      message: `Commanded ${commandedUnits.length} units for coordinated tactical strikes`,
+      success,
+      message: success ? "Troops rallied (+2 Attack)" : "Rally failed (check cooldown)",
       newState,
-      effects: { areaEffect: true, range: commandRange }
+      effects: {}
     };
   }
 
@@ -679,25 +568,25 @@ export function executeUnitAction(
   switch (unit.type) {
     case 'worker':
       return executeWorkerAction(state, unit, actionType as any, parameters?.target, parameters?.buildingType);
-    
+
     case 'scout':
       return executeScoutAction(state, unit, actionType as any);
-    
+
     case 'spearman':
       return executeSpearmanAction(state, unit, actionType as any, parameters?.allies);
-    
+
     case 'boat':
       return executeBoatAction(state, unit, actionType as any, parameters?.target, parameters?.passengers);
-    
+
     case 'catapult':
       return executeCatapultAction(state, unit, actionType as any, parameters?.target);
-    
+
     case 'missionary':
       return executeMissionaryAction(state, unit, actionType as any, parameters?.target);
-    
+
     case 'commander':
       return executeCommanderAction(state, unit, actionType as any, parameters?.target);
-    
+
     default:
       return { success: false, message: "Unit type not supported" };
   }

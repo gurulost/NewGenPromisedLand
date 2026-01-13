@@ -11,7 +11,6 @@ import { getFaction } from "../data/factions";
 import { getWorldElement } from "../data/worldElements";
 import type { RuinReward } from "../data/worldElements";
 import type { RuinsReward } from "../data/ruinsRewards";
-import { executeUnitAction } from "./unitActions";
 import { executeAbility } from "./abilitySystem";
 import { executeElementHarvest, executeElementBuild } from "./worldElementActions";
 import { HexCoordinate } from "../types/coordinates";
@@ -28,6 +27,19 @@ import { attemptUnitConversion } from "./conversion";
 import { computeUnitPassiveEffectsForPlayer } from "./unitPassiveEffects";
 import { nextFloat, nextId, nextInt } from "./rng";
 import { resolveCombat } from "./combatResolver";
+import { clamp01 } from "../utils/math";
+import {
+  handleClearForest,
+  handleBuildRoad,
+  handleHealUnit,
+  handleApplyStealth,
+  handleReconnaissance,
+  handleCoastalExplore,
+  handleFormationFighting,
+  handleSiegeMode,
+  handleRallyTroops
+} from './unitActionHandlers';
+
 
 type VictoryType = 'faith' | 'territorial' | 'elimination' | 'economic' | 'cultural' | 'domination';
 type VictoryResult = { winnerId: string; victoryType: VictoryType };
@@ -35,8 +47,8 @@ type TradeRoute = NonNullable<PlayerState['tradeRoutes']>[number];
 type UnitPassiveEffects = ReturnType<typeof computeUnitPassiveEffectsForPlayer>;
 
 function getUnitSpawnCoordinate(
-  state: GameState, 
-  unitType: UnitType, 
+  state: GameState,
+  unitType: UnitType,
   cityCoordinate: HexCoordinate,
   playerId: string,
   preferredCoordinate?: HexCoordinate
@@ -50,13 +62,13 @@ function getUnitSpawnCoordinate(
         .map(item => `${item.coordinate!.q},${item.coordinate!.r}`)
     )
   );
-  
+
   // Helper to count units on a tile using q,r (axial coords - s is derived)
-  const getUnitsOnTile = (coord: HexCoordinate) => 
-    state.units.filter(u => 
+  const getUnitsOnTile = (coord: HexCoordinate) =>
+    state.units.filter(u =>
       u.coordinate.q === coord.q && u.coordinate.r === coord.r
     );
-  
+
   // Helper to check if tile is valid for spawning
   const isValidSpawnTile = (coord: HexCoordinate, terrain: string) => {
     const unitsOnTile = getUnitsOnTile(coord);
@@ -66,20 +78,20 @@ function getUnitSpawnCoordinate(
     if (queuedKeys.has(`${coord.q},${coord.r}`)) return false;
     return true;
   };
-  
+
   // For boats, find ADJACENT water tiles only (coastal launch rule)
   if (unitType === 'boat') {
     const adjacentTiles = hexNeighbors(cityCoordinate);
     const validBoatTiles = adjacentTiles
-      .map(neighbor => state.map.tiles.find(t => 
+      .map(neighbor => state.map.tiles.find(t =>
         t.coordinate.q === neighbor.q && t.coordinate.r === neighbor.r
       ))
-      .filter((tile): tile is NonNullable<typeof tile> => 
+      .filter((tile): tile is NonNullable<typeof tile> =>
         !!tile && tile.terrain === 'water' && isValidSpawnTile(tile.coordinate, tile.terrain)
       );
-    
+
     if (validBoatTiles.length === 0) return null;
-    
+
     // If a preferred coordinate is specified and valid, use it
     if (preferredCoordinate) {
       const preferred = validBoatTiles.find(tile =>
@@ -88,24 +100,24 @@ function getUnitSpawnCoordinate(
       );
       if (preferred) return preferred.coordinate;
     }
-    
+
     // Otherwise return first valid water tile
     return validBoatTiles[0].coordinate;
   }
-  
+
   // Get all tiles within spawn radius of the city for land units
-  const tilesInRange = state.map.tiles.filter(tile => 
+  const tilesInRange = state.map.tiles.filter(tile =>
     hexDistance(cityCoordinate, tile.coordinate) <= SPAWN_RADIUS
   );
-  
+
   // For land units, find valid spawn locations
   const validSpawnTiles = tilesInRange.filter(tile => {
     if (tile.terrain === 'water') return false;
     return isValidSpawnTile(tile.coordinate, tile.terrain);
   });
-  
+
   if (validSpawnTiles.length === 0) return null;
-  
+
   // If a preferred coordinate is specified and valid, use it
   if (preferredCoordinate) {
     const preferred = validSpawnTiles.find(tile =>
@@ -114,25 +126,23 @@ function getUnitSpawnCoordinate(
     );
     if (preferred) return preferred.coordinate;
   }
-  
+
   // Prefer tiles with fewer units, prioritizing city center
   validSpawnTiles.sort((a, b) => {
     const unitsOnA = getUnitsOnTile(a.coordinate).length;
     const unitsOnB = getUnitsOnTile(b.coordinate).length;
-    
+
     // First prefer fewer units
     if (unitsOnA !== unitsOnB) return unitsOnA - unitsOnB;
-    
+
     // Then prefer closer to city
     return hexDistance(cityCoordinate, a.coordinate) - hexDistance(cityCoordinate, b.coordinate);
   });
-  
+
   return validSpawnTiles[0].coordinate;
 }
 
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value));
-}
+// clamp01 removed (imported)
 
 function clampStat(value: number): number {
   return Math.max(0, Math.min(100, value));
@@ -618,8 +628,8 @@ function handleBuildImprovement(
   const updatedCities =
     populationGain > 0
       ? (state.cities || []).map(c =>
-          c.id === cityId ? applyPopulationGain(c, populationGain) : c
-        )
+        c.id === cityId ? applyPopulationGain(c, populationGain) : c
+      )
       : state.cities;
 
   return {
@@ -717,8 +727,8 @@ function handleBuildStructure(
   const updatedCities =
     populationGain > 0
       ? (state.cities || []).map(city =>
-          city.id === cityId ? applyPopulationGain(city, populationGain) : city
-        )
+        city.id === cityId ? applyPopulationGain(city, populationGain) : city
+      )
       : state.cities;
 
   return {
@@ -1598,6 +1608,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       case 'WORLD_ELEMENT_BUILD':
         return handleWorldElementBuild(state, action.payload);
 
+      case 'COASTAL_EXPLORE':
+        return handleCoastalExplore(state, action.payload);
+
       default:
         return state;
     }
@@ -1659,6 +1672,11 @@ function handleMoveUnit(
     if (updatedUnit.status === 'siege_mode') {
       updatedUnit.status = 'active';
     }
+    // Formation breaks on move per spec
+    if (updatedUnit.status === 'formation') {
+      updatedUnit.status = 'active';
+    }
+    // Stealth doesn't break on move (only on attack/capture per spec)
 
     // Guerrilla/forest bonuses are terrain-dependent; reset to base stats when leaving forest.
     const unitDef = getUnitDefinition(updatedUnit.type);
@@ -1737,9 +1755,56 @@ function handleMoveUnit(
     }
   }
 
+  // INTIMIDATE ability: Apply intimidation to adjacent enemy military units after move
+  const movedUnit = updatedUnits.find((u: Unit) => u.id === payload.unitId);
+  const movedUnitDef = movedUnit ? getUnitDefinition(movedUnit.type) : null;
+  const hasIntimidate = movedUnitDef?.abilities?.some(
+    a => String(a).toUpperCase() === 'INTIMIDATE'
+  );
+
+  let finalUnits = updatedUnits;
+  if (hasIntimidate && movedUnit) {
+    finalUnits = updatedUnits.map((u: Unit) => {
+      // Only affect enemy units
+      if (u.playerId === movedUnit.playerId) return u;
+
+      // Check if adjacent (distance 1)
+      if (hexDistance(u.coordinate, movedUnit.coordinate) > 1) return u;
+
+      // Skip civilian/influence units
+      const targetDef = getUnitDefinition(u.type);
+      const isCivilian = targetDef?.tags?.includes('civilian') ||
+        targetDef?.tags?.includes('influence') ||
+        targetDef?.tags?.includes('diplomat');
+      if (isCivilian) return u;
+
+      // Check for YOUNG_VIGOR immunity
+      const targetAbilities = new Set(
+        (u.abilities || []).map(a => String(a).toUpperCase())
+      );
+      if (targetAbilities.has('YOUNG_VIGOR')) return u;
+
+      // Apply INTIMIDATED status (1 turn duration)
+      const existingEffects = Array.isArray((u as any).statusEffects)
+        ? (u as any).statusEffects
+        : [];
+      const filteredEffects = existingEffects.filter(
+        (e: any) => e?.type !== 'INTIMIDATED'
+      );
+
+      return {
+        ...u,
+        statusEffects: [
+          ...filteredEffects,
+          { type: 'INTIMIDATED', turnsRemaining: 1 }
+        ]
+      } as Unit;
+    });
+  }
+
   return {
     ...state,
-    units: updatedUnits,
+    units: finalUnits,
     players: updatedPlayers,
     map: {
       ...state.map,
@@ -1835,9 +1900,9 @@ function handleAttackUnit(
       return { ...u, hp: newHp };
     }
     if (u.id === payload.attackerId) {
-      // Remove stealth when attacking
+      // Remove stealth/formation when attacking per spec
       let newStatus = u.status;
-      if (newStatus === 'stealthed' || newStatus === 'siege_mode') {
+      if (newStatus === 'stealthed' || newStatus === 'siege_mode' || newStatus === 'formation') {
         newStatus = 'active';
       }
       return {
@@ -2468,6 +2533,27 @@ function handleEndTurn(
         resetUnit.status = 'active';
       }
 
+      // Decay and remove expired status effects (like INTIMIDATED)
+      const existingEffects = Array.isArray((u as any).statusEffects)
+        ? (u as any).statusEffects
+        : [];
+      if (existingEffects.length > 0) {
+        const updatedEffects = existingEffects
+          .map((effect: any) => {
+            if (!effect || typeof effect.turnsRemaining !== 'number') return effect;
+            return { ...effect, turnsRemaining: effect.turnsRemaining - 1 };
+          })
+          .filter((effect: any) => {
+            if (!effect) return false;
+            // Remove effects that have expired
+            if (typeof effect.turnsRemaining === 'number' && effect.turnsRemaining <= 0) {
+              return false;
+            }
+            return true;
+          });
+        (resetUnit as any).statusEffects = updatedEffects;
+      }
+
       return resetUnit;
     }
     return u;
@@ -2648,356 +2734,7 @@ function handleHarvestResource(
 }
 
 // Clear Forest Handler
-function handleClearForest(
-  state: GameState,
-  payload: { unitId: string; targetCoordinate: any; playerId: string }
-): GameState {
-  const { unitId, targetCoordinate, playerId } = payload;
 
-  const unit = state.units.find(u => u.id === unitId);
-  if (!unit || unit.playerId !== playerId) return state;
-
-  const player = state.players.find(p => p.id === playerId);
-  if (!player || player.stars < 5) return state;
-  if (!player.researchedTechs?.includes('forestry')) return state;
-  if (getUnitActionsRemaining(unit) <= 0) return state;
-
-  // Find the target tile
-  const targetTile = state.map.tiles.find(tile =>
-    tile.coordinate.q === targetCoordinate.q &&
-    tile.coordinate.r === targetCoordinate.r
-  );
-
-  if (!targetTile || targetTile.terrain !== 'forest') return state;
-
-  // Check if unit can perform this action
-  const unitDef = getUnitDefinition(unit.type);
-  if (!unitDef.abilities.includes('CLEAR_FOREST')) return state;
-
-  // Check if unit is adjacent or on the tile
-  const distance = hexDistance(unit.coordinate, targetCoordinate);
-  if (distance > 1) return state;
-
-  return {
-    ...state,
-    players: state.players.map(p =>
-      p.id === playerId
-        ? { ...p, stars: p.stars - 5 }
-        : p
-    ),
-    map: {
-      ...state.map,
-      tiles: state.map.tiles.map(tile =>
-        tile.coordinate.q === targetCoordinate.q && tile.coordinate.r === targetCoordinate.r
-          ? { ...tile, terrain: 'plains' }
-          : tile
-      )
-    },
-    units: state.units.map(u =>
-      u.id === unitId
-        ? spendUnitActions(u)
-        : u
-    )
-  };
-}
-
-// Build Road Handler
-function handleBuildRoad(
-  state: GameState,
-  payload: { unitId: string; targetCoordinate: any; playerId: string }
-): GameState {
-  const { unitId, targetCoordinate, playerId } = payload;
-
-  const unit = state.units.find(u => u.id === unitId);
-  if (!unit || unit.playerId !== playerId) return state;
-
-  const player = state.players.find(p => p.id === playerId);
-  if (!player || player.stars < 3) return state;
-  if (!player.researchedTechs.includes('organization')) return state;
-  if (getUnitActionsRemaining(unit) <= 0) return state;
-
-  // Find the target tile
-  const targetTile = state.map.tiles.find(tile =>
-    tile.coordinate.q === targetCoordinate.q &&
-    tile.coordinate.r === targetCoordinate.r
-  );
-
-  if (!targetTile || targetTile.terrain === 'water' || targetTile.terrain === 'mountain') return state;
-
-  // Check if unit can perform this action
-  const unitDef = getUnitDefinition(unit.type);
-  if (!unitDef.abilities.includes('BUILD_ROAD')) return state;
-
-  // Check if unit is adjacent or on the tile
-  const distance = hexDistance(unit.coordinate, targetCoordinate);
-  if (distance > 1) return state;
-
-  // Check if road already exists
-  const existingRoad = state.improvements?.find(imp =>
-    imp.coordinate.q === targetCoordinate.q &&
-    imp.coordinate.r === targetCoordinate.r &&
-    imp.type === 'road'
-  );
-
-  if (existingRoad) return state;
-
-  let rngSeed = state.rngSeed ?? 0;
-  const roadIdResult = nextId(rngSeed, `road_${targetCoordinate.q}_${targetCoordinate.r}`);
-  rngSeed = roadIdResult.seed;
-  const roadImprovement = {
-    id: roadIdResult.id,
-    type: 'road' as const,
-    coordinate: targetCoordinate,
-    ownerId: playerId,
-    cityId: '',
-    starProduction: 0,
-    constructionTurns: 0
-  };
-
-  return {
-    ...state,
-    players: state.players.map(p =>
-      p.id === playerId
-        ? { ...p, stars: p.stars - 3 }
-        : p
-    ),
-    improvements: [...(state.improvements || []), roadImprovement],
-    units: state.units.map(u =>
-      u.id === unitId
-        ? spendUnitActions(u)
-        : u
-    ),
-    rngSeed,
-  };
-}
-
-// Unit Ability Handlers
-function handleHealUnit(
-  state: GameState,
-  payload: { unitId: string; playerId: string }
-): GameState {
-  const { unitId, playerId } = payload;
-
-  const unit = state.units.find(u => u.id === unitId);
-  if (!unit || unit.playerId !== playerId) return state;
-
-  // Check if unit has heal ability and hasn't acted
-  if (!unit.abilities.includes('heal') || getUnitActionsRemaining(unit) <= 0) return state;
-
-  // Check faith cost requirement
-  const player = state.players.find(p => p.id === playerId);
-  if (!player || player.stats.faith < 5) return state;
-
-  // Find nearby friendly units to heal (within 2 tiles)
-  const healRadius = 2;
-  const updatedUnits = state.units.map(u => {
-    if (u.playerId === playerId && u.id !== unitId) {
-      const distance = hexDistance(unit.coordinate, u.coordinate);
-      if (distance <= healRadius && u.hp < u.maxHp) {
-        return { ...u, hp: Math.min(u.maxHp, u.hp + 10) };
-      }
-    }
-    return u;
-  });
-
-  // Mark the healing unit as having acted and consume faith
-  const updatedHealingUnits = updatedUnits.map(u =>
-    u.id === unitId ? spendUnitActions(u) : u
-  );
-
-  const updatedPlayers = state.players.map(p =>
-    p.id === playerId
-      ? { ...p, stats: { ...p.stats, faith: p.stats.faith - 5 } }
-      : p
-  );
-
-  return {
-    ...state,
-    units: updatedHealingUnits,
-    players: updatedPlayers
-  };
-}
-
-function handleApplyStealth(
-  state: GameState,
-  payload: { unitId: string; playerId: string }
-): GameState {
-  const { unitId, playerId } = payload;
-
-  const unit = state.units.find(u => u.id === unitId);
-  if (!unit || unit.playerId !== playerId) return state;
-
-  // Check if unit has stealth ability and hasn't acted
-  if (!unit.abilities.includes('stealth') || getUnitActionsRemaining(unit) <= 0) return state;
-  if (unit.status === 'stealthed') return state;
-
-  const updatedUnits = state.units.map(u =>
-    u.id === unitId
-      ? { ...spendUnitActions(u), status: 'stealthed' as const }
-      : u
-  );
-
-  return {
-    ...state,
-    units: updatedUnits
-  };
-}
-
-function handleReconnaissance(
-  state: GameState,
-  payload: { unitId: string; playerId: string }
-): GameState {
-  const { unitId, playerId } = payload;
-
-  const unit = state.units.find(u => u.id === unitId);
-  if (!unit || unit.playerId !== playerId) return state;
-
-  // Check if unit has reconnaissance ability and hasn't acted
-  if (!unit.abilities.includes('reconnaissance') || getUnitActionsRemaining(unit) <= 0) return state;
-
-  // Reveal large area around unit (radius 4)
-  const reconRadius = 4;
-  const player = state.players.find(p => p.id === playerId);
-  if (!player) return state;
-
-  const newVisibleTiles: string[] = [];
-  for (let q = unit.coordinate.q - reconRadius; q <= unit.coordinate.q + reconRadius; q++) {
-    for (let r = unit.coordinate.r - reconRadius; r <= unit.coordinate.r + reconRadius; r++) {
-      const s = -q - r;
-      const distance = Math.max(Math.abs(q - unit.coordinate.q), Math.abs(r - unit.coordinate.r), Math.abs(s - (-unit.coordinate.q - unit.coordinate.r)));
-      if (distance <= reconRadius) {
-        newVisibleTiles.push(`${q},${r}`);
-      }
-    }
-  }
-
-  const updatedPlayers = state.players.map(p =>
-    p.id === playerId
-      ? {
-        ...p,
-        visibilityMask: Array.from(new Set([...p.visibilityMask, ...newVisibleTiles])),
-        exploredTiles: Array.from(new Set([...p.exploredTiles, ...newVisibleTiles]))
-      }
-      : p
-  );
-
-  const updatedUnits = state.units.map(u =>
-    u.id === unitId ? spendUnitActions(u) : u
-  );
-
-  const revealSet = new Set(newVisibleTiles);
-  const updatedTiles = state.map.tiles.map(tile => {
-    const tileKey = `${tile.coordinate.q},${tile.coordinate.r}`;
-    if (revealSet.has(tileKey) && !tile.exploredBy.includes(playerId)) {
-      return { ...tile, exploredBy: [...tile.exploredBy, playerId] };
-    }
-    return tile;
-  });
-
-  return {
-    ...state,
-    units: updatedUnits,
-    players: updatedPlayers,
-    map: { ...state.map, tiles: updatedTiles }
-  };
-}
-
-function handleFormationFighting(
-  state: GameState,
-  payload: { unitId: string; playerId: string }
-): GameState {
-  const { unitId, playerId } = payload;
-
-  const unit = state.units.find(u => u.id === unitId);
-  if (!unit || unit.playerId !== playerId) return state;
-  if (getUnitActionsRemaining(unit) <= 0) return state;
-
-  // Check if unit has formation fighting ability
-  if (!unit.abilities.includes('formation_fighting')) return state;
-
-  // Apply formation bonus - this is passive, just mark the unit as having used the action
-  const updatedUnits = state.units.map(u =>
-    u.id === unitId
-      ? { ...spendUnitActions(u), status: 'formation' as const }
-      : u
-  );
-
-  return {
-    ...state,
-    units: updatedUnits
-  };
-}
-
-function handleSiegeMode(
-  state: GameState,
-  payload: { unitId: string; playerId: string }
-): GameState {
-  const { unitId, playerId } = payload;
-
-  const unit = state.units.find(u => u.id === unitId);
-  if (!unit || unit.playerId !== playerId) return state;
-
-  // Check if unit has siege ability and is stationary
-  if (!unit.abilities.includes('siege') || unit.remainingMovement !== unit.movement) return state;
-  if (getUnitActionsRemaining(unit) <= 0) return state;
-
-  const updatedUnits = state.units.map(u =>
-    u.id === unitId
-      ? { ...spendUnitActions(u), status: 'siege_mode' as const }
-      : u
-  );
-
-  return {
-    ...state,
-    units: updatedUnits
-  };
-}
-
-function handleRallyTroops(
-  state: GameState,
-  payload: { unitId: string; playerId: string }
-): GameState {
-  const { unitId, playerId } = payload;
-
-  const unit = state.units.find(u => u.id === unitId);
-  if (!unit || unit.playerId !== playerId) return state;
-
-  // Check if unit has rally ability and pride cost
-  if (!(unit.abilities.includes('rally') || unit.abilities.includes('rally_troops')) || getUnitActionsRemaining(unit) <= 0) return state;
-
-  const player = state.players.find(p => p.id === playerId);
-  if (!player || player.stats.pride < 5) return state;
-
-  // Rally nearby friendly units (within 2 tiles)
-  const rallyRadius = 2;
-  const updatedUnits = state.units.map(u => {
-    if (u.playerId === playerId && u.id !== unitId) {
-      const distance = hexDistance(unit.coordinate, u.coordinate);
-      if (distance <= rallyRadius) {
-        // Temporarily boost attack for nearby units
-        return { ...u, status: 'rallied' as const };
-      }
-    }
-    return u;
-  });
-
-  // Mark the rally unit as having acted and consume pride
-  const updatedRallyUnits = updatedUnits.map(u =>
-    u.id === unitId ? spendUnitActions(u) : u
-  );
-
-  const updatedPlayers = state.players.map(p =>
-    p.id === playerId
-      ? { ...p, stats: { ...p.stats, pride: p.stats.pride - 5 } }
-      : p
-  );
-
-  return {
-    ...state,
-    units: updatedRallyUnits,
-    players: updatedPlayers
-  };
-}
 
 // Research Technology Handler
 function handleResearchTechnology(
@@ -4110,26 +3847,26 @@ export function getValidSpawnTiles(
         .map(item => `${item.coordinate!.q},${item.coordinate!.r}`)
     )
   );
-  
-  const getUnitsOnTile = (coord: HexCoordinate) => 
-    state.units.filter(u => 
+
+  const getUnitsOnTile = (coord: HexCoordinate) =>
+    state.units.filter(u =>
       u.coordinate.q === coord.q && u.coordinate.r === coord.r
     );
-  
+
   const isValidSpawnTile = (coord: HexCoordinate) => {
     const unitsOnTile = getUnitsOnTile(coord);
     const hasEnemy = unitsOnTile.some(u => u.playerId !== playerId);
     return !hasEnemy && unitsOnTile.length < MAX_UNITS_PER_TILE;
   };
-  
+
   // For boats, only adjacent water tiles (coastal launch)
   if (unitType === 'boat') {
     const adjacentTiles = hexNeighbors(cityCoordinate);
     return adjacentTiles
-      .map(neighbor => state.map.tiles.find(t => 
+      .map(neighbor => state.map.tiles.find(t =>
         t.coordinate.q === neighbor.q && t.coordinate.r === neighbor.r
       ))
-      .filter((tile): tile is NonNullable<typeof tile> => 
+      .filter((tile): tile is NonNullable<typeof tile> =>
         !!tile &&
         tile.terrain === 'water' &&
         isTileExploredByPlayer(state, playerId, tile.coordinate) &&
@@ -4138,12 +3875,12 @@ export function getValidSpawnTiles(
       )
       .map(tile => tile.coordinate);
   }
-  
+
   // For land units, 2-tile radius
-  const tilesInRange = state.map.tiles.filter(tile => 
+  const tilesInRange = state.map.tiles.filter(tile =>
     hexDistance(cityCoordinate, tile.coordinate) <= SPAWN_RADIUS
   );
-  
+
   return tilesInRange
     .filter(tile =>
       tile.terrain !== 'water' &&
