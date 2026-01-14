@@ -13,6 +13,7 @@ import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { getUnitDefinition } from "@shared/data/units";
 import { GAME_RULES } from "@shared/data/gameRules";
+import { WORLD_ELEMENTS } from "@shared/data/worldElements";
 import { getActionAvailability } from "../../lib/helpers/actionAvailabilityHelpers";
 import type { Unit } from "@shared/types/unit";
 import { IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
@@ -65,6 +66,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     tile.coordinate.q === unit.coordinate.q &&
     tile.coordinate.r === unit.coordinate.r
   );
+  const worldElementIds = (currentTile?.resources || []).filter(resource => WORLD_ELEMENTS[resource]);
 
   const getClosestOwnedCityId = (): string | null => {
     const ownedCities = (gameState.cities || []).filter(c => c.ownerId === currentPlayer.id);
@@ -151,7 +153,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     // Jaredite ruins are a world element resource on the tile (not a map feature).
     const canExploreRuins =
       !!currentTile &&
-      (currentTile.resources || []).includes('jaredite_ruins') &&
+      worldElementIds.includes('jaredite_ruins') &&
       isPlayerTurn &&
       actionsRemaining > 0;
 
@@ -203,7 +205,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
               'No resources available',
             icon: <Coins className="w-4 h-4" />,
             cost: 'Turn',
-            available: actionAvailability.canHarvest && !!currentTile?.resources?.length
+            available: actionAvailability.canHarvest && worldElementIds.length > 0
           },
           {
             id: 'build_road',
@@ -607,13 +609,13 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         }
         break;
       case 'harvest_resource':
-        if (currentTile?.resources?.length) {
+        if (currentTile && worldElementIds.length > 0) {
           dispatch({
             type: 'WORLD_ELEMENT_HARVEST',
             payload: {
               playerId: currentPlayer.id,
               unitId: unit.id,
-              elementId: currentTile.resources[0],
+              elementId: worldElementIds[0],
               coordinate: currentTile.coordinate
             }
           });

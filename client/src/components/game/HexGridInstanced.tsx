@@ -6,6 +6,7 @@ import { Tile, GameMap } from "@shared/types/game";
 import type { HexCoordinate } from "@shared/types/coordinates";
 import { hexDistance, hexToPixel, pixelToHex } from "@shared/utils/hex";
 import { getUnitDefinition } from "@shared/data/units";
+import { WORLD_ELEMENTS } from "@shared/data/worldElements";
 import { getVisibleTilesInRange, calculateFogOfWarState } from "@shared/utils/lineOfSight";
 import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
@@ -436,6 +437,16 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
 
         const currentPlayer = activePlayer;
         const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
+        const worldElementIds = (clickedTile.resources || []).filter(resource => WORLD_ELEMENTS[resource]);
+        const primaryWorldElementId = worldElementIds[0];
+        const hasWorldElement = worldElementIds.length > 0;
+        const isVillage = clickedTile.feature === 'village';
+        const isNeutralVillage = isVillage && !clickedTile.cityOwner;
+        const cityOnTile = gameState?.cities?.find(c =>
+          c.coordinate.q === clickedTile.coordinate.q &&
+          c.coordinate.r === clickedTile.coordinate.r
+        );
+        const isOwnedCity = !!(currentPlayer && cityOnTile && cityOnTile.ownerId === currentPlayer.id);
 
         // Check if there's a visible unit on this tile
         const unitOnTile = gameState?.units.find(unit => {
@@ -586,46 +597,76 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         if (unitOnTile && currentPlayer) {
           // If clicking on a unit
           if (unitOnTile.playerId === currentPlayer.id) {
-            // Check if tile has both a unit AND resources - show context menu
-            const hasResources = clickedTile.resources && clickedTile.resources.length > 0;
+            const menuOptions: TileContextMenuOption[] = [];
+            const unitDef = getUnitDefinition(unitOnTile.type);
+            const unitName = unitDef?.name || unitOnTile.type;
 
-            if (hasResources) {
-              // Build context menu options
-              const unitDef = getUnitDefinition(unitOnTile.type);
-              const unitName = unitDef?.name || unitOnTile.type;
-              const resourceName = clickedTile.resources[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+            menuOptions.push({
+              id: 'select-unit',
+              label: `Select ${unitName}`,
+              icon: '⚔️',
+              action: () => {
+                setSelectedUnit(unitOnTile);
+                setMovementMode(false);
+                setAttackMode(false);
+              }
+            });
 
-              const requirementSummary = getWorldElementRequirementSummary(clickedTile.resources[0]);
-              const menuOptions: TileContextMenuOption[] = [
-                {
-                  id: 'select-unit',
-                  label: `Select ${unitName}`,
-                  icon: '⚔️',
-                  action: () => {
-                    setSelectedUnit(unitOnTile);
-                    setMovementMode(false);
-                    setAttackMode(false);
-                  }
-                },
-                {
-                  id: 'interact-element',
-                  label: `Interact with ${resourceName}`,
-                  icon: '🏛️',
-                  subLabel: requirementSummary ? `Requires: ${requirementSummary}` : undefined,
-                  action: () => {
-                    const worldElementEvent = new CustomEvent('worldElementClick', {
-                      detail: {
-                        coordinate: clickedTile.coordinate,
-                        resources: clickedTile.resources,
-                        terrain: clickedTile.terrain
-                      }
-                    });
-                    window.dispatchEvent(worldElementEvent);
-                  }
+            if (hasWorldElement && primaryWorldElementId) {
+              const resourceName = primaryWorldElementId.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+              const requirementSummary = getWorldElementRequirementSummary(primaryWorldElementId);
+              menuOptions.push({
+                id: 'interact-element',
+                label: `Interact with ${resourceName}`,
+                icon: '🏛️',
+                subLabel: requirementSummary ? `Requires: ${requirementSummary}` : undefined,
+                action: () => {
+                  const worldElementEvent = new CustomEvent('worldElementClick', {
+                    detail: {
+                      coordinate: clickedTile.coordinate,
+                      resources: worldElementIds,
+                      terrain: clickedTile.terrain
+                    }
+                  });
+                  window.dispatchEvent(worldElementEvent);
                 }
-              ];
+              });
+            }
 
-              console.log('Tile has both unit and resources - showing context menu');
+            if (isNeutralVillage) {
+              menuOptions.push({
+                id: 'interact-village',
+                label: 'Interact with Village',
+                icon: '🏘️',
+                subLabel: 'Conquer or Convert',
+                action: () => {
+                  const villageEvent = new CustomEvent('villageEncounter', {
+                    detail: {
+                      unitId: unitOnTile.id,
+                      coordinate: clickedTile.coordinate
+                    }
+                  });
+                  window.dispatchEvent(villageEvent);
+                }
+              });
+            }
+
+            if (isOwnedCity) {
+              menuOptions.push({
+                id: 'open-city',
+                label: 'Open City',
+                icon: '🏙️',
+                action: () => {
+                  const cityEvent = new CustomEvent('openCityPanel', {
+                    detail: { cityId: cityOnTile?.id }
+                  });
+                  window.dispatchEvent(cityEvent);
+                }
+              });
+            }
+
+            if (menuOptions.length > 1) {
+              console.log('Tile has unit plus interactables - showing context menu');
               event.stopPropagation();
               openTileContextMenu(
                 { x: event.clientX, y: event.clientY },
@@ -644,13 +685,10 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             setAttackMode(false);
           } else {
             // Clicking on enemy/neutral unit
-            const hasResources = clickedTile.resources && clickedTile.resources.length > 0;
-
-            if (hasResources && !isAttackMode) {
+            if (hasWorldElement && primaryWorldElementId && !isAttackMode) {
               // Enemy unit on tile with resources - show context menu to interact with resource
-              const resourceName = clickedTile.resources[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-
-              const requirementSummary = getWorldElementRequirementSummary(clickedTile.resources[0]);
+              const resourceName = primaryWorldElementId.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+              const requirementSummary = primaryWorldElementId ? getWorldElementRequirementSummary(primaryWorldElementId) : null;
               const menuOptions: TileContextMenuOption[] = [
                 {
                   id: 'interact-element',
@@ -661,7 +699,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
                     const worldElementEvent = new CustomEvent('worldElementClick', {
                       detail: {
                         coordinate: clickedTile.coordinate,
-                        resources: clickedTile.resources,
+                        resources: worldElementIds,
                         terrain: clickedTile.terrain
                       }
                     });
@@ -716,7 +754,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           }
         } else if (!unitOnTile) {
           // Check for world elements on this tile first
-          if (clickedTile.resources && clickedTile.resources.length > 0) {
+          if (hasWorldElement) {
             console.log('🎯 Tile clicked with resources:', clickedTile.resources, 'at coordinate:', clickedTile.coordinate);
             console.log('🔍 Tile terrain:', clickedTile.terrain, 'Tile details:', clickedTile);
 
@@ -725,7 +763,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             const worldElementEvent = new CustomEvent('worldElementClick', {
               detail: {
                 coordinate: clickedTile.coordinate,
-                resources: clickedTile.resources,
+                resources: worldElementIds,
                 terrain: clickedTile.terrain
               }
             });

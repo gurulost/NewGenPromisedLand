@@ -2,6 +2,7 @@ import type { GameState, PlayerState } from "../types/game";
 import type { Unit } from "../types/unit";
 import { getUnitActionsRemaining, getValidAttackTargets, calculateReachableTiles } from "./unitLogic";
 import { getUnitDefinition } from "../data/units";
+import { WORLD_ELEMENTS } from "../data/worldElements";
 import { GAME_RULES } from "../data/gameRules";
 
 export interface ActionAvailabilityResult {
@@ -129,7 +130,8 @@ export function getActionAvailabilityForUnit(
   const currentTile = gameState.map.tiles.find(tile =>
     tile.coordinate.q === unit.coordinate.q && tile.coordinate.r === unit.coordinate.r
   );
-  const canHarvest = isPlayerTurn && actionsRemaining > 0 && !!(currentTile?.resources && currentTile.resources.length > 0);
+  const worldElementIds = (currentTile?.resources || []).filter(resource => WORLD_ELEMENTS[resource]);
+  const canHarvest = isPlayerTurn && actionsRemaining > 0 && worldElementIds.length > 0;
   const hasImprovement = (gameState.improvements || []).some(imp =>
     imp.coordinate.q === unit.coordinate.q && imp.coordinate.r === unit.coordinate.r
   );
