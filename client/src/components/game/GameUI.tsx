@@ -913,6 +913,27 @@ export default function GameUI() {
     };
   }, [isDev]);
 
+  // Listen for city panel open requests from the map
+  useEffect(() => {
+    const handleOpenCityPanel = (event: CustomEvent) => {
+      const cityId = event.detail?.cityId;
+      if (!cityId || !currentPlayer || !gameState) return;
+
+      const city = gameState.cities?.find(c => c.id === cityId);
+      if (!city) return;
+      if (!currentPlayer.citiesOwned.includes(city.id)) return;
+
+      setSelectedCityId(city.id);
+      setShowCityPanel(true);
+    };
+
+    window.addEventListener('openCityPanel', handleOpenCityPanel as EventListener);
+
+    return () => {
+      window.removeEventListener('openCityPanel', handleOpenCityPanel as EventListener);
+    };
+  }, [currentPlayer, gameState]);
+
   // Handle village capture actions
   const handleVillageCaptureAction = (actionType: 'conquer' | 'convert') => {
     if (!selectedVillage || !currentPlayer) return;
