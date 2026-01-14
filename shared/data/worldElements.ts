@@ -5,6 +5,7 @@
 
 import { HexCoordinate } from '../types/coordinates';
 import { GameState } from '../types/game';
+import { getUnitDefinition } from './units';
 
 export interface ElementAction {
   name: string;
@@ -389,7 +390,21 @@ export function executeElementAction(
 
     // Check unit requirement
     if (action.requiresUnitTag) {
-      // TODO: Check if player has required unit type at location
+      const requiredTag = String(action.requiresUnitTag).toUpperCase();
+      const unitsOnTile = gameState.units.filter(u =>
+        u.playerId === playerId &&
+        u.coordinate.q === coordinate.q &&
+        u.coordinate.r === coordinate.r
+      );
+      const hasRequiredUnit = unitsOnTile.some(unit => {
+        const unitDef = getUnitDefinition(unit.type as any);
+        const abilities = (unit.abilities ?? unitDef?.abilities ?? []).map(a => String(a).toUpperCase());
+        const tags = (unitDef?.tags ?? []).map(tag => String(tag).toUpperCase());
+        return abilities.includes(requiredTag) || tags.includes(requiredTag);
+      });
+      if (!hasRequiredUnit) {
+        return { success: false, message: `Requires ${action.requiresUnitTag} unit` };
+      }
     }
 
     // Apply resource changes
