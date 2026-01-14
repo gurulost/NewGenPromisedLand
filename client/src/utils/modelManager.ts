@@ -55,10 +55,35 @@ export const MODEL_PATHS = {
     metal: '/models/metal.glb',
 
     // New unified world elements models
-    timber_grove: '/models/forest_canopy.glb', // Enchanted forest model for timber groves
-    fishing_shoal: '/models/fish_shoal.glb', // Fish shoal model for water resources
-    jaredite_ruins: '/models/jaredite_ruins.glb', // Jaredite ruins model
-    ore_vein: '/models/ore_vein.glb', // Ore vein model for unified ore system
+    timber_grove: '/models/forest_canopy.glb',
+    fishing_shoal: '/models/fish_shoal.glb',
+    jaredite_ruins: '/models/jaredite_ruins.glb',
+    ore_vein: '/models/ore_vein.glb',
+  },
+  // Improvement models - tile-based constructions
+  improvements: {
+    farm: '/models/farm.glb',
+    mine: '/models/mine.glb',
+    forest_camp: '/models/forest_camp.glb',
+    lumber_hut: '/models/lumber_hut.glb',
+    sawmill: '/models/sawmill.glb',
+    plantation: '/models/plantation.glb',
+    irrigation: '/models/irrigation.glb',
+    workshop: '/models/workshop.glb',
+    port: '/models/port.glb',
+    aqueduct: '/models/aqueduct.glb',
+    road: '/models/road.glb',
+    shrine: '/models/shrine.glb',
+  },
+  // Structure models - city buildings
+  structures: {
+    temple: '/models/temple.glb',
+    granary: '/models/granary.glb',
+    lighthouse: '/models/lighthouse.glb',
+    cathedral: '/models/cathedral.glb',
+    academy: '/models/academy.glb',
+    library: '/models/library.glb',
+    fortress: '/models/fortress.glb',
   }
 };
 
@@ -80,6 +105,12 @@ const buildAvailableModelPaths = (): Set<string> => {
 
   // Add all resource models
   Object.values(MODEL_PATHS.resources).forEach(path => paths.add(path));
+
+  // Add all improvement models
+  Object.values(MODEL_PATHS.improvements).forEach(path => paths.add(path));
+
+  // Add all structure models
+  Object.values(MODEL_PATHS.structures).forEach(path => paths.add(path));
 
   return paths;
 };
@@ -109,6 +140,16 @@ export const preloadAllModels = () => {
 
   // Preload resource models
   Object.values(MODEL_PATHS.resources).forEach(path => {
+    if (isModelAvailable(path)) preloadPaths.add(path);
+  });
+
+  // Preload improvement models
+  Object.values(MODEL_PATHS.improvements).forEach(path => {
+    if (isModelAvailable(path)) preloadPaths.add(path);
+  });
+
+  // Preload structure models
+  Object.values(MODEL_PATHS.structures).forEach(path => {
     if (isModelAvailable(path)) preloadPaths.add(path);
   });
 
@@ -185,6 +226,20 @@ export const getResourceModelPath = (resourceType: string): string | null => {
     default:
       return null;
   }
+};
+
+// Get model path for a specific improvement type
+export const getImprovementModelPath = (improvementType: string): string | null => {
+  const path = MODEL_PATHS.improvements[improvementType as keyof typeof MODEL_PATHS.improvements];
+  if (isModelAvailable(path)) return path;
+  return null;
+};
+
+// Get model path for a specific structure type
+export const getStructureModelPath = (structureType: string): string | null => {
+  const path = MODEL_PATHS.structures[structureType as keyof typeof MODEL_PATHS.structures];
+  if (isModelAvailable(path)) return path;
+  return null;
 };
 
 // Initialize model preloading
