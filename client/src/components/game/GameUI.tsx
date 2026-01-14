@@ -737,6 +737,23 @@ export default function GameUI() {
   const [showSettings, setShowSettings] = useState(false);
   // Local screenFlash state removed in favor of VisualFeedbackProvider
 
+  const isEditableTarget = (target: EventTarget | null) => {
+    if (!target || !(target instanceof HTMLElement)) {
+      return false;
+    }
+    if (target.isContentEditable) {
+      return true;
+    }
+    const tagName = target.tagName;
+    return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
+  };
+
+  const shouldIgnoreGlobalHotkeys = () => {
+    if (showSaveLoadMenu) return true;
+    if (typeof document === 'undefined') return false;
+    return isEditableTarget(document.activeElement);
+  };
+
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
   const { isAIProcessing, currentAIPlayer } = useAITurn();
@@ -785,52 +802,52 @@ export default function GameUI() {
     const unsubscribe = subscribeKeys(
       (state) => state.endTurn,
       (pressed) => {
-        if (pressed) {
+        if (pressed && !shouldIgnoreGlobalHotkeys()) {
           handleEndTurn();
         }
       }
     );
     return unsubscribe;
-  }, [subscribeKeys]);
+  }, [subscribeKeys, showSaveLoadMenu]);
 
   // Deselect unit with escape
   useEffect(() => {
     const unsubscribe = subscribeKeys(
       (state) => state.cancel,
       (pressed) => {
-        if (pressed && selectedUnit) {
+        if (pressed && selectedUnit && !shouldIgnoreGlobalHotkeys()) {
           setSelectedUnit(null);
         }
       }
     );
     return unsubscribe;
-  }, [subscribeKeys, selectedUnit, setSelectedUnit]);
+  }, [subscribeKeys, selectedUnit, setSelectedUnit, showSaveLoadMenu]);
 
   // Save/Load keyboard shortcut
   useEffect(() => {
     const unsubscribe = subscribeKeys(
       (state) => state.save,
       (pressed) => {
-        if (pressed) {
+        if (pressed && !shouldIgnoreGlobalHotkeys()) {
           setShowSaveLoadMenu(true);
         }
       }
     );
     return unsubscribe;
-  }, [subscribeKeys]);
+  }, [subscribeKeys, showSaveLoadMenu]);
 
   // Diplomacy keyboard shortcut
   useEffect(() => {
     const unsubscribe = subscribeKeys(
       (state) => state.diplomacy,
       (pressed) => {
-        if (pressed) {
+        if (pressed && !shouldIgnoreGlobalHotkeys()) {
           setShowDiplomacy(prev => !prev);
         }
       }
     );
     return unsubscribe;
-  }, [subscribeKeys]);
+  }, [subscribeKeys, showSaveLoadMenu]);
 
   // Handle world element actions
   const handleWorldElementAction = (actionType: 'harvest' | 'build', unitId: string) => {
