@@ -1,5 +1,7 @@
 import { GameState, PlayerState } from '../types/game';
 import { executeAITurn, AIDecision, AIDifficulty } from './aiEngine';
+import { getUnitSpawnCoordinate } from '../logic/actions/spawnUtils';
+import type { UnitType } from '../types/unit';
 // Note: gameDebugger import removed to avoid cross-layer dependency
 
 /**
@@ -149,6 +151,27 @@ export class AITurnManager {
 
             if ((decision.constructionCategory === 'improvements' || decision.constructionCategory === 'structures') && decision.targetCoordinate) {
               payload.payload.coordinate = decision.targetCoordinate;
+            }
+
+            if (decision.constructionCategory === 'units' && decision.targetCoordinate) {
+              payload.payload.coordinate = decision.targetCoordinate;
+            } else if (decision.constructionCategory === 'units') {
+              const city = this.gameState.cities?.find(c => c.id === decision.cityId);
+              if (city) {
+                const spawnCoordinate = getUnitSpawnCoordinate(
+                  this.gameState,
+                  decision.buildingType as UnitType,
+                  city.coordinate,
+                  aiPlayer.id
+                );
+                if (spawnCoordinate) {
+                  payload.payload.coordinate = spawnCoordinate;
+                } else {
+                  return false;
+                }
+              } else {
+                return false;
+              }
             }
 
             this.onDispatchAction({
