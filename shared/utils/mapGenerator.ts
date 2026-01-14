@@ -2216,7 +2216,7 @@ export class MapGenerator {
     for (let capIndex = 0; capIndex < capitalPositions.length; capIndex++) {
       if (placedVillages.length >= targetTotal) break;
       const needsNear = earlyCount[capIndex] < targetEarlyMin;
-      const ringOrder = earlyCount[capIndex] > Math.min(...earlyCount)
+      const ringOrder: VillageRing[] = earlyCount[capIndex] > Math.min(...earlyCount)
         ? ['far', 'mid']
         : ['mid', 'far'];
       const placed = tryPlaceWithRings(capIndex, ringOrder, false, needsNear);
@@ -3626,7 +3626,8 @@ export class MapGenerator {
         .sort((a, b) => a.count - b.count);
 
       let placed = false;
-      const zoneBias = rng.next() < 0.7 ? ['mid', 'far', 'near'] : ['far', 'mid', 'near'];
+      const zoneBias: Array<'near' | 'mid' | 'far'> =
+        rng.next() < 0.7 ? ['mid', 'far', 'near'] : ['far', 'mid', 'near'];
 
       for (const { index } of orderedPlayers) {
         if (placeFromPool(index, zoneBias)) {

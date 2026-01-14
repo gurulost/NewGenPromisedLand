@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import SaveLoadMenu from '../../client/src/components/ui/SaveLoadMenu';
 import { useLocalGame } from '../../client/src/lib/stores/useLocalGame';
 import { GameState } from '../types/game';
@@ -13,6 +13,7 @@ vi.mock('lz-string', () => ({
 }));
 
 const mockUseLocalGame = useLocalGame as any;
+const originalFetch = globalThis.fetch;
 
 // Mock localStorage
 const localStorageMock = {
@@ -61,11 +62,18 @@ describe('SaveLoadMenu', () => {
     onClose: vi.fn()
   };
 
+  const renderMenu = async () => {
+    await act(async () => {
+      render(<SaveLoadMenu {...mockProps} />);
+    });
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     localStorageMock.length = 0;
     localStorageMock.getItem.mockReturnValue(null);
     localStorageMock.key.mockReturnValue(null);
+    (globalThis as any).fetch = vi.fn().mockRejectedValue(new Error('Network error'));
     
     mockUseLocalGame.mockReturnValue({
       gameState: mockGameState,
@@ -74,53 +82,55 @@ describe('SaveLoadMenu', () => {
   });
 
   afterEach(() => {
+    (globalThis as any).fetch = originalFetch;
     vi.clearAllMocks();
   });
 
-  it('renders save/load menu with title', () => {
-    render(<SaveLoadMenu {...mockProps} />);
+  it('renders save/load menu with title', async () => {
+    await renderMenu();
     
     expect(screen.getByText('Save & Load Game')).toBeInTheDocument();
   });
 
-  it('displays save current game section when gameState exists', () => {
-    render(<SaveLoadMenu {...mockProps} />);
+  it('displays save current game section when gameState exists', async () => {
+    await renderMenu();
     
     expect(screen.getByText('Save Current Game')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Enter save name...')).toBeInTheDocument();
     expect(screen.getByText('Save')).toBeInTheDocument();
   });
 
-  it('does not display save section when gameState is null', () => {
+  it('does not display save section when gameState is null', async () => {
     mockUseLocalGame.mockReturnValue({
       gameState: null,
       setGameState: vi.fn()
     });
     
-    render(<SaveLoadMenu {...mockProps} />);
+    await renderMenu();
     
     expect(screen.queryByText('Save Current Game')).not.toBeInTheDocument();
   });
 
-  it('enables save button only when save name is entered', () => {
-    render(<SaveLoadMenu {...mockProps} />);
+  it('enables save button only when save name is entered', async () => {
+    await renderMenu();
     
-    const saveButton = screen.getByText('Save');
+    const saveButton = screen.getByLabelText('Save');
     const nameInput = screen.getByPlaceholderText('Enter save name...');
     
     expect(saveButton).toBeDisabled();
     
     fireEvent.change(nameInput, { target: { value: 'Test Save' } });
-    expect(saveButton).not.toBeDisabled();
+    const updatedButton = screen.getByLabelText('Save');
+    expect(updatedButton).not.toBeDisabled();
   });
 
   it('saves game to localStorage when save button is clicked', async () => {
-    render(<SaveLoadMenu {...mockProps} />);
+    await renderMenu();
     
     const nameInput = screen.getByPlaceholderText('Enter save name...');
-    const saveButton = screen.getByText('Save');
     
     fireEvent.change(nameInput, { target: { value: 'Test Save' } });
+    const saveButton = screen.getByLabelText('Save');
     fireEvent.click(saveButton);
     
     await waitFor(() => {
@@ -131,13 +141,13 @@ describe('SaveLoadMenu', () => {
     });
   });
 
-  it('displays "No saved games found" when localStorage is empty', () => {
-    render(<SaveLoadMenu {...mockProps} />);
+  it('displays "No saved games found" when localStorage is empty', async () => {
+    await renderMenu();
     
     expect(screen.getByText('No saved games found')).toBeInTheDocument();
   });
 
-  it('loads saved games from localStorage', () => {
+  it('loads saved games from localStorage', async () => {
     const mockSaveData = {
       id: 'save_123',
       name: 'Test Save',
@@ -155,7 +165,7 @@ describe('SaveLoadMenu', () => {
     localStorageMock.key.mockReturnValue('chronicles_save_save_123');
     localStorageMock.getItem.mockReturnValue(JSON.stringify(mockSaveData));
 
-    render(<SaveLoadMenu {...mockProps} />);
+    await renderMenu();
     
     
     expect(screen.getByText('Test Save')).toBeInTheDocument();
@@ -188,7 +198,7 @@ describe('SaveLoadMenu', () => {
     localStorageMock.key.mockReturnValue('chronicles_save_save_123');
     localStorageMock.getItem.mockReturnValue(JSON.stringify(mockSaveData));
 
-    render(<SaveLoadMenu {...mockProps} />);
+    await renderMenu();
     
     
     // Click on the save to select it
@@ -206,7 +216,7 @@ describe('SaveLoadMenu', () => {
   });
 
   it('allows saving game with Enter key', async () => {
-    render(<SaveLoadMenu {...mockProps} />);
+    await renderMenu();
     
     
     const nameInput = screen.getByPlaceholderText('Enter save name...');
@@ -218,15 +228,15 @@ describe('SaveLoadMenu', () => {
     expect(screen.getByDisplayValue('Test Save')).toBeInTheDocument();
   });
 
-  it('shows import/export section', () => {
-    render(<SaveLoadMenu {...mockProps} />);
+  it('shows import/export section', async () => {
+    await renderMenu();
     
     
     expect(screen.getByText('Import/Export')).toBeInTheDocument();
     expect(screen.getByText('Import Save')).toBeInTheDocument();
   });
 
-  it('shows export button only when save is selected', () => {
+  it('shows export button only when save is selected', async () => {
     const mockSaveData = {
       id: 'save_123',
       name: 'Test Save',
@@ -244,7 +254,7 @@ describe('SaveLoadMenu', () => {
     localStorageMock.key.mockReturnValue('chronicles_save_save_123');
     localStorageMock.getItem.mockReturnValue(JSON.stringify(mockSaveData));
 
-    render(<SaveLoadMenu {...mockProps} />);
+    await renderMenu();
     
     
     expect(screen.queryByText('Export Selected')).not.toBeInTheDocument();
@@ -274,7 +284,7 @@ describe('SaveLoadMenu', () => {
     localStorageMock.key.mockReturnValue('chronicles_save_save_123');
     localStorageMock.getItem.mockReturnValue(JSON.stringify(mockSaveData));
 
-    render(<SaveLoadMenu {...mockProps} />);
+    await renderMenu();
     
     
     const deleteButton = screen.getAllByRole('button').find(btn => 
@@ -290,24 +300,24 @@ describe('SaveLoadMenu', () => {
     }
   });
 
-  it('handles corrupt save data gracefully', () => {
+  it('handles corrupt save data gracefully', async () => {
     localStorageMock.length = 1;
     localStorageMock.key.mockReturnValue('chronicles_save_corrupt');
     localStorageMock.getItem.mockReturnValue('invalid-json');
 
-    render(<SaveLoadMenu {...mockProps} />);
+    await renderMenu();
     
     
     // Should still render without crashing
     expect(screen.getByText('Save & Load Game')).toBeInTheDocument();
   });
 
-  it('closes menu when close button is clicked', () => {
-    render(<SaveLoadMenu {...mockProps} />);
+  it('closes menu when close button is clicked', async () => {
+    await renderMenu();
     
     
-    // Find the close button (X button without text)
-    const closeButton = screen.getByRole('button', { name: '' });
+    // Find the close button
+    const closeButton = screen.getByRole('button', { name: /close/i });
     fireEvent.click(closeButton);
     
     expect(mockProps.onClose).toHaveBeenCalled();

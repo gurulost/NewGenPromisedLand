@@ -8,9 +8,13 @@ import { getAvailableTechnologies, TECHNOLOGIES } from '../data/technologies';
 import type { UnitType } from '../types/unit';
 import { applyPopulationGain } from './cityGrowth';
 import { emitTelemetry } from './telemetry';
-import { getUnitActionsRemaining } from './unitLogic';
+import { getUnitActionsRemaining, getUnitAttackRangeFromDefinition } from './unitLogic';
 
 type WeightedRuinReward = RuinReward & { weight: number };
+
+const normalizeAbility = (abilityId: string) => abilityId.toUpperCase();
+const hasAbility = (abilities: string[] | undefined, abilityId: string) =>
+  (abilities || []).some(ability => normalizeAbility(String(ability)) === normalizeAbility(abilityId));
 
 function createRngId(rng: () => number, prefix: string): string {
   return `${prefix}_${Math.floor(rng() * 1e9).toString(36)}`;
@@ -91,11 +95,11 @@ function hasRequiredTag(unitType: UnitType, requiredTag: string): boolean {
 
   // Naval commander tag check for sea beast harvesting
   if (requiredTag === 'naval_commander') {
-    return unitType === 'commander' && unitDef.abilities.includes('NAVAL_COMMAND');
+    return unitType === 'commander' && hasAbility(unitDef.abilities, 'NAVAL_COMMAND');
   }
 
   if (requiredTag === 'naval_transport') {
-    return unitType === 'boat' || unitDef.abilities.includes('NAVAL_TRANSPORT');
+    return unitType === 'boat' || hasAbility(unitDef.abilities, 'NAVAL_TRANSPORT');
   }
 
   return false;
@@ -636,7 +640,7 @@ function executeRuinExploration(
         level: 1,
         experience: 0,
         visionRadius: unitDef.baseStats.visionRadius,
-        attackRange: unitDef.baseStats.attackRange,
+        attackRange: getUnitAttackRangeFromDefinition(unitDef),
         hasAttacked: true
       };
       newUnits.push(newUnit);

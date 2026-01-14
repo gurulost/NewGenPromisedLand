@@ -156,7 +156,7 @@ const getAbilityDescriptor = (abilityId: string): EffectDescriptor => {
     HEAL: () => ({
       id: `ability_HEAL`,
       label: "Heal",
-      value: `Spend 5 Faith to heal allies within 2 tiles for +3 HP and cleanse morale debuffs.`,
+      value: `Spend ${GAME_RULES.abilities.resourceCosts.missionaryHeal} Faith to heal allies within ${GAME_RULES.abilities.healRadius} tiles for +${GAME_RULES.units.healingAmount} HP and cleanse morale debuffs.`,
       iconKey: "faith",
     }),
     CONVERT: () => ({

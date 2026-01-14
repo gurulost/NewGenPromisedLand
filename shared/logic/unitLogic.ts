@@ -12,10 +12,27 @@ import { getVisibleTilesInRange } from "../utils/lineOfSight";
  */
 
 const normalizeAbility = (abilityId: string) => abilityId.toUpperCase();
-const unitHasAbility = (unit: Unit, abilityId: string) =>
+export const unitHasAbility = (unit: Unit, abilityId: string) =>
   (unit.abilities || []).some(ability => normalizeAbility(String(ability)) === normalizeAbility(abilityId));
 const unitHasBombardment = (unit: Unit) =>
   unitHasAbility(unit, 'SIEGE') || unitHasAbility(unit, 'BOMBARDMENT');
+
+export const getUnitAttackRangeFromDefinition = (
+  unitDef?: ReturnType<typeof getUnitDefinition>
+): number => {
+  const baseRange = unitDef?.baseStats?.attackRange ?? 1;
+  const hasRangedAbility = (unitDef?.abilities || []).some(
+    ability => normalizeAbility(String(ability)) === 'RANGED_ATTACK'
+  );
+  if (hasRangedAbility && baseRange <= 1) return 2;
+  return baseRange;
+};
+
+export const getEffectiveAttackRange = (unit: Unit): number => {
+  const baseRange = unit.attackRange ?? 1;
+  if (baseRange > 1) return baseRange;
+  return unitHasAbility(unit, 'RANGED_ATTACK') ? 2 : baseRange;
+};
 const isNavalUnit = (unit?: Unit) => {
   if (!unit) return false;
   const unitDef = getUnitDefinition(unit.type as any);
@@ -268,7 +285,7 @@ export function getValidAttackTargets(
     
     // Must be within attack range using proper hex distance
     const distance = hexDistance(unit.coordinate, target.coordinate);
-    if (distance > unit.attackRange) return false;
+    if (distance > getEffectiveAttackRange(unit)) return false;
 
     if (target.status === 'stealthed' && distance > 1) return false;
     if (hasBombardment && distance <= 1) return false;
@@ -305,7 +322,7 @@ export function canUnitAttackTarget(
   // Must be within attack range using proper hex distance
   const distance = hexDistance(attacker.coordinate, target.coordinate);
 
-  if (distance > attacker.attackRange) return false;
+  if (distance > getEffectiveAttackRange(attacker)) return false;
 
   const hasBombardment = unitHasBombardment(attacker);
   if (hasBombardment && distance <= 1) return false;

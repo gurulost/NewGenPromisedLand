@@ -168,7 +168,7 @@ describe('HexGridInstanced UI Interactions', () => {
 
     // This test ensures that the component properly validates movement
     // The actual click interaction would be tested in integration tests
-    expect(reachableTiles).toContain({ q: 1, r: 0, s: -1 });
+    expect(reachableTiles).toContainEqual({ q: 1, r: 0, s: -1 });
   });
 
   it('should handle combat scenarios with valid targets', () => {

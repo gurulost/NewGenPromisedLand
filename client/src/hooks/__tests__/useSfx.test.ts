@@ -1,25 +1,27 @@
 import { renderHook, act } from '@testing-library/react';
+import { vi } from 'vitest';
 import { useSfxEngine } from '../useSfx';
 import { useAudio } from '../../lib/stores/useAudio';
 
-jest.mock('../../lib/stores/useAudio', () => ({
+vi.mock('../../lib/stores/useAudio', () => ({
   useAudio: {
-    getState: jest.fn(),
+    getState: vi.fn(),
   },
 }));
 
-const playSfxMock = jest.fn();
+const playSfxMock = vi.fn();
+let nowSeed = 1_000_000;
 
 describe('useSfxEngine', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.clearAllTimers();
-    jest.useFakeTimers();
-    (useAudio.getState as jest.Mock).mockReturnValue({ playSfx: playSfxMock });
+    vi.clearAllMocks();
+    nowSeed += 1000;
+    vi.spyOn(Date, 'now').mockReturnValue(nowSeed);
+    (useAudio.getState as unknown as { mockReturnValue: (value: any) => void }).mockReturnValue({ playSfx: playSfxMock });
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('returns a function', () => {
@@ -91,12 +93,13 @@ describe('useSfxEngine', () => {
     
     expect(playSfxMock).toHaveBeenCalledTimes(1);
     
-    // Fast forward past throttle period
+    const nowSpy = Date.now as unknown as { mockReturnValueOnce: (value: number) => void };
+    nowSpy.mockReturnValueOnce(nowSeed + 200);
+
     act(() => {
-      jest.advanceTimersByTime(200);
       playSfx('cta-click');
     });
-    
+
     expect(playSfxMock).toHaveBeenCalledTimes(2);
   });
 

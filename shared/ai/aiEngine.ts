@@ -12,7 +12,7 @@ import { FactionPersonalityEngine } from './aiFactionPersonality';
 import { SeededRNG, aiDebugOverlay } from './aiFoundation';
 import { emitTelemetry } from '../logic/telemetry';
 import { getTechCostDetails } from '../logic/technologyHelpers';
-import { calculateReachableTiles, canUnitReachCoordinate, getUnitActionsRemaining } from '../logic/unitLogic';
+import { calculateReachableTiles, canUnitReachCoordinate, getUnitActionsRemaining, getUnitAttackRangeFromDefinition } from '../logic/unitLogic';
 import { resolveCombat } from '../logic/combatResolver';
 import { getFriendlyBuildAnchors, isTileExploredByPlayer, isWithinFriendlyBuildRadius, STRUCTURE_BUILD_RADIUS } from '../logic/constructionRules';
 import type { Technology } from '../data/technologies';
@@ -237,7 +237,7 @@ export class AIEngine {
       if (unit.remainingMovement <= 0) continue;
 
       const unitDef = getUnitDefinition(unit.type);
-      const attackRange = unitDef.baseStats.attackRange || 1;
+      const attackRange = getUnitAttackRangeFromDefinition(unitDef);
 
       // Find enemy units within attack range
       for (const enemy of enemyUnits) {
@@ -984,7 +984,7 @@ export class AIEngine {
       if (this.reservedUnits.has(unit.id)) continue;
       const abilitySet = new Set((unit.abilities || []).map(a => a.toLowerCase()));
 
-      if (abilitySet.has('heal') && getUnitActionsRemaining(unit) > 0 && this.aiPlayer.stats.faith >= 5) {
+      if (abilitySet.has('heal') && getUnitActionsRemaining(unit) > 0 && this.aiPlayer.stats.faith >= GAME_RULES.abilities.resourceCosts.missionaryHeal) {
         const healValue = this.evaluateHealOpportunity(unit);
         if (healValue > 0) {
           decisions.push({
@@ -1026,14 +1026,17 @@ export class AIEngine {
         }
       }
 
-      if (abilitySet.has('rally') && getUnitActionsRemaining(unit) > 0 && this.aiPlayer.stats.pride >= 5) {
-        const allies = this.countAlliesInRadius(unit, 2);
-        if (allies >= 2) {
-          decisions.push({
-            type: 'RALLY_TROOPS',
-            unitId: unit.id,
-            priority: 60 + allies * 5,
-          });
+      if ((abilitySet.has('rally') || abilitySet.has('rally_troops')) && getUnitActionsRemaining(unit) > 0) {
+        const cooldown = this.aiPlayer.abilityCooldowns?.[`${unit.id}_rally_troops`] ?? 0;
+        if (cooldown <= 0) {
+          const allies = this.countAlliesInRadius(unit, 2);
+          if (allies >= 2) {
+            decisions.push({
+              type: 'RALLY_TROOPS',
+              unitId: unit.id,
+              priority: 60 + allies * 5,
+            });
+          }
         }
       }
     }

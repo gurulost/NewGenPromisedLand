@@ -1,10 +1,11 @@
 import { render, screen } from '@testing-library/react';
+import { vi } from 'vitest';
 import { RequirementBanner } from '../RequirementBanner';
 
 const stripMotionProps = ({ animate, initial, exit, transition, whileHover, whileTap, layout, layoutId, ...rest }: any) => rest;
 
 // Mock framer-motion
-jest.mock('framer-motion', () => ({
+vi.mock('framer-motion', () => ({
   motion: {
     div: ({ children, className, ...props }: any) => (
       <div className={className} data-testid="motion-div" {...stripMotionProps(props)}>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameReducer } from '../../shared/logic/gameReducer';
+import { resolveActionState } from '../../shared/logic/resolveAction';
 import type { GameState } from '../../shared/types/game';
 
 describe('Morale events (Pride/Dissent)', () => {
@@ -75,7 +75,7 @@ describe('Morale events (Pride/Dissent)', () => {
       structures: [],
     };
 
-    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const after = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     expect(after.units.length).toBe(1); // no desertion possible
   });
 
@@ -170,7 +170,7 @@ describe('Morale events (Pride/Dissent)', () => {
       structures: [],
     };
 
-    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const after = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     expect(after.units.some(u => u.id === 'u1')).toBe(false);
     expect(after.units.length).toBe(1);
   });
@@ -227,7 +227,7 @@ describe('Morale events (Pride/Dissent)', () => {
       structures: [],
     };
 
-    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const after = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     expect(after.cities.find(c => c.id === 'c1')?.unrestTurns).toBe(3);
   });
 });

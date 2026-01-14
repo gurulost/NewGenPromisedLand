@@ -70,8 +70,14 @@ const createState = (players: PlayerState[], units: Unit[]): GameState => ({
 });
 
 describe('getUnitAbilityStates', () => {
-  it('marks missionary abilities ready with sufficient faith and tech', () => {
+  it('marks missionary abilities ready with sufficient faith and valid targets', () => {
     const missionary = createUnit();
+    const ally = createUnit({
+      id: 'ally',
+      playerId: 'player1',
+      hp: 10,
+      maxHp: 20,
+    });
     const enemy = createUnit({
       id: 'enemy1',
       type: 'warrior',
@@ -81,9 +87,8 @@ describe('getUnitAbilityStates', () => {
     });
     const player = createPlayer({
       stats: { faith: 30, pride: 10, internalDissent: 5 },
-      researchedTechs: ['spirituality'],
     });
-    const state = createState([player] as any, [missionary, enemy]);
+    const state = createState([player] as any, [missionary, ally, enemy]);
 
     const abilityStates = getUnitAbilityStates(missionary, player, state);
     const heal = abilityStates.find(state => state.abilityId === 'HEAL');
@@ -93,7 +98,7 @@ describe('getUnitAbilityStates', () => {
     expect(convert?.status).toBe('ready');
   });
 
-  it('locks missionary heal without spirituality tech', () => {
+  it('locks missionary heal when no damaged allies are in range', () => {
     const missionary = createUnit();
     const player = createPlayer({
       stats: { faith: 30, pride: 10, internalDissent: 5 },
@@ -105,7 +110,7 @@ describe('getUnitAbilityStates', () => {
     const heal = abilityStates.find(state => state.abilityId === 'HEAL');
 
     expect(heal?.status).toBe('locked');
-    expect(heal?.reason).toMatch(/Requires Spirituality/i);
+    expect(heal?.reason).toMatch(/No damaged allies/i);
   });
 
   it('locks convert when no adjacent enemy is present', () => {
@@ -120,7 +125,7 @@ describe('getUnitAbilityStates', () => {
     const convert = abilityStates.find(state => state.abilityId === 'CONVERT');
 
     expect(convert?.status).toBe('locked');
-    expect(convert?.reason).toMatch(/No adjacent enemy/i);
+    expect(convert?.reason).toMatch(/No enemy in conversion range/i);
   });
 
   it('shows catapult bombardment locked until siege mode is active', () => {

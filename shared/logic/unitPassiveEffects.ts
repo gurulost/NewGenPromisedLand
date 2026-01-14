@@ -60,7 +60,7 @@ export function computeUnitPassiveEffectsForPlayer(
   playerId: string,
   statsForConditions: PlayerState['stats']
 ): { perTurn: PerTurnDelta; cooldownDelta: CooldownDelta; breakdown: UnitPassiveBreakdown } {
-  const myUnits = state.units.filter(u => u.playerId === playerId);
+  const myUnits = (state.units ?? []).filter(u => u.playerId === playerId);
   const counts = new Map<UnitType, number>();
   for (const u of myUnits) {
     counts.set(u.type, (counts.get(u.type) || 0) + 1);

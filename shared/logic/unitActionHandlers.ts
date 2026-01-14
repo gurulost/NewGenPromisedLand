@@ -4,7 +4,13 @@ import { getUnitDefinition } from '../data/units';
 import { hexDistance } from '../utils/hex';
 import { getUnitActionsRemaining, spendUnitActions } from './unitLogic';
 import { nextId } from './rng';
-import { clamp01 } from '../utils/math';
+import { clampStat } from '../utils/math';
+import { GAME_RULES } from '../data/gameRules';
+import { applyStatusEffect, cleanseMoraleDebuffs } from './statusEffects';
+
+const normalizeAbility = (abilityId: string) => abilityId.toUpperCase();
+const hasAbility = (abilities: string[] | undefined, abilityId: string) =>
+    (abilities || []).some(ability => normalizeAbility(String(ability)) === normalizeAbility(abilityId));
 
 // Clear Forest Handler
 export function handleClearForest(
@@ -28,10 +34,11 @@ export function handleClearForest(
     );
 
     if (!targetTile || targetTile.terrain !== 'forest') return state;
+    if (targetTile.hasCity) return state;
 
     // Check if unit can perform this action
     const unitDef = getUnitDefinition(unit.type);
-    if (!unitDef.abilities.includes('CLEAR_FOREST')) return state;
+    if (!hasAbility(unitDef?.abilities, 'CLEAR_FOREST')) return state;
 
     // Check if unit is adjacent or on the tile
     const distance = hexDistance(unit.coordinate, targetCoordinate);
@@ -47,8 +54,8 @@ export function handleClearForest(
                     stars: p.stars + 2,
                     stats: {
                         ...p.stats,
-                        pride: clamp01(p.stats.pride + 1),
-                        internalDissent: clamp01(p.stats.internalDissent + 1)
+                        pride: clampStat(p.stats.pride + 1),
+                        internalDissent: clampStat(p.stats.internalDissent + 1)
                     }
                 }
                 : p
@@ -94,7 +101,7 @@ export function handleBuildRoad(
 
     // Check if unit can perform this action
     const unitDef = getUnitDefinition(unit.type);
-    if (!unitDef.abilities.includes('BUILD_ROAD')) return state;
+    if (!hasAbility(unitDef?.abilities, 'BUILD_ROAD')) return state;
 
     // Check if unit is adjacent or on the tile
     const distance = hexDistance(unit.coordinate, targetCoordinate);
@@ -151,14 +158,15 @@ export function handleHealUnit(
 
     // Check if unit has heal ability and hasn't acted
     // Use lowercase 'heal' to match data
-    if (!unit.abilities.includes('heal') || getUnitActionsRemaining(unit) <= 0) return state;
+    if (!hasAbility(unit.abilities, 'HEAL') || getUnitActionsRemaining(unit) <= 0) return state;
 
     // Check faith cost requirement
     const player = state.players.find(p => p.id === playerId);
-    if (!player || player.stats.faith < 5) return state;
+    const faithCost = GAME_RULES.abilities.resourceCosts.missionaryHeal;
+    if (!player || player.stats.faith < faithCost) return state;
 
     // Find nearby friendly units to heal (within 2 tiles)
-    const healRadius = 2;
+    const healRadius = GAME_RULES.abilities.healRadius;
     let unitsHealed = 0;
 
     const updatedUnits = state.units.map(u => {
@@ -166,27 +174,19 @@ export function handleHealUnit(
             const distance = hexDistance(unit.coordinate, u.coordinate);
             if (distance <= healRadius && u.hp < u.maxHp) {
                 unitsHealed++;
-                // Canonical: heal up to 3 HP per target, also cleanse morale debuffs
-                const existingEffects = Array.isArray((u as any).statusEffects)
-                    ? (u as any).statusEffects
-                    : [];
-                const cleansedEffects = existingEffects.filter(
-                    (e: any) => e?.type !== 'INTIMIDATED' && e?.type !== 'TESTIMONY_PRESSURE'
-                );
+                // Canonical: heal up to the configured amount per target, also cleanse morale debuffs
                 return {
                     ...u,
-                    hp: Math.min(u.maxHp, u.hp + 3),
-                    statusEffects: cleansedEffects
+                    hp: Math.min(u.maxHp, u.hp + GAME_RULES.units.healingAmount),
+                    statusEffects: cleanseMoraleDebuffs(u).statusEffects
                 } as Unit;
             }
         }
         return u;
     });
 
-    // If no units were healed, action still consumed but no Faith cost
-    if (unitsHealed === 0) {
-        return state; // Don't consume action if no valid targets
-    }
+    // If no units were healed, don't consume action or Faith.
+    if (unitsHealed === 0) return state;
 
     // Mark the healing unit as having acted and consume faith
     const updatedHealingUnits = updatedUnits.map(u =>
@@ -196,7 +196,7 @@ export function handleHealUnit(
     // Only charge Faith if at least one unit was healed
     const updatedPlayers = state.players.map(p =>
         p.id === playerId
-            ? { ...p, stats: { ...p.stats, faith: p.stats.faith - 5 } }
+            ? { ...p, stats: { ...p.stats, faith: p.stats.faith - faithCost } }
             : p
     );
 
@@ -217,7 +217,7 @@ export function handleApplyStealth(
     if (!unit || unit.playerId !== playerId) return state;
 
     // Check if unit has stealth ability and hasn't acted
-    if (!unit.abilities.includes('stealth') || getUnitActionsRemaining(unit) <= 0) return state;
+    if (!hasAbility(unit.abilities, 'STEALTH') || getUnitActionsRemaining(unit) <= 0) return state;
     if (unit.status === 'stealthed') return state;
 
     // Canonical: entering stealth clears formation/fortified status
@@ -247,20 +247,24 @@ export function handleReconnaissance(
     if (!unit || unit.playerId !== playerId) return state;
 
     // Check if unit has reconnaissance ability and hasn't acted
-    if (!unit.abilities.includes('reconnaissance') || getUnitActionsRemaining(unit) <= 0) return state;
+    if (!hasAbility(unit.abilities, 'RECONNAISSANCE') || getUnitActionsRemaining(unit) <= 0) return state;
 
-    // Reveal large area around unit (radius 4)
-    const reconRadius = 4;
+    // Reveal large area around unit (use canonical rules)
+    const reconRadius = GAME_RULES.abilities.visionRevealRadius;
     const player = state.players.find(p => p.id === playerId);
     if (!player) return state;
 
+    const tileKeys = new Set(state.map.tiles.map(tile => `${tile.coordinate.q},${tile.coordinate.r}`));
     const newVisibleTiles: string[] = [];
     for (let q = unit.coordinate.q - reconRadius; q <= unit.coordinate.q + reconRadius; q++) {
         for (let r = unit.coordinate.r - reconRadius; r <= unit.coordinate.r + reconRadius; r++) {
             const s = -q - r;
             const distance = Math.max(Math.abs(q - unit.coordinate.q), Math.abs(r - unit.coordinate.r), Math.abs(s - (-unit.coordinate.q - unit.coordinate.r)));
             if (distance <= reconRadius) {
-                newVisibleTiles.push(`${q},${r}`);
+                const tileKey = `${q},${r}`;
+                if (tileKeys.has(tileKey)) {
+                    newVisibleTiles.push(tileKey);
+                }
             }
         }
     }
@@ -321,6 +325,7 @@ export function handleCoastalExplore(
     const exploreRadius = hasNavigation ? 3 : 2;
 
     // Collect tiles to reveal
+    const tileKeys = new Set(state.map.tiles.map(tile => `${tile.coordinate.q},${tile.coordinate.r}`));
     const newVisibleTiles: string[] = [];
     const existingExplored = new Set(player.exploredTiles);
     let newTileCount = 0;
@@ -335,22 +340,29 @@ export function handleCoastalExplore(
             );
             if (distance <= exploreRadius) {
                 const tileKey = `${q},${r}`;
-                newVisibleTiles.push(tileKey);
-                if (!existingExplored.has(tileKey)) {
-                    newTileCount++;
+                if (tileKeys.has(tileKey)) {
+                    newVisibleTiles.push(tileKey);
+                    if (!existingExplored.has(tileKey)) {
+                        newTileCount++;
+                    }
                 }
             }
         }
     }
 
-    // Deterministic reward: +1 Star per 2 new tiles, max 2 stars
-    const starReward = Math.min(2, Math.floor(newTileCount / 2));
+    // Deterministic reward: +1 Star per 4 new tiles (max 2), +1 Faith per 6 new tiles (max 1)
+    const starReward = Math.min(2, Math.floor(newTileCount / 4));
+    const faithReward = Math.min(1, Math.floor(newTileCount / 6));
 
     const updatedPlayers = state.players.map(p =>
         p.id === playerId
             ? {
                 ...p,
                 stars: p.stars + starReward,
+                stats: {
+                    ...p.stats,
+                    faith: clampStat(p.stats.faith + faithReward)
+                },
                 visibilityMask: Array.from(new Set([...p.visibilityMask, ...newVisibleTiles])),
                 exploredTiles: Array.from(new Set([...p.exploredTiles, ...newVisibleTiles]))
             }
@@ -389,7 +401,7 @@ export function handleFormationFighting(
     if (getUnitActionsRemaining(unit) <= 0) return state;
 
     // Check if unit has formation fighting ability
-    if (!unit.abilities.includes('formation_fighting')) return state;
+    if (!hasAbility(unit.abilities, 'FORMATION_FIGHTING')) return state;
 
     // Apply formation bonus - this is passive, just mark the unit as having used the action
     const updatedUnits = state.units.map(u =>
@@ -414,7 +426,7 @@ export function handleSiegeMode(
     if (!unit || unit.playerId !== playerId) return state;
 
     // Check if unit has siege ability and is stationary
-    if (!unit.abilities.includes('siege') || unit.remainingMovement !== unit.movement) return state;
+    if (!hasAbility(unit.abilities, 'SIEGE') || unit.remainingMovement !== unit.movement) return state;
     if (getUnitActionsRemaining(unit) <= 0) return state;
 
     const updatedUnits = state.units.map(u =>
@@ -439,7 +451,10 @@ export function handleRallyTroops(
     if (!unit || unit.playerId !== playerId) return state;
 
     // Check if unit has rally ability and hasn't acted
-    if (!(unit.abilities.includes('rally') || unit.abilities.includes('rally_troops')) || getUnitActionsRemaining(unit) <= 0) return state;
+    if (
+        !(hasAbility(unit.abilities, 'RALLY') || hasAbility(unit.abilities, 'RALLY_TROOPS')) ||
+        getUnitActionsRemaining(unit) <= 0
+    ) return state;
 
     const player = state.players.find(p => p.id === playerId);
     if (!player) return state;
@@ -462,8 +477,13 @@ export function handleRallyTroops(
                     targetDef?.tags?.includes('influence') ||
                     targetDef?.tags?.includes('diplomat');
                 if (!isCivilian) {
-                    // Apply rallied status (+2 Attack until next attack)
-                    return { ...u, status: 'rallied' as const };
+                    // Apply rallied status (+2 Attack until next attack or end of next turn)
+                    const withEffect = applyStatusEffect(u, { type: 'RALLIED', turnsRemaining: 2 });
+                    if (!withEffect) return u;
+                    return {
+                        ...withEffect,
+                        status: 'rallied' as const,
+                    };
                 }
             }
         }
@@ -480,7 +500,7 @@ export function handleRallyTroops(
         p.id === playerId
             ? {
                 ...p,
-                stats: { ...p.stats, pride: clamp01(p.stats.pride + 1) },
+                stats: { ...p.stats, pride: clampStat(p.stats.pride + 1) },
                 abilityCooldowns: {
                     ...p.abilityCooldowns,
                     [cooldownKey]: 2

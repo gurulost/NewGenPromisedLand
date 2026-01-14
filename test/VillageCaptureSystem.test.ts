@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { gameReducer } from '@shared/logic/gameReducer';
+import { resolveActionState } from '@shared/logic/resolveAction';
 import { GameState, PlayerState } from '@shared/types/game';
 import { Unit } from '@shared/types/unit';
 import { HexCoordinate } from '@shared/utils/coordinates';
@@ -101,7 +101,7 @@ describe('Village Capture System - Moral Choice', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, action);
+      const newState = resolveActionState(mockGameState, action);
 
       // Check that village is now owned by player and marked as conquered
       const villageTile = newState.map.tiles.find(tile =>
@@ -139,7 +139,7 @@ describe('Village Capture System - Moral Choice', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, action);
+      const newState = resolveActionState(mockGameState, action);
 
       // Player should not receive additional rewards
       const updatedPlayer = newState.players.find(p => p.id === 'player1');
@@ -160,7 +160,7 @@ describe('Village Capture System - Moral Choice', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, action);
+      const newState = resolveActionState(mockGameState, action);
 
       // Village should now be conquered by capturing player
       const villageTile = newState.map.tiles.find(tile =>
@@ -189,7 +189,7 @@ describe('Village Capture System - Moral Choice', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, action);
+      const newState = resolveActionState(mockGameState, action);
 
       // Check that village is now owned by player and marked as converted
       const villageTile = newState.map.tiles.find(tile =>
@@ -227,7 +227,7 @@ describe('Village Capture System - Moral Choice', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, action);
+      const newState = resolveActionState(mockGameState, action);
 
       // Village should remain neutral
       const villageTile = newState.map.tiles.find(tile =>
@@ -258,7 +258,7 @@ describe('Village Capture System - Moral Choice', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, action);
+      const newState = resolveActionState(mockGameState, action);
 
       // Player should not receive additional rewards
       const updatedPlayer = newState.players.find(p => p.id === 'player1');
@@ -278,7 +278,7 @@ describe('Village Capture System - Moral Choice', () => {
         }
       };
 
-      let state = gameReducer(mockGameState, convertAction);
+      let state = resolveActionState(mockGameState, convertAction);
 
       // Verify village is converted with bonus
       const villageTile = state.map.tiles.find(tile =>
@@ -292,7 +292,7 @@ describe('Village Capture System - Moral Choice', () => {
         payload: { playerId: 'player1' }
       };
 
-      state = gameReducer(state, endTurnAction);
+      state = resolveActionState(state, endTurnAction);
 
       // Player should have received the ongoing bonus
       // Starting stars: 10 + 2 (from convert) = 12
@@ -311,7 +311,7 @@ describe('Village Capture System - Moral Choice', () => {
         }
       };
 
-      let state = gameReducer(mockGameState, conquerAction);
+      let state = resolveActionState(mockGameState, conquerAction);
 
       // Verify village is conquered with no bonus
       const villageTile = state.map.tiles.find(tile =>
@@ -329,7 +329,7 @@ describe('Village Capture System - Moral Choice', () => {
         payload: { playerId: 'player1' }
       };
 
-      state = gameReducer(state, endTurnAction);
+      state = resolveActionState(state, endTurnAction);
 
       // Player should NOT have received village bonus (only other income sources)
       const playerAfter = state.players.find(p => p.id === 'player1');
@@ -352,7 +352,7 @@ describe('Village Capture System - Moral Choice', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, action);
+      const newState = resolveActionState(mockGameState, action);
 
       // State should remain unchanged
       expect(newState).toEqual(mockGameState);
@@ -367,7 +367,7 @@ describe('Village Capture System - Moral Choice', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, action);
+      const newState = resolveActionState(mockGameState, action);
 
       // State should remain unchanged
       expect(newState).toEqual(mockGameState);
@@ -385,7 +385,7 @@ describe('Village Capture System - Moral Choice', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, action);
+      const newState = resolveActionState(mockGameState, action);
 
       // Village should remain neutral
       const villageTile = newState.map.tiles.find(tile =>

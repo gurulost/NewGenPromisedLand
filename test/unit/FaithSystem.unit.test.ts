@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { gameReducer } from '../../shared/logic/gameReducer';
+import { resolveActionState } from '../../shared/logic/resolveAction';
 import { getCombatPreview } from '../../shared/logic/combatPreview';
 import { GAME_RULES } from '../../shared/data/gameRules';
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from '../../shared/types/city';
@@ -101,7 +101,7 @@ describe('Faith System', () => {
             ];
 
             const endTurnAction = { type: 'END_TURN' as const, payload: { playerId: 'nephite1' } };
-            const newState = gameReducer(mockState, endTurnAction);
+            const newState = resolveActionState(mockState, endTurnAction);
             const player = newState.players.find(p => p.id === 'nephite1');
 
             // Should have gained at least 3 faith from missionaries (plus city base)
@@ -133,7 +133,7 @@ describe('Faith System', () => {
             } as any;
 
             const endTurnAction = { type: 'END_TURN' as const, payload: { playerId: 'nephite1' } };
-            const afterCompleted = gameReducer(withCompletedTemple, endTurnAction as any);
+            const afterCompleted = resolveActionState(withCompletedTemple, endTurnAction as any);
             const playerCompleted = afterCompleted.players.find(p => p.id === 'nephite1');
             // +2 from city, +5 from temple
             expect(playerCompleted!.stats.faith).toBe(57);
@@ -150,7 +150,7 @@ describe('Faith System', () => {
                 }] as any
             } as any;
 
-            const afterInProgress = gameReducer(withInProgressTemple, endTurnAction as any);
+            const afterInProgress = resolveActionState(withInProgressTemple, endTurnAction as any);
             const playerInProgress = afterInProgress.players.find(p => p.id === 'nephite1');
             // Only +2 from city
             expect(playerInProgress!.stats.faith).toBe(52);
@@ -202,7 +202,7 @@ describe('Faith System', () => {
             ];
 
             const endTurnAction = { type: 'END_TURN' as const, payload: { playerId: 'nephite1' } };
-            const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, endTurnAction as any);
+            const newState = resolveActionState({ ...mockState, rngSeed: 1 } as any, endTurnAction as any);
             const enemyPlayer = newState.players.find((p: any) => p.id === 'lamanite1');
             const enemyUnit: any = newState.units.find((u: any) => u.id === 'e1');
 
@@ -221,7 +221,7 @@ describe('Faith System', () => {
 	            ];
 
             const endTurnAction = { type: 'END_TURN' as const, payload: { playerId: 'nephite1' } };
-            const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, endTurnAction as any);
+            const newState = resolveActionState({ ...mockState, rngSeed: 1 } as any, endTurnAction as any);
 
             const worker: any = newState.units.find((u: any) => u.id === 'w1');
             const enemyMissionary: any = newState.units.find((u: any) => u.id === 'm2');
@@ -241,7 +241,7 @@ describe('Faith System', () => {
 	                createWarrior('e1', 'lamanite1', { q: 1, r: 0, s: -1 }),
 	            ];
 
-	            const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
+	            const newState = resolveActionState({ ...mockState, rngSeed: 1 } as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
 	            const enemyUnit: any = newState.units.find((u: any) => u.id === 'e1');
 	            const effects = (enemyUnit.statusEffects || []).filter((e: any) => e?.type === 'TESTIMONY_PRESSURE');
 	            expect(effects.length).toBe(1);
@@ -259,7 +259,7 @@ describe('Faith System', () => {
 	                } as any,
 	            ];
 
-	            const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
+	            const newState = resolveActionState({ ...mockState, rngSeed: 1 } as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
 	            const enemyUnit: any = newState.units.find((u: any) => u.id === 'e1');
 	            expect(enemyUnit.status).toBe('active');
 	            expect(enemyUnit.rallyBuff).toBe(false);
@@ -277,7 +277,7 @@ describe('Faith System', () => {
 	                } as any,
 	            ];
 
-	            const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
+	            const newState = resolveActionState({ ...mockState, rngSeed: 1 } as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
 	            const enemyUnit: any = newState.units.find((u: any) => u.id === 'e1');
 	            expect(enemyUnit.status).toBe('siege_mode');
 	            expect(enemyUnit.rallyBuff).toBe(false);
@@ -296,7 +296,7 @@ describe('Faith System', () => {
 	                createWarrior('e1', 'lamanite1', { q: 1, r: 0, s: -1 }),
 	            ];
 
-	            const newState = gameReducer({ ...mockState, rngSeed: 1 } as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
+	            const newState = resolveActionState({ ...mockState, rngSeed: 1 } as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
 	            const enemyUnit: any = newState.units.find((u: any) => u.id === 'e1');
 	            expect(enemyUnit.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
 	        });
@@ -311,11 +311,11 @@ describe('Faith System', () => {
                 ]
             } as any;
 
-            const afterNephite = gameReducer(state as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
+            const afterNephite = resolveActionState(state as any, { type: 'END_TURN', payload: { playerId: 'nephite1' } } as any);
             const pressuredUnit: any = afterNephite.units.find((u: any) => u.id === 'e1');
             expect(pressuredUnit.statusEffects.some((e: any) => e?.type === 'TESTIMONY_PRESSURE')).toBe(true);
 
-            const afterLamanite = gameReducer(afterNephite as any, { type: 'END_TURN', payload: { playerId: 'lamanite1' } } as any);
+            const afterLamanite = resolveActionState(afterNephite as any, { type: 'END_TURN', payload: { playerId: 'lamanite1' } } as any);
             const clearedUnit: any = afterLamanite.units.find((u: any) => u.id === 'e1');
             expect(clearedUnit.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
         });

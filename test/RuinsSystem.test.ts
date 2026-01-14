@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { handleExploreRuins } from '../shared/logic/gameReducer'; // Will need to export this or test via main reducer
 import { getRandomRuinsReward } from '../shared/data/ruinsRewards';
-import { GameState } from '../shared/types/game';
 
 describe('Ruins System', () => {
 

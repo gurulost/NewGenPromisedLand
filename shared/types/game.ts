@@ -447,20 +447,6 @@ export const GameActionSchema = z.discriminatedUnion('type', [
     }),
   }),
   z.object({
-    type: z.literal('UNIT_ACTION'),
-    payload: z.object({
-      unitId: z.string(),
-      actionType: z.string(),
-      playerId: z.string(),
-      target: z.union([
-        HexCoordinateSchema,
-        z.string(),
-        z.object({ unitId: z.string() }),
-        z.object({ coordinate: HexCoordinateSchema }),
-      ]).optional(),
-    }),
-  }),
-  z.object({
     type: z.literal('RENAME_CITY'),
     payload: z.object({
       playerId: z.string(),

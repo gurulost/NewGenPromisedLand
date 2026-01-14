@@ -16,14 +16,17 @@ export interface PlayerStats {
 }
 
 export function getPlayerStats(player: PlayerState, gameState?: GameState | null): PlayerStats {
+  const cityIds = (player as any).citiesOwned ?? (player as any).cities ?? [];
+  const techs = player.researchedTechs ?? [];
+  const dissentValue = (player.stats as any)?.internalDissent ?? (player.stats as any)?.dissent ?? 0;
   if (!gameState) {
-    const fallback = GameRuleHelpers.calculateStarIncome(player.citiesOwned.length);
+    const fallback = GameRuleHelpers.calculateStarIncome(cityIds.length);
     return {
       faithPercentage: player.stats?.faith ?? 0,
       pridePercentage: player.stats?.pride ?? 0,
-      dissentPercentage: player.stats?.internalDissent ?? 0,
-      cityCount: player.citiesOwned.length,
-      techCount: player.researchedTechs.length,
+      dissentPercentage: dissentValue,
+      cityCount: cityIds.length,
+      techCount: techs.length,
       starProduction: fallback,
       starProductionBreakdown: [{ source: 'Base', amount: fallback }],
     };
@@ -95,7 +98,7 @@ export function getPlayerStats(player: PlayerState, gameState?: GameState | null
     if (unrestPenalty > 0) breakdown.push({ source: `Unrest`, amount: -unrestPenalty });
     totalStarProduction += cityIncome;
   } else {
-    const fallback = GameRuleHelpers.calculateStarIncome(player.citiesOwned.length);
+    const fallback = GameRuleHelpers.calculateStarIncome(cityIds.length);
     breakdown.push({ source: 'Base', amount: fallback });
     totalStarProduction += fallback;
   }
@@ -121,7 +124,7 @@ export function getPlayerStats(player: PlayerState, gameState?: GameState | null
   totalStarProduction += structureIncome;
 
   // Converted villages income (+1★/turn each by design)
-  const convertedVillages = (gameState.map.tiles || []).filter(tile =>
+  const convertedVillages = (gameState.map?.tiles || []).filter(tile =>
     tile.feature === 'village' &&
     tile.cityOwner === player.id &&
     tile.captureType === 'converted' &&
@@ -202,11 +205,11 @@ export function getPlayerStats(player: PlayerState, gameState?: GameState | null
   });
 
   return {
-    faithPercentage: player.stats.faith,
-    pridePercentage: player.stats.pride,
-    dissentPercentage: player.stats.internalDissent,
+    faithPercentage: player.stats?.faith ?? 0,
+    pridePercentage: player.stats?.pride ?? 0,
+    dissentPercentage: dissentValue,
     cityCount: ownedCities.length,
-    techCount: player.researchedTechs.length,
+    techCount: techs.length,
     starProduction: totalStarProduction,
     starProductionBreakdown: breakdown
   };

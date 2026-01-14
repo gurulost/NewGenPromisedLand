@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GameUI from '../client/src/components/game/GameUI';
 import { useLocalGame } from '../client/src/lib/stores/useLocalGame';
@@ -70,6 +70,12 @@ describe('GameUI Navigation Integration Tests', () => {
   let mockCity: City;
   let mockDispatch: ReturnType<typeof vi.fn>;
   let mockStartConstruction: ReturnType<typeof vi.fn>;
+
+  const renderGameUI = async () => {
+    await act(async () => {
+      render(<GameUI />);
+    });
+  };
 
   beforeEach(() => {
     mockPlayer = {
@@ -168,7 +174,7 @@ describe('GameUI Navigation Integration Tests', () => {
 
   describe('Primary Navigation Flow', () => {
     it('renders Construction Hall button in PlayerHUD instead of Cities', async () => {
-      render(<GameUI />);
+      await renderGameUI();
 
       // Should see Build button
       expect(screen.getByText('Build')).toBeInTheDocument();
@@ -183,7 +189,7 @@ describe('GameUI Navigation Integration Tests', () => {
     it('opens Construction Hall when button is clicked', async () => {
       const user = userEvent.setup();
       
-      render(<GameUI />);
+      await renderGameUI();
 
       const constructionButton = screen.getByText('Build');
       await user.click(constructionButton);
@@ -197,7 +203,7 @@ describe('GameUI Navigation Integration Tests', () => {
     it('shows Cities button within Construction Hall', async () => {
       const user = userEvent.setup();
       
-      render(<GameUI />);
+      await renderGameUI();
 
       // Open Construction Hall
       const constructionButton = screen.getByText('Build');
@@ -212,7 +218,7 @@ describe('GameUI Navigation Integration Tests', () => {
     it('navigates from Construction Hall to City Panel via Cities button', async () => {
       const user = userEvent.setup();
       
-      render(<GameUI />);
+      await renderGameUI();
 
       // Step 1: Open Construction Hall
       const constructionButton = screen.getByText('Build');
@@ -236,7 +242,7 @@ describe('GameUI Navigation Integration Tests', () => {
     it('maintains proper modal state management', async () => {
       const user = userEvent.setup();
       
-      render(<GameUI />);
+      await renderGameUI();
 
       // Open Construction Hall
       const constructionButton = screen.getByText('Build');
@@ -263,7 +269,7 @@ describe('GameUI Navigation Integration Tests', () => {
     it('can open Knowledge panel alongside Build button', async () => {
       const user = userEvent.setup();
       
-      render(<GameUI />);
+      await renderGameUI();
 
       // Open Knowledge panel
       const knowledgeButton = screen.getByText('Knowledge');
@@ -288,7 +294,7 @@ describe('GameUI Navigation Integration Tests', () => {
     it('handles overlapping modal states correctly', async () => {
       const user = userEvent.setup();
       
-      render(<GameUI />);
+      await renderGameUI();
 
       // Open Construction Hall
       const constructionButton = screen.getByText('Build');
@@ -324,7 +330,7 @@ describe('GameUI Navigation Integration Tests', () => {
     it('properly handles construction initiation from Construction Hall', async () => {
       const user = userEvent.setup();
       
-      render(<GameUI />);
+      await renderGameUI();
 
       // Open Construction Hall
       const constructionButton = screen.getByText('Build');
@@ -368,7 +374,7 @@ describe('GameUI Navigation Integration Tests', () => {
         toggleSpawnDebug: vi.fn()
       });
 
-      render(<GameUI />);
+      await renderGameUI();
 
       // Construction indicator should be visible
       expect(screen.getByText('Construction Mode')).toBeInTheDocument();
@@ -402,7 +408,7 @@ describe('GameUI Navigation Integration Tests', () => {
         loadGameState: vi.fn()
       });
 
-      render(<GameUI />);
+      await renderGameUI();
 
       // Build button should still be present
       expect(screen.getByText('Build')).toBeInTheDocument();
@@ -442,7 +448,7 @@ describe('GameUI Navigation Integration Tests', () => {
 
       const user = userEvent.setup();
       
-      render(<GameUI />);
+      await renderGameUI();
 
       // Open Construction Hall - should prompt for city selection
       const constructionButton = screen.getByText('Build');
@@ -460,7 +466,11 @@ describe('GameUI Navigation Integration Tests', () => {
     it('handles game state updates without losing navigation functionality', async () => {
       const user = userEvent.setup();
       
-      const { rerender } = render(<GameUI />);
+      let renderResult: ReturnType<typeof render>;
+      await act(async () => {
+        renderResult = render(<GameUI />);
+      });
+      const { rerender } = renderResult!;
 
       // Initial state - Construction Hall should work
       const constructionButton = screen.getByText('Build');
@@ -495,7 +505,9 @@ describe('GameUI Navigation Integration Tests', () => {
         loadGameState: vi.fn()
       });
 
-      rerender(<GameUI />);
+      await act(async () => {
+        rerender(<GameUI />);
+      });
 
       // Construction Hall should still work after state update
       const updatedConstructionButton = screen.getByText('Build');
@@ -508,7 +520,7 @@ describe('GameUI Navigation Integration Tests', () => {
   });
 
   describe('Error Handling and Edge Cases', () => {
-    it('gracefully handles null game state', () => {
+    it('gracefully handles null game state', async () => {
       (useLocalGame as any).mockReturnValue({
         gameState: null,
         dispatch: mockDispatch,
@@ -521,13 +533,15 @@ describe('GameUI Navigation Integration Tests', () => {
       });
 
       // Should not crash with null game state
-      expect(() => render(<GameUI />)).not.toThrow();
+      await act(async () => {
+        expect(() => render(<GameUI />)).not.toThrow();
+      });
     });
 
     it('handles rapid navigation interactions', async () => {
       const user = userEvent.setup();
       
-      render(<GameUI />);
+      await renderGameUI();
 
       const constructionButton = screen.getByText('Build');
       
@@ -545,7 +559,7 @@ describe('GameUI Navigation Integration Tests', () => {
     it('maintains button accessibility during complex interactions', async () => {
       const user = userEvent.setup();
       
-      render(<GameUI />);
+      await renderGameUI();
 
       const constructionButton = screen.getByText('Build');
       
@@ -574,7 +588,7 @@ describe('GameUI Navigation Integration Tests', () => {
         completeTransition: vi.fn()
       });
 
-      render(<GameUI />);
+      await renderGameUI();
 
       // Even during transitions, navigation should be available
       expect(screen.getByText('Build')).toBeInTheDocument();
@@ -585,7 +599,7 @@ describe('GameUI Navigation Integration Tests', () => {
     it('does not cause memory leaks with repeated navigation', async () => {
       const user = userEvent.setup();
       
-      render(<GameUI />);
+      await renderGameUI();
 
       // Simulate repeated navigation to check for memory leaks
       for (let i = 0; i < 5; i++) {
@@ -623,7 +637,7 @@ describe('GameUI Navigation Integration Tests', () => {
       
       const startTime = performance.now();
       
-      render(<GameUI />);
+      await renderGameUI();
 
       const constructionButton = screen.getByText('Build');
       await user.click(constructionButton);

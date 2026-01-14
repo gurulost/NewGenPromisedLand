@@ -3,6 +3,7 @@ import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { TextureLoader } from "three";
 import * as THREE from "three";
 import { Tile, GameMap } from "@shared/types/game";
+import type { HexCoordinate } from "@shared/types/coordinates";
 import { hexDistance, hexToPixel, pixelToHex } from "@shared/utils/hex";
 import { getUnitDefinition } from "@shared/data/units";
 import { getVisibleTilesInRange, calculateFogOfWarState } from "@shared/utils/lineOfSight";
@@ -47,7 +48,7 @@ function isValidConstructionTile(
   buildingType: string,
   category: string,
   cityId: string,
-  anchorCoords?: Array<{ q: number; r: number; s?: number }>
+  anchorCoords?: HexCoordinate[]
 ): boolean {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const city = gameState.cities?.find((c: any) => c.id === cityId);

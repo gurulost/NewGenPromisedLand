@@ -56,32 +56,63 @@ describe('Construction Hall End-to-End Tests', () => {
       const mockPlayer = {
         id: 'player1',
         name: 'Test Player',
-        factionId: 'nephites' as const,
+        factionId: 'NEPHITES' as const,
         stars: 100,
         stats: { faith: 50, pride: 30, internalDissent: 5 },
         citiesOwned: ['city1'],
-        unitsOwned: [],
         researchedTechs: ['writing', 'organization'],
-        isEliminated: false
+        researchProgress: 0,
+        constructionQueue: [],
+        visibilityMask: [],
+        exploredTiles: [],
+        isEliminated: false,
+        turnOrder: 0,
+        atWarWith: [],
+        alliedWith: [],
+        tradeRoutes: [],
+        diplomaticCooldowns: {
+          declareWar: 0,
+          formAlliance: 0,
+          breakAlliance: 0,
+          requestTrade: 0,
+        },
       };
 
       const mockCity = {
         id: 'city1',
         name: 'Test City',
-        coordinate: { q: 0, r: 0 },
+        coordinate: { q: 0, r: 0, s: 0 },
         population: 5,
         ownerId: 'player1'
       };
 
+      const tiles = [
+        {
+          coordinate: { q: 0, r: 0, s: 0 },
+          terrain: 'plains',
+          resources: [],
+          hasCity: true,
+          cityOwner: 'player1',
+          exploredBy: ['player1'],
+        },
+        {
+          coordinate: { q: 1, r: -1, s: 0 },
+          terrain: 'plains',
+          resources: [],
+          hasCity: false,
+          exploredBy: ['player1'],
+        },
+      ];
+
       const mockGameState = {
         id: 'game1',
         currentPlayerIndex: 0,
-        currentTurn: 1,
-        phase: 'main' as const,
+        turn: 1,
+        phase: 'playing' as const,
         players: [mockPlayer],
         units: [],
         cities: [mockCity],
-        map: { tiles: [], size: { width: 10, height: 10 } },
+        map: { tiles, width: 10, height: 10 },
         visibility: {},
         structures: [],
         improvements: []
@@ -150,32 +181,63 @@ describe('Construction Hall End-to-End Tests', () => {
       const poorPlayer = {
         id: 'player1',
         name: 'Poor Player',
-        factionId: 'nephites' as const,
+        factionId: 'NEPHITES' as const,
         stars: 1, // Very low resources
         stats: { faith: 0, pride: 0, internalDissent: 0 },
         citiesOwned: ['city1'],
-        unitsOwned: [],
         researchedTechs: [],
-        isEliminated: false
+        researchProgress: 0,
+        constructionQueue: [],
+        visibilityMask: [],
+        exploredTiles: [],
+        isEliminated: false,
+        turnOrder: 0,
+        atWarWith: [],
+        alliedWith: [],
+        tradeRoutes: [],
+        diplomaticCooldowns: {
+          declareWar: 0,
+          formAlliance: 0,
+          breakAlliance: 0,
+          requestTrade: 0,
+        },
       };
 
       const mockCity = {
         id: 'city1',
         name: 'Poor City',
-        coordinate: { q: 0, r: 0 },
+        coordinate: { q: 0, r: 0, s: 0 },
         population: 1,
         ownerId: 'player1'
       };
 
+      const tiles = [
+        {
+          coordinate: { q: 0, r: 0, s: 0 },
+          terrain: 'plains',
+          resources: [],
+          hasCity: true,
+          cityOwner: 'player1',
+          exploredBy: ['player1'],
+        },
+        {
+          coordinate: { q: 1, r: -1, s: 0 },
+          terrain: 'plains',
+          resources: [],
+          hasCity: false,
+          exploredBy: ['player1'],
+        },
+      ];
+
       const mockGameState = {
         id: 'game1',
         currentPlayerIndex: 0,
-        currentTurn: 1,
-        phase: 'main' as const,
+        turn: 1,
+        phase: 'playing' as const,
         players: [poorPlayer],
         units: [],
         cities: [mockCity],
-        map: { tiles: [], size: { width: 10, height: 10 } },
+        map: { tiles, width: 10, height: 10 },
         visibility: {},
         structures: [],
         improvements: []
@@ -214,32 +276,63 @@ describe('Construction Hall End-to-End Tests', () => {
       const techLimitedPlayer = {
         id: 'player1',
         name: 'Tech Limited Player',
-        factionId: 'nephites' as const,
+        factionId: 'NEPHITES' as const,
         stars: 1000, // High resources
         stats: { faith: 100, pride: 100, internalDissent: 0 },
         citiesOwned: ['city1'],
-        unitsOwned: [],
         researchedTechs: [], // No technologies researched
-        isEliminated: false
+        researchProgress: 0,
+        constructionQueue: [],
+        visibilityMask: [],
+        exploredTiles: [],
+        isEliminated: false,
+        turnOrder: 0,
+        atWarWith: [],
+        alliedWith: [],
+        tradeRoutes: [],
+        diplomaticCooldowns: {
+          declareWar: 0,
+          formAlliance: 0,
+          breakAlliance: 0,
+          requestTrade: 0,
+        },
       };
 
       const mockCity = {
         id: 'city1',
         name: 'Advanced City',
-        coordinate: { q: 0, r: 0 },
+        coordinate: { q: 0, r: 0, s: 0 },
         population: 10,
         ownerId: 'player1'
       };
 
+      const tiles = [
+        {
+          coordinate: { q: 0, r: 0, s: 0 },
+          terrain: 'plains',
+          resources: [],
+          hasCity: true,
+          cityOwner: 'player1',
+          exploredBy: ['player1'],
+        },
+        {
+          coordinate: { q: 1, r: -1, s: 0 },
+          terrain: 'plains',
+          resources: [],
+          hasCity: false,
+          exploredBy: ['player1'],
+        },
+      ];
+
       const mockGameState = {
         id: 'game1',
         currentPlayerIndex: 0,
-        currentTurn: 1,
-        phase: 'main' as const,
+        turn: 1,
+        phase: 'playing' as const,
         players: [techLimitedPlayer],
         units: [],
         cities: [mockCity],
-        map: { tiles: [], size: { width: 10, height: 10 } },
+        map: { tiles, width: 10, height: 10 },
         visibility: {},
         structures: [],
         improvements: []
@@ -277,32 +370,63 @@ describe('Construction Hall End-to-End Tests', () => {
       const mockPlayer = {
         id: 'player1',
         name: 'Test Player',
-        factionId: 'nephites' as const,
+        factionId: 'NEPHITES' as const,
         stars: 50,
         stats: { faith: 25, pride: 15, internalDissent: 5 },
         citiesOwned: ['city1'],
-        unitsOwned: [],
         researchedTechs: ['writing'],
-        isEliminated: false
+        researchProgress: 0,
+        constructionQueue: [],
+        visibilityMask: [],
+        exploredTiles: [],
+        isEliminated: false,
+        turnOrder: 0,
+        atWarWith: [],
+        alliedWith: [],
+        tradeRoutes: [],
+        diplomaticCooldowns: {
+          declareWar: 0,
+          formAlliance: 0,
+          breakAlliance: 0,
+          requestTrade: 0,
+        },
       };
 
       const mockCity = {
         id: 'city1',
         name: 'Test City',
-        coordinate: { q: 0, r: 0 },
+        coordinate: { q: 0, r: 0, s: 0 },
         population: 5,
         ownerId: 'player1'
       };
 
+      const tiles = [
+        {
+          coordinate: { q: 0, r: 0, s: 0 },
+          terrain: 'plains',
+          resources: [],
+          hasCity: true,
+          cityOwner: 'player1',
+          exploredBy: ['player1'],
+        },
+        {
+          coordinate: { q: 1, r: -1, s: 0 },
+          terrain: 'plains',
+          resources: [],
+          hasCity: false,
+          exploredBy: ['player1'],
+        },
+      ];
+
       const mockGameState = {
         id: 'game1',
         currentPlayerIndex: 0,
-        currentTurn: 1,
-        phase: 'main' as const,
+        turn: 1,
+        phase: 'playing' as const,
         players: [mockPlayer],
         units: [],
         cities: [mockCity],
-        map: { tiles: [], size: { width: 10, height: 10 } },
+        map: { tiles, width: 10, height: 10 },
         visibility: {},
         structures: [],
         improvements: []
@@ -338,53 +462,89 @@ describe('Construction Hall End-to-End Tests', () => {
       const realisticPlayer = {
         id: 'player1',
         name: 'Nephite Leader',
-        factionId: 'nephites' as const,
+        factionId: 'NEPHITES' as const,
         stars: 75,
         stats: { faith: 40, pride: 25, internalDissent: 8 },
         citiesOwned: ['capital'],
-        unitsOwned: ['unit1', 'unit2'],
         researchedTechs: ['writing', 'organization', 'sailing', 'mathematics'],
-        isEliminated: false
+        researchProgress: 0,
+        constructionQueue: [],
+        visibilityMask: [],
+        exploredTiles: [],
+        isEliminated: false,
+        turnOrder: 0,
+        atWarWith: [],
+        alliedWith: [],
+        tradeRoutes: [],
+        diplomaticCooldowns: {
+          declareWar: 0,
+          formAlliance: 0,
+          breakAlliance: 0,
+          requestTrade: 0,
+        },
       };
 
       const realisticCity = {
         id: 'capital',
         name: 'Zarahemla',
-        coordinate: { q: 0, r: 0 },
+        coordinate: { q: 0, r: 0, s: 0 },
         population: 12,
         ownerId: 'player1'
       };
 
+      const tiles = [
+        {
+          coordinate: { q: 0, r: 0, s: 0 },
+          terrain: 'plains',
+          resources: [],
+          hasCity: true,
+          cityOwner: 'player1',
+          exploredBy: ['player1'],
+        },
+        {
+          coordinate: { q: 1, r: -1, s: 0 },
+          terrain: 'plains',
+          resources: [],
+          hasCity: false,
+          exploredBy: ['player1'],
+        },
+      ];
+
       const realisticGameState = {
         id: 'campaign-game',
         currentPlayerIndex: 0,
-        currentTurn: 15,
-        phase: 'main' as const,
+        turn: 15,
+        phase: 'playing' as const,
         players: [realisticPlayer],
         units: [
           {
             id: 'unit1',
             type: 'warrior' as const,
-            coordinate: { q: 0, r: 0 },
-            ownerId: 'player1',
-            currentHp: 25,
+            playerId: 'player1',
+            coordinate: { q: 0, r: 0, s: 0 },
+            hp: 25,
             maxHp: 25,
-            currentMovement: 2,
-            maxMovement: 2,
+            attack: 2,
+            defense: 1,
+            movement: 2,
+            remainingMovement: 2,
+            status: 'active',
+            abilities: [],
             hasAttacked: false,
-            hasActed: false
           }
         ],
         cities: [realisticCity],
-        map: { tiles: [], size: { width: 20, height: 20 } },
+        map: { tiles, width: 20, height: 20 },
         visibility: {},
         structures: [
           {
             id: 'temple1',
             type: 'temple' as const,
             cityId: 'capital',
-            coordinate: { q: 0, r: 0 },
-            ownerId: 'player1'
+            coordinate: { q: 0, r: 0, s: 0 },
+            ownerId: 'player1',
+            constructionTurns: 0,
+            effects: {}
           }
         ],
         improvements: []

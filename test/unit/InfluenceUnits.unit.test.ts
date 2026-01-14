@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameReducer } from '../../shared/logic/gameReducer';
+import { resolveActionState } from '../../shared/logic/resolveAction';
 import type { GameState } from '../../shared/types/game';
 import type { Unit } from '../../shared/types/unit';
 
@@ -85,7 +85,7 @@ describe('Influence units (passive per-turn effects)', () => {
       factionId: 'ZORAMITES',
       units: [],
     });
-    const baselineAfter = gameReducer(baseline, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const baselineAfter = resolveActionState(baseline, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
 
     const state = makeState({
       factionId: 'ZORAMITES',
@@ -131,7 +131,7 @@ describe('Influence units (passive per-turn effects)', () => {
       ],
     });
 
-    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const after = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     expect(after.players[0].stars - baselineAfter.players[0].stars).toBe(2);
     expect(after.players[0].stats.pride - baselineAfter.players[0].stats.pride).toBe(4);
     expect(after.players[0].stats.internalDissent - baselineAfter.players[0].stats.internalDissent).toBe(2);
@@ -164,7 +164,7 @@ describe('Influence units (passive per-turn effects)', () => {
       units: [baseUnit('u1'), baseUnit('u2')], // "any" stacking => still only -1 extra
     });
 
-    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const after = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     expect(after.players[0].diplomaticCooldowns?.requestTrade).toBe(1); // 3 - 1 (base tick) - 1 (scribe)
   });
 
@@ -174,7 +174,7 @@ describe('Influence units (passive per-turn effects)', () => {
       stats: { faith: 10, pride: 10, internalDissent: 10 },
       units: [],
     });
-    const baselineAfter = gameReducer(baseline, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const baselineAfter = resolveActionState(baseline, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
 
     const state = makeState({
       factionId: 'LAMANITES',
@@ -202,7 +202,7 @@ describe('Influence units (passive per-turn effects)', () => {
       ],
     });
 
-    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const after = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     expect(after.players[0].stats.faith - baselineAfter.players[0].stats.faith).toBe(1);
     expect(after.players[0].stats.pride - baselineAfter.players[0].stats.pride).toBe(-1);
     expect(after.players[0].stats.internalDissent - baselineAfter.players[0].stats.internalDissent).toBe(-1);
@@ -254,7 +254,7 @@ describe('Influence units (passive per-turn effects)', () => {
       ],
     });
 
-    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const after = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     expect(after.players[0].stats.pride).toBeGreaterThanOrEqual(0);
     expect(after.players[0].stats.pride).toBeLessThanOrEqual(100);
     expect(after.players[0].stats.internalDissent).toBeGreaterThanOrEqual(0);
@@ -288,7 +288,7 @@ describe('Influence units (passive per-turn effects)', () => {
       ],
     });
 
-    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const after = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     expect(after.players[0].stats.internalDissent).toBe(9);
   });
 
@@ -318,7 +318,7 @@ describe('Influence units (passive per-turn effects)', () => {
       stats: { pride: 59 },
       units: [makeProphet()],
     });
-    const lowAfter = gameReducer(low, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const lowAfter = resolveActionState(low, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     expect(lowAfter.players[0].stats.pride).toBe(59);
 
     const high = makeState({
@@ -326,7 +326,7 @@ describe('Influence units (passive per-turn effects)', () => {
       stats: { pride: 60 },
       units: [makeProphet()],
     });
-    const highAfter = gameReducer(high, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const highAfter = resolveActionState(high, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     expect(highAfter.players[0].stats.pride).toBe(58);
   });
 });
@@ -341,7 +341,7 @@ describe('Unit requirements are prerequisites, not costs (construction)', () => 
     });
     state.players[0].researchedTechs = ['leadership'];
 
-    const after = gameReducer(
+    const after = resolveActionState(
       state,
       {
         type: 'START_CONSTRUCTION',
