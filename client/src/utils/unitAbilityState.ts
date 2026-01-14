@@ -40,16 +40,23 @@ const abilityConfigs: AbilityConfig[] = [
     abilityId: 'HEAL',
     unitTypes: ['missionary'],
     displayName: 'Heal Nearby Units',
-    evaluate: ({ unit, player }) => {
-      const hasHealingTech = player.researchedTechs.includes('spirituality');
-      if (!hasHealingTech) {
-        return { status: 'locked', reason: 'Requires Spirituality technology' };
-      }
-      if (player.stats.faith < 5) {
-        return { status: 'locked', reason: 'Needs 5 Faith' };
+    evaluate: ({ unit, player, gameState }) => {
+      const faithCost = GAME_RULES.abilities.resourceCosts.missionaryHeal;
+      if (player.stats.faith < faithCost) {
+        return { status: 'locked', reason: `Needs ${faithCost} Faith` };
       }
       if (getActionsRemaining(unit) <= 0) {
         return { status: 'exhausted', reason: 'Unit already acted this turn' };
+      }
+      const healRadius = GAME_RULES.abilities.healRadius;
+      const hasDamagedAlly = gameState.units.some(candidate =>
+        candidate.playerId === unit.playerId &&
+        candidate.id !== unit.id &&
+        candidate.hp < candidate.maxHp &&
+        hexDistance(candidate.coordinate, unit.coordinate) <= healRadius
+      );
+      if (!hasDamagedAlly) {
+        return { status: 'locked', reason: 'No damaged allies in range' };
       }
       return { status: 'ready' };
     },
@@ -67,13 +74,14 @@ const abilityConfigs: AbilityConfig[] = [
       if (getActionsRemaining(unit) <= 0) {
         return { status: 'exhausted', reason: 'Unit already acted this turn' };
       }
+      const conversionRadius = GAME_RULES.abilities.conversionRadius;
       const adjacentEnemies = gameState.units.some(candidate =>
         candidate.playerId !== unit.playerId &&
         candidate.playerId !== undefined &&
-        hexDistance(candidate.coordinate, unit.coordinate) === 1
+        hexDistance(candidate.coordinate, unit.coordinate) <= conversionRadius
       );
       if (!adjacentEnemies) {
-        return { status: 'locked', reason: 'No adjacent enemy to convert' };
+        return { status: 'locked', reason: 'No enemy in conversion range' };
       }
       return { status: 'ready' };
     },
@@ -111,8 +119,10 @@ const abilityConfigs: AbilityConfig[] = [
     unitTypes: ['commander'],
     displayName: 'Rally Troops',
     evaluate: ({ unit, player }) => {
-      if (player.stats.pride < 5) {
-        return { status: 'locked', reason: 'Needs 5 Pride' };
+      const cooldownKey = `${unit.id}_rally_troops`;
+      const cooldown = player.abilityCooldowns?.[cooldownKey] ?? 0;
+      if (cooldown > 0) {
+        return { status: 'locked', reason: `Cooldown: ${cooldown} turn${cooldown === 1 ? '' : 's'} remaining` };
       }
       if (getActionsRemaining(unit) <= 0) {
         return { status: 'exhausted', reason: 'Unit already acted this turn' };

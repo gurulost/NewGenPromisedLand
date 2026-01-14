@@ -1,6 +1,6 @@
 import { GameState, GameAction } from '../types/game';
 import { executeAITurn } from './aiEngine';
-import { gameReducer } from '../logic/gameReducer';
+import { resolveActionState } from '../logic/resolveAction';
 
 type SimulationResult = {
   turnsSimulated: number;
@@ -51,7 +51,7 @@ export function simulateAITurns(initialState: GameState, maxTurns = 10): Simulat
     }
 
     if (!action) return;
-    state = gameReducer(state, action);
+    state = resolveActionState(state, action);
     actionsApplied += 1;
   };
 
@@ -59,7 +59,7 @@ export function simulateAITurns(initialState: GameState, maxTurns = 10): Simulat
     const currentPlayer = state.players[state.currentPlayerIndex];
     if (!currentPlayer?.isAI || currentPlayer.isEliminated) {
       // Advance to next player/end turn
-      state = gameReducer(state, { type: 'END_TURN', payload: { playerId: currentPlayer?.id || '' } });
+      state = resolveActionState(state, { type: 'END_TURN', payload: { playerId: currentPlayer?.id || '' } });
       continue;
     }
 
@@ -75,7 +75,7 @@ export function simulateAITurns(initialState: GameState, maxTurns = 10): Simulat
     }
 
     // Always end the AI turn to avoid getting stuck
-    state = gameReducer(state, { type: 'END_TURN', payload: { playerId: currentPlayer.id } });
+    state = resolveActionState(state, { type: 'END_TURN', payload: { playerId: currentPlayer.id } });
   }
 
   return {

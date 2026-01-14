@@ -7,6 +7,7 @@ import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
 import { getUnitDefinition } from "@shared/data/units";
 import { getFaction } from "@shared/data/factions";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
+import type { HexCoordinate } from "@shared/types/coordinates";
 import Construction from "./Construction";
 import { CityModel } from "./CityModel";
 import { getVillageModelPath, getResourceModelPath } from "../../utils/modelManager";
@@ -698,7 +699,9 @@ export default function MapFeatures() {
       {visibleStructures
         .filter(structure => structure.coordinate)
         .map(structure => {
-          const tilePosition = hexToPixel(structure.coordinate, 1);
+          const coordinate = structure.coordinate;
+          if (!coordinate) return null;
+          const tilePosition = hexToPixel(coordinate, 1);
           return renderStructure(structure, tilePosition, 0, `tile-${structure.id}`);
         })}
       

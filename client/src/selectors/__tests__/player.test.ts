@@ -1,58 +1,84 @@
 import { describe, it, expect } from 'vitest';
 import { getPlayerStats } from '../player';
 import { GameState } from '../../../../shared/types/game';
+import { GameRuleHelpers } from '../../../../shared/data/gameRules';
 
 describe('Player Selectors', () => {
   const mockGameState: GameState = {
+    id: 'game-1',
     players: [
       {
         id: 'player1',
         name: 'Test Player',
-        faction: 'nephites',
+        factionId: 'NEPHITES',
         stars: 15,
-        faith: 8,
-        pride: 3,
-        dissent: 2,
-        population: 10,
-        cities: [
-          {
-            id: 'city1',
-            name: 'Test City',
-            ownerId: 'player1',
-            coordinate: { q: 0, r: 0, s: 0 },
-            population: 5,
-            structures: [],
-            improvements: [],
-          },
-        ],
+        stats: {
+          faith: 8,
+          pride: 3,
+          internalDissent: 2,
+        },
+        modifiers: [],
+        researchedTechs: [],
+        researchProgress: 0,
+        citiesOwned: [],
+        constructionQueue: [],
+        visibilityMask: [],
+        exploredTiles: [],
+        isEliminated: false,
+        turnOrder: 0,
+        atWarWith: [],
+        alliedWith: [],
+        tradeRoutes: [],
+        diplomaticCooldowns: {
+          declareWar: 0,
+          formAlliance: 0,
+          breakAlliance: 0,
+          requestTrade: 0,
+        },
       },
     ],
-    currentTurn: 1,
-    currentPlayerId: 'player1',
+    currentPlayerIndex: 0,
+    turn: 1,
+    phase: 'playing',
+    map: {
+      width: 4,
+      height: 4,
+      tiles: [],
+    },
+    units: [],
+    cities: [],
+    improvements: [],
+    structures: [],
   } as GameState;
 
   describe('getPlayerStats', () => {
     it('returns basic player statistics', () => {
-      const stats = getPlayerStats(mockGameState, 'player1');
+      const player = mockGameState.players[0];
+      const stats = getPlayerStats(player, mockGameState);
       
-      expect(stats).toEqual({
-        stars: 15,
-        faith: 8,
-        pride: 3,
-        dissent: 2,
-        population: 10,
+      expect(stats).toMatchObject({
+        faithPercentage: 8,
+        pridePercentage: 3,
+        dissentPercentage: 2,
+        cityCount: 0,
+        techCount: 0,
       });
+      const breakdownTotal = stats.starProductionBreakdown.reduce((sum, entry) => sum + entry.amount, 0);
+      expect(stats.starProduction).toBe(breakdownTotal);
     });
 
-    it('handles missing player gracefully', () => {
-      const stats = getPlayerStats(mockGameState, 'nonexistent');
+    it('handles missing game state gracefully', () => {
+      const player = mockGameState.players[0];
+      const stats = getPlayerStats(player, null);
       
-      expect(stats).toEqual({
-        stars: 0,
-        faith: 0,
-        pride: 0,
-        dissent: 0,
-        population: 0,
+      const fallback = GameRuleHelpers.calculateStarIncome(player.citiesOwned?.length ?? 0);
+      expect(stats).toMatchObject({
+        faithPercentage: 8,
+        pridePercentage: 3,
+        dissentPercentage: 2,
+        cityCount: 0,
+        techCount: 0,
+        starProduction: fallback,
       });
     });
   });
@@ -67,8 +93,8 @@ describe('Player Selectors', () => {
     it('handles player resource calculations', () => {
       const player = mockGameState.players[0];
       expect(player.stars).toBeGreaterThan(0);
-      expect(player.faith).toBeGreaterThanOrEqual(0);
-      expect(player.population).toBeGreaterThan(0);
+      expect(player.stats.faith).toBeGreaterThanOrEqual(0);
+      expect(player.citiesOwned.length).toBeGreaterThanOrEqual(0);
     });
   });
 });

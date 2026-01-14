@@ -79,6 +79,18 @@ function createPreloadedAudio(src: string): HTMLAudioElement {
   return audio;
 }
 
+const unloadHowl = (sound: Howl): void => {
+  const maybeUnload = (sound as unknown as { unload?: () => void }).unload;
+  if (typeof maybeUnload === 'function') {
+    maybeUnload.call(sound);
+  } else {
+    const maybeStop = (sound as unknown as { stop?: () => void }).stop;
+    if (typeof maybeStop === 'function') {
+      maybeStop.call(sound);
+    }
+  }
+};
+
 function resolveNextTrack(tracks: string[], currentIndex: number): { tracks: string[]; nextIndex: number } {
   if (tracks.length === 0) {
     return { tracks, nextIndex: 0 };
@@ -289,7 +301,7 @@ export const useAudio = create<AudioState>((set, get) => {
     if (SFX_ENABLED) {
       Object.values(sfxMap).forEach((sound) => {
         try {
-          sound.unload();
+          unloadHowl(sound);
         } catch (error) {
           // Ignore unload errors for previously created sounds
         }
@@ -353,7 +365,7 @@ export const useAudio = create<AudioState>((set, get) => {
     const { tracks: nextTracks, nextIndex } = resolveNextTrack(musicTracks, currentTrackIndex);
     const nextSrc = nextTracks[nextIndex];
     const effectiveVolume = getEffectiveMusicVolume(musicVolume, masterVolume);
-    const nextAudio = audioSourceMatches(nextTrackAudio, nextSrc)
+    const nextAudio = audioSourceMatches(nextTrackAudio, nextSrc) && nextTrackAudio
       ? nextTrackAudio
       : createPreloadedAudio(nextSrc);
 
@@ -397,7 +409,7 @@ export const useAudio = create<AudioState>((set, get) => {
 
     const { tracks: nextTracks, nextIndex } = resolveNextTrack(musicTracks, currentTrackIndex);
     const nextSrc = nextTracks[nextIndex];
-    const nextAudio = audioSourceMatches(nextTrackAudio, nextSrc)
+    const nextAudio = audioSourceMatches(nextTrackAudio, nextSrc) && nextTrackAudio
       ? nextTrackAudio
       : createPreloadedAudio(nextSrc);
 
@@ -534,7 +546,7 @@ export const useAudio = create<AudioState>((set, get) => {
     const volume = clampVolume(sfxVolume * masterVolume * volumeScale);
     const soundId = sound.play();
     if (soundId !== undefined && soundId !== null) {
-      sound.volume(volume, soundId);
+      sound.volume(volume);
     }
   },
 

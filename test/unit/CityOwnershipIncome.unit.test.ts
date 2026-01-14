@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameReducer } from '../../shared/logic/gameReducer';
+import { resolveActionState } from '../../shared/logic/resolveAction';
 import type { GameState } from '../../shared/types/game';
 
 describe('City capture/conversion income', () => {
@@ -103,12 +103,12 @@ describe('City capture/conversion income', () => {
       structures: [],
     };
 
-    const captured = gameReducer(state, { type: 'CAPTURE_CITY', payload: { playerId: p1, cityId } } as any);
+    const captured = resolveActionState(state, { type: 'CAPTURE_CITY', payload: { playerId: p1, cityId } } as any);
     expect(captured.cities.find(c => c.id === cityId)?.ownerId).toBe(p1);
     expect(captured.players.find(p => p.id === p1)?.citiesOwned.includes(cityId)).toBe(true);
     expect(captured.players.find(p => p.id === p2)?.citiesOwned.includes(cityId)).toBe(false);
 
-    const afterIncome = gameReducer(captured, { type: 'END_TURN', payload: { playerId: p1 } } as any);
+    const afterIncome = resolveActionState(captured, { type: 'END_TURN', payload: { playerId: p1 } } as any);
     expect(afterIncome.players.find(p => p.id === p1)?.stars).toBe(3);
   });
 
@@ -212,13 +212,13 @@ describe('City capture/conversion income', () => {
 	      structures: [],
 	    };
 
-	    const converted = gameReducer(state, { type: 'CONVERT_CITY', payload: { playerId: p1, unitId: 'm1', cityId, conversionType: 'faith' } } as any);
+	    const converted = resolveActionState(state, { type: 'CONVERT_CITY', payload: { playerId: p1, unitId: 'm1', cityId, conversionType: 'faith' } } as any);
 	    expect(converted.cities.find(c => c.id === cityId)?.ownerId).toBe(p1);
 	    expect(converted.players.find(p => p.id === p1)?.citiesOwned.includes(cityId)).toBe(true);
 	    expect(converted.players.find(p => p.id === p2)?.citiesOwned.includes(cityId)).toBe(false);
 	    expect((converted.units.find(u => u.id === 'm1') as any)?.hasAttacked).toBe(true);
 
-	    const afterIncome = gameReducer(converted, { type: 'END_TURN', payload: { playerId: p1 } } as any);
+	    const afterIncome = resolveActionState(converted, { type: 'END_TURN', payload: { playerId: p1 } } as any);
 	    expect(afterIncome.players.find(p => p.id === p1)?.stars).toBe(3);
 	  });
 });

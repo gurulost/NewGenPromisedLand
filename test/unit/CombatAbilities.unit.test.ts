@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { gameReducer } from '../../shared/logic/gameReducer';
+import { resolveActionState } from '../../shared/logic/resolveAction';
 import { getUnitDefinition } from '../../shared/data/units';
 import { subscribeTelemetry, TelemetryEvent } from '../../shared/logic/telemetry';
 import type { GameState, PlayerState } from '../../shared/types/game';
@@ -94,7 +94,7 @@ describe('Combat ability interactions', () => {
     });
 
     const state = baseState([player1, player2], [attacker, defender]);
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'defender' },
     });
@@ -125,7 +125,7 @@ describe('Combat ability interactions', () => {
     });
 
     const state = baseState([player1, player2], [attacker, defender, guardian]);
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'defender' },
     });
@@ -155,7 +155,7 @@ describe('Combat ability interactions', () => {
     });
 
     const state = baseState([player1, player2], [attacker, defender]);
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'defender' },
     });
@@ -202,7 +202,7 @@ describe('Combat ability interactions', () => {
       exploredBy: ['player1'],
     });
 
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'catapult', targetId: 'keeper' },
     });
@@ -264,7 +264,7 @@ describe('Combat ability interactions', () => {
       { coordinate: far.coordinate, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['player1'] },
     );
 
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'catapult', targetId: 'primary' },
     });
@@ -319,7 +319,7 @@ describe('Combat ability interactions', () => {
       exploredBy: ['player1'],
     });
 
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'catapult', targetId: 'victim' },
     });
@@ -348,7 +348,7 @@ describe('Combat ability interactions', () => {
     });
 
     const state = baseState([player1, player2], [attacker, envoy]);
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'envoy' },
     });
@@ -388,7 +388,7 @@ describe('Combat ability interactions', () => {
     });
 
     const state = baseState([player1, player2], [attacker, doomed, ally]);
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'doomed' },
     });
@@ -427,7 +427,7 @@ describe('Combat ability interactions', () => {
     });
 
     const state = baseState([player1, player2], [attacker, guard, worker]);
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'guard' },
     });
@@ -462,7 +462,7 @@ describe('Combat ability interactions', () => {
     });
 
     const state = baseState([player1, player2], [missionary, enemy]);
-    const abilityState = gameReducer(state, {
+    const abilityState = resolveActionState(state, {
       type: 'USE_ABILITY',
       payload: { playerId: 'player1', abilityId: 'MISSIONARY_ZEAL' },
     });
@@ -515,7 +515,7 @@ describe('Combat ability interactions', () => {
       winner: undefined,
     };
 
-    const buffedState = gameReducer(state, {
+    const buffedState = resolveActionState(state, {
       type: 'USE_ABILITY',
       payload: { playerId: 'player1', abilityId: 'lamanite_guerrilla_tactics' },
     });
@@ -523,7 +523,7 @@ describe('Combat ability interactions', () => {
     const buffedUnit = buffedState.units.find(u => u.id === 'hunter');
     expect(buffedUnit?.defense).toBeGreaterThan(unit.defense);
 
-    const movedState = gameReducer(buffedState, {
+    const movedState = resolveActionState(buffedState, {
       type: 'MOVE_UNIT',
       payload: { unitId: 'hunter', targetCoordinate: { q: 1, r: 0, s: -1 } },
     });
@@ -557,14 +557,14 @@ describe('Combat ability interactions', () => {
       turnOrder: 1,
     });
 
-    const withBonus = gameReducer(baseState([player1, player2], [attacker, defender]), {
+    const withBonus = resolveActionState(baseState([player1, player2], [attacker, defender]), {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'spearman', targetId: 'scout' },
     });
     const defenderAfterBonus = withBonus.units.find(unit => unit.id === 'scout');
 
     const noBonusAttacker = { ...attacker, abilities: [] };
-    const withoutBonus = gameReducer(baseState([player1, player2], [noBonusAttacker, defender]), {
+    const withoutBonus = resolveActionState(baseState([player1, player2], [noBonusAttacker, defender]), {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'spearman', targetId: 'scout' },
     });
@@ -598,14 +598,14 @@ describe('Combat ability interactions', () => {
       turnOrder: 1,
     });
 
-    const withoutLeader = gameReducer(baseState([player1, player2], [attacker, defender]), {
+    const withoutLeader = resolveActionState(baseState([player1, player2], [attacker, defender]), {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'defender' },
     });
     const withoutLeaderDefender = withoutLeader.units.find(unit => unit.id === 'defender');
     const withoutLeaderAttacker = withoutLeader.units.find(unit => unit.id === 'attacker');
 
-    const withLeader = gameReducer(baseState([player1, player2], [attacker, defender, commander]), {
+    const withLeader = resolveActionState(baseState([player1, player2], [attacker, defender, commander]), {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'defender' },
     });
@@ -637,14 +637,14 @@ describe('Combat ability interactions', () => {
       turnOrder: 1,
     });
 
-    const fortifiedResult = gameReducer(baseState([player1, player2], [attacker, defender]), {
+    const fortifiedResult = resolveActionState(baseState([player1, player2], [attacker, defender]), {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'defender' },
     });
     const fortifiedDefender = fortifiedResult.units.find(unit => unit.id === 'defender');
 
     const unfortifiedDefender = { ...defender, status: 'active' as const };
-    const unfortifiedResult = gameReducer(baseState([player1, player2], [attacker, unfortifiedDefender]), {
+    const unfortifiedResult = resolveActionState(baseState([player1, player2], [attacker, unfortifiedDefender]), {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'defender' },
     });
@@ -684,14 +684,14 @@ describe('Combat ability interactions', () => {
         exploredBy: ['player1'],
       });
     }
-    const mountainResult = gameReducer(mountainState, {
+    const mountainResult = resolveActionState(mountainState, {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'defender' },
     });
     const mountainDefender = mountainResult.units.find(unit => unit.id === 'defender');
 
     const plainsState = baseState([player1, player2], [attacker, defender]);
-    const plainsResult = gameReducer(plainsState, {
+    const plainsResult = resolveActionState(plainsState, {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'defender' },
     });
@@ -737,7 +737,7 @@ describe('Combat ability interactions', () => {
     });
 
     const state = baseState([player1, player2], [attacker, defender, ally]);
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'ATTACK_UNIT',
       payload: { attackerId: 'attacker', targetId: 'defender' },
     });

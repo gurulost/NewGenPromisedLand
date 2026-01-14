@@ -176,8 +176,8 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         const canClearForest =
           !!currentTile &&
           currentTile.terrain === 'forest' &&
+          !currentTile.hasCity &&
           currentPlayer.researchedTechs.includes('forestry') &&
-          currentPlayer.stars >= 5 &&
           isPlayerTurn &&
           actionsRemaining > 0;
         actions.push(
@@ -227,38 +227,43 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                 ? 'Must be standing on a forest tile'
                 : !currentPlayer.researchedTechs.includes('forestry')
                   ? 'Requires Forestry technology'
-                  : currentPlayer.stars < 5
-                    ? 'Insufficient stars (need 5)'
-                    : 'Clear the forest (5 stars) • Convert to plains',
+                  : currentTile.hasCity
+                    ? 'Cannot clear forest in a city'
+                    : 'Clear the forest (+2 Stars, +1 Pride, +1 Dissent) • Convert to plains',
             icon: <AlertTriangle className="w-4 h-4" />,
-            cost: '5 Stars',
-            starCost: 5,
+            cost: 'Gain 2 Stars',
             available: canClearForest
           }
         );
         break;
 
       case 'missionary':
-        const hasHealingTech = currentPlayer.researchedTechs.includes('spirituality');
+        const healingCost = GAME_RULES.abilities.resourceCosts.missionaryHeal;
         const unitConversionFaithCost = GAME_RULES.conversion.costs.unit;
         const adjacentEnemyUnits = gameState.units.filter(u => {
           if (u.playerId === currentPlayer.id) return false;
           return hexDistance(unit.coordinate, u.coordinate) <= GAME_RULES.abilities.conversionRadius;
         });
+        const damagedAllyInRange = gameState.units.some(candidate =>
+          candidate.playerId === currentPlayer.id &&
+          candidate.id !== unit.id &&
+          candidate.hp < candidate.maxHp &&
+          hexDistance(unit.coordinate, candidate.coordinate) <= GAME_RULES.abilities.healRadius
+        );
 
         actions.push(
           {
             id: 'heal',
             name: 'Heal Nearby Units',
-            description: hasHealingTech ?
-              'Restore health to friendly units' :
-              'Requires Spirituality technology',
+            description: damagedAllyInRange
+              ? 'Restore health to friendly units'
+              : 'No damaged allies in range',
             icon: <Heart className="w-4 h-4" />,
-            cost: '5 Faith',
-            faithCost: 5,
-            available: hasHealingTech && currentPlayer.stats.faith >= 5 && actionsRemaining > 0,
+            cost: `${healingCost} Faith`,
+            faithCost: healingCost,
+            available: damagedAllyInRange && currentPlayer.stats.faith >= healingCost && actionsRemaining > 0,
             rangeType: 'ability',
-            range: 2
+            range: GAME_RULES.abilities.healRadius
           },
           {
             id: 'convert',

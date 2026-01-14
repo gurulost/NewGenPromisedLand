@@ -2,8 +2,9 @@ import { GameState } from "../types/game";
 import { Unit } from "../types/unit";
 import { hexDistance } from "../utils/hex";
 import { GAME_RULES } from "../data/gameRules";
-import { getActiveModifiers } from "../data/modifiers";
-import { getUnitActionsRemaining, isUnitVisibleToPlayer } from "./unitLogic";
+import { getEffectiveAttackRange, getUnitActionsRemaining, isUnitVisibleToPlayer } from "./unitLogic";
+import { computeEffectiveStats } from "./computeEffectiveStats";
+import { onAfterAttack, onBeforeAttack } from "./effects";
 
 export type CombatBlockReason =
   | "invalid_units"
@@ -36,10 +37,6 @@ export interface CombatResolution {
   message: string;
 }
 
-const ANTI_CAVALRY_BONUS = 3;
-const LEADERSHIP_BONUS = 1;
-const FORTIFY_DEFENSE_BONUS = 4;
-
 const normalizeAbility = (abilityId: string) => abilityId.toUpperCase();
 const getAbilitySet = (unit: Unit) =>
   new Set((unit.abilities || []).map(ability => normalizeAbility(String(ability))));
@@ -47,23 +44,6 @@ const getAbilitySet = (unit: Unit) =>
 const hasAbility = (abilities: Set<string>, abilityId: string) =>
   abilities.has(normalizeAbility(abilityId));
 
-const isFastUnit = (unit: Unit) => unit.movement >= 4 || unit.type === "scout";
-
-/**
- * Determines if an attack is ranged (distance > 1).
- * Uses attackRange from unit, defaulting to 2 if unit has RANGED_ATTACK ability but no range set.
- */
-const getEffectiveAttackRange = (unit: Unit): number => {
-  if (unit.attackRange && unit.attackRange >= 1) {
-    return unit.attackRange;
-  }
-  // If unit has RANGED_ATTACK ability but no attackRange, default to 2
-  const abilities = getAbilitySet(unit);
-  if (hasAbility(abilities, 'RANGED_ATTACK')) {
-    return 2;
-  }
-  return 1;
-};
 
 /**
  * Check if an attack is "ranged" - distance > 1 AND within attack range
@@ -87,14 +67,6 @@ const isDefenderProtectedByFortress = (defender: Unit, state: GameState) => {
       (structure.constructionTurns ?? 0) <= 0
   );
 };
-
-const hasAdjacentLeader = (unit: Unit, state: GameState) =>
-  state.units.some(other =>
-    other.playerId === unit.playerId &&
-    other.id !== unit.id &&
-    hasAbility(getAbilitySet(other), "LEADERSHIP") &&
-    hexDistance(other.coordinate, unit.coordinate) <= 1
-  );
 
 export function resolveCombat(
   attacker: Unit,
@@ -163,7 +135,8 @@ export function resolveCombat(
     )?.terrain;
   const attackerTerrain = getTerrainAt(attacker.coordinate);
   const defenderTerrain = options?.terrainOverride ?? getTerrainAt(defender.coordinate);
-  if (distance > attacker.attackRange) {
+  const attackerRange = getEffectiveAttackRange(attacker);
+  if (distance > attackerRange) {
     return {
       success: false,
       canAttack: false,
@@ -301,216 +274,32 @@ export function resolveCombat(
     };
   }
 
-  const attackerModifiers: string[] = [];
-  const defenderModifiers: string[] = [];
-  const specialEffects: string[] = [];
+  onBeforeAttack(attacker, defender, state);
 
-  let attackerAttack = attacker.attack;
-  let attackerDefense = attacker.defense;
-  let defenderAttack = defender.attack;
-  let defenderDefense = defender.defense;
-  const baseDefense = defender.defense; // Capture base for capping bonuses
+  const attackerStats = computeEffectiveStats(attacker, state, {
+    role: "attacker",
+    opponent: defender,
+    distance,
+    terrain: attackerTerrain
+  });
+  const defenderStats = computeEffectiveStats(defender, state, {
+    role: "defender",
+    opponent: attacker,
+    distance,
+    terrain: defenderTerrain
+  });
 
-  // Testimony pressure: temporary attack penalty (applied via statusEffects).
-  const testimonyPressurePenalty = (() => {
-    const effects = Array.isArray((attacker as any).statusEffects) ? (attacker as any).statusEffects : [];
-    const pressure = effects.find((e: any) => e?.type === "TESTIMONY_PRESSURE");
-    return typeof pressure?.attackPenalty === "number" ? pressure.attackPenalty : 0;
-  })();
-  if (testimonyPressurePenalty > 0) {
-    attackerAttack = Math.max(0, attackerAttack - testimonyPressurePenalty);
-    attackerModifiers.push(`-${testimonyPressurePenalty} Attack (Testimony Pressure)`);
-  }
+  const attackerModifiers = attackerStats.modifiers;
+  const defenderModifiers = defenderStats.modifiers;
+  const specialEffects = Array.from(new Set([
+    ...attackerStats.specialEffects,
+    ...defenderStats.specialEffects
+  ]));
 
-  // Status effects (rally/siege/formation).
-  if (attacker.status === "rallied") {
-    attackerAttack += 2;
-    attackerModifiers.push("+2 Attack (Rallied)");
-  }
-  if (attacker.status === "siege_mode") {
-    attackerAttack += 3;
-    attackerModifiers.push("+3 Attack (Siege Mode)");
-  }
-  if (defender.status === "siege_mode") {
-    defenderAttack += 3;
-    defenderModifiers.push("+3 Attack (Siege Mode)");
-  }
-  if (attackerTerrain === "forest" && distance > 1 && hasAbility(attackerAbilities, "AMBUSH")) {
-    attackerAttack += 2;
-    attackerModifiers.push("+2 Attack (Forest Ambush)");
-    specialEffects.push("Forest ambush");
-  }
-  if (defender.status === "formation") {
-    let formationBonus = 2; // Base bonus
-
-    // Shield Wall Synergy: +1 if adjacent to another ally in formation
-    const hasShieldWall = state.units.some(u =>
-      u.playerId === defender.playerId &&
-      u.id !== defender.id &&
-      u.status === "formation" &&
-      hexDistance(u.coordinate, defender.coordinate) === 1
-    );
-
-    if (hasShieldWall) {
-      formationBonus += 1;
-      specialEffects.push("Shield Wall Synergy");
-      defenderModifiers.push("Shield Wall");
-    }
-
-    // Cap at +3 total (redundant since 2+1=3, but good for safety)
-    formationBonus = Math.min(3, formationBonus);
-
-    defenderDefense += formationBonus;
-    defenderModifiers.push(`+${formationBonus} Defense (Formation)`);
-  }
-
-  // FAITHFUL_DEFENSE: Stripling Warriors gain defense bonus based on Faith when in defensive posture
-  if (hasAbility(defenderAbilities, "FAITHFUL_DEFENSE")) {
-    const defenderFaith = defenderPlayer?.stats.faith ?? 0;
-    const defendingCity = state.cities.find(
-      c => c.coordinate.q === defender.coordinate.q && c.coordinate.r === defender.coordinate.r
-    );
-    // Defensive posture: in city, formation, fortified, OR did not move this turn
-    const didNotMove = defender.remainingMovement === defender.movement;
-    const isDefensivePosture =
-      defendingCity !== undefined ||
-      defender.status === "formation" ||
-      defender.status === "fortified" ||
-      didNotMove;
-
-    if (isDefensivePosture) {
-      // Tiered bonus: Faith 80-94: +1, Faith 95-100: +2
-      const faithBonus = defenderFaith >= 95 ? 2 : defenderFaith >= 80 ? 1 : 0;
-      if (faithBonus > 0) {
-        defenderDefense += faithBonus;
-        defenderModifiers.push(`+${faithBonus} Defense (Faithful Defense)`);
-        specialEffects.push("Faithful defense");
-      }
-    }
-  }
-
-  // INTIMIDATED status effect: -1 Attack (but YOUNG_VIGOR units are immune)
-  const defenderIntimidated = (() => {
-    const effects = Array.isArray((defender as any).statusEffects) ? (defender as any).statusEffects : [];
-    return effects.some((e: any) => e?.type === "INTIMIDATED");
-  })();
-  if (defenderIntimidated && !hasAbility(defenderAbilities, "YOUNG_VIGOR")) {
-    defenderAttack = Math.max(0, defenderAttack - 1);
-    defenderModifiers.push("-1 Attack (Intimidated)");
-  }
-
-  // Also check attacker for intimidation (for counter-attacks)
-  const attackerIntimidated = (() => {
-    const effects = Array.isArray((attacker as any).statusEffects) ? (attacker as any).statusEffects : [];
-    return effects.some((e: any) => e?.type === "INTIMIDATED");
-  })();
-  if (attackerIntimidated && !hasAbility(attackerAbilities, "YOUNG_VIGOR")) {
-    attackerAttack = Math.max(0, attackerAttack - 1);
-    attackerModifiers.push("-1 Attack (Intimidated)");
-  }
-
-  // Anti-cavalry bonus (spearmen vs fast units).
-  if (hasAbility(attackerAbilities, "ANTI_CAVALRY") && isFastUnit(defender)) {
-    attackerAttack += ANTI_CAVALRY_BONUS;
-    attackerModifiers.push(`+${ANTI_CAVALRY_BONUS} Attack (Anti-Cavalry)`);
-    specialEffects.push("Anti-cavalry bonus");
-  }
-
-  // Leadership aura (adjacent commander grants +1 attack/defense).
-  if (hasAdjacentLeader(attacker, state)) {
-    attackerAttack += LEADERSHIP_BONUS;
-    attackerDefense += LEADERSHIP_BONUS;
-    attackerModifiers.push(`+${LEADERSHIP_BONUS} Attack (Leadership)`);
-    attackerModifiers.push(`+${LEADERSHIP_BONUS} Defense (Leadership)`);
-    specialEffects.push("Leadership bonus");
-  }
-  if (hasAdjacentLeader(defender, state)) {
-    defenderAttack += LEADERSHIP_BONUS;
-    defenderDefense += LEADERSHIP_BONUS;
-    defenderModifiers.push(`+${LEADERSHIP_BONUS} Attack (Leadership)`);
-    defenderModifiers.push(`+${LEADERSHIP_BONUS} Defense (Leadership)`);
-    specialEffects.push("Leadership bonus");
-  }
-
-  // Fortify stance
-  if (hasAbility(defenderAbilities, "FORTIFY") && (defender.status === "defending" || defender.status === "fortified")) {
-    defenderDefense += FORTIFY_DEFENSE_BONUS;
-    defenderModifiers.push(`+${FORTIFY_DEFENSE_BONUS} Defense (Fortify)`);
-    specialEffects.push("Fortify defense");
-  }
-
-  // Player modifiers
-  if (attackerPlayer) {
-    const attackModifiers = getActiveModifiers(attackerPlayer, "on_attack");
-    for (const modifier of attackModifiers) {
-      for (const effect of modifier.effect) {
-        if (effect.stat === "attack" && effect.target === "self") {
-          attackerAttack += effect.value;
-          attackerModifiers.push(`${effect.value >= 0 ? "+" : ""}${effect.value} Attack (${modifier.name})`);
-        }
-      }
-    }
-  }
-  if (defenderPlayer) {
-    const defenseModifiers = getActiveModifiers(defenderPlayer, "on_defend");
-    for (const modifier of defenseModifiers) {
-      for (const effect of modifier.effect) {
-        if (effect.stat === "defense" && effect.target === "self") {
-          defenderDefense += effect.value;
-          defenderModifiers.push(`${effect.value >= 0 ? "+" : ""}${effect.value} Defense (${modifier.name})`);
-        }
-      }
-    }
-  }
-
-  // Faith synergy combat bonuses (tiered)
-  const faithCfg = GAME_RULES.faithBonuses;
-  if (attackerPlayer && attackerPlayer.stats.faith >= faithCfg.highThreshold) {
-    attackerAttack += faithCfg.highAttackBonus;
-    attackerModifiers.push(`+${faithCfg.highAttackBonus} Attack (High Faith)`);
-  }
-  if (defenderPlayer) {
-    const defenderFaith = defenderPlayer.stats.faith;
-    if (defenderFaith >= faithCfg.highThreshold) {
-      defenderDefense += faithCfg.highDefenseBonus;
-      defenderModifiers.push(`+${faithCfg.highDefenseBonus} Defense (High Faith)`);
-    } else if (defenderFaith >= faithCfg.lowThreshold) {
-      defenderDefense += faithCfg.lowDefenseBonus;
-      defenderModifiers.push(`+${faithCfg.lowDefenseBonus} Defense (Faith)`);
-    }
-  }
-
-  // Terrain defense bonus
-  if (defenderTerrain) {
-    const terrainBonus = GAME_RULES.terrain.defenseBonus[defenderTerrain] || 0;
-    if (terrainBonus > 0) {
-      defenderDefense += terrainBonus;
-      defenderModifiers.push(`+${terrainBonus} Defense (Terrain)`);
-      specialEffects.push("Terrain defense bonus");
-    }
-  }
-
-  // City structure defense bonuses
-  const defendingCity = state.cities.find(
-    c => c.coordinate.q === defender.coordinate.q && c.coordinate.r === defender.coordinate.r
-  );
-  if (defendingCity) {
-    const structureDefenseBonus = (state.structures || [])
-      .filter(structure => structure.cityId === defendingCity.id && (structure.constructionTurns ?? 0) <= 0)
-      .reduce((sum, structure) => sum + (structure.effects?.defenseBonus ?? 0), 0);
-    if (structureDefenseBonus > 0) {
-      defenderDefense += structureDefenseBonus;
-      defenderModifiers.push(`+${structureDefenseBonus} Defense (City Structures)`);
-      specialEffects.push("City structure defense bonus");
-    }
-  }
-
-  // Cap total defense bonuses to prevent stalemates (Warning 6b)
-  const totalBonus = defenderDefense - baseDefense;
-  if (totalBonus > 4) {
-    defenderDefense = baseDefense + 4;
-    defenderModifiers.push(`(Defense bonus capped at +4)`);
-  }
+  const attackerAttack = attackerStats.attack;
+  const attackerDefense = attackerStats.defense;
+  const defenderAttack = defenderStats.attack;
+  const defenderDefense = defenderStats.defense;
 
   // Calculate final damage
   let attackerDamage = Math.max(1, attackerAttack - defenderDefense);
@@ -527,13 +316,13 @@ export function resolveCombat(
     defenderModifiers.push("-1 Damage Taken (Protective Aura)");
   }
 
-  const isRangedAttack = distance > 1;
-  if (isRangedAttack && defenderTerrain === "forest") {
+  const isRanged = isRangedAttack(attacker, distance);
+  if (isRanged && defenderTerrain === "forest") {
     attackerDamage = Math.max(1, attackerDamage - 1);
     defenderModifiers.push("-1 Ranged Damage (Forest Cover)");
     specialEffects.push("Forest cover");
   }
-  if (isRangedAttack && isDefenderProtectedByFortress(defender, state)) {
+  if (isRanged && isDefenderProtectedByFortress(defender, state)) {
     const fortificationReduction = GAME_RULES.combat.fortificationBonus;
     if (fortificationReduction > 0) {
       attackerDamage = Math.max(1, attackerDamage - fortificationReduction);
@@ -543,9 +332,10 @@ export function resolveCombat(
   }
 
   const defenderHpAfter = Math.max(0, defender.hp - attackerDamage);
+  const defenderRange = defenderStats.range;
   const defenderCanCounter =
     defenderHpAfter > 0 &&
-    distance <= defender.attackRange &&
+    distance <= defenderRange &&
     defenderAttack > 0 &&
     (!defenderHasBombardment ||
       (distance > 1 && defender.status === "siege_mode" && defender.remainingMovement === defender.movement));
@@ -565,6 +355,8 @@ export function resolveCombat(
   } else {
     message += ` (${attackerDamage} damage dealt, ${defenderDamage} received)`;
   }
+
+  onAfterAttack(attacker, defender, state);
 
   return {
     success: true,

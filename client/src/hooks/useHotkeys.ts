@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 const isEditableTarget = (target: EventTarget | null) => {
   if (!target || !(target instanceof HTMLElement)) {
@@ -14,6 +14,12 @@ const isEditableTarget = (target: EventTarget | null) => {
 };
 
 export function useHotkeys(keys: string | string[], callback: () => void, deps: any[] = []) {
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
   useEffect(() => {
     const keyList = Array.isArray(keys) ? keys : [keys];
 
@@ -35,11 +41,11 @@ export function useHotkeys(keys: string | string[], callback: () => void, deps: 
 
       if (keyPressed) {
         event.preventDefault();
-        callback();
+        callbackRef.current();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [keys, callback, ...deps]);
+  }, [keys, ...deps]);
 }

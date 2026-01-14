@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { GameState, PlayerState } from "@shared/types/game";
 import { HexCoordinate } from "@shared/types/coordinates";
 import { hexDistance } from "@shared/utils/hex";
-import { gameReducer } from "@shared/logic/gameReducer";
+import { resolveActionState } from "@shared/logic/resolveAction";
 import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenerator";
 import { getRandomCityName, resetCityNames } from "@shared/data/cityNames";
 import { FactionId } from "@shared/types/faction";
@@ -103,7 +103,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
   const applyActionToState = (action: any): { applied: boolean; state?: GameState } => {
     const { gameState } = get();
     if (!gameState) return { applied: false };
-    const newGameState = gameReducer(gameState, action);
+    const newGameState = resolveActionState(gameState, action, { source: 'client' });
     if (newGameState === gameState) return { applied: false };
     set({ gameState: newGameState });
     const selectionStore = useGameState.getState();

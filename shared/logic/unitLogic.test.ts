@@ -346,6 +346,7 @@ describe('Unit Logic', () => {
       
       ranges.forEach(range => {
         const rangedUnit = { ...testUnit, type: 'scout', attackRange: range, visionRadius: 4 };
+        mockGameState.units = [rangedUnit, enemyUnit];
         
         // Place enemy at exact range distance
         const targetCoord = { q: range, r: 0, s: -range };

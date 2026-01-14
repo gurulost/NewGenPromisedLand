@@ -9,6 +9,7 @@ import { City } from '../types/city';
 import { HexCoordinate } from '../types/coordinates';
 import { hexDistance, hexNeighbors } from '../utils/hex';
 import { getUnitDefinition } from '../data/units';
+import { getUnitAttackRangeFromDefinition } from '../logic/unitLogic';
 import { SeededRNG } from './aiFoundation';
 
 export interface InfluenceMap {
@@ -70,7 +71,7 @@ export class TacticalEngine {
       for (const unit of this.gameState.units) {
         const distance = hexDistance(coord, unit.coordinate);
         const unitDef = getUnitDefinition(unit.type);
-        const range = Math.max(unitDef.baseStats.attackRange || 1, 3);
+        const range = Math.max(getUnitAttackRangeFromDefinition(unitDef), 3);
 
         if (distance <= range) {
           const influence = this.calculateUnitInfluence(unit, distance);
@@ -123,7 +124,7 @@ export class TacticalEngine {
     for (const enemy of enemyUnits) {
       const distance = hexDistance(coordinate, enemy.coordinate);
       const unitDef = getUnitDefinition(enemy.type);
-      const attackRange = unitDef.baseStats.attackRange || 1;
+      const attackRange = getUnitAttackRangeFromDefinition(unitDef);
       const movementRange = enemy.remainingMovement || unitDef.baseStats.movement;
 
       // Can this unit threaten this position this turn or next?
@@ -161,7 +162,7 @@ export class TacticalEngine {
   findTacticalTargets(unit: Unit): TacticalTarget[] {
     const targets: TacticalTarget[] = [];
     const unitDef = getUnitDefinition(unit.type);
-    const attackRange = unitDef.baseStats.attackRange || 1;
+    const attackRange = getUnitAttackRangeFromDefinition(unitDef);
     const maxRange = unit.remainingMovement + attackRange;
 
     // 1. Enemy units within range (only those we are at war with)
@@ -438,7 +439,7 @@ export class TacticalEngine {
     for (const enemy of enemyUnits) {
       const dist = hexDistance(coord, enemy.coordinate);
       const enemyDef = getUnitDefinition(enemy.type);
-      const attackRange = enemyDef.baseStats.attackRange || 1;
+      const attackRange = getUnitAttackRangeFromDefinition(enemyDef);
 
       if (dist <= attackRange) {
         safety -= 30; // In attack range - bad!

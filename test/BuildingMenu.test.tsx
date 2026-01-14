@@ -81,14 +81,14 @@ describe('BuildingMenu Component', () => {
       turnOrder: 0
     };
 
-	    mockCity = {
-	      id: 'city1',
-	      name: 'Test City',
-	      coordinate: { q: 0, r: 0 },
-	      population: 5,
-	      ownerId: 'player1',
-	      starProduction: 2
-	    };
+    mockCity = {
+      id: 'city1',
+      name: 'Test City',
+      coordinate: { q: 0, r: 0, s: 0 },
+      population: 5,
+      ownerId: 'player1',
+      starProduction: 2
+    };
 
     mockGameState = {
       id: 'game1',
@@ -99,7 +99,10 @@ describe('BuildingMenu Component', () => {
       units: [],
       cities: [mockCity],
       map: {
-        tiles: [],
+        tiles: [
+          { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: true, exploredBy: ['player1'] },
+          { coordinate: { q: 1, r: 0, s: -1 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['player1'] }
+        ],
         width: 10,
         height: 10
       },

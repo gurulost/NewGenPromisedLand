@@ -97,6 +97,7 @@ export interface GameRules {
       guerrillaBonus: number;
     };
     resourceCosts: {
+      missionaryHeal: number;
       faithHealing: number;
       towerVision: number;
       ancientKnowledge: number;
@@ -272,6 +273,7 @@ export const GAME_RULES: GameRules = {
       guerrillaBonus: 3,
     },
     resourceCosts: {
+      missionaryHeal: 5,
       faithHealing: 10,
       towerVision: 15,
       ancientKnowledge: 25,

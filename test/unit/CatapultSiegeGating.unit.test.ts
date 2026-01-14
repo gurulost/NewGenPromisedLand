@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameReducer } from '../../shared/logic/gameReducer';
+import { resolveActionState } from '../../shared/logic/resolveAction';
 import type { GameState } from '../../shared/types/game';
 
 describe('Catapult siege/bombardment gating', () => {
@@ -113,11 +113,11 @@ describe('Catapult siege/bombardment gating', () => {
     };
 
     // Not deployed => blocked.
-    const blocked = gameReducer(base, { type: 'ATTACK_UNIT', payload: { attackerId: 'c1', targetId: 'e1' } } as any);
+    const blocked = resolveActionState(base, { type: 'ATTACK_UNIT', payload: { attackerId: 'c1', targetId: 'e1' } } as any);
     expect(blocked).toBe(base);
 
     // Deploy siege mode (must be stationary). This should consume the unit's action.
-    const deployed = gameReducer(base, { type: 'SIEGE_MODE', payload: { playerId: p1, unitId: 'c1' } } as any);
+    const deployed = resolveActionState(base, { type: 'SIEGE_MODE', payload: { playerId: p1, unitId: 'c1' } } as any);
     expect(deployed.units.find(u => u.id === 'c1')?.status).toBe('siege_mode');
     expect(deployed.units.find(u => u.id === 'c1')?.actionsRemaining).toBe(0);
 
@@ -130,7 +130,7 @@ describe('Catapult siege/bombardment gating', () => {
           : u
       ),
     };
-    const stillBlocked = gameReducer(movedThisTurn, { type: 'ATTACK_UNIT', payload: { attackerId: 'c1', targetId: 'e1' } } as any);
+    const stillBlocked = resolveActionState(movedThisTurn, { type: 'ATTACK_UNIT', payload: { attackerId: 'c1', targetId: 'e1' } } as any);
     expect(stillBlocked).toBe(movedThisTurn);
 
     // Stationary and deployed => allowed.
@@ -142,7 +142,7 @@ describe('Catapult siege/bombardment gating', () => {
           : u
       ),
     };
-    const attacked = gameReducer(stationaryDeployed, { type: 'ATTACK_UNIT', payload: { attackerId: 'c1', targetId: 'e1' } } as any);
+    const attacked = resolveActionState(stationaryDeployed, { type: 'ATTACK_UNIT', payload: { attackerId: 'c1', targetId: 'e1' } } as any);
     expect(attacked).not.toBe(stationaryDeployed);
     expect(attacked.units.find(u => u.id === 'c1')?.hasAttacked).toBe(true);
   });

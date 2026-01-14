@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { gameReducer } from '../../shared/logic/gameReducer';
+import { resolveActionState } from '../../shared/logic/resolveAction';
 import type { GameState } from '../../shared/types/game';
 import { GAME_RULES } from '../../shared/data/gameRules';
 
@@ -107,7 +107,7 @@ describe('Missionary unit conversion', () => {
       visibility: undefined,
     };
 
-    const after = gameReducer(state, {
+    const after = resolveActionState(state, {
       type: 'CONVERT_UNIT',
       payload: { playerId: 'p1', unitId: 'm1', targetUnitId: 'e1' }
     } as any);
@@ -220,7 +220,7 @@ describe('Missionary unit conversion', () => {
       visibility: undefined,
     };
 
-    const after = gameReducer(state, {
+    const after = resolveActionState(state, {
       type: 'CONVERT_UNIT',
       payload: { playerId: 'p1', unitId: 'm1', targetUnitId: 'e1' }
     } as any);
@@ -330,7 +330,7 @@ describe('Missionary unit conversion', () => {
       visibility: undefined,
     };
 
-    const after = gameReducer(state, {
+    const after = resolveActionState(state, {
       type: 'CONVERT_UNIT',
       payload: { playerId: 'p1', unitId: 'm1', targetUnitId: 'e1' }
     } as any);

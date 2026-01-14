@@ -92,6 +92,12 @@ const effectIconMap: Record<EffectIconKey, React.ReactNode> = {
   special: <Zap className="w-4 h-4" />,
 };
 
+const formatRequirement = (req: BuildRequirement) =>
+  req.value ? `${req.label}: ${req.value}` : req.label;
+
+const requirementSummary = (reqs?: BuildRequirement[]) =>
+  (reqs || []).map(formatRequirement).join(" • ");
+
 export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShowCities }: BuildingMenuProps) {
   const [selectedCategory, setSelectedCategory] = useState<'units' | 'structures' | 'improvements'>('units');
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -225,12 +231,6 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
     if (!option.requirements || option.requirements.length === 0) return true;
     return option.requirements.every(req => req.status !== "unmet" || req.id === "stars_cost");
   };
-
-  const formatRequirement = (req: BuildRequirement) =>
-    req.value ? `${req.label}: ${req.value}` : req.label;
-
-  const requirementSummary = (reqs?: BuildRequirement[]) =>
-    (reqs || []).map(formatRequirement).join(" • ");
 
   return (
     <div 

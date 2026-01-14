@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameReducer } from '../../shared/logic/gameReducer';
+import { resolveActionState } from '../../shared/logic/resolveAction';
 import { GameState, PlayerState, GameAction } from '../../shared/types/game';
 import { Unit } from '../../shared/types/unit';
 
@@ -64,7 +64,7 @@ describe('Golden Simulation', () => {
 
         // Helper to dispatch
         const dispatch = (action: GameAction) => {
-            state = gameReducer(state, action);
+            state = resolveActionState(state, action);
         };
 
         // 1. CLEAR_FOREST Scenario with WORKER

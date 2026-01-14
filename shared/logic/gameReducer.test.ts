@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { gameReducer } from './gameReducer';
+import { resolveActionState } from './resolveAction';
 import { GAME_RULES } from '../data/gameRules';
 import { TECHNOLOGIES } from '../data/technologies';
 import type { GameState, GameAction, PlayerState } from '../types/game';
@@ -85,7 +85,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, moveAction);
+      const newState = resolveActionState(mockGameState, moveAction);
       const movedUnit = newState.units.find(u => u.id === 'unit1');
       
       expect(movedUnit?.coordinate).toEqual({ q: 1, r: 0, s: -1 });
@@ -104,7 +104,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, moveAction);
+      const newState = resolveActionState(mockGameState, moveAction);
       const unit = newState.units.find(u => u.id === 'unit1');
       
       // Unit should not have moved
@@ -149,7 +149,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, attackAction);
+      const newState = resolveActionState(mockGameState, attackAction);
       const target = newState.units.find(u => u.id === 'enemy1');
       
       expect(target?.hp).toBeLessThan(8); // Should have taken damage
@@ -170,7 +170,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, attackAction);
+      const newState = resolveActionState(mockGameState, attackAction);
       const target = newState.units.find(u => u.id === 'enemy1');
       
       expect(target).toBeUndefined(); // Unit should be removed
@@ -240,7 +240,7 @@ describe('Game Reducer', () => {
         makeCity('city1', 'player1', { q: 0, r: 0, s: 0 }),
         makeCity('city2', 'player2', { q: 1, r: 0, s: -1 })
       ]);
-      const result = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+      const result = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
       expect(result.winner).toBe('player1');
       expect(result.victoryType).toBe('faith');
     });
@@ -264,7 +264,7 @@ describe('Game Reducer', () => {
         makeCity('city1', 'player1', { q: 0, r: 0, s: 0, starProduction: 30 }),
         makeCity('city2', 'player2', { q: 1, r: 0, s: -1 })
       ]);
-      const result = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+      const result = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
       expect(result.winner).toBe('player1');
       expect(result.victoryType).toBe('economic');
     });
@@ -292,7 +292,7 @@ describe('Game Reducer', () => {
         { id: 's4', type: 'academy', ownerId: 'player1', cityId: 'city1', constructionTurns: 0, effects: { starProduction: 0, unitProduction: 0, defenseBonus: 0, populationGrowth: 0, faithProduction: 0 } },
         { id: 's5', type: 'temple', ownerId: 'player1', cityId: 'city1', constructionTurns: 0, effects: { starProduction: 0, unitProduction: 0, defenseBonus: 0, populationGrowth: 0, faithProduction: 0 } },
       ];
-      const result = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+      const result = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
       expect(result.winner).toBe('player1');
       expect(result.victoryType).toBe('cultural');
     });
@@ -316,7 +316,7 @@ describe('Game Reducer', () => {
         makeCity('city4', 'player1', { q: 3, r: 0, s: -3 }),
         makeCity('city5', 'player2', { q: 4, r: 0, s: -4 })
       ]);
-      const result = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+      const result = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
       expect(result.winner).toBe('player1');
       expect(result.victoryType).toBe('territorial');
     });
@@ -336,7 +336,7 @@ describe('Game Reducer', () => {
       const state = makeState([player1, player2], [
         makeCity('city1', 'player1', { q: 0, r: 0, s: 0 })
       ]);
-      const result = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+      const result = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
       expect(result.winner).toBe('player1');
       expect(result.victoryType).toBe('elimination');
     });
@@ -360,7 +360,7 @@ describe('Game Reducer', () => {
       ]);
       state.turn = GAME_RULES.turns.maxTurnsPerGame - 1;
       state.currentPlayerIndex = 1;
-      const result = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'player2' } });
+      const result = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'player2' } });
       expect(result.winner).toBe('player1');
       expect(result.victoryType).toBe('domination');
     });
@@ -383,7 +383,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, endTurnAction);
+      const newState = resolveActionState(mockGameState, endTurnAction);
       
       expect(newState.currentPlayerIndex).toBe(1);
     });
@@ -399,7 +399,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, endTurnAction);
+      const newState = resolveActionState(mockGameState, endTurnAction);
       const unit = newState.units.find(u => u.id === 'unit1');
       
       expect(unit?.remainingMovement).toBe(unit?.movement);
@@ -413,7 +413,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, endTurnAction);
+      const newState = resolveActionState(mockGameState, endTurnAction);
       
       expect(newState.currentPlayerIndex).toBe(0);
     });
@@ -432,7 +432,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, researchAction);
+      const newState = resolveActionState(mockGameState, researchAction);
       const player = newState.players.find(p => p.id === 'player1');
       
       expect(player?.researchedTechs).toContain('agriculture');
@@ -451,7 +451,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, researchAction);
+      const newState = resolveActionState(mockGameState, researchAction);
       const player = newState.players.find(p => p.id === 'player1');
       
       expect(player?.researchedTechs).not.toContain('agriculture');
@@ -493,7 +493,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, moveAction);
+      const newState = resolveActionState(mockGameState, moveAction);
       const unit = newState.units.find(u => u.id === 'enemy-unit');
       
       // Unit should not have moved
@@ -532,7 +532,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, attackAction);
+      const newState = resolveActionState(mockGameState, attackAction);
       const target = newState.units.find(u => u.id === 'friendly-unit');
       
       // Friendly unit should not take damage
@@ -548,7 +548,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, moveAction);
+      const newState = resolveActionState(mockGameState, moveAction);
       
       // State should be unchanged
       expect(newState).toEqual(mockGameState);
@@ -606,7 +606,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, endTurnAction);
+      const newState = resolveActionState(mockGameState, endTurnAction);
       const player = newState.players.find(p => p.id === 'player1');
       
       // Stars should have increased based on city income
@@ -645,7 +645,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, endTurnAction);
+      const newState = resolveActionState(mockGameState, endTurnAction);
       
       // Player2's units should have full movement restored (it's now their turn)
       newState.units.forEach(unit => {
@@ -665,7 +665,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, endTurnAction);
+      const newState = resolveActionState(mockGameState, endTurnAction);
       
       expect(newState.currentPlayerIndex).toBe(1);
     });
@@ -733,7 +733,7 @@ describe('Game Reducer', () => {
         }
       };
       
-      let gameState = gameReducer(stateWithTwoPlayers, moveAction);
+      let gameState = resolveActionState(stateWithTwoPlayers, moveAction);
       let unit = gameState.units.find(u => u.id === 'unit1');
       expect(unit?.coordinate).toEqual({ q: 1, r: 0, s: -1 });
       expect(unit?.remainingMovement).toBeLessThan(2);
@@ -747,7 +747,7 @@ describe('Game Reducer', () => {
         }
       };
       
-      gameState = gameReducer(gameState, attackAction);
+      gameState = resolveActionState(gameState, attackAction);
       const enemy = gameState.units.find(u => u.id === 'enemy-combat');
       expect(enemy?.hp).toBeLessThan(5); // Should have taken damage
       
@@ -759,7 +759,7 @@ describe('Game Reducer', () => {
         }
       };
       
-      gameState = gameReducer(gameState, endTurnAction);
+      gameState = resolveActionState(gameState, endTurnAction);
       expect(gameState.currentPlayerIndex).toBe(1); // Should advance to next player
     });
 
@@ -773,7 +773,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, invalidMoveAction);
+      const newState = resolveActionState(mockGameState, invalidMoveAction);
       const unit = newState.units.find(u => u.id === 'unit1');
       
       // Unit should not have moved
@@ -815,7 +815,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(mockGameState, moveAction);
+      const newState = resolveActionState(mockGameState, moveAction);
       const unit1 = newState.units.find(u => u.id === 'unit1');
       
       // Should allow movement to tile with friendly unit
@@ -858,7 +858,7 @@ describe('Game Reducer', () => {
         }
       };
 
-      const newState = gameReducer(stateWithWeakEnemy, attackAction);
+      const newState = resolveActionState(stateWithWeakEnemy, attackAction);
       const deadUnit = newState.units.find(u => u.id === 'weak-enemy');
       
       // Unit should be completely removed from game state
@@ -878,7 +878,7 @@ describe('Game Reducer', () => {
       };
 
       const originalUnit = { ...mockGameState.units[0] };
-      const newState = gameReducer(mockGameState, moveAction);
+      const newState = resolveActionState(mockGameState, moveAction);
       
       // Original state should be unchanged
       expect(mockGameState.units[0]).toEqual(originalUnit);

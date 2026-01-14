@@ -1,10 +1,11 @@
 import { render, screen, fireEvent } from '@testing-library/react';
+import { vi } from 'vitest';
 import { GlowingButton } from '../GlowingButton';
 
 const stripMotionProps = ({ animate, initial, exit, transition, whileHover, whileTap, layout, layoutId, ...rest }: any) => rest;
 
 // Mock framer-motion to simplify motion props in tests
-jest.mock('framer-motion', () => ({
+vi.mock('framer-motion', () => ({
   motion: {
     button: ({ children, className, onClick, disabled, ...props }: any) => (
       <button
@@ -21,12 +22,12 @@ jest.mock('framer-motion', () => ({
 }));
 
 // Mock hooks
-jest.mock('../../../hooks/useReducedMotion', () => ({
+vi.mock('../../../hooks/useReducedMotion', () => ({
   useReducedMotion: () => false,
 }));
 
-jest.mock('../../../hooks/useSfx', () => ({
-  useSfxEngine: () => jest.fn(),
+vi.mock('../../../hooks/useSfx', () => ({
+  useSfxEngine: () => vi.fn(),
 }));
 
 describe('GlowingButton', () => {
@@ -42,7 +43,7 @@ describe('GlowingButton', () => {
   });
 
   it('handles click events', () => {
-    const handleClick = jest.fn();
+    const handleClick = vi.fn();
     
     render(
       <GlowingButton onClick={handleClick}>
@@ -119,7 +120,7 @@ describe('GlowingButton', () => {
   });
 
   it('prevents click when disabled', () => {
-    const handleClick = jest.fn();
+    const handleClick = vi.fn();
     
     render(
       <GlowingButton onClick={handleClick} disabled>

@@ -56,7 +56,9 @@ npm run ai:sim           # Run AI strategy simulator
 ### Key Directories
 
 **`/shared/logic/`** - Core game logic (pure functions, no React):
-- `gameReducer.ts` - Master state machine for all game actions
+- `resolveAction.ts` - Canonical action resolver (single source of truth entry point)
+- `gameReducer.ts` - Thin router delegating to `resolveAction.ts`
+- `legacyHandlers.ts` - Legacy state machine handlers (being migrated into resolver)
 - `combatResolver.ts` - Combat calculation engine
 - `unitLogic.ts` - Movement validation, passability
 - `pathfinding.ts` - A* pathfinding implementation
@@ -86,7 +88,7 @@ npm run ai:sim           # Run AI strategy simulator
 
 ### Game Logic Separation
 
-All game rules live in `/shared/` as pure functions. The `gameReducer.ts` handles state transitions through dispatched actions. Never put game logic directly in React components.
+All game rules live in `/shared/` as pure functions. Use `resolveAction.ts` as the canonical entry point for state transitions. Never put game logic directly in React components.
 
 ### Data-Driven Design
 
@@ -101,13 +103,14 @@ Tests require mocking for Three.js, Zustand, and browser APIs. The `test/setup.t
 1. Define types in `/shared/types/`
 2. Add data in `/shared/data/`
 3. Implement logic in `/shared/logic/`
-4. Add reducer actions in `gameReducer.ts`
+4. Add or migrate action handling in `resolveAction.ts` (the reducer is legacy)
 5. Create UI in `/client/src/components/`
 6. Write tests before/during implementation
 
 ## Important Files
 
-- `shared/logic/gameReducer.ts` - Game state machine (largest file, handles all actions)
+- `shared/logic/gameReducer.ts` - Thin router delegating to `resolveAction.ts`
+- `shared/logic/legacyHandlers.ts` - Legacy game state machine handlers (being migrated into `resolveAction.ts`)
 - `shared/data/gameRules.ts` - Game balance configuration
 - `shared/utils/mapGenerator.ts` - Procedural map generation
 - `test/setup.ts` - Test mocking configuration

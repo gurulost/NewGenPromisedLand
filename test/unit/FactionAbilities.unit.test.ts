@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { gameReducer } from '../../shared/logic/gameReducer';
+import { resolveActionState } from '../../shared/logic/resolveAction';
 import { subscribeTelemetry } from '../../shared/logic/telemetry';
 import type { TelemetryEvent } from '../../shared/logic/telemetry';
 import type { GameState, PlayerState } from '../../shared/types/game';
@@ -191,7 +191,7 @@ const createAntiNephiState = (): GameState => {
 describe('Faction ability cooldowns', () => {
   it('applies cooldown after using Title of Liberty', () => {
     const initialState = createBaseState();
-    const result = gameReducer(initialState, {
+    const result = resolveActionState(initialState, {
       type: 'USE_ABILITY',
       payload: { playerId: 'player1', abilityId: 'TITLE_OF_LIBERTY' },
     });
@@ -209,7 +209,7 @@ describe('Faction ability cooldowns', () => {
     const state = createBaseState();
     state.players[0].abilityCooldowns = { TITLE_OF_LIBERTY: 3 };
 
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'END_TURN',
       payload: { playerId: 'player1' },
     });
@@ -222,7 +222,7 @@ describe('Faction ability cooldowns', () => {
     state.players[0].abilityCooldowns = { TITLE_OF_LIBERTY: 2 };
     const priorFaith = state.players[0].stats.faith;
 
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'USE_ABILITY',
       payload: { playerId: 'player1', abilityId: 'TITLE_OF_LIBERTY' },
     });
@@ -233,7 +233,7 @@ describe('Faction ability cooldowns', () => {
 
   it('converts nearby enemy with Covenant of Peace', () => {
     const state = createAntiNephiState();
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'USE_ABILITY',
       payload: { playerId: 'player1', abilityId: 'COVENANT_OF_PEACE' },
     });
@@ -253,7 +253,7 @@ describe('Faction ability cooldowns', () => {
     const events: TelemetryEvent[] = [];
     const unsubscribe = subscribeTelemetry(event => events.push(event));
 
-    const result = gameReducer(state, {
+    const result = resolveActionState(state, {
       type: 'USE_ABILITY',
       payload: { playerId: 'player1', abilityId: 'TITLE_OF_LIBERTY' },
     });

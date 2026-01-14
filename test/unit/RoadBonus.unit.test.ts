@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameReducer } from '../../shared/logic/gameReducer';
+import { resolveActionState } from '../../shared/logic/resolveAction';
 import type { GameState } from '../../shared/types/game';
 import { vi } from 'vitest';
 
@@ -93,14 +93,14 @@ describe('Road-connected city bonus', () => {
   it('grants +1★/turn per extra connected city (no trade tech)', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.99); // prevent morale events from affecting deterministic income assertions
     const state = makeState([]);
-    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const after = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     expect(after.players[0].stars).toBe(1);
   });
 
   it('doubles road bonus with trade tech', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.99);
     const state = makeState(['trade']);
-    const after = gameReducer(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const after = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     expect(after.players[0].stars).toBe(2);
   });
 });

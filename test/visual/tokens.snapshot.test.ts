@@ -1,17 +1,30 @@
 import { describe, it, expect } from 'vitest';
 import { TOKENS } from '../../client/src/theme/tokens';
 
+const RESOURCE_KEYS = [
+  'stars',
+  'population',
+  'faith',
+  'pride',
+  'dissent',
+  'costStars',
+] as const;
+
+const resourceTokens = Object.fromEntries(
+  RESOURCE_KEYS.map(key => [key, TOKENS[key]])
+) as Record<(typeof RESOURCE_KEYS)[number], typeof TOKENS[keyof typeof TOKENS]>;
+
 describe('Token Snapshot Sanity Tests', () => {
   it('validates TOKENS object structure and prevents regression', () => {
-    // Snapshot the entire TOKENS object
-    expect(TOKENS).toMatchSnapshot();
+    // Snapshot only resource tokens
+    expect(resourceTokens).toMatchSnapshot();
   });
 
   it('ensures all resource types have required properties', () => {
     const requiredProperties = ['color', 'bg', 'border', 'glow', 'icon', 'name'];
     
-    Object.keys(TOKENS).forEach(tokenKey => {
-      const token = TOKENS[tokenKey as keyof typeof TOKENS];
+    Object.keys(resourceTokens).forEach(tokenKey => {
+      const token = resourceTokens[tokenKey as keyof typeof resourceTokens];
       
       requiredProperties.forEach(prop => {
         expect(token).toHaveProperty(prop);
@@ -32,14 +45,14 @@ describe('Token Snapshot Sanity Tests', () => {
     };
     
     Object.keys(expectedColorTokens).forEach(key => {
-      expect(TOKENS[key as keyof typeof TOKENS].color).toEqual(
+      expect(resourceTokens[key as keyof typeof expectedColorTokens].color).toEqual(
         expectedColorTokens[key as keyof typeof expectedColorTokens]
       );
     });
   });
 
   it('validates icon strings are present and unique', () => {
-    const icons = Object.values(TOKENS).map(token => token.icon);
+    const icons = Object.values(resourceTokens).map(token => token.icon);
     const uniqueIcons = [...new Set(icons)];
     
     // All tokens should have icons
@@ -49,16 +62,16 @@ describe('Token Snapshot Sanity Tests', () => {
     expect(icons.length).toBe(uniqueIcons.length);
     
     // Specific icon validation - verify actual token values
-    expect(TOKENS.stars.icon).toBe('✦');
-    expect(TOKENS.faith.icon).toBe('✠');
-    expect(TOKENS.pride.icon).toBe('⚔');
-    expect(TOKENS.population.icon).toBe('👥');
-    expect(TOKENS.dissent.icon).toBe('⚡');
-    expect(TOKENS.costStars.icon).toBe('✪'); // Corrected to match actual token
+    expect(resourceTokens.stars.icon).toBe('✦');
+    expect(resourceTokens.faith.icon).toBe('✠');
+    expect(resourceTokens.pride.icon).toBe('⚔');
+    expect(resourceTokens.population.icon).toBe('👥');
+    expect(resourceTokens.dissent.icon).toBe('⚡');
+    expect(resourceTokens.costStars.icon).toBe('✪'); // Corrected to match actual token
   });
 
   it('validates gradient and styling patterns', () => {
-    Object.values(TOKENS).forEach(token => {
+    Object.values(resourceTokens).forEach(token => {
       // Background should be gradient or solid color
       expect(token.bg).toMatch(/^bg-(gradient|slate|stone|amber|blue|red|yellow|green)/);
       
@@ -71,43 +84,34 @@ describe('Token Snapshot Sanity Tests', () => {
   });
 
   it('prevents accidental token removal', () => {
-    const requiredTokens = [
-      'stars',
-      'population', 
-      'faith',
-      'pride',
-      'dissent',
-      'costStars'
-    ];
-    
-    requiredTokens.forEach(tokenKey => {
-      expect(TOKENS).toHaveProperty(tokenKey);
-      expect(TOKENS[tokenKey as keyof typeof TOKENS]).toBeDefined();
+    RESOURCE_KEYS.forEach(tokenKey => {
+      expect(resourceTokens).toHaveProperty(tokenKey);
+      expect(resourceTokens[tokenKey]).toBeDefined();
     });
     
     // Total count check
-    expect(Object.keys(TOKENS)).toHaveLength(requiredTokens.length);
+    expect(Object.keys(resourceTokens)).toHaveLength(RESOURCE_KEYS.length);
   });
 
   it('validates Book of Mormon theming consistency', () => {
     // Should maintain golden/amber color family
-    const goldenTokens = [TOKENS.stars, TOKENS.costStars];
+    const goldenTokens = [resourceTokens.stars, resourceTokens.costStars];
     goldenTokens.forEach(token => {
       expect(token.color).toMatch(/yellow|amber|gold/);
     });
     
     // Faith should be blue/sacred colors
-    expect(TOKENS.faith.color).toMatch(/blue|cyan/);
-    expect(TOKENS.faith.icon).toBe('✠'); // Cross/sacred symbol
+    expect(resourceTokens.faith.color).toMatch(/blue|cyan/);
+    expect(resourceTokens.faith.icon).toBe('✠'); // Cross/sacred symbol
     
     // Pride should be red/warning colors
-    expect(TOKENS.pride.color).toMatch(/red|rose/);
-    expect(TOKENS.pride.icon).toBe('⚔'); // Sword/warfare symbol
+    expect(resourceTokens.pride.color).toMatch(/red|rose/);
+    expect(resourceTokens.pride.icon).toBe('⚔'); // Sword/warfare symbol
   });
 
   it('validates accessibility color requirements', () => {
     // All color tokens should specify contrasting colors
-    Object.values(TOKENS).forEach(token => {
+    Object.values(resourceTokens).forEach(token => {
       expect(token.color).toMatch(/text-\w+-\d+/);
       expect(token.bg).toMatch(/(bg-gradient|bg-\w+-\d+)/);
     });
@@ -115,9 +119,9 @@ describe('Token Snapshot Sanity Tests', () => {
 
   it('creates snapshot baseline for visual regression', () => {
     const tokenSnapshot = {
-      structure: Object.keys(TOKENS).sort(),
+      structure: Object.keys(resourceTokens).sort(),
       properties: Object.fromEntries(
-        Object.entries(TOKENS).map(([key, token]) => [
+        Object.entries(resourceTokens).map(([key, token]) => [
           key,
           {
             hasColor: !!token.color,

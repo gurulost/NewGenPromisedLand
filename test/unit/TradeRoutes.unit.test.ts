@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameReducer } from '../../shared/logic/gameReducer';
+import { resolveActionState } from '../../shared/logic/resolveAction';
 import type { GameState } from '../../shared/types/game';
 
 describe('Trade routes', () => {
@@ -88,7 +88,7 @@ describe('Trade routes', () => {
       structures: [],
     };
 
-    const established = gameReducer(baseState, {
+    const established = resolveActionState(baseState, {
       type: 'ESTABLISH_TRADE_ROUTE',
       payload: { playerId, fromCityId: cityAId, toCityId: cityBId },
     } as any);
@@ -99,7 +99,7 @@ describe('Trade routes', () => {
     expect(pAfter.stars).toBeLessThan(100);
 
     // Immediate spam attempt should fail (cooldown and duplicate checks).
-    const spamAttempt = gameReducer(established, {
+    const spamAttempt = resolveActionState(established, {
       type: 'ESTABLISH_TRADE_ROUTE',
       payload: { playerId, fromCityId: cityAId, toCityId: cityBId },
     } as any);
@@ -108,7 +108,7 @@ describe('Trade routes', () => {
     expect(spamAttempt.players[0].stars).toBe(pAfter.stars);
 
     // End turn should add per-turn income from the route.
-    const afterIncome = gameReducer(established, {
+    const afterIncome = resolveActionState(established, {
       type: 'END_TURN',
       payload: { playerId },
     } as any);

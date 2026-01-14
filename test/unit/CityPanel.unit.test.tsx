@@ -51,7 +51,14 @@ describe('CityPanel Unit Tests', () => {
       currentPlayerIndex: 0,
       turn: 1,
       phase: 'playing',
-      map: { tiles: [], width: 10, height: 10 },
+      map: {
+        tiles: [
+          { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: true, exploredBy: ['player1'] },
+          { coordinate: { q: 1, r: 0, s: -1 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['player1'] },
+        ],
+        width: 10,
+        height: 10
+      },
       players: [mockPlayer],
       units: [],
       cities: [mockCity],
@@ -112,7 +119,7 @@ describe('CityPanel Unit Tests', () => {
     fireEvent.click(screen.getByText('Units'));
 
     expect(screen.getByText('Warrior')).toBeInTheDocument();
-    const needButton = screen.getByText('Need 15 more stars').closest('button');
+    const needButton = screen.getByText('Need 5 more stars').closest('button');
     expect(needButton).toBeDisabled();
   });
 
