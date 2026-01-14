@@ -442,6 +442,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         const hasWorldElement = worldElementIds.length > 0;
         const isVillage = clickedTile.feature === 'village';
         const isNeutralVillage = isVillage && !clickedTile.cityOwner;
+        const isRuinFeature = clickedTile.feature === 'ruin';
         const cityOnTile = gameState?.cities?.find(c =>
           c.coordinate.q === clickedTile.coordinate.q &&
           c.coordinate.r === clickedTile.coordinate.r
@@ -647,6 +648,26 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
                     }
                   });
                   window.dispatchEvent(villageEvent);
+                }
+              });
+            }
+
+            if (isRuinFeature) {
+              menuOptions.push({
+                id: 'explore-ruins',
+                label: 'Explore Ruins',
+                icon: '🏛️',
+                subLabel: 'Ancient ruins reward',
+                action: () => {
+                  const { dispatch } = useLocalGame.getState();
+                  dispatch({
+                    type: 'EXPLORE_RUINS',
+                    payload: {
+                      unitId: unitOnTile.id,
+                      playerId: currentPlayer.id,
+                      coordinate: clickedTile.coordinate
+                    }
+                  });
                 }
               });
             }
