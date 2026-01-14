@@ -10,7 +10,7 @@ import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/ci
 import type { HexCoordinate } from "@shared/types/coordinates";
 import Construction from "./Construction";
 import { CityModel } from "./CityModel";
-import { getVillageModelPath, getResourceModelPath } from "../../utils/modelManager";
+import { getVillageModelPath, getResourceModelPath, getImprovementModelPath, getStructureModelPath } from "../../utils/modelManager";
 import { GroundedModel } from "./GroundedModel";
 import { 
   InfoTooltip, 
@@ -464,206 +464,91 @@ export default function MapFeatures() {
     return <WorldElementModel key={`forest-${key}`} elementId="timber_grove" position={position} />;
   };
 
-  // Function to render improvement models
+  // Function to render improvement models using 3D GLB models
   const renderImprovement = (improvement: any, position: { x: number; y: number }, key: string) => {
-    const y = 0.3; // Properly elevated above hex tiles
+    const modelPath = getImprovementModelPath(improvement.type);
     
-    switch (improvement.type) {
-      case 'farm':
-        return (
-          <group key={`farm-${key}`}>
-            {/* Farmland with crop rows */}
-            <Box position={[position.x, y - 0.05, position.y]} args={[0.8, 0.02, 0.8]}>
-              <meshStandardMaterial color="#8B4513" /> {/* Brown soil */}
-            </Box>
-            {/* Crop rows */}
-            {Array.from({ length: 3 }, (_, i) => (
-              <Box key={i} position={[position.x - 0.3 + i * 0.3, y, position.y]} args={[0.05, 0.1, 0.6]}>
-                <meshStandardMaterial color="#90EE90" />
-              </Box>
-            ))}
-          </group>
-        );
-      case 'mine':
-        return (
-          <group key={`mine-${key}`}>
-            {/* Mine entrance */}
-            <Box position={[position.x, y + 0.1, position.y]} args={[0.4, 0.3, 0.2]}>
-              <meshStandardMaterial color="#654321" />
-            </Box>
-            {/* Mine cart */}
-            <Box position={[position.x - 0.2, y, position.y + 0.2]} args={[0.15, 0.08, 0.1]}>
-              <meshStandardMaterial color="#8B4513" />
-            </Box>
-            {/* Support beams */}
-            <Cylinder position={[position.x - 0.15, y + 0.15, position.y]} args={[0.03, 0.03, 0.3]}>
-              <meshStandardMaterial color="#8B4513" />
-            </Cylinder>
-          </group>
-        );
-      case 'forest_camp':
-        return (
-          <group key={`forest_camp-${key}`}>
-            {/* Logging camp */}
-            <Box position={[position.x, y + 0.05, position.y]} args={[0.3, 0.15, 0.2]}>
-              <meshStandardMaterial color="#8B4513" />
-            </Box>
-            {/* Chopped logs */}
-            <Cylinder position={[position.x + 0.2, y, position.y]} args={[0.05, 0.05, 0.4]} rotation={[Math.PI/2, 0, 0]}>
-              <meshStandardMaterial color="#A0522D" />
-            </Cylinder>
-            <Cylinder position={[position.x + 0.2, y + 0.1, position.y]} args={[0.05, 0.05, 0.35]} rotation={[Math.PI/2, 0, 0]}>
-              <meshStandardMaterial color="#A0522D" />
-            </Cylinder>
-          </group>
-        );
-      case 'port':
-        return (
-          <group key={`port-${key}`}>
-            {/* Dock structure */}
-            <Box position={[position.x, y, position.y]} args={[0.6, 0.1, 0.3]}>
-              <meshStandardMaterial color="#8B4513" />
-            </Box>
-            {/* Dock posts */}
-            <Cylinder position={[position.x - 0.25, y + 0.15, position.y]} args={[0.03, 0.03, 0.3]}>
-              <meshStandardMaterial color="#654321" />
-            </Cylinder>
-            <Cylinder position={[position.x + 0.25, y + 0.15, position.y]} args={[0.03, 0.03, 0.3]}>
-              <meshStandardMaterial color="#654321" />
-            </Cylinder>
-          </group>
-        );
-      case 'workshop':
-        return (
-          <group key={`workshop-${key}`}>
-            {/* Workshop building */}
-            <Box position={[position.x, y + 0.1, position.y]} args={[0.5, 0.25, 0.4]}>
-              <meshStandardMaterial color="#696969" />
-            </Box>
-            {/* Chimney */}
-            <Cylinder position={[position.x + 0.15, y + 0.3, position.y - 0.1]} args={[0.05, 0.05, 0.2]}>
-              <meshStandardMaterial color="#2F4F4F" />
-            </Cylinder>
-            {/* Anvil */}
-            <Box position={[position.x - 0.2, y + 0.02, position.y + 0.1]} args={[0.1, 0.05, 0.08]}>
-              <meshStandardMaterial color="#4A4A4A" />
-            </Box>
-          </group>
-        );
-      case 'road':
-        return (
-          <group key={`road-${key}`}>
-            {/* Road surface - stone cobblestone appearance */}
-            <Box position={[position.x, y - 0.05, position.y]} args={[0.9, 0.02, 0.9]}>
-              <meshStandardMaterial color="#555555" />
-            </Box>
-            {/* Road markings - center line */}
-            <Box position={[position.x, y - 0.04, position.y]} args={[0.8, 0.01, 0.05]}>
-              <meshStandardMaterial color="#DDDDDD" />
-            </Box>
-            <Box position={[position.x, y - 0.04, position.y]} args={[0.05, 0.01, 0.8]}>
-              <meshStandardMaterial color="#DDDDDD" />
-            </Box>
-            {/* Road edges - small stones */}
-            {Array.from({ length: 6 }, (_, i) => (
-              <Box key={i} position={[
-                position.x - 0.4 + (i * 0.16), 
-                y - 0.02, 
-                position.y + 0.42
-              ]} args={[0.08, 0.04, 0.08]}>
-                <meshStandardMaterial color="#666666" />
-              </Box>
-            ))}
-            {Array.from({ length: 6 }, (_, i) => (
-              <Box key={i + 6} position={[
-                position.x - 0.4 + (i * 0.16), 
-                y - 0.02, 
-                position.y - 0.42
-              ]} args={[0.08, 0.04, 0.08]}>
-                <meshStandardMaterial color="#666666" />
-              </Box>
-            ))}
-          </group>
-        );
-      default:
-        return (
-          <Box key={`improvement-${key}`} position={[position.x, y, position.y]} args={[0.3, 0.15, 0.3]}>
-            <meshStandardMaterial color="#8B4513" />
-          </Box>
-        );
+    // Scale configurations for different improvement types
+    const scaleConfig: Record<string, number> = {
+      farm: 0.35,
+      mine: 0.4,
+      forest_camp: 0.35,
+      lumber_hut: 0.35,
+      sawmill: 0.4,
+      plantation: 0.4,
+      irrigation: 0.35,
+      workshop: 0.4,
+      port: 0.4,
+      aqueduct: 0.45,
+      road: 0.3,
+      shrine: 0.4,
+    };
+    
+    const scale = scaleConfig[improvement.type] || 0.35;
+    
+    if (modelPath) {
+      return (
+        <GroundedModel
+          key={`improvement-${key}`}
+          src={modelPath}
+          position={position}
+          scale={scale}
+          tileY={0}
+        />
+      );
     }
+    
+    // Fallback to simple box if model not available
+    return (
+      <Box key={`improvement-${key}`} position={[position.x, 0.3, position.y]} args={[0.3, 0.15, 0.3]}>
+        <meshStandardMaterial color="#8B4513" />
+      </Box>
+    );
   };
 
-  // Function to render structure models (in cities)
+  // Function to render structure models (in cities) using 3D GLB models
   const renderStructure = (structure: any, cityPosition: { x: number; y: number }, index: number, key: string) => {
     const hasCoordinate = Boolean(structure.coordinate);
     const tilePosition = hasCoordinate ? hexToPixel(structure.coordinate, 1) : cityPosition;
     const offsetAngle = (index * Math.PI * 2) / 6; // Distribute around city when no tile coordinate
-    const offsetDistance = 0.4;
+    const offsetDistance = 0.5;
     const x = hasCoordinate ? tilePosition.x : tilePosition.x + Math.cos(offsetAngle) * offsetDistance;
     const z = hasCoordinate ? tilePosition.y : tilePosition.y + Math.sin(offsetAngle) * offsetDistance;
-    const y = hasCoordinate ? 0.3 : 0.4;
     
-    switch (structure.type) {
-      case 'temple':
-        return (
-          <group key={`temple-${key}`}>
-            {/* Temple base */}
-            <Cylinder position={[x, y, z]} args={[0.15, 0.2, 0.3, 8]}>
-              <meshStandardMaterial color="#DDD" />
-            </Cylinder>
-            {/* Temple spire */}
-            <Cone position={[x, y + 0.25, z]} args={[0.08, 0.2, 8]}>
-              <meshStandardMaterial color="#FFD700" />
-            </Cone>
-          </group>
-        );
-      case 'granary':
-        return (
-          <group key={`granary-${key}`}>
-            {/* Storage building */}
-            <Cylinder position={[x, y, z]} args={[0.12, 0.15, 0.25, 6]}>
-              <meshStandardMaterial color="#8B4513" />
-            </Cylinder>
-            {/* Roof */}
-            <Cone position={[x, y + 0.2, z]} args={[0.18, 0.1, 6]}>
-              <meshStandardMaterial color="#654321" />
-            </Cone>
-          </group>
-        );
-      case 'lighthouse':
-        return (
-          <group key={`lighthouse-${key}`}>
-            {/* Tower */}
-            <Cylinder position={[x, y + 0.1, z]} args={[0.08, 0.1, 0.4, 8]}>
-              <meshStandardMaterial color="#E6E6FA" />
-            </Cylinder>
-            {/* Light beacon */}
-            <Sphere position={[x, y + 0.35, z]} args={[0.06]}>
-              <meshStandardMaterial color="#FFFF00" emissive="#FFFF00" emissiveIntensity={0.5} />
-            </Sphere>
-          </group>
-        );
-      case 'fortress':
-        return (
-          <group key={`fortress-${key}`}>
-            {/* Fortress walls */}
-            <Box position={[x, y + 0.1, z]} args={[0.25, 0.3, 0.25]}>
-              <meshStandardMaterial color="#696969" />
-            </Box>
-            {/* Battlements */}
-            <Box position={[x, y + 0.28, z]} args={[0.3, 0.05, 0.3]}>
-              <meshStandardMaterial color="#2F4F4F" />
-            </Box>
-          </group>
-        );
-      default:
-        return (
-          <Cylinder key={`structure-${key}`} position={[x, y, z]} args={[0.1, 0.12, 0.2, 6]}>
-            <meshStandardMaterial color="#8B4513" />
-          </Cylinder>
-        );
+    const modelPath = getStructureModelPath(structure.type);
+    
+    // Scale configurations for different structure types
+    const scaleConfig: Record<string, number> = {
+      temple: 0.35,
+      granary: 0.35,
+      lighthouse: 0.4,
+      cathedral: 0.4,
+      academy: 0.35,
+      library: 0.35,
+      fortress: 0.4,
+    };
+    
+    const scale = scaleConfig[structure.type] || 0.35;
+    
+    if (modelPath) {
+      return (
+        <GroundedModel
+          key={`structure-${key}`}
+          src={modelPath}
+          position={{ x, y: z }}
+          scale={scale}
+          tileY={0}
+        />
+      );
     }
+    
+    // Fallback to simple cylinder if model not available
+    const y = hasCoordinate ? 0.3 : 0.4;
+    return (
+      <Cylinder key={`structure-${key}`} position={[x, y, z]} args={[0.1, 0.12, 0.2, 6]}>
+        <meshStandardMaterial color="#8B4513" />
+      </Cylinder>
+    );
   };
   
   return (
