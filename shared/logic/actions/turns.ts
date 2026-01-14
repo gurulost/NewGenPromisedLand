@@ -514,8 +514,16 @@ export function handleEndTurn(
           const city = state.cities?.find(c => c.id === construction.cityId);
           if (city) {
             const unitDef = getUnitDefinition(construction.type as any);
+            const spawnState: GameState = {
+              ...state,
+              players: updatedPlayers,
+              units: updatedUnits,
+              improvements: updatedImprovements,
+              structures: updatedStructures,
+              cities: updatedCities
+            };
             const spawnCoordinate = getUnitSpawnCoordinate(
-              state,
+              spawnState,
               construction.type as UnitType,
               city.coordinate,
               construction.playerId,
