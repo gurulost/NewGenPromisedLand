@@ -1,6 +1,6 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useMemo, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, useTexture } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { getVisibleUnits } from "@shared/logic/unitLogic";
@@ -18,6 +18,8 @@ import { UnitSelectionEffects, useUnitSelection } from "../effects/UnitSelection
 import MovementOverlay from "./MovementOverlay";
 import { ParticleEffectsContainer } from "../effects/ParticleEffects";
 import { MapPulseEffects } from "../effects/MapPulseEffects";
+import { usePerformanceMode } from "../../hooks/usePerformanceMode";
+import { initModelPreloading } from "../../utils/modelManager";
 
 export default function GameCanvas() {
   const { gameState, dispatch } = useLocalGame();
@@ -29,6 +31,8 @@ export default function GameCanvas() {
   const spotlightRef = useRef<THREE.PointLight>(null);
   const spotlightTimelineRef = useRef<gsap.core.Timeline | null>(null);
   const cinematicTimelineRef = useRef<gsap.core.Timeline | null>(null);
+  const preloadKeyRef = useRef<string | null>(null);
+  const performanceMode = usePerformanceMode();
 
   // Enhanced selection and effects
   const {
@@ -40,6 +44,35 @@ export default function GameCanvas() {
     clearSelection,
     hoverTile
   } = useUnitSelection();
+
+  const preloadSignature = useMemo(() => {
+    if (!gameState) return null;
+    const unitTypes = Array.from(new Set(gameState.units.map((unit) => unit.type))).sort();
+    const improvementTypes = Array.from(
+      new Set((gameState.improvements ?? []).map((improvement) => improvement.type))
+    ).sort();
+    const structureTypes = Array.from(
+      new Set((gameState.structures ?? []).map((structure) => structure.type))
+    ).sort();
+    const cityLevels = Array.from(
+      new Set((gameState.cities ?? []).map((city) => city.level))
+    ).sort((a, b) => a - b);
+    return [
+      gameState.id ?? 'default',
+      unitTypes.join(','),
+      improvementTypes.join(','),
+      structureTypes.join(','),
+      cityLevels.join(','),
+    ].join('|');
+  }, [gameState]);
+
+  useEffect(() => {
+    if (!gameState || !preloadSignature) return;
+    if (preloadKeyRef.current === preloadSignature) return;
+    preloadKeyRef.current = preloadSignature;
+    const mode = performanceMode === 'high' ? 'match' : 'none';
+    return initModelPreloading({ mode, gameState, useIdle: true, deferMs: 400 });
+  }, [gameState, performanceMode, preloadSignature]);
 
   // Calculate attackable targets when attack mode is activated
   useEffect(() => {
