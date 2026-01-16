@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3D Model Preview - Warrior</title>
-  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -25,15 +25,28 @@
       width: 100%;
       max-width: 800px;
       height: 600px;
-      background: rgba(255, 255, 255, 0.05);
+      background: #2a2a4a;
       border-radius: 16px;
       overflow: hidden;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      position: relative;
     }
     model-viewer {
       width: 100%;
       height: 100%;
-      --poster-color: transparent;
+      background-color: #2a2a4a;
+    }
+    model-viewer::part(default-progress-bar) {
+      background-color: #ffd700;
+    }
+    .loading-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #ffd700;
+      font-size: 18px;
+      pointer-events: none;
     }
     .controls {
       margin-top: 20px;
@@ -69,15 +82,20 @@
 <body>
   <h1>3D Model Preview</h1>
   <div class="viewer-container">
+    <div class="loading-overlay" id="loading">Loading model...</div>
     <model-viewer
       id="viewer"
-      src="/models/warrior.glb"
+      src="./models/warrior.glb"
       alt="3D Model Preview"
       auto-rotate
       camera-controls
       shadow-intensity="1"
-      environment-image="neutral"
-      exposure="1"
+      exposure="1.2"
+      camera-orbit="45deg 55deg 2.5m"
+      min-camera-orbit="auto auto 0.5m"
+      max-camera-orbit="auto auto 10m"
+      field-of-view="30deg"
+      loading="eager"
     ></model-viewer>
   </div>
   <div class="controls">
@@ -85,51 +103,66 @@
   </div>
   <div class="model-selector">
     <h3 style="width: 100%; color: #ffd700; margin-bottom: 10px;">Units:</h3>
-    <button class="model-btn active" onclick="loadModel('/models/warrior.glb', this)">Warrior</button>
-    <button class="model-btn" onclick="loadModel('/models/scout.glb', this)">Scout</button>
-    <button class="model-btn" onclick="loadModel('/models/settler.glb', this)">Worker</button>
-    <button class="model-btn" onclick="loadModel('/models/archer.glb', this)">Slinger</button>
-    <button class="model-btn" onclick="loadModel('/models/spearman.glb', this)">Spearman</button>
-    <button class="model-btn" onclick="loadModel('/models/commander.glb', this)">Commander</button>
-    <button class="model-btn" onclick="loadModel('/models/cavalry.glb', this)">Cavalry</button>
-    <button class="model-btn" onclick="loadModel('/models/catapult.glb', this)">Catapult</button>
-    <button class="model-btn" onclick="loadModel('/models/missionary.glb', this)">Missionary</button>
-    <button class="model-btn" onclick="loadModel('/models/prophet.glb', this)">Prophet</button>
+    <button class="model-btn active" onclick="loadModel('./models/warrior.glb', this)">Warrior</button>
+    <button class="model-btn" onclick="loadModel('./models/scout.glb', this)">Scout</button>
+    <button class="model-btn" onclick="loadModel('./models/settler.glb', this)">Worker</button>
+    <button class="model-btn" onclick="loadModel('./models/archer.glb', this)">Slinger</button>
+    <button class="model-btn" onclick="loadModel('./models/spearman.glb', this)">Spearman</button>
+    <button class="model-btn" onclick="loadModel('./models/commander.glb', this)">Commander</button>
+    <button class="model-btn" onclick="loadModel('./models/cavalry.glb', this)">Cavalry</button>
+    <button class="model-btn" onclick="loadModel('./models/catapult.glb', this)">Catapult</button>
+    <button class="model-btn" onclick="loadModel('./models/missionary.glb', this)">Missionary</button>
+    <button class="model-btn" onclick="loadModel('./models/prophet.glb', this)">Prophet</button>
   </div>
   <div class="model-selector">
     <h3 style="width: 100%; color: #ffd700; margin-bottom: 10px;">Improvements:</h3>
-    <button class="model-btn" onclick="loadModel('/models/improvements/farm.glb', this)">Farm</button>
-    <button class="model-btn" onclick="loadModel('/models/improvements/mine.glb', this)">Mine</button>
-    <button class="model-btn" onclick="loadModel('/models/improvements/sawmill.glb', this)">Sawmill</button>
-    <button class="model-btn" onclick="loadModel('/models/improvements/lumber_hut.glb', this)">Lumber Hut</button>
-    <button class="model-btn" onclick="loadModel('/models/improvements/forest_camp.glb', this)">Forest Camp</button>
-    <button class="model-btn" onclick="loadModel('/models/improvements/plantation.glb', this)">Plantation</button>
-    <button class="model-btn" onclick="loadModel('/models/improvements/road.glb', this)">Road</button>
-    <button class="model-btn" onclick="loadModel('/models/improvements/port.glb', this)">Port</button>
-    <button class="model-btn" onclick="loadModel('/models/improvements/workshop.glb', this)">Workshop</button>
-    <button class="model-btn" onclick="loadModel('/models/improvements/shrine.glb', this)">Shrine</button>
-    <button class="model-btn" onclick="loadModel('/models/improvements/aqueduct.glb', this)">Aqueduct</button>
+    <button class="model-btn" onclick="loadModel('./models/improvements/farm.glb', this)">Farm</button>
+    <button class="model-btn" onclick="loadModel('./models/improvements/mine.glb', this)">Mine</button>
+    <button class="model-btn" onclick="loadModel('./models/improvements/sawmill.glb', this)">Sawmill</button>
+    <button class="model-btn" onclick="loadModel('./models/improvements/lumber_hut.glb', this)">Lumber Hut</button>
+    <button class="model-btn" onclick="loadModel('./models/improvements/forest_camp.glb', this)">Forest Camp</button>
+    <button class="model-btn" onclick="loadModel('./models/improvements/plantation.glb', this)">Plantation</button>
+    <button class="model-btn" onclick="loadModel('./models/improvements/road.glb', this)">Road</button>
+    <button class="model-btn" onclick="loadModel('./models/improvements/port.glb', this)">Port</button>
+    <button class="model-btn" onclick="loadModel('./models/improvements/workshop.glb', this)">Workshop</button>
+    <button class="model-btn" onclick="loadModel('./models/improvements/shrine.glb', this)">Shrine</button>
+    <button class="model-btn" onclick="loadModel('./models/improvements/aqueduct.glb', this)">Aqueduct</button>
   </div>
   <div class="model-selector">
     <h3 style="width: 100%; color: #ffd700; margin-bottom: 10px;">Structures:</h3>
-    <button class="model-btn" onclick="loadModel('/models/structures/temple.glb', this)">Temple</button>
-    <button class="model-btn" onclick="loadModel('/models/structures/granary.glb', this)">Granary</button>
-    <button class="model-btn" onclick="loadModel('/models/structures/fortress.glb', this)">Fortress</button>
-    <button class="model-btn" onclick="loadModel('/models/structures/lighthouse.glb', this)">Lighthouse</button>
-    <button class="model-btn" onclick="loadModel('/models/structures/cathedral.glb', this)">Cathedral</button>
-    <button class="model-btn" onclick="loadModel('/models/structures/academy.glb', this)">Academy</button>
-    <button class="model-btn" onclick="loadModel('/models/structures/library.glb', this)">Library</button>
+    <button class="model-btn" onclick="loadModel('./models/structures/temple.glb', this)">Temple</button>
+    <button class="model-btn" onclick="loadModel('./models/structures/granary.glb', this)">Granary</button>
+    <button class="model-btn" onclick="loadModel('./models/structures/fortress.glb', this)">Fortress</button>
+    <button class="model-btn" onclick="loadModel('./models/structures/lighthouse.glb', this)">Lighthouse</button>
+    <button class="model-btn" onclick="loadModel('./models/structures/cathedral.glb', this)">Cathedral</button>
+    <button class="model-btn" onclick="loadModel('./models/structures/academy.glb', this)">Academy</button>
+    <button class="model-btn" onclick="loadModel('./models/structures/library.glb', this)">Library</button>
   </div>
   <div class="model-selector">
     <h3 style="width: 100%; color: #ffd700; margin-bottom: 10px;">Cities & Villages:</h3>
-    <button class="model-btn" onclick="loadModel('/models/village.glb', this)">Village</button>
-    <button class="model-btn" onclick="loadModel('/models/city_level1.glb', this)">City Level 1</button>
-    <button class="model-btn" onclick="loadModel('/models/city_level2.glb', this)">City Level 2</button>
-    <button class="model-btn" onclick="loadModel('/models/city_level3.glb', this)">City Level 3</button>
+    <button class="model-btn" onclick="loadModel('./models/village.glb', this)">Village</button>
+    <button class="model-btn" onclick="loadModel('./models/city_level1.glb', this)">City Level 1</button>
+    <button class="model-btn" onclick="loadModel('./models/city_level2.glb', this)">City Level 2</button>
+    <button class="model-btn" onclick="loadModel('./models/city_level3.glb', this)">City Level 3</button>
   </div>
   <script>
+    const viewer = document.getElementById('viewer');
+    const loading = document.getElementById('loading');
+    
+    viewer.addEventListener('load', () => {
+      loading.style.display = 'none';
+    });
+    
+    viewer.addEventListener('error', (e) => {
+      loading.textContent = 'Error loading model';
+      loading.style.color = '#ff6b6b';
+    });
+    
     function loadModel(path, btn) {
-      document.getElementById('viewer').src = path;
+      loading.style.display = 'block';
+      loading.textContent = 'Loading model...';
+      loading.style.color = '#ffd700';
+      viewer.src = path;
       document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     }
