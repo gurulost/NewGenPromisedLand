@@ -5,8 +5,9 @@ import * as THREE from "three";
 import type { Unit as UnitType } from "@shared/types/unit";
 import { hexToPixel } from "@shared/utils/hex";
 import { getFaction } from "@shared/data/factions";
-import { canSelectUnit, getMovementCostForCoordinate, isPassableForUnit } from "@shared/logic/unitLogic";
-import { usePathfindingWorker } from "../../hooks/usePathfindingWorker";
+import { canSelectUnit } from "@shared/logic/unitLogic";
+import { getReachableTilesAsync } from "../../lib/pathfindingClient";
+import { buildPathfindingInputs } from "../../lib/pathfindingInputs";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { GLTFErrorBoundary } from "./GLTFErrorBoundary";
@@ -146,7 +147,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   const meshRef = useRef<THREE.Group>(null);
   const { setSelectedUnit, setReachableTiles, setReachableCoordinates, isMovementMode } = useGameState();
   const { gameState } = useLocalGame();
-  const { getReachableTiles: getReachableTilesWorker } = usePathfindingWorker();
+  const reachableRequestIdRef = useRef(0);
 
   const pixelPos = hexToPixel(unit.coordinate, HEX_SIZE);
 
@@ -180,30 +181,31 @@ export default function Unit({ unit, isSelected }: UnitProps) {
         console.log("Calculating reachable tiles for unit:", unit.id, "Movement:", unit.remainingMovement);
       }
 
-      const passableTileList = gameState.map.tiles
-        .filter((tile) => isPassableForUnit(tile.coordinate, gameState, unit));
-      const passableTiles = passableTileList.map((tile) => `${tile.coordinate.q},${tile.coordinate.r}`);
-      const tileCosts = passableTileList.reduce<Record<string, number>>((acc, tile) => {
-        const key = `${tile.coordinate.q},${tile.coordinate.r}`;
-        acc[key] = getMovementCostForCoordinate(tile.coordinate, gameState, unit);
-        return acc;
-      }, {});
+      const { passableTiles, tileCosts } = buildPathfindingInputs(gameState, unit);
+      const requestId = ++reachableRequestIdRef.current;
 
-      getReachableTilesWorker(unit.coordinate, passableTiles, tileCosts, unit.remainingMovement, (reachable, error) => {
-        if (error) {
+      void getReachableTilesAsync({
+        start: unit.coordinate,
+        passableTiles,
+        tileCosts,
+        maxCost: unit.remainingMovement,
+        timeoutMs: 1500,
+      })
+        .then((reachable) => {
+          if (reachableRequestIdRef.current !== requestId) return;
+          const reachableKeys = reachable.map((coord) => `${coord.q},${coord.r}`);
+          if (isDev) {
+            console.log("Reachable tiles:", reachableKeys);
+          }
+          setReachableTiles(reachableKeys);
+          setReachableCoordinates(reachable);
+        })
+        .catch((error) => {
+          if (reachableRequestIdRef.current !== requestId) return;
           console.error("Pathfinding worker error:", error);
           setReachableTiles([]);
           setReachableCoordinates([]);
-          return;
-        }
-
-        const reachableKeys = reachable.map((coord) => `${coord.q},${coord.r}`);
-        if (isDev) {
-          console.log("Reachable tiles:", reachableKeys);
-        }
-        setReachableTiles(reachableKeys);
-        setReachableCoordinates(reachable);
-      });
+        });
     } else {
       setReachableTiles([]);
       setReachableCoordinates([]);
@@ -216,7 +218,6 @@ export default function Unit({ unit, isSelected }: UnitProps) {
     gameState,
     setReachableTiles,
     setReachableCoordinates,
-    getReachableTilesWorker,
     isDev,
     unit.id,
   ]);
