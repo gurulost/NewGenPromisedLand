@@ -1,17 +1,29 @@
-import { useGLTF } from '@react-three/drei';
+import { useGLTF, useAnimations } from '@react-three/drei';
 import { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import type { Unit } from '@shared/types/unit';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
 import { getUnitModelPath } from '../../utils/modelManager';
-import { GroundedModel } from './GroundedModel';
 import { disposeClonedMaterials } from '../../lib/memoryUtils';
+import { SkeletonUtils } from 'three/examples/jsm/utils/SkeletonUtils';
+import {
+  getAnimatedModelPathForUnit,
+  getUnitAnimationClipPool,
+  getUnitAnimationSpec,
+  pickWeightedClipName,
+  UnitAnimationState,
+} from '../../utils/unitAnimationRegistry';
 
 interface UnitModelProps {
   unit: Unit;
   position: { x: number; y: number };
   isPlayerUnit: boolean;
+  isMoving?: boolean;
+  animationsEnabled?: boolean;
+  animationState?: UnitAnimationState;
+  animationVariantKey?: string;
+  animationClipName?: string;
 }
 
 // Calculate total upgrades for a unit
@@ -92,15 +104,28 @@ function UpgradeIndicators({ upgradeCount, isPlayerUnit }: { upgradeCount: numbe
   );
 }
 
-export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
+export function UnitModel({
+  unit,
+  position,
+  isPlayerUnit,
+  isMoving = false,
+  animationsEnabled = false,
+  animationState,
+  animationVariantKey,
+  animationClipName,
+}: UnitModelProps) {
   const { gameState } = useLocalGame();
+  const groupRef = useRef<THREE.Group>(null);
 
   // Get the player's faction to determine which model variant to use
   const player = gameState?.players.find(p => p.id === unit.playerId);
   const playerFaction = player?.factionId;
 
-  const modelPath = getUnitModelPath(unit.type);
-  const { scene } = useGLTF(modelPath);
+  const animationSpec = getUnitAnimationSpec(unit.type);
+  const animatedPath = animationsEnabled && animationSpec ? getAnimatedModelPathForUnit(unit.type) : null;
+  const modelPath = animatedPath ?? getUnitModelPath(unit.type);
+  const { scene, animations } = useGLTF(modelPath);
+  const isAnimatedWorker = !!animatedPath && !!animationSpec;
 
   // Calculate total upgrades for visual indicators
   const totalUpgrades = getTotalUpgrades(unit);
@@ -148,7 +173,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
 
   // Clone and modify the scene for materials and status effects
   const clonedScene = useMemo(() => {
-    const clone = scene.clone();
+    const clone = isAnimatedWorker ? SkeletonUtils.clone(scene) : scene.clone();
 
     // Adjust materials based on ownership and unit status
     clone.traverse((child) => {
@@ -213,7 +238,7 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     });
 
     return clone;
-  }, [scene, isPlayerUnit, unit.status, totalUpgrades]);
+  }, [scene, isAnimatedWorker, isPlayerUnit, unit.status, totalUpgrades]);
 
   // Apply auto-grounding to the cloned scene
   const groundedScene = useMemo(() => {
@@ -230,8 +255,54 @@ export function UnitModel({ unit, position, isPlayerUnit }: UnitModelProps) {
     };
   }, [clonedScene]);
 
+  const { actions } = useAnimations(isAnimatedWorker ? animations : [], groupRef);
+  const currentActionRef = useRef<THREE.AnimationAction | null>(null);
+  const resolvedState: UnitAnimationState = animationState ?? (isMoving ? "move" : "idle");
+
+  useEffect(() => {
+    if (!isAnimatedWorker) return;
+    if (!actions) return;
+
+    const preferredPool = getUnitAnimationClipPool(unit.type, resolvedState);
+    const defaultIdle = ["Idle_12", "Idle_7", "Idle_3", "Idle_15"];
+    const defaultMove = ["Walking", "walking_2_inplace", "Stumble_Walk", "Running", "Confident_Strut"];
+    const isLoopingState = resolvedState === "idle" || resolvedState === "move";
+    const fallbackClips = resolvedState === "move" ? defaultMove : defaultIdle;
+    const fallbackPool = fallbackClips.map((name) => ({ name, weight: 1 }));
+    const candidatePool = isLoopingState ? [...preferredPool, ...fallbackPool] : preferredPool;
+    const selectionKey = `${unit.id}:${resolvedState}:${animationVariantKey ?? "default"}`;
+    const selectedName = animationClipName ?? pickWeightedClipName(candidatePool, selectionKey);
+    const nextAction = selectedName ? actions[selectedName] : undefined;
+    if (!nextAction || currentActionRef.current === nextAction) return;
+
+    if (isLoopingState) {
+      nextAction.setLoop(THREE.LoopRepeat, Infinity);
+      nextAction.clampWhenFinished = false;
+    } else {
+      nextAction.setLoop(THREE.LoopOnce, 1);
+      nextAction.clampWhenFinished = true;
+    }
+
+    nextAction.reset().fadeIn(0.2).play();
+    if (currentActionRef.current) {
+      currentActionRef.current.fadeOut(0.2);
+    }
+    currentActionRef.current = nextAction;
+
+    return () => {
+      nextAction.fadeOut(0.15);
+    };
+  }, [actions, isAnimatedWorker, resolvedState, unit.type, animationVariantKey, animationClipName]);
+
+  useEffect(() => {
+    if (!isAnimatedWorker) return;
+    return () => {
+      Object.values(actions || {}).forEach((action) => action.stop());
+    };
+  }, [actions, isAnimatedWorker]);
+
   return (
-    <group position={[position.x, 0, position.y]}>
+    <group ref={groupRef} position={[position.x, 0, position.y]}>
       <primitive object={groundedScene} scale={[unitScale, unitScale, unitScale]} />
 
       {/* Upgrade Indicators - floating stars above unit */}
