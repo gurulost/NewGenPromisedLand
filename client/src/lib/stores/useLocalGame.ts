@@ -1,15 +1,20 @@
 import { create } from "zustand";
 import { GameState, PlayerState } from "@shared/types/game";
-import { HexCoordinate } from "@shared/types/coordinates";
+import type { HexCoordinate } from "@shared/types/coordinates";
 import { hexDistance } from "@shared/utils/hex";
 import { resolveActionState } from "@shared/logic/resolveAction";
+import { findPathAsync } from "../pathfindingClient";
+import { buildPathfindingInputs } from "../pathfindingInputs";
 import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenerator";
 import { getRandomCityName, resetCityNames } from "@shared/data/cityNames";
 import { FactionId } from "@shared/types/faction";
 import { useGameState } from "./useGameState";
+import { useUnitMotionStore } from "./useUnitMotionStore";
 import { gameDebugger } from "../../utils/gameDebug";
 import { clearAutosave } from "../autosaveStorage";
 import { markAutosaveDirty, requestAutosave } from "../autosaveManager";
+import { getUnitAnimationMoveSpeed, hasUnitAnimationState } from "../../utils/unitAnimationRegistry";
+import { useUnitAnimationEventStore } from "./useUnitAnimationEventStore";
 
 const applyPlayerDefaults = (player: PlayerState): PlayerState => {
   const normalized: PlayerState = { ...player };
@@ -99,12 +104,149 @@ interface LocalGameStore {
 export const useLocalGame = create<LocalGameStore>((set, get) => {
   let mapWorker: Worker | null = null;
   let mapRequestId = 0;
+  const pendingMotionTokens = new Map<string, string>();
+  const createMotionToken = () => `motion_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
   const applyActionToState = (action: any): { applied: boolean; state?: GameState } => {
     const { gameState } = get();
     if (!gameState) return { applied: false };
     const newGameState = resolveActionState(gameState, action, { source: 'client' });
     if (newGameState === gameState) return { applied: false };
+
+    if (action.type === 'MOVE_UNIT') {
+      const movingUnit = gameState.units.find(unit => unit.id === action.payload?.unitId);
+      if (movingUnit && action.payload?.targetCoordinate) {
+        const motionToken = createMotionToken();
+        pendingMotionTokens.set(movingUnit.id, motionToken);
+        useUnitMotionStore.getState().holdMotion(movingUnit.id, movingUnit.coordinate);
+        const { passableTiles, tileCosts } = buildPathfindingInputs(gameState, movingUnit);
+        void findPathAsync({
+          start: movingUnit.coordinate,
+          goal: action.payload.targetCoordinate,
+          passableTiles,
+          tileCosts,
+          maxCost: movingUnit.remainingMovement,
+        })
+          .then((path) => {
+            if (pendingMotionTokens.get(movingUnit.id) !== motionToken) return;
+            pendingMotionTokens.delete(movingUnit.id);
+            const latestState = get().gameState;
+            const unitStillExists = latestState?.units.some((unit) => unit.id === movingUnit.id);
+            if (!unitStillExists) {
+              useUnitMotionStore.getState().stopMotion(movingUnit.id);
+              return;
+            }
+            if (path.length > 1) {
+              const moveSpeed = getUnitAnimationMoveSpeed(movingUnit.type);
+              useUnitMotionStore.getState().startMotion(movingUnit.id, path, moveSpeed);
+              return;
+            }
+            useUnitMotionStore.getState().stopMotion(movingUnit.id);
+          })
+          .catch((error) => {
+            pendingMotionTokens.delete(movingUnit.id);
+            useUnitMotionStore.getState().stopMotion(movingUnit.id);
+            if (import.meta.env.DEV) {
+              console.warn("Visual pathfinding failed:", error);
+            }
+          });
+      }
+    }
+
+    const emitCelebrate = (unitId: string, unitType: any, priority = 4) => {
+      if (!hasUnitAnimationState(unitType, 'celebrate')) return;
+      useUnitAnimationEventStore.getState().emitEvent({
+        unitId,
+        unitType,
+        state: 'celebrate',
+        priority,
+      });
+    };
+
+    if (action.type === 'ATTACK_UNIT') {
+      const attackerId = action.payload?.attackerId;
+      const targetId = action.payload?.targetId;
+      let attacker: typeof gameState.units[number] | undefined;
+      if (attackerId) {
+        attacker = gameState.units.find(unit => unit.id === attackerId);
+        useUnitAnimationEventStore.getState().emitEvent({
+          unitId: attackerId,
+          unitType: attacker?.type,
+          state: 'attack',
+        });
+      }
+      if (targetId) {
+        const targetBefore = gameState.units.find(unit => unit.id === targetId);
+        const targetAfter = newGameState.units.find(unit => unit.id === targetId);
+        if (!targetAfter && targetBefore) {
+          useUnitAnimationEventStore.getState().emitEvent({
+            unitId: targetId,
+            unitType: targetBefore.type,
+            state: 'death',
+            priority: 5,
+          });
+          if (attacker) {
+            emitCelebrate(attacker.id, attacker.type, 4);
+          }
+        } else if (targetAfter) {
+          useUnitAnimationEventStore.getState().emitEvent({
+            unitId: targetId,
+            unitType: targetAfter.type,
+            state: 'hit',
+          });
+        }
+      }
+    }
+
+    if (action.type === 'CONQUER_VILLAGE' || action.type === 'CONVERT_VILLAGE') {
+      const unitId = action.payload?.unitId;
+      const unit = unitId ? gameState.units.find(u => u.id === unitId) : undefined;
+      if (unit) {
+        emitCelebrate(unit.id, unit.type, 3);
+      }
+    }
+
+    if (action.type === 'CAPTURE_CITY') {
+      const playerId = action.payload?.playerId;
+      const cityId = action.payload?.cityId;
+      if (playerId && cityId) {
+        const city = gameState.cities?.find(c => c.id === cityId);
+        if (city) {
+          const celebratingUnit = gameState.units.find(u =>
+            u.playerId === playerId &&
+            hasUnitAnimationState(u.type, 'celebrate') &&
+            Math.max(
+              Math.abs(u.coordinate.q - city.coordinate.q),
+              Math.abs(u.coordinate.r - city.coordinate.r),
+              Math.abs((u.coordinate.s || -u.coordinate.q - u.coordinate.r) - (city.coordinate.s || -city.coordinate.q - city.coordinate.r))
+            ) <= 1
+          );
+          if (celebratingUnit) {
+            emitCelebrate(celebratingUnit.id, celebratingUnit.type, 3);
+          }
+        }
+      }
+    }
+
+    const celebrationActions = new Set([
+      'BUILD_IMPROVEMENT',
+      'HARVEST_RESOURCE',
+      'BUILD_ROAD',
+      'CLEAR_FOREST',
+    ]);
+
+    if (celebrationActions.has(action.type)) {
+      const unitId = action.payload?.unitId;
+      const unit = unitId ? gameState.units.find(u => u.id === unitId) : undefined;
+      if (unit && hasUnitAnimationState(unit.type, 'celebrate')) {
+        useUnitAnimationEventStore.getState().emitEvent({
+          unitId: unit.id,
+          unitType: unit.type,
+          state: 'celebrate',
+        });
+      }
+    }
+
     set({ gameState: newGameState });
     const selectionStore = useGameState.getState();
     const selected = selectionStore.selectedUnit;
@@ -678,6 +820,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         isGeneratingMap: false,
       });
 
+      pendingMotionTokens.clear();
+      useUnitMotionStore.getState().clearAll();
+      useUnitAnimationEventStore.getState().clearAll();
       void clearAutosave().catch(() => undefined);
     },
 
@@ -689,6 +834,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         gamePhase: 'playing',
         isGeneratingMap: false,
       });
+      pendingMotionTokens.clear();
+      useUnitMotionStore.getState().clearAll();
+      useUnitAnimationEventStore.getState().clearAll();
       markAutosaveDirty();
       requestAutosave(normalizedState, 'loadGameState');
     },

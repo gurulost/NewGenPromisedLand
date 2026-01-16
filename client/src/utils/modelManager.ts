@@ -2,6 +2,7 @@
 // Ensures all models are properly preloaded and cached for optimal performance
 
 import { useGLTF } from '@react-three/drei';
+import { UNIT_ANIMATION_REGISTRY } from './unitAnimationRegistry';
 
 // Define all model paths in one place for easy management
 export const MODEL_PATHS = {
@@ -67,6 +68,9 @@ const buildAvailableModelPaths = (): Set<string> => {
 
   // Add all unit models
   Object.values(MODEL_PATHS.units).forEach(path => paths.add(path));
+  Object.values(UNIT_ANIMATION_REGISTRY).forEach((entry) => {
+    if (entry?.animatedModelPath) paths.add(entry.animatedModelPath);
+  });
 
   // Add village model
   paths.add(MODEL_PATHS.village);
@@ -121,6 +125,21 @@ export const getUnitModelPath = (unitType: string): string => {
     console.warn(`[ModelManager] Model path "${path || unitType}" not available, falling back to warrior`);
   }
   return MODEL_PATHS.units.warrior;
+};
+
+export const getAnimatedUnitModelPath = (unitType: string): string | null => {
+  const path = UNIT_ANIMATION_REGISTRY[unitType as keyof typeof UNIT_ANIMATION_REGISTRY]?.animatedModelPath;
+  return isModelAvailable(path) ? path : null;
+};
+
+export const preloadAnimatedUnitModels = (unitTypes?: string[]) => {
+  const types = unitTypes ?? Object.keys(UNIT_ANIMATION_REGISTRY);
+  types.forEach((type) => {
+    const path = UNIT_ANIMATION_REGISTRY[type as keyof typeof UNIT_ANIMATION_REGISTRY]?.animatedModelPath;
+    if (isModelAvailable(path)) {
+      useGLTF.preload(path);
+    }
+  });
 };
 
 // Get model path for village

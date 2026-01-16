@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Billboard, Cylinder, Text } from "@react-three/drei";
 import * as THREE from "three";
@@ -7,12 +7,16 @@ import { hexToPixel } from "@shared/utils/hex";
 import { getFaction } from "@shared/data/factions";
 import { canSelectUnit } from "@shared/logic/unitLogic";
 import { getReachableTilesAsync } from "../../lib/pathfindingClient";
-import { buildPathfindingInputs } from "../../lib/pathfindingInputs";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { GLTFErrorBoundary } from "./GLTFErrorBoundary";
 import { UnitModel } from "./UnitModel";
 import { usePerformanceMode } from "../../hooks/usePerformanceMode";
+import { useUnitMotionStore } from "../../lib/stores/useUnitMotionStore";
+import { useMapPulseStore } from "../effects/MapPulseEffects";
+import { getUnitAnimationYawOffset, UnitAnimationState } from "../../utils/unitAnimationRegistry";
+import { buildPathfindingInputs } from "../../lib/pathfindingInputs";
+import { useUnitAnimationEventStore } from "../../lib/stores/useUnitAnimationEventStore";
 
 function StatusIcon({ icon, color, label }: { icon: string; color: string; label: string }) {
   const ref = useRef<THREE.Group>(null);
@@ -145,11 +149,16 @@ const HEX_SIZE = 1;
 export default function Unit({ unit, isSelected }: UnitProps) {
   const isDev = import.meta.env.DEV;
   const meshRef = useRef<THREE.Group>(null);
+  const unitGroupRef = useRef<THREE.Group>(null);
+  const lastPulseIndexRef = useRef<number>(-1);
   const { setSelectedUnit, setReachableTiles, setReachableCoordinates, isMovementMode } = useGameState();
   const { gameState } = useLocalGame();
   const reachableRequestIdRef = useRef(0);
+  const motion = useUnitMotionStore((state) => state.motions[unit.id]);
+  const stopMotion = useUnitMotionStore((state) => state.stopMotion);
+  const addPulse = useMapPulseStore((state) => state.addPulse);
 
-  const pixelPos = hexToPixel(unit.coordinate, HEX_SIZE);
+  const pixelPos = useMemo(() => hexToPixel(unit.coordinate, HEX_SIZE), [unit.coordinate]);
 
   if (isDev) {
     console.log(`🎨 Unit ${unit.id} rendering:`, {
@@ -182,8 +191,8 @@ export default function Unit({ unit, isSelected }: UnitProps) {
       }
 
       const { passableTiles, tileCosts } = buildPathfindingInputs(gameState, unit);
-      const requestId = ++reachableRequestIdRef.current;
 
+      const requestId = ++reachableRequestIdRef.current;
       void getReachableTilesAsync({
         start: unit.coordinate,
         passableTiles,
@@ -222,9 +231,94 @@ export default function Unit({ unit, isSelected }: UnitProps) {
     unit.id,
   ]);
 
+  const perfMode = usePerformanceMode();
+  const animationsEnabled = perfMode === 'high';
+  const isMoving = motion?.mode === "active";
+  const animationEvent = useUnitAnimationEventStore((state) => state.active[unit.id]);
+  const animationState: UnitAnimationState = animationEvent?.state ?? (isMoving ? "move" : "idle");
+  const [idleCycleKey, setIdleCycleKey] = useState(0);
+  const isIdle = animationsEnabled && !isMoving && !animationEvent;
+  const animationVariantKey = animationEvent?.token ?? (isMoving ? motion?.id : `idle_${unit.id}_${idleCycleKey}`);
+  const animationClipName = animationEvent?.clipName;
+  const initialMotionPos = motion?.points?.[0];
+  const yawOffset = getUnitAnimationYawOffset(unit.type) ?? 0;
+  const clearAnimationEvent = useUnitAnimationEventStore((state) => state.clearUnit);
+
+  useEffect(() => {
+    if (!motion) {
+      lastPulseIndexRef.current = -1;
+      if (unitGroupRef.current) {
+        unitGroupRef.current.position.set(pixelPos.x, 0, pixelPos.y);
+      }
+    }
+  }, [motion, pixelPos.x, pixelPos.y]);
+
+  useEffect(() => {
+    return () => {
+      stopMotion(unit.id);
+      clearAnimationEvent(unit.id);
+    };
+  }, [stopMotion, clearAnimationEvent, unit.id]);
+
+  useEffect(() => {
+    if (!isIdle) return;
+    const intervalId = setInterval(() => {
+      setIdleCycleKey((value) => value + 1);
+    }, 15000);
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isIdle]);
+
   useFrame((state) => {
-    if (meshRef.current && isSelected) {
-      meshRef.current.position.y = UNIT_HEIGHT + Math.sin(state.clock.elapsedTime * 3) * 0.1;
+    if (motion && unitGroupRef.current) {
+      if (motion.mode === "pending") {
+        const hold = motion.points[0];
+        if (hold) {
+          unitGroupRef.current.position.set(hold.x, 0, hold.z);
+        }
+        return;
+      }
+      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const elapsedSec = (now - motion.startTimeMs) / 1000;
+      const progressTiles = elapsedSec * motion.speedTilesPerSec;
+      const maxIndex = motion.points.length - 1;
+
+      if (progressTiles >= maxIndex) {
+        const end = motion.points[maxIndex];
+        unitGroupRef.current.position.set(end.x, 0, end.z);
+        stopMotion(unit.id);
+        lastPulseIndexRef.current = -1;
+      } else {
+        const idx = Math.max(0, Math.floor(progressTiles));
+        const localT = progressTiles - idx;
+        const from = motion.points[idx];
+        const to = motion.points[idx + 1];
+
+        if (from && to) {
+          const x = from.x + (to.x - from.x) * localT;
+          const z = from.z + (to.z - from.z) * localT;
+          unitGroupRef.current.position.set(x, 0, z);
+
+          if (meshRef.current) {
+            const dx = to.x - from.x;
+            const dz = to.z - from.z;
+            meshRef.current.rotation.y = Math.atan2(dx, dz) + yawOffset;
+          }
+        }
+
+        if (idx !== lastPulseIndexRef.current && motion.path[idx]) {
+          if (perfMode === 'high') {
+            addPulse('unit', motion.path[idx]);
+          }
+          lastPulseIndexRef.current = idx;
+        }
+      }
+    }
+
+    if (meshRef.current) {
+      const bob = isSelected ? Math.sin(state.clock.elapsedTime * 3) * 0.1 : 0;
+      meshRef.current.position.y = UNIT_HEIGHT + bob;
     }
   });
 
@@ -254,11 +348,15 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   const hasMovementRemaining = unit.remainingMovement > 0;
   const hasActionsRemaining = hasMovementRemaining || actionsRemaining > 0;
   const isPlayerUnit = currentPlayer?.id === unit.playerId;
-  const perfMode = usePerformanceMode();
-  const animationsEnabled = perfMode === 'high';
-
   return (
-    <group position={[pixelPos.x, 0, pixelPos.y]}>
+    <group
+      ref={unitGroupRef}
+      position={[
+        initialMotionPos ? initialMotionPos.x : pixelPos.x,
+        0,
+        initialMotionPos ? initialMotionPos.z : pixelPos.y
+      ]}
+    >
       {/* Faction Color Ownership Ring */}
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.35, 0.45, 24]} />
@@ -300,7 +398,16 @@ export default function Unit({ unit, isSelected }: UnitProps) {
             fallback={<UnitModelFallback isPlayerUnit={currentPlayer?.id === unit.playerId} />}
             resetKey={`${unit.id}:${unit.type}`}
           >
-            <UnitModel unit={unit} position={{ x: 0, y: -UNIT_HEIGHT + 0.025 }} isPlayerUnit={currentPlayer?.id === unit.playerId} />
+            <UnitModel
+              unit={unit}
+              position={{ x: 0, y: -UNIT_HEIGHT + 0.025 }}
+              isPlayerUnit={currentPlayer?.id === unit.playerId}
+              isMoving={isMoving}
+              animationsEnabled={animationsEnabled}
+              animationState={animationState}
+              animationVariantKey={animationVariantKey}
+              animationClipName={animationClipName}
+            />
           </GLTFErrorBoundary>
         </group>
       </group>
