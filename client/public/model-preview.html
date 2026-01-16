@@ -176,6 +176,8 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
     let scene, camera, renderer, controls, currentModel;
+    let isLoading = false;
+    let pendingLoad = null;
     const container = document.getElementById('canvas-container');
     const loading = document.getElementById('loading');
     const loadingText = document.getElementById('loading-text');
@@ -232,13 +234,30 @@
       renderer.render(scene, camera);
     }
 
-    window.loadModel = function(path, name) {
-      loading.classList.remove('hidden');
-      loadingText.textContent = 'Loading ' + name + '...';
-      loadingHint.textContent = 'Please wait...';
-      loadingHint.style.color = '#999';
-      modelNameEl.textContent = name;
+    function clearScene() {
+      while(scene.children.length > 0) { 
+        const obj = scene.children[0];
+        if (obj.type === 'AmbientLight' || obj.type === 'DirectionalLight') {
+          break;
+        }
+        scene.remove(obj);
+        if (obj.traverse) {
+          obj.traverse((child) => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach(m => m.dispose());
+              } else {
+                child.material.dispose();
+              }
+            }
+          });
+        }
+      }
+      currentModel = null;
+    }
 
+    function removeCurrentModel() {
       if (currentModel) {
         scene.remove(currentModel);
         currentModel.traverse((child) => {
@@ -251,11 +270,30 @@
             }
           }
         });
+        currentModel = null;
       }
+    }
+
+    window.loadModel = function(path, name) {
+      if (isLoading) {
+        pendingLoad = { path, name };
+        return;
+      }
+      
+      isLoading = true;
+      loading.classList.remove('hidden');
+      loadingText.textContent = 'Loading ' + name + '...';
+      loadingHint.textContent = 'Please wait...';
+      loadingHint.style.color = '#999';
+      modelNameEl.textContent = name;
+
+      removeCurrentModel();
 
       loader.load(
         path,
         (gltf) => {
+          removeCurrentModel();
+          
           currentModel = gltf.scene;
           
           const box = new THREE.Box3().setFromObject(currentModel);
@@ -275,6 +313,13 @@
           camera.position.set(3, 2, 3);
           controls.target.set(0, 0.5, 0);
           controls.update();
+          
+          isLoading = false;
+          if (pendingLoad) {
+            const { path: nextPath, name: nextName } = pendingLoad;
+            pendingLoad = null;
+            window.loadModel(nextPath, nextName);
+          }
         },
         (progress) => {
           if (progress.total > 0) {
@@ -287,6 +332,13 @@
           loadingHint.textContent = error.message || 'File may be missing';
           loadingHint.style.color = '#ff6b6b';
           console.error('Error loading model:', error);
+          isLoading = false;
+          
+          if (pendingLoad) {
+            const { path: nextPath, name: nextName } = pendingLoad;
+            pendingLoad = null;
+            window.loadModel(nextPath, nextName);
+          }
         }
       );
     }
