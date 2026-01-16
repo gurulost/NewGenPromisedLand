@@ -4,9 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3D Model Preview</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -118,61 +123,65 @@
   
   <div class="model-selector">
     <h3>Units:</h3>
-    <button class="model-btn active" data-model="./models/warrior.glb">Warrior</button>
-    <button class="model-btn" data-model="./models/scout.glb">Scout</button>
-    <button class="model-btn" data-model="./models/settler.glb">Worker</button>
-    <button class="model-btn" data-model="./models/archer.glb">Slinger</button>
-    <button class="model-btn" data-model="./models/spearman.glb">Spearman</button>
-    <button class="model-btn" data-model="./models/commander.glb">Commander</button>
-    <button class="model-btn" data-model="./models/cavalry.glb">Cavalry</button>
-    <button class="model-btn" data-model="./models/catapult.glb">Catapult</button>
-    <button class="model-btn" data-model="./models/missionary.glb">Missionary</button>
-    <button class="model-btn" data-model="./models/prophet.glb">Prophet</button>
+    <button class="model-btn active" data-model="/models/warrior.glb">Warrior</button>
+    <button class="model-btn" data-model="/models/scout.glb">Scout</button>
+    <button class="model-btn" data-model="/models/settler.glb">Worker</button>
+    <button class="model-btn" data-model="/models/archer.glb">Slinger</button>
+    <button class="model-btn" data-model="/models/spearman.glb">Spearman</button>
+    <button class="model-btn" data-model="/models/commander.glb">Commander</button>
+    <button class="model-btn" data-model="/models/cavalry.glb">Cavalry</button>
+    <button class="model-btn" data-model="/models/catapult.glb">Catapult</button>
+    <button class="model-btn" data-model="/models/missionary.glb">Missionary</button>
+    <button class="model-btn" data-model="/models/prophet.glb">Prophet</button>
   </div>
   
   <div class="model-selector">
     <h3>Improvements:</h3>
-    <button class="model-btn" data-model="./models/improvements/farm.glb">Farm</button>
-    <button class="model-btn" data-model="./models/improvements/mine.glb">Mine</button>
-    <button class="model-btn" data-model="./models/improvements/sawmill.glb">Sawmill</button>
-    <button class="model-btn" data-model="./models/improvements/lumber_hut.glb">Lumber Hut</button>
-    <button class="model-btn" data-model="./models/improvements/forest_camp.glb">Forest Camp</button>
-    <button class="model-btn" data-model="./models/improvements/plantation.glb">Plantation</button>
-    <button class="model-btn" data-model="./models/improvements/road.glb">Road</button>
-    <button class="model-btn" data-model="./models/improvements/port.glb">Port</button>
-    <button class="model-btn" data-model="./models/improvements/workshop.glb">Workshop</button>
-    <button class="model-btn" data-model="./models/improvements/shrine.glb">Shrine</button>
-    <button class="model-btn" data-model="./models/improvements/aqueduct.glb">Aqueduct</button>
-    <button class="model-btn" data-model="./models/improvements/irrigation.glb">Irrigation</button>
+    <button class="model-btn" data-model="/models/improvements/farm.glb">Farm</button>
+    <button class="model-btn" data-model="/models/improvements/mine.glb">Mine</button>
+    <button class="model-btn" data-model="/models/improvements/sawmill.glb">Sawmill</button>
+    <button class="model-btn" data-model="/models/improvements/lumber_hut.glb">Lumber Hut</button>
+    <button class="model-btn" data-model="/models/improvements/forest_camp.glb">Forest Camp</button>
+    <button class="model-btn" data-model="/models/improvements/plantation.glb">Plantation</button>
+    <button class="model-btn" data-model="/models/improvements/road.glb">Road</button>
+    <button class="model-btn" data-model="/models/improvements/port.glb">Port</button>
+    <button class="model-btn" data-model="/models/improvements/workshop.glb">Workshop</button>
+    <button class="model-btn" data-model="/models/improvements/shrine.glb">Shrine</button>
+    <button class="model-btn" data-model="/models/improvements/aqueduct.glb">Aqueduct</button>
+    <button class="model-btn" data-model="/models/improvements/irrigation.glb">Irrigation</button>
   </div>
   
   <div class="model-selector">
     <h3>Structures:</h3>
-    <button class="model-btn" data-model="./models/structures/temple.glb">Temple</button>
-    <button class="model-btn" data-model="./models/structures/granary.glb">Granary</button>
-    <button class="model-btn" data-model="./models/structures/fortress.glb">Fortress</button>
-    <button class="model-btn" data-model="./models/structures/lighthouse.glb">Lighthouse</button>
-    <button class="model-btn" data-model="./models/structures/cathedral.glb">Cathedral</button>
-    <button class="model-btn" data-model="./models/structures/academy.glb">Academy</button>
-    <button class="model-btn" data-model="./models/structures/library.glb">Library</button>
+    <button class="model-btn" data-model="/models/structures/temple.glb">Temple</button>
+    <button class="model-btn" data-model="/models/structures/granary.glb">Granary</button>
+    <button class="model-btn" data-model="/models/structures/fortress.glb">Fortress</button>
+    <button class="model-btn" data-model="/models/structures/lighthouse.glb">Lighthouse</button>
+    <button class="model-btn" data-model="/models/structures/cathedral.glb">Cathedral</button>
+    <button class="model-btn" data-model="/models/structures/academy.glb">Academy</button>
+    <button class="model-btn" data-model="/models/structures/library.glb">Library</button>
   </div>
   
   <div class="model-selector">
     <h3>Cities & Villages:</h3>
-    <button class="model-btn" data-model="./models/village.glb">Village</button>
-    <button class="model-btn" data-model="./models/city_level1.glb">City L1</button>
-    <button class="model-btn" data-model="./models/city_level2.glb">City L2</button>
-    <button class="model-btn" data-model="./models/city_level3.glb">City L3</button>
+    <button class="model-btn" data-model="/models/village.glb">Village</button>
+    <button class="model-btn" data-model="/models/city_level1.glb">City L1</button>
+    <button class="model-btn" data-model="/models/city_level2.glb">City L2</button>
+    <button class="model-btn" data-model="/models/city_level3.glb">City L3</button>
   </div>
 
-  <script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
     let scene, camera, renderer, controls, currentModel;
     const container = document.getElementById('canvas-container');
     const loading = document.getElementById('loading');
     const loadingText = document.getElementById('loading-text');
     const loadingHint = document.getElementById('loading-hint');
     const modelNameEl = document.getElementById('model-name');
-    const loader = new THREE.GLTFLoader();
+    const loader = new GLTFLoader();
 
     function init() {
       scene = new THREE.Scene();
@@ -184,12 +193,12 @@
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(container.clientWidth, container.clientHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
-      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.2;
       container.appendChild(renderer.domElement);
 
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
       controls.autoRotate = true;
@@ -208,7 +217,7 @@
 
       window.addEventListener('resize', onResize);
       animate();
-      loadModel('./models/warrior.glb', 'Warrior');
+      loadModel('/models/warrior.glb', 'Warrior');
     }
 
     function onResize() {
@@ -223,10 +232,11 @@
       renderer.render(scene, camera);
     }
 
-    function loadModel(path, name) {
+    window.loadModel = function(path, name) {
       loading.classList.remove('hidden');
       loadingText.textContent = 'Loading ' + name + '...';
       loadingHint.textContent = 'Please wait...';
+      loadingHint.style.color = '#999';
       modelNameEl.textContent = name;
 
       if (currentModel) {
@@ -274,7 +284,7 @@
         },
         (error) => {
           loadingText.textContent = 'Error loading model';
-          loadingHint.textContent = 'File may be missing';
+          loadingHint.textContent = error.message || 'File may be missing';
           loadingHint.style.color = '#ff6b6b';
           console.error('Error loading model:', error);
         }
@@ -285,7 +295,7 @@
       btn.addEventListener('click', () => {
         document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        loadModel(btn.dataset.model, btn.textContent);
+        window.loadModel(btn.dataset.model, btn.textContent);
       });
     });
 
