@@ -6,7 +6,7 @@ import type { Unit } from '@shared/types/unit';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
 import { getUnitModelPath } from '../../utils/modelManager';
 import { disposeClonedMaterials } from '../../lib/memoryUtils';
-import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import {
   getAnimatedModelPathForUnit,
   getUnitAnimationClipPool,
@@ -297,7 +297,7 @@ export function UnitModel({
   useEffect(() => {
     if (!isAnimatedWorker) return;
     return () => {
-      Object.values(actions || {}).forEach((action) => action.stop());
+      Object.values(actions || {}).forEach((action) => action?.stop?.());
     };
   }, [actions, isAnimatedWorker]);
 
