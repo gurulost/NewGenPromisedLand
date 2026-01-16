@@ -270,10 +270,25 @@ export function UnitModel({
     const fallbackClips = resolvedState === "move" ? defaultMove : defaultIdle;
     const fallbackPool = fallbackClips.map((name) => ({ name, weight: 1 }));
     const candidatePool = isLoopingState ? [...preferredPool, ...fallbackPool] : preferredPool;
+    const availablePool = candidatePool.filter((entry) => actions[entry.name]);
     const selectionKey = `${unit.id}:${resolvedState}:${animationVariantKey ?? "default"}`;
-    const selectedName = animationClipName ?? pickWeightedClipName(candidatePool, selectionKey);
+    const selectedName = animationClipName && actions[animationClipName]
+      ? animationClipName
+      : pickWeightedClipName(availablePool, selectionKey);
     const nextAction = selectedName ? actions[selectedName] : undefined;
-    if (!nextAction || currentActionRef.current === nextAction) return;
+    if (!nextAction) {
+      const current = currentActionRef.current;
+      if (current) {
+        const currentName = current.getClip?.().name;
+        const allowed = candidatePool.some((entry) => entry.name === currentName);
+        if (!allowed) {
+          current.fadeOut(0.2);
+          currentActionRef.current = null;
+        }
+      }
+      return;
+    }
+    if (currentActionRef.current === nextAction) return;
 
     if (isLoopingState) {
       nextAction.setLoop(THREE.LoopRepeat, Infinity);
