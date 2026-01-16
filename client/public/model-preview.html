@@ -47,6 +47,30 @@
       color: #ffd700;
       font-size: 18px;
       pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      z-index: 10;
+    }
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 215, 0, 0.2);
+      border-top-color: #ffd700;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .loading-text {
+      text-align: center;
+    }
+    .loading-hint {
+      font-size: 12px;
+      color: #999;
+      margin-top: 5px;
     }
     .controls {
       margin-top: 20px;
@@ -82,7 +106,11 @@
 <body>
   <h1>3D Model Preview</h1>
   <div class="viewer-container">
-    <div class="loading-overlay" id="loading">Loading model...</div>
+    <div class="loading-overlay" id="loading">
+      <div class="spinner"></div>
+      <div class="loading-text">Loading model...</div>
+      <div class="loading-hint">Large models may take a few seconds</div>
+    </div>
     <model-viewer
       id="viewer"
       src="./models/warrior.glb"
@@ -148,24 +176,54 @@
   <script>
     const viewer = document.getElementById('viewer');
     const loading = document.getElementById('loading');
+    const loadingText = loading.querySelector('.loading-text');
+    const spinner = loading.querySelector('.spinner');
+    const hint = loading.querySelector('.loading-hint');
+    let currentModelName = 'Warrior';
     
     viewer.addEventListener('load', () => {
       loading.style.display = 'none';
     });
     
+    viewer.addEventListener('model-visibility', (e) => {
+      if (e.detail.visible) {
+        loading.style.display = 'none';
+      }
+    });
+    
     viewer.addEventListener('error', (e) => {
-      loading.textContent = 'Error loading model';
-      loading.style.color = '#ff6b6b';
+      spinner.style.borderTopColor = '#ff6b6b';
+      spinner.style.animation = 'none';
+      loadingText.textContent = 'Error loading model';
+      loadingText.style.color = '#ff6b6b';
+      hint.textContent = 'Model file may be missing or corrupted';
     });
     
     function loadModel(path, btn) {
-      loading.style.display = 'block';
-      loading.textContent = 'Loading model...';
-      loading.style.color = '#ffd700';
+      const modelName = btn.textContent;
+      currentModelName = modelName;
+      
+      loading.style.display = 'flex';
+      spinner.style.borderTopColor = '#ffd700';
+      spinner.style.animation = 'spin 1s linear infinite';
+      loadingText.textContent = 'Loading ' + modelName + '...';
+      loadingText.style.color = '#ffd700';
+      hint.textContent = 'Large models may take a few seconds';
+      hint.style.color = '#999';
+      
       viewer.src = path;
       document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     }
+    
+    viewer.addEventListener('progress', (e) => {
+      const progress = e.detail.totalProgress;
+      if (progress < 1) {
+        const percent = Math.round(progress * 100);
+        hint.textContent = 'Loading: ' + percent + '%';
+        hint.style.color = '#ffd700';
+      }
+    });
   </script>
 </body>
 </html>
