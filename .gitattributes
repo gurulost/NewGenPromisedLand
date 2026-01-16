@@ -77,3 +77,5 @@
 /client/public/sounds/untitled.mp3 filter=lfs diff=lfs merge=lfs -text
 /client/public/sounds/wicked_spirits.mp3 filter=lfs diff=lfs merge=lfs -text
 /client/public/sounds/sound_the_bell.mp3 filter=lfs diff=lfs merge=lfs -text
+/client/public/models/warrior_animated.glb filter=lfs diff=lfs merge=lfs -text
+/client/public/models/worker_animated.glb filter=lfs diff=lfs merge=lfs -text
