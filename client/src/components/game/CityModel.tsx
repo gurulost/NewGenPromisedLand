@@ -177,8 +177,3 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
     </group>
   );
 }
-
-// Preload all three models
-useGLTF.preload('/models/city_level1.glb');
-useGLTF.preload('/models/city_level2.glb');
-useGLTF.preload('/models/city_level3.glb');
