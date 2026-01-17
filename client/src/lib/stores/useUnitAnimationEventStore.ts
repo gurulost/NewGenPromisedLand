@@ -60,6 +60,9 @@ export const useUnitAnimationEventStore = create<UnitAnimationEventStore>((set, 
     const token = makeToken();
     const isLoopingState = state === "idle" || state === "move";
     let clipName: string | undefined;
+    if (!unitType && !isLoopingState) {
+      return;
+    }
     if (unitType && !isLoopingState) {
       const pool = getUnitAnimationClipPool(unitType, state);
       const picked = pickWeightedClipName(pool, token);

@@ -233,7 +233,8 @@ export default function Unit({ unit, isSelected }: UnitProps) {
 
   const perfMode = usePerformanceMode();
   const animationsEnabled = perfMode === 'high';
-  const isMoving = motion?.mode === "active";
+  const motionNow = typeof performance !== "undefined" ? performance.now() : Date.now();
+  const isMoving = motion?.mode === "active" && (!motion?.expiresAtMs || motion.expiresAtMs > motionNow);
   const animationEvent = useUnitAnimationEventStore((state) => state.active[unit.id]);
   const animationState: UnitAnimationState = animationEvent?.state ?? (isMoving ? "move" : "idle");
   const [idleCycleKey, setIdleCycleKey] = useState(0);
@@ -272,6 +273,12 @@ export default function Unit({ unit, isSelected }: UnitProps) {
 
   useFrame((state) => {
     if (motion && unitGroupRef.current) {
+      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      if (motion.expiresAtMs && motion.expiresAtMs <= now) {
+        stopMotion(unit.id);
+        lastPulseIndexRef.current = -1;
+        return;
+      }
       if (motion.mode === "pending") {
         const hold = motion.points[0];
         if (hold) {
@@ -279,7 +286,6 @@ export default function Unit({ unit, isSelected }: UnitProps) {
         }
         return;
       }
-      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
       const elapsedSec = (now - motion.startTimeMs) / 1000;
       const progressTiles = elapsedSec * motion.speedTilesPerSec;
       const maxIndex = motion.points.length - 1;
