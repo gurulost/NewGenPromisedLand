@@ -524,8 +524,8 @@ export function AnimationLab() {
   }, [buildRegistrySpecs]);
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
-      <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
+    <div className="min-h-screen bg-slate-900 text-slate-100 overflow-y-auto">
+      <div className="max-w-6xl mx-auto px-6 py-6 space-y-6 pb-16">
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold">Animation Lab</h1>
           <p className="text-sm text-slate-400">
@@ -564,9 +564,12 @@ export function AnimationLab() {
               onClick={handleClearOverrides}
               className="rounded border border-slate-600 px-3 py-1 text-red-300 hover:border-red-300"
             >
-              Clear overrides
+              Clear live overrides
             </button>
             {persisted && <span className="text-amber-300">Applied.</span>}
+            <span className="text-slate-500">
+              Clears all saved overrides and returns every unit to the code registry defaults.
+            </span>
           </div>
         )}
 
