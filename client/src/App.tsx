@@ -111,7 +111,7 @@ function App() {
                       {/* Lighting - Much brighter for better tile visibility */}
                       <ambientLight intensity={1.15} color="#ffffff" />
                       <hemisphereLight
-                        skyColor="#ffffff"
+                        color="#ffffff"
                         groundColor="#6b7280"
                         intensity={0.65}
                       />

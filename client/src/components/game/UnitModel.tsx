@@ -7,10 +7,12 @@ import { useLocalGame } from '../../lib/stores/useLocalGame';
 import { getUnitModelPath } from '../../utils/modelManager';
 import { disposeClonedMaterials } from '../../lib/memoryUtils';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { useUnitAnimationRegistryVersion } from '../../hooks/useUnitAnimationRegistryVersion';
 import {
   getAnimatedModelPathForUnit,
   getUnitAnimationClipPool,
   getUnitAnimationSpec,
+  hasUnitAnimationOverride,
   pickWeightedClipName,
   UnitAnimationState,
 } from '../../utils/unitAnimationRegistry';
@@ -116,6 +118,7 @@ export function UnitModel({
 }: UnitModelProps) {
   const { gameState } = useLocalGame();
   const groupRef = useRef<THREE.Group>(null);
+  const registryVersion = useUnitAnimationRegistryVersion();
 
   // Get the player's faction to determine which model variant to use
   const player = gameState?.players.find(p => p.id === unit.playerId);
@@ -269,7 +272,10 @@ export function UnitModel({
     const isLoopingState = resolvedState === "idle" || resolvedState === "move";
     const fallbackClips = resolvedState === "move" ? defaultMove : defaultIdle;
     const fallbackPool = fallbackClips.map((name) => ({ name, weight: 1 }));
-    const candidatePool = preferredPool.length > 0 ? preferredPool : fallbackPool;
+    const hasOverride = hasUnitAnimationOverride(unit.type);
+    // If overrides exist for this unit, treat the registry as authoritative and skip fallbacks.
+    // Otherwise use fallbacks for legacy units that have no config.
+    const candidatePool = preferredPool.length > 0 ? preferredPool : (hasOverride ? [] : fallbackPool);
     const availablePool = candidatePool.filter((entry) => actions[entry.name]);
     const selectionKey = `${unit.id}:${resolvedState}:${animationVariantKey ?? "default"}`;
     const selectedName = animationClipName && actions[animationClipName]
@@ -311,7 +317,16 @@ export function UnitModel({
     return () => {
       nextAction.fadeOut(0.15);
     };
-  }, [actions, isAnimatedWorker, resolvedState, unit.type, animationVariantKey, animationClipName, unit.id]);
+  }, [
+    actions,
+    isAnimatedWorker,
+    resolvedState,
+    unit.type,
+    animationVariantKey,
+    animationClipName,
+    unit.id,
+    registryVersion,
+  ]);
 
   useEffect(() => {
     if (!isAnimatedWorker) return;
