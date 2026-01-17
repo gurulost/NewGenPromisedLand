@@ -31,22 +31,22 @@ export const UNIT_ANIMATION_REGISTRY: Partial<Record<UnitType, UnitAnimationSpec
   worker: {
     animatedModelPath: "/models/worker_animated.glb",
     clips: {
+      idle: [
+        { name: "Idle_12", weight: 1 },
+        { name: "Idle_15", weight: 1 },
+        { name: "Idle_3", weight: 1 },
+        { name: "Idle_7", weight: 1 },
+      ],
       move: [
         { name: "Walking", weight: 50 },
         { name: "Stumble_Walk", weight: 15 },
         { name: "Running", weight: 10 },
         { name: "Confident_Strut", weight: 25 },
       ],
-      idle: [
-        { name: "Idle_12", weight: 25 },
-        { name: "Idle_15", weight: 25 },
-        { name: "Idle_3", weight: 25 },
-        { name: "Idle_7", weight: 25 },
-      ],
       celebrate: [
-        { name: "Hip_Hop_Dance", weight: 40 },
         { name: "FunnyDancing_01", weight: 30 },
         { name: "FunnyDancing_03", weight: 30 },
+        { name: "Hip_Hop_Dance", weight: 40 },
       ],
     },
     moveSpeedTilesPerSec: DEFAULT_MOVE_SPEED_TPS,
@@ -105,7 +105,7 @@ export const UNIT_ANIMATION_REGISTRY: Partial<Record<UnitType, UnitAnimationSpec
     },
     moveSpeedTilesPerSec: DEFAULT_MOVE_SPEED_TPS,
     yawOffset: 0,
-    clipDurationsMs: {
+      clipDurationsMs: {
       Agree_Gesture: 7500,
       All_Night_Dance: 7300,
       Axe_Breathe_and_Look_Around: 1633,
@@ -127,7 +127,7 @@ export const UNIT_ANIMATION_REGISTRY: Partial<Record<UnitType, UnitAnimationSpec
       Slow_Orc_Walk: 11300,
       Walking: 3167,
     },
-  },
+},
   scout: {
     animatedModelPath: "/models/scout_animated.glb",
     clips: {
@@ -158,7 +158,7 @@ export const UNIT_ANIMATION_REGISTRY: Partial<Record<UnitType, UnitAnimationSpec
     },
     moveSpeedTilesPerSec: DEFAULT_MOVE_SPEED_TPS,
     yawOffset: 0,
-    clipDurationsMs: {
+      clipDurationsMs: {
       Backflip: 633,
       Breakdance_1990: 8033,
       Cautious_Crouch_Walk_Forward: 10133,
@@ -178,7 +178,7 @@ export const UNIT_ANIMATION_REGISTRY: Partial<Record<UnitType, UnitAnimationSpec
       Sneaky_Walk: 11500,
       Walking: 3833,
     },
-  },
+},
   missionary: {
     animatedModelPath: "/models/missionary_animated.glb",
     clips: {
@@ -196,19 +196,19 @@ export const UNIT_ANIMATION_REGISTRY: Partial<Record<UnitType, UnitAnimationSpec
         { name: "RunFast", weight: 10 },
       ],
       celebrate: [
+        { name: "Clapping_Run", weight: 5 },
         { name: "Excited_Walk_M", weight: 20 },
         { name: "Cheer_with_Both_Hands_1", weight: 20 },
         { name: "happy_jump_m", weight: 15 },
         { name: "Arm_Circle_Shuffle", weight: 10 },
         { name: "Big_Heart_Gesture", weight: 10 },
         { name: "Handstand_Flip", weight: 15 },
-        { name: "Clapping_Run", weight: 5 },
       ],
       death: "dying_backwards",
     },
     moveSpeedTilesPerSec: DEFAULT_MOVE_SPEED_TPS,
     yawOffset: 0,
-    clipDurationsMs: {
+      clipDurationsMs: {
       Arm_Circle_Shuffle: 9833,
       Big_Heart_Gesture: 2233,
       Cheer_with_Both_Hands_1: 2000,
@@ -228,7 +228,7 @@ export const UNIT_ANIMATION_REGISTRY: Partial<Record<UnitType, UnitAnimationSpec
       happy_jump_m: 3300,
       walking_2: 11267,
     },
-  },
+},
 };
 
 export const getUnitAnimationSpec = (unitType: UnitType): UnitAnimationSpec | undefined =>

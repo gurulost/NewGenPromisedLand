@@ -3,7 +3,6 @@ import { Canvas } from "@react-three/fiber";
 import { KeyboardControls } from "@react-three/drei";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocalGame } from "./lib/stores/useLocalGame";
-import * as THREE from "three";
 import MainMenu from "./components/ui/MainMenu";
 import PlayerSetup from "./components/ui/PlayerSetup";
 import HandoffScreen from "./components/ui/HandoffScreen";
@@ -100,25 +99,17 @@ function App() {
                       }}
                       gl={{
                         antialias: true,
-                        powerPreference: "high-performance",
-                        toneMapping: THREE.ACESFilmicToneMapping,
-                        toneMappingExposure: 1.3,
+                        powerPreference: "high-performance"
                       }}
                       className="absolute inset-0"
                     >
                       <color attach="background" args={["#0f172a"]} />
 
                       {/* Lighting - Much brighter for better tile visibility */}
-                      <ambientLight intensity={1.15} color="#ffffff" />
-                      <hemisphereLight
-                        skyColor="#ffffff"
-                        groundColor="#6b7280"
-                        intensity={0.65}
-                      />
+                      <ambientLight intensity={0.8} />
                       <directionalLight
                         position={[10, 10, 5]}
-                        intensity={3.0}
-                        color="#fff3d6"
+                        intensity={2.5}
                         castShadow
                         shadow-mapSize-width={2048}
                         shadow-mapSize-height={2048}
@@ -126,8 +117,7 @@ function App() {
                       {/* Additional light for better coverage */}
                       <directionalLight
                         position={[-10, 10, -5]}
-                        intensity={1.8}
-                        color="#e0f2fe"
+                        intensity={1.5}
                       />
 
                       <Suspense fallback={null}>
