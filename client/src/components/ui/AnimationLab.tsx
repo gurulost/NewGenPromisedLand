@@ -23,11 +23,11 @@ const formatStateLabel = (state: UnitAnimationState) =>
 const ANIMATION_STATES: UnitAnimationState[] = [
   "idle",
   "move",
+  "celebrate",
+  "death",
   "attack",
   "hit",
-  "death",
   "ability",
-  "celebrate",
 ];
 
 type EditableClip = { name: string; weight: number };
@@ -378,6 +378,18 @@ export function AnimationLab() {
   const [loop, setLoop] = useState(true);
   const [persisted, setPersisted] = useState(false);
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "auto";
+    document.documentElement.style.overflow = "auto";
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+    };
+  }, []);
+
   const unitSpec = selectedUnit ? editableSpecs[selectedUnit] : undefined;
   const modelPath = unitSpec?.animatedModelPath ?? null;
 
@@ -558,7 +570,7 @@ export function AnimationLab() {
               onClick={handleResetUnit}
               className="rounded border border-slate-600 px-3 py-1 hover:border-amber-300"
             >
-              Reset to registry
+              Reset this unit
             </button>
             <button
               onClick={handleClearOverrides}
@@ -568,7 +580,10 @@ export function AnimationLab() {
             </button>
             {persisted && <span className="text-amber-300">Applied.</span>}
             <span className="text-slate-500">
-              Clears all saved overrides and returns every unit to the code registry defaults.
+              Edits apply instantly to the game and persist in this browser.
+            </span>
+            <span className="text-slate-500">
+              Reset this unit = discard edits for the selected unit only. Clear live overrides = discard edits for all units.
             </span>
           </div>
         )}
