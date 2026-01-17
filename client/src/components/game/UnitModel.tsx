@@ -276,10 +276,6 @@ export function UnitModel({
       ? animationClipName
       : pickWeightedClipName(availablePool, selectionKey);
     const nextAction = selectedName ? actions[selectedName] : undefined;
-    
-    if (import.meta.env.DEV && unit.type === 'warrior') {
-      console.log(`[ANIM DEBUG ${unit.type}] state=${resolvedState}, preferred=${preferredPool.map(p=>p.name).join(',')}, available=${availablePool.map(p=>p.name).join(',')}, selected=${selectedName}, allActions=${Object.keys(actions).join(',')}`);
-    }
     if (!nextAction) {
       const current = currentActionRef.current;
       if (current) {
