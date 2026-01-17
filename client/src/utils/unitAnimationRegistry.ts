@@ -75,9 +75,11 @@ export const UNIT_ANIMATION_REGISTRY: Partial<Record<UnitType, UnitAnimationSpec
     animatedModelPath: "/models/warrior_animated.glb",
     clips: {
       idle: [
-        { name: "Idle", weight: 40 },
-        { name: "Idle_8", weight: 35 },
-        { name: "Idle_11", weight: 25 },
+        { name: "Idle", weight: 5 },
+        { name: "Idle_8", weight: 20 },
+        { name: "Idle_11", weight: 50 },
+        { name: "Axe_Breathe_and_Look_Around", weight: 15 },
+        { name: "Burpee_Exercise", weight: 10 },
       ],
       move: [
         { name: "Walking", weight: 35 },
@@ -130,11 +132,12 @@ export const UNIT_ANIMATION_REGISTRY: Partial<Record<UnitType, UnitAnimationSpec
     animatedModelPath: "/models/scout_animated.glb",
     clips: {
       idle: [
-        { name: "Idle_02", weight: 25 },
-        { name: "Idle_11", weight: 20 },
-        { name: "Idle_3", weight: 25 },
-        { name: "Idle_7", weight: 15 },
-        { name: "Idle_8", weight: 15 },
+        { name: "Idle_02", weight: 1 },
+        { name: "Idle_11", weight: 1 },
+        { name: "Idle_3", weight: 1 },
+        { name: "Idle_7", weight: 1 },
+        { name: "Idle_8", weight: 1 },
+        { name: "Confused_Scratch", weight: 1 },
       ],
       move: [
         { name: "Walking", weight: 30 },

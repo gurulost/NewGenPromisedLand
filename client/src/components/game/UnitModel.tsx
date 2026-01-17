@@ -276,6 +276,14 @@ export function UnitModel({
       ? animationClipName
       : pickWeightedClipName(availablePool, selectionKey);
     const nextAction = selectedName ? actions[selectedName] : undefined;
+    
+    if (import.meta.env.DEV && unit.type === 'warrior') {
+      const attackClips = ['Punch_Combo', 'Kung_Fu_Punch', 'Lunge_Spin_Kick'];
+      const isAttackSelected = attackClips.includes(selectedName || '');
+      if (isAttackSelected || resolvedState === 'attack') {
+        console.warn(`[ANIM ATTACK] ${unit.type} playing attack! state=${resolvedState}, selected=${selectedName}, animationState prop=${animationState}, isMoving=${isMoving}`);
+      }
+    }
     if (!nextAction) {
       const current = currentActionRef.current;
       if (current) {
