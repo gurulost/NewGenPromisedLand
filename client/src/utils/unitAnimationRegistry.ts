@@ -18,7 +18,7 @@ export interface UnitAnimationSpec {
   clipDurationsMs?: Record<string, number>;
 }
 
-export type ClipEntry = string | { name: string; weight?: number };
+export type ClipEntry = string | { name: string; weight?: number; label?: string };
 
 export interface NormalizedClipEntry {
   name: string;
