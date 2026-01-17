@@ -30,7 +30,7 @@ const ANIMATION_STATES: UnitAnimationState[] = [
   "ability",
 ];
 
-type EditableClip = { name: string; weight: number };
+type EditableClip = { name: string; weight: number; label?: string };
 type EditableSpec = {
   animatedModelPath?: string;
   clips: Record<UnitAnimationState, EditableClip[]>;
@@ -42,7 +42,7 @@ const toEditableClip = (entry: ClipEntry): EditableClip => {
   if (typeof entry === "string") {
     return { name: entry, weight: 1 };
   }
-  return { name: entry.name, weight: entry.weight ?? 1 };
+  return { name: entry.name, weight: entry.weight ?? 1, label: entry.label };
 };
 
 const normalizeClipList = (entries?: ClipEntry | ClipEntry[]): EditableClip[] => {
@@ -68,7 +68,11 @@ const toOverrideSpec = (spec: EditableSpec): Partial<UnitAnimationSpec> => {
   const clips: UnitAnimationSpec["clips"] = {};
   ANIMATION_STATES.forEach((state) => {
     const list = spec.clips[state] ?? [];
-    clips[state] = list.map((entry) => ({ name: entry.name, weight: entry.weight }));
+    clips[state] = list.map((entry) => ({
+      name: entry.name,
+      weight: entry.weight,
+      label: entry.label,
+    }));
   });
   return { clips };
 };
@@ -145,7 +149,7 @@ function AnimationInspector({
   setLoop: (value: boolean) => void;
   onUpdateClip: (state: UnitAnimationState, index: number, updates: Partial<EditableClip>) => void;
   onRemoveClip: (state: UnitAnimationState, index: number) => void;
-  onAddClip: (state: UnitAnimationState) => void;
+  onAddClip: (state: UnitAnimationState, name: string) => void;
   onMoveClip: (state: UnitAnimationState, index: number, nextState: UnitAnimationState) => void;
 }) {
   const { scene, animations } = useGLTF(modelPath);
@@ -214,6 +218,9 @@ function AnimationInspector({
       <div className="space-y-4">
         <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-4">
           <h2 className="text-sm uppercase tracking-wide text-slate-400">Registry Mapping</h2>
+          <p className="mt-2 text-xs text-slate-500">
+            Pick a source clip from the GLB list. Use Label for your friendly name.
+          </p>
           <div className="mt-3 space-y-3">
             {ANIMATION_STATES.map((state) => {
               const list = unitSpec?.clips?.[state] ?? [];
@@ -230,9 +237,7 @@ function AnimationInspector({
                         const exists = clipDurations.has(entry.name);
                         return (
                           <div key={`${state}-${index}`} className="flex flex-wrap items-center gap-2">
-                            <input
-                              type="text"
-                              list="animation-lab-clip-list"
+                            <select
                               value={entry.name}
                               onChange={(event) => {
                                 const nextName = event.target.value;
@@ -241,7 +246,27 @@ function AnimationInspector({
                                 }
                                 onUpdateClip(state, index, { name: nextName });
                               }}
+                              className="w-52 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"
+                            >
+                              {!fileClipNames.includes(entry.name) && (
+                                <option value={entry.name}>
+                                  Missing: {entry.name}
+                                </option>
+                              )}
+                              {fileClipNames.map((clip) => (
+                                <option key={clip} value={clip}>
+                                  {clip}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              value={entry.label ?? ""}
+                              onChange={(event) =>
+                                onUpdateClip(state, index, { label: event.target.value || undefined })
+                              }
                               className="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"
+                              placeholder="Label (optional)"
                             />
                             <input
                               type="number"
@@ -270,7 +295,7 @@ function AnimationInspector({
                               onClick={() => setSelectedClip(entry.name)}
                               className="px-2 py-1 rounded border border-slate-600 text-xs text-slate-200 hover:border-amber-300"
                             >
-                              Play
+                              Play {entry.label ?? entry.name}
                             </button>
                             <button
                               onClick={() => onRemoveClip(state, index)}
@@ -287,7 +312,7 @@ function AnimationInspector({
                     </div>
                   )}
                   <button
-                    onClick={() => onAddClip(state)}
+                    onClick={() => onAddClip(state, selectedClip ?? fileClipNames[0] ?? "")}
                     className="mt-2 inline-flex items-center gap-1 rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:border-amber-300"
                   >
                     + Add clip
@@ -295,11 +320,6 @@ function AnimationInspector({
                 </div>
               );
             })}
-            <datalist id="animation-lab-clip-list">
-              {fileClipNames.map((clip) => (
-                <option key={clip} value={clip} />
-              ))}
-            </datalist>
           </div>
         </div>
 
@@ -476,12 +496,11 @@ export function AnimationLab() {
   );
 
   const handleAddClip = useCallback(
-    (state: UnitAnimationState) => {
+    (state: UnitAnimationState, name: string) => {
       if (!selectedUnit) return;
       setEditableSpecs((prev) => {
         const spec = prev[selectedUnit];
         if (!spec) return prev;
-        const name = selectedClip ?? "";
         const nextClips = [...spec.clips[state], { name, weight: 1 }];
         return {
           ...prev,
@@ -493,7 +512,7 @@ export function AnimationLab() {
       });
       markDirty(selectedUnit);
     },
-    [selectedUnit, selectedClip, markDirty]
+    [selectedUnit, markDirty]
   );
 
   const handleMoveClip = useCallback(
