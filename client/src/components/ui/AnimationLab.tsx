@@ -3,6 +3,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
+import { ErrorBoundary } from "../ErrorBoundary";
 import {
   UNIT_ANIMATION_REGISTRY,
   getUnitAnimationSpec,
@@ -35,7 +36,7 @@ function AnimationPreview({
 
   useEffect(() => {
     if (!actions) return;
-    Object.values(actions).forEach((action) => action.stop());
+    Object.values(actions).forEach((action) => action?.stop());
     if (!clipName) return;
     const nextAction = actions[clipName];
     if (!nextAction) return;
@@ -132,16 +133,22 @@ function AnimationInspector({
           </label>
         </div>
         <div className="h-[420px] rounded-md overflow-hidden border border-slate-700">
-          <Canvas camera={{ position: [0, 2.2, 3.2], fov: 40 }}>
-            <color attach="background" args={["#0f172a"]} />
-            <ambientLight intensity={0.9} />
-            <directionalLight position={[5, 6, 3]} intensity={2.4} />
-            <directionalLight position={[-4, 5, -3]} intensity={1.4} />
-            <OrbitControls enablePan={false} />
-            <Suspense fallback={null}>
-              <AnimationPreview scene={scene} animations={animations} clipName={selectedClip} loop={loop} />
-            </Suspense>
-          </Canvas>
+          <ErrorBoundary fallback={
+            <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-300 text-sm">
+              WebGL is required for animation preview. Please use a browser with WebGL support.
+            </div>
+          }>
+            <Canvas camera={{ position: [0, 2.2, 3.2], fov: 40 }}>
+              <color attach="background" args={["#0f172a"]} />
+              <ambientLight intensity={0.9} />
+              <directionalLight position={[5, 6, 3]} intensity={2.4} />
+              <directionalLight position={[-4, 5, -3]} intensity={1.4} />
+              <OrbitControls enablePan={false} />
+              <Suspense fallback={null}>
+                <AnimationPreview scene={scene} animations={animations} clipName={selectedClip} loop={loop} />
+              </Suspense>
+            </Canvas>
+          </ErrorBoundary>
         </div>
         <div className="mt-3 text-sm text-slate-400">
           Selected clip: <span className="text-slate-200">{selectedClip ?? "None"}</span>
