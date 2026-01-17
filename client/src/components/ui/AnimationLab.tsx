@@ -535,8 +535,15 @@ export function AnimationLab() {
     setDirtyUnits(new Set());
   }, [buildRegistrySpecs]);
 
+  useEffect(() => {
+    document.body.style.overflow = 'auto';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
+
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 overflow-y-auto">
+    <div className="min-h-screen bg-slate-900 text-slate-100">
       <div className="max-w-6xl mx-auto px-6 py-6 space-y-6 pb-16">
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold">Animation Lab</h1>
