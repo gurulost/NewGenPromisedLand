@@ -135,12 +135,12 @@ export function UnitModel({
     const UNIT_SCALES: Record<string, number> = {
       // Small/civilian units
       worker: 0.55,
-      
+
       // Scout-type units (medium-small, agile)
       scout: 0.6,
       slinger: 0.6,
       wilderness_hunter: 0.6,
-      
+
       // Religious/diplomatic units (medium)
       missionary: 0.58,
       royal_envoy: 0.58,
@@ -148,26 +148,26 @@ export function UnitModel({
       converted_missionary: 0.58,
       scribe_teacher: 0.58,
       prophet: 0.6,
-      
+
       // Standard infantry (medium)
       warrior: 0.65,
       spearman: 0.65,
       guard: 0.65,
       peacekeeping_guard: 0.65,
       commander: 0.7,
-      
+
       // Elite/special infantry (medium-large)
       stripling_warrior: 0.7,
-      
+
       // Large units
       ancient_giant: 0.85,
       cavalry: 0.75,
       catapult: 0.7,
-      
+
       // Naval units
       boat: 0.8,
     };
-    
+
     return UNIT_SCALES[unit.type] ?? 0.65;
   }, [unit.type]);
 
@@ -269,7 +269,9 @@ export function UnitModel({
     const isLoopingState = resolvedState === "idle" || resolvedState === "move";
     const fallbackClips = resolvedState === "move" ? defaultMove : defaultIdle;
     const fallbackPool = fallbackClips.map((name) => ({ name, weight: 1 }));
-    const candidatePool = isLoopingState ? [...preferredPool, ...fallbackPool] : preferredPool;
+    // If specific clips are defined (preferredPool has items), use ONLY those.
+    // Otherwise fallback to the defaults.
+    const candidatePool = preferredPool.length > 0 ? preferredPool : fallbackPool;
     const availablePool = candidatePool.filter((entry) => actions[entry.name]);
     const selectionKey = `${unit.id}:${resolvedState}:${animationVariantKey ?? "default"}`;
     const selectedName = animationClipName && actions[animationClipName]
@@ -307,7 +309,7 @@ export function UnitModel({
     return () => {
       nextAction.fadeOut(0.15);
     };
-  }, [actions, isAnimatedWorker, resolvedState, unit.type, animationVariantKey, animationClipName]);
+  }, [actions, isAnimatedWorker, resolvedState, unit.type, animationVariantKey, animationClipName, unit.id]);
 
   useEffect(() => {
     if (!isAnimatedWorker) return;
