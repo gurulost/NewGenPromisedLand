@@ -151,6 +151,10 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   const meshRef = useRef<THREE.Group>(null);
   const unitGroupRef = useRef<THREE.Group>(null);
   const lastPulseIndexRef = useRef<number>(-1);
+  const lastMotionIdRef = useRef<string | null>(null);
+  const lastMotionPosRef = useRef<{ x: number; z: number } | null>(null);
+  const lastMotionMoveAtRef = useRef<number>(0);
+  const movingVisualRef = useRef(false);
   const { setSelectedUnit, setReachableTiles, setReachableCoordinates, isMovementMode } = useGameState();
   const { gameState } = useLocalGame();
   const reachableRequestIdRef = useRef(0);
@@ -234,12 +238,14 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   const perfMode = usePerformanceMode();
   const animationsEnabled = perfMode === 'high';
   const motionNow = typeof performance !== "undefined" ? performance.now() : Date.now();
-  const isMoving = motion?.mode === "active" && (!motion?.expiresAtMs || motion.expiresAtMs > motionNow);
+  const [isMovingVisual, setIsMovingVisual] = useState(false);
+  const isMoving =
+    motion?.mode === "active" && (!motion?.expiresAtMs || motion.expiresAtMs > motionNow);
   const animationEvent = useUnitAnimationEventStore((state) => state.active[unit.id]);
-  const animationState: UnitAnimationState = animationEvent?.state ?? (isMoving ? "move" : "idle");
+  const animationState: UnitAnimationState = animationEvent?.state ?? (isMovingVisual ? "move" : "idle");
   const [idleCycleKey, setIdleCycleKey] = useState(0);
-  const isIdle = animationsEnabled && !isMoving && !animationEvent;
-  const animationVariantKey = animationEvent?.token ?? (isMoving ? motion?.id : `idle_${unit.id}_${idleCycleKey}`);
+  const isIdle = animationsEnabled && !isMovingVisual && !animationEvent;
+  const animationVariantKey = animationEvent?.token ?? (isMovingVisual ? motion?.id : `idle_${unit.id}_${idleCycleKey}`);
   const animationClipName = animationEvent?.clipName;
   const initialMotionPos = motion?.points?.[0];
   const yawOffset = getUnitAnimationYawOffset(unit.type) ?? 0;
@@ -277,6 +283,25 @@ export default function Unit({ unit, isSelected }: UnitProps) {
       if (motion.expiresAtMs && motion.expiresAtMs <= now) {
         stopMotion(unit.id);
         lastPulseIndexRef.current = -1;
+        lastMotionIdRef.current = null;
+        lastMotionPosRef.current = null;
+        lastMotionMoveAtRef.current = 0;
+        if (movingVisualRef.current) {
+          movingVisualRef.current = false;
+          setIsMovingVisual(false);
+        }
+        return;
+      }
+      if (motion.mode === "active" && motion.points.length < 2) {
+        stopMotion(unit.id);
+        lastPulseIndexRef.current = -1;
+        lastMotionIdRef.current = null;
+        lastMotionPosRef.current = null;
+        lastMotionMoveAtRef.current = 0;
+        if (movingVisualRef.current) {
+          movingVisualRef.current = false;
+          setIsMovingVisual(false);
+        }
         return;
       }
       if (motion.mode === "pending") {
@@ -284,7 +309,19 @@ export default function Unit({ unit, isSelected }: UnitProps) {
         if (hold) {
           unitGroupRef.current.position.set(hold.x, 0, hold.z);
         }
+        if (movingVisualRef.current) {
+          movingVisualRef.current = false;
+          setIsMovingVisual(false);
+        }
         return;
+      }
+      if (lastMotionIdRef.current !== motion.id) {
+        lastMotionIdRef.current = motion.id;
+        lastMotionMoveAtRef.current = 0;
+        lastMotionPosRef.current = {
+          x: unitGroupRef.current.position.x,
+          z: unitGroupRef.current.position.z,
+        };
       }
       const elapsedSec = (now - motion.startTimeMs) / 1000;
       const progressTiles = elapsedSec * motion.speedTilesPerSec;
@@ -311,6 +348,19 @@ export default function Unit({ unit, isSelected }: UnitProps) {
             const dz = to.z - from.z;
             meshRef.current.rotation.y = Math.atan2(dx, dz) + yawOffset;
           }
+
+          const lastPos = lastMotionPosRef.current;
+          if (lastPos) {
+            const dxp = x - lastPos.x;
+            const dzp = z - lastPos.z;
+            if (dxp * dxp + dzp * dzp > 0.0001) {
+              lastMotionMoveAtRef.current = now;
+              lastMotionPosRef.current = { x, z };
+            }
+          } else {
+            lastMotionMoveAtRef.current = now;
+            lastMotionPosRef.current = { x, z };
+          }
         }
 
         if (idx !== lastPulseIndexRef.current && motion.path[idx]) {
@@ -319,7 +369,33 @@ export default function Unit({ unit, isSelected }: UnitProps) {
           }
           lastPulseIndexRef.current = idx;
         }
+
+        const timeSinceMove = lastMotionMoveAtRef.current === 0
+          ? now - motion.startTimeMs
+          : now - lastMotionMoveAtRef.current;
+        const movingNow =
+          lastMotionMoveAtRef.current !== 0 && (now - lastMotionMoveAtRef.current) < 250;
+        if (movingVisualRef.current !== movingNow) {
+          movingVisualRef.current = movingNow;
+          setIsMovingVisual(movingNow);
+        }
+
+        if (timeSinceMove > 600) {
+          stopMotion(unit.id);
+          lastPulseIndexRef.current = -1;
+          lastMotionIdRef.current = null;
+          lastMotionPosRef.current = null;
+          lastMotionMoveAtRef.current = 0;
+          if (movingVisualRef.current) {
+            movingVisualRef.current = false;
+            setIsMovingVisual(false);
+          }
+          return;
+        }
       }
+    } else if (movingVisualRef.current) {
+      movingVisualRef.current = false;
+      setIsMovingVisual(false);
     }
 
     if (meshRef.current) {
