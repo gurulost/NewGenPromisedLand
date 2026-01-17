@@ -269,8 +269,6 @@ export function UnitModel({
     const isLoopingState = resolvedState === "idle" || resolvedState === "move";
     const fallbackClips = resolvedState === "move" ? defaultMove : defaultIdle;
     const fallbackPool = fallbackClips.map((name) => ({ name, weight: 1 }));
-    // If specific clips are defined (preferredPool has items), use ONLY those.
-    // Otherwise fallback to the defaults.
     const candidatePool = preferredPool.length > 0 ? preferredPool : fallbackPool;
     const availablePool = candidatePool.filter((entry) => actions[entry.name]);
     const selectionKey = `${unit.id}:${resolvedState}:${animationVariantKey ?? "default"}`;
@@ -278,6 +276,10 @@ export function UnitModel({
       ? animationClipName
       : pickWeightedClipName(availablePool, selectionKey);
     const nextAction = selectedName ? actions[selectedName] : undefined;
+    
+    if (import.meta.env.DEV && unit.type === 'warrior') {
+      console.log(`[ANIM DEBUG ${unit.type}] state=${resolvedState}, preferred=${preferredPool.map(p=>p.name).join(',')}, available=${availablePool.map(p=>p.name).join(',')}, selected=${selectedName}, allActions=${Object.keys(actions).join(',')}`);
+    }
     if (!nextAction) {
       const current = currentActionRef.current;
       if (current) {
