@@ -195,12 +195,12 @@ function AnimationInspector({
               WebGL is required for animation preview. Please use a browser with WebGL support.
             </div>
           }>
-            <Canvas camera={{ position: [0, 2.2, 3.2], fov: 40 }}>
+            <Canvas camera={{ position: [0, 1.2, 4], fov: 40 }}>
               <color attach="background" args={["#0f172a"]} />
               <ambientLight intensity={0.9} />
               <directionalLight position={[5, 6, 3]} intensity={2.4} />
               <directionalLight position={[-4, 5, -3]} intensity={1.4} />
-              <OrbitControls enablePan={false} />
+              <OrbitControls enablePan={false} target={[0, 1.0, 0]} />
               <Suspense fallback={null}>
                 <AnimationPreview scene={scene} animations={animations} clipName={selectedClip} loop={loop} />
               </Suspense>
