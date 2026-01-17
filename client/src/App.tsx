@@ -12,6 +12,7 @@ import LobbyRoom from "./components/ui/LobbyRoom";
 import GameCanvas from "./components/game/GameCanvas";
 import GameUI from "./components/game/GameUI";
 import { CombatEffectsDemo } from "./components/effects/CombatEffectsDemo";
+import { AnimationLab } from "./components/ui/AnimationLab";
 import { VisualFeedbackProvider } from "./components/ui/VisualFeedback";
 import { FloatingTextManager } from "./components/ui/FloatingText";
 import { AudioProvider } from "./components/ui/AudioProvider";
@@ -51,12 +52,21 @@ function App() {
 
   // Check for demo routes
   const isDemoRoute = window.location.hash === '#combat-demo';
+  const isAnimationsRoute = typeof window !== 'undefined' &&
+    (window.location.pathname === '/animations' || window.location.pathname === '/animations/');
 
   // If demo route, show the demo component
   if (isDemoRoute) {
     return (
       <QueryClientProvider client={queryClient}>
         <CombatEffectsDemo />
+      </QueryClientProvider>
+    );
+  }
+  if (isAnimationsRoute) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <AnimationLab />
       </QueryClientProvider>
     );
   }
