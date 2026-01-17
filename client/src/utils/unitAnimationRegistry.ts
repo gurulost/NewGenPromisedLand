@@ -231,8 +231,87 @@ export const UNIT_ANIMATION_REGISTRY: Partial<Record<UnitType, UnitAnimationSpec
   },
 };
 
-export const getUnitAnimationSpec = (unitType: UnitType): UnitAnimationSpec | undefined =>
-  UNIT_ANIMATION_REGISTRY[unitType];
+export type UnitAnimationOverrides = Partial<Record<UnitType, Partial<UnitAnimationSpec>>>;
+
+let registryOverrides: UnitAnimationOverrides = {};
+let registryVersion = 0;
+const registrySubscribers = new Set<() => void>();
+let overridesLoaded = false;
+
+const notifyRegistryUpdate = () => {
+  registryVersion += 1;
+  registrySubscribers.forEach((listener) => listener());
+};
+
+const ensureOverridesLoaded = () => {
+  if (overridesLoaded) return;
+  if (typeof window === "undefined") return;
+  overridesLoaded = true;
+  const stored = window.localStorage.getItem("animationLabOverrides");
+  if (!stored) return;
+  try {
+    registryOverrides = JSON.parse(stored) as UnitAnimationOverrides;
+    notifyRegistryUpdate();
+  } catch {
+    // Ignore malformed overrides.
+  }
+};
+
+export const setUnitAnimationOverrides = (overrides: UnitAnimationOverrides) => {
+  registryOverrides = overrides;
+  notifyRegistryUpdate();
+};
+
+export const updateUnitAnimationOverride = (unitType: UnitType, spec: Partial<UnitAnimationSpec> | null) => {
+  if (spec) {
+    registryOverrides = { ...registryOverrides, [unitType]: spec };
+  } else {
+    const { [unitType]: _removed, ...rest } = registryOverrides;
+    registryOverrides = rest;
+  }
+  notifyRegistryUpdate();
+};
+
+export const clearUnitAnimationOverrides = () => {
+  registryOverrides = {};
+  notifyRegistryUpdate();
+};
+
+export const getUnitAnimationOverrides = () => {
+  ensureOverridesLoaded();
+  return registryOverrides;
+};
+
+export const hasUnitAnimationOverride = (unitType: UnitType): boolean => {
+  ensureOverridesLoaded();
+  return !!registryOverrides[unitType];
+};
+
+export const subscribeUnitAnimationRegistry = (listener: () => void): (() => void) => {
+  registrySubscribers.add(listener);
+  return () => registrySubscribers.delete(listener);
+};
+
+export const getUnitAnimationRegistryVersion = () => registryVersion;
+
+export const getUnitAnimationSpec = (unitType: UnitType): UnitAnimationSpec | undefined => {
+  ensureOverridesLoaded();
+  const base = UNIT_ANIMATION_REGISTRY[unitType];
+  const override = registryOverrides[unitType];
+  if (!override) return base;
+  if (!base) return override as UnitAnimationSpec;
+  return {
+    ...base,
+    ...override,
+    clips: override.clips ? { ...base.clips, ...override.clips } : base.clips,
+    eventDurationsMs: override.eventDurationsMs
+      ? { ...base.eventDurationsMs, ...override.eventDurationsMs }
+      : base.eventDurationsMs,
+    clipDurationsMs: override.clipDurationsMs
+      ? { ...base.clipDurationsMs, ...override.clipDurationsMs }
+      : base.clipDurationsMs,
+  };
+};
 
 export const getAnimatedModelPathForUnit = (unitType: UnitType): string | null =>
   getUnitAnimationSpec(unitType)?.animatedModelPath ?? null;

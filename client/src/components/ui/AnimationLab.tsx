@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useRef, useState, useEffect } from "react";
+import { Suspense, useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
@@ -7,8 +7,12 @@ import { ErrorBoundary } from "../ErrorBoundary";
 import {
   UNIT_ANIMATION_REGISTRY,
   getUnitAnimationSpec,
+  getUnitAnimationOverrides,
+  setUnitAnimationOverrides,
+  clearUnitAnimationOverrides,
   type UnitAnimationState,
   type ClipEntry,
+  type UnitAnimationSpec,
 } from "../../utils/unitAnimationRegistry";
 
 type UnitKey = keyof typeof UNIT_ANIMATION_REGISTRY;
@@ -16,8 +20,58 @@ type UnitKey = keyof typeof UNIT_ANIMATION_REGISTRY;
 const formatStateLabel = (state: UnitAnimationState) =>
   state.charAt(0).toUpperCase() + state.slice(1);
 
-const getClipName = (entry: ClipEntry) => (typeof entry === "string" ? entry : entry.name);
-const getClipWeight = (entry: ClipEntry) => (typeof entry === "string" ? undefined : entry.weight);
+const ANIMATION_STATES: UnitAnimationState[] = [
+  "idle",
+  "move",
+  "attack",
+  "hit",
+  "death",
+  "ability",
+  "celebrate",
+];
+
+type EditableClip = { name: string; weight: number };
+type EditableSpec = {
+  animatedModelPath?: string;
+  clips: Record<UnitAnimationState, EditableClip[]>;
+  moveSpeedTilesPerSec?: number;
+  yawOffset?: number;
+};
+
+const toEditableClip = (entry: ClipEntry): EditableClip => {
+  if (typeof entry === "string") {
+    return { name: entry, weight: 1 };
+  }
+  return { name: entry.name, weight: entry.weight ?? 1 };
+};
+
+const normalizeClipList = (entries?: ClipEntry | ClipEntry[]): EditableClip[] => {
+  if (!entries) return [];
+  const list = Array.isArray(entries) ? entries : [entries];
+  return list.map(toEditableClip);
+};
+
+const toEditableSpec = (spec: UnitAnimationSpec): EditableSpec => {
+  const clips = {} as Record<UnitAnimationState, EditableClip[]>;
+  ANIMATION_STATES.forEach((state) => {
+    clips[state] = normalizeClipList(spec.clips?.[state]);
+  });
+  return {
+    animatedModelPath: spec.animatedModelPath,
+    moveSpeedTilesPerSec: spec.moveSpeedTilesPerSec,
+    yawOffset: spec.yawOffset,
+    clips,
+  };
+};
+
+const toOverrideSpec = (spec: EditableSpec): Partial<UnitAnimationSpec> => {
+  const clips: UnitAnimationSpec["clips"] = {};
+  ANIMATION_STATES.forEach((state) => {
+    const list = spec.clips[state] ?? [];
+    clips[state] = list.map((entry) => ({ name: entry.name, weight: entry.weight }));
+  });
+  return { clips };
+};
 
 function AnimationPreview({
   scene,
@@ -36,7 +90,7 @@ function AnimationPreview({
 
   useEffect(() => {
     if (!actions) return;
-    Object.values(actions).forEach((action) => action?.stop());
+    Object.values(actions).forEach((action) => action?.stop?.());
     if (!clipName) return;
     const nextAction = actions[clipName];
     if (!nextAction) return;
@@ -62,6 +116,7 @@ function AnimationPreview({
     clonedScene.scale.setScalar(scale);
     clonedScene.position.sub(center.multiplyScalar(scale));
     clonedScene.position.y -= box.min.y * scale;
+    clonedScene.position.y -= size.y * scale * 0.22;
   }, [clonedScene]);
 
   return (
@@ -78,13 +133,21 @@ function AnimationInspector({
   setSelectedClip,
   loop,
   setLoop,
+  onUpdateClip,
+  onRemoveClip,
+  onAddClip,
+  onMoveClip,
 }: {
-  unitSpec: ReturnType<typeof getUnitAnimationSpec>;
+  unitSpec: EditableSpec | undefined;
   modelPath: string;
   selectedClip: string | null;
   setSelectedClip: (clip: string | null) => void;
   loop: boolean;
   setLoop: (value: boolean) => void;
+  onUpdateClip: (state: UnitAnimationState, index: number, updates: Partial<EditableClip>) => void;
+  onRemoveClip: (state: UnitAnimationState, index: number) => void;
+  onAddClip: (state: UnitAnimationState) => void;
+  onMoveClip: (state: UnitAnimationState, index: number, nextState: UnitAnimationState) => void;
 }) {
   const { scene, animations } = useGLTF(modelPath);
 
@@ -92,19 +155,13 @@ function AnimationInspector({
     return new Map(animations.map((clip) => [clip.name, clip.duration]));
   }, [animations]);
 
-  const registryStates = useMemo(() => {
-    const clips = unitSpec?.clips ?? {};
-    return Object.entries(clips) as Array<[UnitAnimationState, ClipEntry | ClipEntry[]]>;
-  }, [unitSpec]);
-
   const registryClipNames = useMemo(() => {
     const names = new Set<string>();
-    registryStates.forEach(([, entries]) => {
-      const list = Array.isArray(entries) ? entries : [entries];
-      list.forEach((entry) => names.add(getClipName(entry)));
+    ANIMATION_STATES.forEach((state) => {
+      unitSpec?.clips?.[state]?.forEach((clip) => names.add(clip.name));
     });
     return names;
-  }, [registryStates]);
+  }, [unitSpec]);
 
   const fileClipNames = useMemo(() => animations.map((clip) => clip.name).sort(), [animations]);
 
@@ -159,44 +216,91 @@ function AnimationInspector({
         <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-4">
           <h2 className="text-sm uppercase tracking-wide text-slate-400">Registry Mapping</h2>
           <div className="mt-3 space-y-3">
-            {registryStates.map(([state, entries]) => {
-              const list = Array.isArray(entries) ? entries : [entries];
+            {ANIMATION_STATES.map((state) => {
+              const list = unitSpec?.clips?.[state] ?? [];
               return (
                 <div key={state}>
                   <div className="text-sm font-semibold text-amber-300">
                     {formatStateLabel(state)}
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {list.map((entry) => {
-                      const name = getClipName(entry);
-                      const weight = getClipWeight(entry);
-                      const exists = clipDurations.has(name);
-                      return (
-                        <button
-                          key={`${state}-${name}`}
-                          onClick={() => setSelectedClip(name)}
-                          className={`px-2 py-1 rounded border text-xs ${
-                            selectedClip === name
-                              ? "bg-amber-400 text-slate-900 border-amber-300"
-                              : "border-slate-600 text-slate-200 hover:border-amber-300"
-                          }`}
-                        >
-                          {name}
-                          {weight !== undefined && (
-                            <span className="ml-1 text-[10px] text-slate-500">
-                              {weight}
-                            </span>
-                          )}
-                          {!exists && (
-                            <span className="ml-1 text-[10px] text-red-400">missing</span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {list.length === 0 ? (
+                    <div className="mt-2 text-xs text-slate-500">No clips assigned.</div>
+                  ) : (
+                    <div className="mt-2 space-y-2">
+                      {list.map((entry, index) => {
+                        const exists = clipDurations.has(entry.name);
+                        return (
+                          <div key={`${state}-${index}`} className="flex flex-wrap items-center gap-2">
+                            <input
+                              type="text"
+                              list="animation-lab-clip-list"
+                              value={entry.name}
+                              onChange={(event) => {
+                                const nextName = event.target.value;
+                                if (selectedClip === entry.name) {
+                                  setSelectedClip(nextName);
+                                }
+                                onUpdateClip(state, index, { name: nextName });
+                              }}
+                              className="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"
+                            />
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={Number.isFinite(entry.weight) ? entry.weight : 0}
+                              onChange={(event) =>
+                                onUpdateClip(state, index, { weight: Number(event.target.value) || 0 })
+                              }
+                              className="w-16 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"
+                            />
+                            <select
+                              value={state}
+                              onChange={(event) =>
+                                onMoveClip(state, index, event.target.value as UnitAnimationState)
+                              }
+                              className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"
+                            >
+                              {ANIMATION_STATES.map((option) => (
+                                <option key={option} value={option}>
+                                  {formatStateLabel(option)}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => setSelectedClip(entry.name)}
+                              className="px-2 py-1 rounded border border-slate-600 text-xs text-slate-200 hover:border-amber-300"
+                            >
+                              Play
+                            </button>
+                            <button
+                              onClick={() => onRemoveClip(state, index)}
+                              className="px-2 py-1 rounded border border-slate-600 text-xs text-red-300 hover:border-red-300"
+                            >
+                              Remove
+                            </button>
+                            {!exists && (
+                              <span className="text-[10px] text-red-400">missing</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => onAddClip(state)}
+                    className="mt-2 inline-flex items-center gap-1 rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:border-amber-300"
+                  >
+                    + Add clip
+                  </button>
                 </div>
               );
             })}
+            <datalist id="animation-lab-clip-list">
+              {fileClipNames.map((clip) => (
+                <option key={clip} value={clip} />
+              ))}
+            </datalist>
           </div>
         </div>
 
@@ -242,14 +346,183 @@ export function AnimationLab() {
       .map(([key]) => key as UnitKey);
   }, []);
 
+  const buildRegistrySpecs = useCallback(() => {
+    const next: Partial<Record<UnitKey, EditableSpec>> = {};
+    (Object.entries(UNIT_ANIMATION_REGISTRY) as Array<[UnitKey, UnitAnimationSpec | undefined]>).forEach(
+      ([key, spec]) => {
+        if (!spec) return;
+        next[key] = toEditableSpec(spec);
+      }
+    );
+    return next;
+  }, []);
+
+  const buildInitialSpecs = useCallback(() => {
+    const next: Partial<Record<UnitKey, EditableSpec>> = {};
+    (Object.keys(UNIT_ANIMATION_REGISTRY) as UnitKey[]).forEach((key) => {
+      const spec = getUnitAnimationSpec(key as any);
+      if (!spec) return;
+      next[key] = toEditableSpec(spec);
+    });
+    return next;
+  }, []);
+
+  const [editableSpecs, setEditableSpecs] = useState<Partial<Record<UnitKey, EditableSpec>>>(buildInitialSpecs);
+  const [dirtyUnits, setDirtyUnits] = useState<Set<UnitKey>>(() => {
+    const overrides = getUnitAnimationOverrides();
+    return new Set(Object.keys(overrides) as UnitKey[]);
+  });
   const [selectedUnit, setSelectedUnit] = useState<UnitKey | null>(
     animatedUnits.length ? animatedUnits[0] : null
   );
   const [selectedClip, setSelectedClip] = useState<string | null>(null);
   const [loop, setLoop] = useState(true);
+  const [persisted, setPersisted] = useState(false);
 
-  const unitSpec = selectedUnit ? getUnitAnimationSpec(selectedUnit as any) : undefined;
+  const unitSpec = selectedUnit ? editableSpecs[selectedUnit] : undefined;
   const modelPath = unitSpec?.animatedModelPath ?? null;
+
+  const markDirty = useCallback((unit: UnitKey) => {
+    setDirtyUnits((prev) => {
+      if (prev.has(unit)) return prev;
+      const next = new Set(prev);
+      next.add(unit);
+      return next;
+    });
+  }, []);
+
+  const clearDirty = useCallback((unit: UnitKey) => {
+    setDirtyUnits((prev) => {
+      if (!prev.has(unit)) return prev;
+      const next = new Set(prev);
+      next.delete(unit);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const overrides: Partial<Record<UnitKey, Partial<UnitAnimationSpec>>> = {};
+    dirtyUnits.forEach((unitKey) => {
+      const spec = editableSpecs[unitKey];
+      if (!spec) return;
+      overrides[unitKey] = toOverrideSpec(spec);
+    });
+    setUnitAnimationOverrides(overrides);
+    if (typeof window !== "undefined") {
+      if (Object.keys(overrides).length === 0) {
+        window.localStorage.removeItem("animationLabOverrides");
+      } else {
+        window.localStorage.setItem("animationLabOverrides", JSON.stringify(overrides));
+      }
+      setPersisted(true);
+      const timer = window.setTimeout(() => setPersisted(false), 1200);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [dirtyUnits, editableSpecs]);
+
+  const handleUpdateClip = useCallback(
+    (state: UnitAnimationState, index: number, updates: Partial<EditableClip>) => {
+      if (!selectedUnit) return;
+      setEditableSpecs((prev) => {
+        const spec = prev[selectedUnit];
+        if (!spec) return prev;
+        const nextClips = [...spec.clips[state]];
+        const current = nextClips[index];
+        if (!current) return prev;
+        nextClips[index] = { ...current, ...updates };
+        return {
+          ...prev,
+          [selectedUnit]: {
+            ...spec,
+            clips: { ...spec.clips, [state]: nextClips },
+          },
+        };
+      });
+      markDirty(selectedUnit);
+    },
+    [selectedUnit, markDirty]
+  );
+
+  const handleRemoveClip = useCallback(
+    (state: UnitAnimationState, index: number) => {
+      if (!selectedUnit) return;
+      setEditableSpecs((prev) => {
+        const spec = prev[selectedUnit];
+        if (!spec) return prev;
+        const nextClips = spec.clips[state].filter((_, idx) => idx !== index);
+        return {
+          ...prev,
+          [selectedUnit]: {
+            ...spec,
+            clips: { ...spec.clips, [state]: nextClips },
+          },
+        };
+      });
+      markDirty(selectedUnit);
+    },
+    [selectedUnit, markDirty]
+  );
+
+  const handleAddClip = useCallback(
+    (state: UnitAnimationState) => {
+      if (!selectedUnit) return;
+      setEditableSpecs((prev) => {
+        const spec = prev[selectedUnit];
+        if (!spec) return prev;
+        const name = selectedClip ?? "";
+        const nextClips = [...spec.clips[state], { name, weight: 1 }];
+        return {
+          ...prev,
+          [selectedUnit]: {
+            ...spec,
+            clips: { ...spec.clips, [state]: nextClips },
+          },
+        };
+      });
+      markDirty(selectedUnit);
+    },
+    [selectedUnit, selectedClip, markDirty]
+  );
+
+  const handleMoveClip = useCallback(
+    (state: UnitAnimationState, index: number, nextState: UnitAnimationState) => {
+      if (!selectedUnit || state === nextState) return;
+      setEditableSpecs((prev) => {
+        const spec = prev[selectedUnit];
+        if (!spec) return prev;
+        const clip = spec.clips[state][index];
+        if (!clip) return prev;
+        const nextFrom = spec.clips[state].filter((_, idx) => idx !== index);
+        const nextTo = [...spec.clips[nextState], clip];
+        return {
+          ...prev,
+          [selectedUnit]: {
+            ...spec,
+            clips: { ...spec.clips, [state]: nextFrom, [nextState]: nextTo },
+          },
+        };
+      });
+      markDirty(selectedUnit);
+    },
+    [selectedUnit, markDirty]
+  );
+
+  const handleResetUnit = useCallback(() => {
+    if (!selectedUnit) return;
+    const baseSpec = UNIT_ANIMATION_REGISTRY[selectedUnit];
+    if (!baseSpec) return;
+    setEditableSpecs((prev) => ({ ...prev, [selectedUnit]: toEditableSpec(baseSpec) }));
+    clearDirty(selectedUnit);
+  }, [selectedUnit, clearDirty]);
+
+  const handleClearOverrides = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem("animationLabOverrides");
+    clearUnitAnimationOverrides();
+    setEditableSpecs(buildRegistrySpecs());
+    setDirtyUnits(new Set());
+  }, [buildRegistrySpecs]);
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
@@ -280,6 +553,24 @@ export function AnimationLab() {
           ))}
         </div>
 
+        {selectedUnit && (
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
+            <button
+              onClick={handleResetUnit}
+              className="rounded border border-slate-600 px-3 py-1 hover:border-amber-300"
+            >
+              Reset to registry
+            </button>
+            <button
+              onClick={handleClearOverrides}
+              className="rounded border border-slate-600 px-3 py-1 text-red-300 hover:border-red-300"
+            >
+              Clear overrides
+            </button>
+            {persisted && <span className="text-amber-300">Applied.</span>}
+          </div>
+        )}
+
         {!modelPath ? (
           <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 text-sm text-slate-300">
             Select a unit with an animated model to continue.
@@ -293,6 +584,10 @@ export function AnimationLab() {
               setSelectedClip={setSelectedClip}
               loop={loop}
               setLoop={setLoop}
+              onUpdateClip={handleUpdateClip}
+              onRemoveClip={handleRemoveClip}
+              onAddClip={handleAddClip}
+              onMoveClip={handleMoveClip}
             />
           </Suspense>
         )}

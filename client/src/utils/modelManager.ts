@@ -134,12 +134,12 @@ const isModelAvailable = (path?: string | null) => !!path && AVAILABLE_MODEL_PAT
 const preloadedPaths = new Set<string>();
 
 const preloadPaths = (paths: Iterable<string>) => {
-  for (const path of paths) {
-    if (!isModelAvailable(path)) continue;
-    if (preloadedPaths.has(path)) continue;
+  Array.from(paths).forEach((path) => {
+    if (!isModelAvailable(path)) return;
+    if (preloadedPaths.has(path)) return;
     preloadedPaths.add(path);
     useGLTF.preload(path);
-  }
+  });
 };
 
 // Preload all models for optimal performance
@@ -203,7 +203,7 @@ export const getUnitModelPath = (unitType: string): string => {
 
 export const getAnimatedUnitModelPath = (unitType: string): string | null => {
   const path = UNIT_ANIMATION_REGISTRY[unitType as keyof typeof UNIT_ANIMATION_REGISTRY]?.animatedModelPath;
-  return isModelAvailable(path) ? path : null;
+  return path && isModelAvailable(path) ? path : null;
 };
 
 export const preloadAnimatedUnitModels = (unitTypes?: string[]) => {
@@ -211,7 +211,7 @@ export const preloadAnimatedUnitModels = (unitTypes?: string[]) => {
   const pathsToPreload = new Set<string>();
   types.forEach((type) => {
     const path = UNIT_ANIMATION_REGISTRY[type as keyof typeof UNIT_ANIMATION_REGISTRY]?.animatedModelPath;
-    if (isModelAvailable(path)) pathsToPreload.add(path);
+    if (path && isModelAvailable(path)) pathsToPreload.add(path);
   });
   preloadPaths(pathsToPreload);
 };
@@ -293,7 +293,7 @@ const collectMatchModelPaths = (gameState: GameState): Set<string> => {
     const staticPath = getStaticUnitModelPath(type);
     if (staticPath) paths.add(staticPath);
     const animatedPath = UNIT_ANIMATION_REGISTRY[type as keyof typeof UNIT_ANIMATION_REGISTRY]?.animatedModelPath;
-    if (isModelAvailable(animatedPath)) paths.add(animatedPath);
+    if (animatedPath && isModelAvailable(animatedPath)) paths.add(animatedPath);
   });
 
   gameState.cities?.forEach((city) => {
