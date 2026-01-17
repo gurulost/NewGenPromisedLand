@@ -116,7 +116,7 @@ function AnimationPreview({
     clonedScene.scale.setScalar(scale);
     clonedScene.position.sub(center.multiplyScalar(scale));
     clonedScene.position.y -= box.min.y * scale;
-    clonedScene.position.y -= size.y * scale * 0.45;
+    clonedScene.position.y -= size.y * scale * 0.7;
   }, [clonedScene]);
 
   return (
