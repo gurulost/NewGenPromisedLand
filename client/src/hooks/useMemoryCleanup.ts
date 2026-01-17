@@ -3,7 +3,6 @@ import { useParticleStore } from '../components/effects/ParticleEffects';
 import { useMapPulseStore } from '../components/effects/MapPulseEffects';
 import { useMapToastStore } from '../lib/stores/useMapToasts';
 import { useUnitAnimationEventStore } from '../lib/stores/useUnitAnimationEventStore';
-import { useUnitMotionStore } from '../lib/stores/useUnitMotionStore';
 
 /**
  * Global memory cleanup hook that periodically runs garbage collection
@@ -26,9 +25,6 @@ export function useMemoryCleanup(intervalMs: number = 10000) {
 
       // Clean up unit animation events that are stale
       useUnitAnimationEventStore.getState().cleanupStale();
-
-      // Clean up stale unit motion entries
-      useUnitMotionStore.getState().cleanupStale();
     };
 
     const intervalId = setInterval(cleanup, intervalMs);
@@ -59,6 +55,5 @@ export function useTurnEndCleanup(currentTurn: number) {
     useMapToastStore.getState().cleanupStale();
     useMapPulseStore.getState().cleanupStale();
     useUnitAnimationEventStore.getState().cleanupStale();
-    useUnitMotionStore.getState().cleanupStale();
   }, [currentTurn]);
 }

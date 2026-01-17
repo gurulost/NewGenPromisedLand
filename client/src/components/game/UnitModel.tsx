@@ -6,7 +6,7 @@ import type { Unit } from '@shared/types/unit';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
 import { getUnitModelPath } from '../../utils/modelManager';
 import { disposeClonedMaterials } from '../../lib/memoryUtils';
-import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import {
   getAnimatedModelPathForUnit,
   getUnitAnimationClipPool,
@@ -135,12 +135,12 @@ export function UnitModel({
     const UNIT_SCALES: Record<string, number> = {
       // Small/civilian units
       worker: 0.55,
-
+      
       // Scout-type units (medium-small, agile)
       scout: 0.6,
       slinger: 0.6,
       wilderness_hunter: 0.6,
-
+      
       // Religious/diplomatic units (medium)
       missionary: 0.58,
       royal_envoy: 0.58,
@@ -148,26 +148,26 @@ export function UnitModel({
       converted_missionary: 0.58,
       scribe_teacher: 0.58,
       prophet: 0.6,
-
+      
       // Standard infantry (medium)
       warrior: 0.65,
       spearman: 0.65,
       guard: 0.65,
       peacekeeping_guard: 0.65,
       commander: 0.7,
-
+      
       // Elite/special infantry (medium-large)
       stripling_warrior: 0.7,
-
+      
       // Large units
       ancient_giant: 0.85,
       cavalry: 0.75,
       catapult: 0.7,
-
+      
       // Naval units
       boat: 0.8,
     };
-
+    
     return UNIT_SCALES[unit.type] ?? 0.65;
   }, [unit.type]);
 
@@ -269,34 +269,11 @@ export function UnitModel({
     const isLoopingState = resolvedState === "idle" || resolvedState === "move";
     const fallbackClips = resolvedState === "move" ? defaultMove : defaultIdle;
     const fallbackPool = fallbackClips.map((name) => ({ name, weight: 1 }));
-    const candidatePool = preferredPool.length > 0 ? preferredPool : fallbackPool;
-    const availablePool = candidatePool.filter((entry) => actions[entry.name]);
+    const candidatePool = isLoopingState ? [...preferredPool, ...fallbackPool] : preferredPool;
     const selectionKey = `${unit.id}:${resolvedState}:${animationVariantKey ?? "default"}`;
-    const selectedName = animationClipName && actions[animationClipName]
-      ? animationClipName
-      : pickWeightedClipName(availablePool, selectionKey);
+    const selectedName = animationClipName ?? pickWeightedClipName(candidatePool, selectionKey);
     const nextAction = selectedName ? actions[selectedName] : undefined;
-    
-    if (import.meta.env.DEV && unit.type === 'warrior') {
-      const attackClips = ['Punch_Combo', 'Kung_Fu_Punch', 'Lunge_Spin_Kick'];
-      const isAttackSelected = attackClips.includes(selectedName || '');
-      if (isAttackSelected || resolvedState === 'attack') {
-        console.warn(`[ANIM ATTACK] ${unit.type} playing attack! state=${resolvedState}, selected=${selectedName}, animationState prop=${animationState}, isMoving=${isMoving}`);
-      }
-    }
-    if (!nextAction) {
-      const current = currentActionRef.current;
-      if (current) {
-        const currentName = current.getClip?.().name;
-        const allowed = candidatePool.some((entry) => entry.name === currentName);
-        if (!allowed) {
-          current.fadeOut(0.2);
-          currentActionRef.current = null;
-        }
-      }
-      return;
-    }
-    if (currentActionRef.current === nextAction) return;
+    if (!nextAction || currentActionRef.current === nextAction) return;
 
     if (isLoopingState) {
       nextAction.setLoop(THREE.LoopRepeat, Infinity);
@@ -315,12 +292,12 @@ export function UnitModel({
     return () => {
       nextAction.fadeOut(0.15);
     };
-  }, [actions, isAnimatedWorker, resolvedState, unit.type, animationVariantKey, animationClipName, unit.id]);
+  }, [actions, isAnimatedWorker, resolvedState, unit.type, animationVariantKey, animationClipName]);
 
   useEffect(() => {
     if (!isAnimatedWorker) return;
     return () => {
-      Object.values(actions || {}).forEach((action) => action?.stop?.());
+      Object.values(actions || {}).forEach((action) => action.stop());
     };
   }, [actions, isAnimatedWorker]);
 

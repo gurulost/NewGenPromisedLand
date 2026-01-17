@@ -2,7 +2,6 @@
 // Ensures all models are properly preloaded and cached for optimal performance
 
 import { useGLTF } from '@react-three/drei';
-import type { GameState } from '@shared/types/game';
 import { UNIT_ANIMATION_REGISTRY } from './unitAnimationRegistry';
 
 // Define all model paths in one place for easy management
@@ -88,14 +87,6 @@ export const MODEL_PATHS = {
   }
 };
 
-const TERRAIN_MODEL_PATHS = [
-  '/models/terrain_plains.glb',
-  '/models/terrain_forest.glb',
-  '/models/terrain_mountain.glb',
-  '/models/terrain_hill.glb',
-  '/models/terrain_water.glb',
-];
-
 // Automatically derive available models from MODEL_PATHS to prevent manual list drift
 const buildAvailableModelPaths = (): Set<string> => {
   const paths = new Set<string>();
@@ -121,9 +112,6 @@ const buildAvailableModelPaths = (): Set<string> => {
   // Add all structure models
   Object.values(MODEL_PATHS.structures).forEach(path => paths.add(path));
 
-  // Add terrain models
-  TERRAIN_MODEL_PATHS.forEach(path => paths.add(path));
-
   return paths;
 };
 
@@ -131,62 +119,41 @@ const AVAILABLE_MODEL_PATHS = buildAvailableModelPaths();
 
 const isModelAvailable = (path?: string | null) => !!path && AVAILABLE_MODEL_PATHS.has(path);
 
-const preloadedPaths = new Set<string>();
-
-const preloadPaths = (paths: Iterable<string>) => {
-  for (const path of paths) {
-    if (!isModelAvailable(path)) continue;
-    if (preloadedPaths.has(path)) continue;
-    preloadedPaths.add(path);
-    useGLTF.preload(path);
-  }
-};
-
 // Preload all models for optimal performance
 export const preloadAllModels = () => {
-  const pathsToPreload = new Set<string>();
+  const preloadPaths = new Set<string>();
 
   // Preload unit models
   Object.values(MODEL_PATHS.units).forEach(path => {
-    if (isModelAvailable(path)) pathsToPreload.add(path);
-  });
-  Object.values(UNIT_ANIMATION_REGISTRY).forEach((entry) => {
-    if (entry?.animatedModelPath && isModelAvailable(entry.animatedModelPath)) {
-      pathsToPreload.add(entry.animatedModelPath);
-    }
+    if (isModelAvailable(path)) preloadPaths.add(path);
   });
 
   // Preload village model
   if (isModelAvailable(MODEL_PATHS.village)) {
-    pathsToPreload.add(MODEL_PATHS.village);
+    preloadPaths.add(MODEL_PATHS.village);
   }
 
   // Preload city models
   Object.values(MODEL_PATHS.cities).forEach(path => {
-    if (isModelAvailable(path)) pathsToPreload.add(path);
+    if (isModelAvailable(path)) preloadPaths.add(path);
   });
 
   // Preload resource models
   Object.values(MODEL_PATHS.resources).forEach(path => {
-    if (isModelAvailable(path)) pathsToPreload.add(path);
+    if (isModelAvailable(path)) preloadPaths.add(path);
   });
 
   // Preload improvement models
   Object.values(MODEL_PATHS.improvements).forEach(path => {
-    if (isModelAvailable(path)) pathsToPreload.add(path);
+    if (isModelAvailable(path)) preloadPaths.add(path);
   });
 
   // Preload structure models
   Object.values(MODEL_PATHS.structures).forEach(path => {
-    if (isModelAvailable(path)) pathsToPreload.add(path);
+    if (isModelAvailable(path)) preloadPaths.add(path);
   });
 
-  // Preload terrain models
-  TERRAIN_MODEL_PATHS.forEach((path) => {
-    if (isModelAvailable(path)) pathsToPreload.add(path);
-  });
-
-  preloadPaths(pathsToPreload);
+  preloadPaths.forEach(path => useGLTF.preload(path));
 };
 
 // Get model path for a specific unit type
@@ -208,12 +175,12 @@ export const getAnimatedUnitModelPath = (unitType: string): string | null => {
 
 export const preloadAnimatedUnitModels = (unitTypes?: string[]) => {
   const types = unitTypes ?? Object.keys(UNIT_ANIMATION_REGISTRY);
-  const pathsToPreload = new Set<string>();
   types.forEach((type) => {
     const path = UNIT_ANIMATION_REGISTRY[type as keyof typeof UNIT_ANIMATION_REGISTRY]?.animatedModelPath;
-    if (isModelAvailable(path)) pathsToPreload.add(path);
+    if (isModelAvailable(path)) {
+      useGLTF.preload(path);
+    }
   });
-  preloadPaths(pathsToPreload);
 };
 
 // Get model path for village
@@ -275,102 +242,5 @@ export const getStructureModelPath = (structureType: string): string | null => {
   return null;
 };
 
-export type ModelPreloadMode = 'all' | 'match' | 'none';
-
-const getStaticUnitModelPath = (unitType: string): string | null => {
-  const path = MODEL_PATHS.units[unitType as keyof typeof MODEL_PATHS.units];
-  return isModelAvailable(path) ? path : null;
-};
-
-const collectMatchModelPaths = (gameState: GameState): Set<string> => {
-  const paths = new Set<string>();
-
-  TERRAIN_MODEL_PATHS.forEach((path) => paths.add(path));
-  if (isModelAvailable(MODEL_PATHS.village)) paths.add(MODEL_PATHS.village);
-
-  const unitTypes = new Set(gameState.units.map((unit) => unit.type));
-  unitTypes.forEach((type) => {
-    const staticPath = getStaticUnitModelPath(type);
-    if (staticPath) paths.add(staticPath);
-    const animatedPath = UNIT_ANIMATION_REGISTRY[type as keyof typeof UNIT_ANIMATION_REGISTRY]?.animatedModelPath;
-    if (isModelAvailable(animatedPath)) paths.add(animatedPath);
-  });
-
-  gameState.cities?.forEach((city) => {
-    paths.add(getCityModelPath(city.level));
-  });
-
-  gameState.improvements?.forEach((improvement) => {
-    const path = getImprovementModelPath(improvement.type);
-    if (path) paths.add(path);
-  });
-
-  gameState.structures?.forEach((structure) => {
-    const path = getStructureModelPath(structure.type);
-    if (path) paths.add(path);
-  });
-
-  const resourceTypes = new Set<string>();
-  gameState.map?.tiles.forEach((tile) => {
-    tile.resources?.forEach((resource) => resourceTypes.add(resource));
-  });
-
-  resourceTypes.forEach((resourceType) => {
-    const path = getResourceModelPath(resourceType);
-    if (path) paths.add(path);
-  });
-
-  return paths;
-};
-
-export const preloadMatchModels = (gameState: GameState) => {
-  preloadPaths(collectMatchModelPaths(gameState));
-};
-
-export const initModelPreloading = (params: {
-  mode?: ModelPreloadMode;
-  gameState?: GameState;
-  useIdle?: boolean;
-  deferMs?: number;
-}) => {
-  const {
-    mode = 'match',
-    gameState,
-    useIdle = true,
-    deferMs = 300,
-  } = params;
-
-  if (mode === 'none') return () => undefined;
-
-  const perform = () => {
-    if (mode === 'all') {
-      preloadAllModels();
-      return;
-    }
-    if (mode === 'match' && gameState) {
-      preloadMatchModels(gameState);
-    }
-  };
-
-  if (typeof window === 'undefined') {
-    perform();
-    return () => undefined;
-  }
-
-  const idleCallback = (window as any).requestIdleCallback as
-    | ((cb: () => void, opts?: { timeout: number }) => number)
-    | undefined;
-  const cancelIdle = (window as any).cancelIdleCallback as
-    | ((id: number) => void)
-    | undefined;
-
-  if (useIdle && idleCallback) {
-    const idleId = idleCallback(perform, { timeout: Math.max(deferMs, 0) });
-    return () => {
-      if (cancelIdle) cancelIdle(idleId);
-    };
-  }
-
-  const timeoutId = window.setTimeout(perform, deferMs);
-  return () => window.clearTimeout(timeoutId);
-};
+// Initialize model preloading
+preloadAllModels();
