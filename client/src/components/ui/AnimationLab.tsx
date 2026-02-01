@@ -197,6 +197,7 @@ function AnimationStage({
   zoomScale: number;
   targetOffset: { x: number; y: number };
 }) {
+  const safeTargetOffset = targetOffset ?? { x: 0, y: 0 };
   const groupRef = useRef<THREE.Group>(null);
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const { camera, size } = useThree();
@@ -238,8 +239,8 @@ function AnimationStage({
 
   useLayoutEffect(() => {
     const cam = camera as THREE.PerspectiveCamera;
-    const targetX = targetOffset.x;
-    const targetY = fit.targetY + targetOffset.y;
+    const targetX = safeTargetOffset.x;
+    const targetY = fit.targetY + safeTargetOffset.y;
     cam.position.set(targetX, targetY, fit.distance);
     cam.near = Math.max(0.01, fit.distance / 100);
     cam.far = Math.max(100, fit.distance * 30);
@@ -251,7 +252,7 @@ function AnimationStage({
       controlsRef.current.maxDistance = Infinity;
       controlsRef.current.update();
     }
-  }, [camera, fit, frameNonce, targetOffset.x, targetOffset.y]);
+  }, [camera, fit, frameNonce, safeTargetOffset.x, safeTargetOffset.y]);
 
   useEffect(() => {
     if (!actions) return;
