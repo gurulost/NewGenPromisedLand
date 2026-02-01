@@ -237,6 +237,9 @@ let registryOverrides: UnitAnimationOverrides = {};
 let registryVersion = 0;
 const registrySubscribers = new Set<() => void>();
 let overridesLoaded = false;
+let serverOverridesLoaded = false;
+let serverOverridesInFlight: Promise<void> | null = null;
+const SERVER_OVERRIDES_ENDPOINT = "/api/animation-overrides";
 
 const notifyRegistryUpdate = () => {
   registryVersion += 1;
@@ -248,18 +251,62 @@ const ensureOverridesLoaded = () => {
   if (typeof window === "undefined") return;
   overridesLoaded = true;
   const stored = window.localStorage.getItem("animationLabOverrides");
-  if (!stored) return;
-  try {
-    registryOverrides = JSON.parse(stored) as UnitAnimationOverrides;
-    notifyRegistryUpdate();
-  } catch {
-    // Ignore malformed overrides.
+  if (stored) {
+    try {
+      registryOverrides = JSON.parse(stored) as UnitAnimationOverrides;
+      notifyRegistryUpdate();
+    } catch {
+      // Ignore malformed overrides.
+    }
   }
+  loadServerOverrides();
+};
+
+const loadServerOverrides = () => {
+  if (serverOverridesLoaded || serverOverridesInFlight) return;
+  if (typeof window === "undefined" || typeof fetch !== "function") return;
+  serverOverridesInFlight = fetch(SERVER_OVERRIDES_ENDPOINT, { method: "GET" })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((data) => {
+      if (!data || typeof data !== "object") return;
+      const serverOverrides = data as UnitAnimationOverrides;
+      const serverKeys = Object.keys(serverOverrides);
+      const localKeys = Object.keys(registryOverrides);
+
+      if (serverKeys.length === 0 && localKeys.length > 0) {
+        // Bootstrap server with local overrides when server is empty.
+        persistServerOverrides(registryOverrides);
+        return;
+      }
+
+      registryOverrides = serverOverrides;
+      notifyRegistryUpdate();
+      try {
+        window.localStorage.setItem("animationLabOverrides", JSON.stringify(registryOverrides));
+      } catch {
+        // Ignore storage failures.
+      }
+    })
+    .catch(() => {})
+    .finally(() => {
+      serverOverridesLoaded = true;
+      serverOverridesInFlight = null;
+    });
+};
+
+const persistServerOverrides = (overrides: UnitAnimationOverrides) => {
+  if (typeof window === "undefined" || typeof fetch !== "function") return;
+  fetch(SERVER_OVERRIDES_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(overrides),
+  }).catch(() => {});
 };
 
 export const setUnitAnimationOverrides = (overrides: UnitAnimationOverrides) => {
   registryOverrides = overrides;
   notifyRegistryUpdate();
+  persistServerOverrides(overrides);
 };
 
 export const updateUnitAnimationOverride = (unitType: UnitType, spec: Partial<UnitAnimationSpec> | null) => {
@@ -270,11 +317,13 @@ export const updateUnitAnimationOverride = (unitType: UnitType, spec: Partial<Un
     registryOverrides = rest;
   }
   notifyRegistryUpdate();
+  persistServerOverrides(registryOverrides);
 };
 
 export const clearUnitAnimationOverrides = () => {
   registryOverrides = {};
   notifyRegistryUpdate();
+  persistServerOverrides(registryOverrides);
 };
 
 export const getUnitAnimationOverrides = () => {

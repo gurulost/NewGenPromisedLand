@@ -1381,6 +1381,16 @@ export default function GameUI() {
         </div>
       )}
 
+      <div className="fixed bottom-3 right-3 z-[250] pointer-events-auto">
+        <a
+          href="/animations"
+          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/50 px-3 py-1 text-[11px] text-white/80 backdrop-blur transition hover:border-amber-300 hover:text-white"
+          aria-label="Open Animation Lab"
+        >
+          Animation Lab
+        </a>
+      </div>
+
       {isDev && <SpawnDebugPanel />}
 
       {/* Conquest Banner */}

@@ -4,10 +4,29 @@ import { storage } from "./storage";
 import session from "express-session";
 import MemoryStore from "memorystore";
 import bcrypt from "bcryptjs";
+import { promises as fs } from "fs";
+import path from "path";
 
 const MemoryStoreSession = MemoryStore(session);
 const VALID_MAP_SIZES = new Set(["tiny", "small", "normal", "large", "huge"]);
 const HOST_LEASE_MS = 30000;
+const ANIMATION_OVERRIDES_PATH = path.resolve(process.cwd(), "server", "animation-overrides.json");
+
+async function readAnimationOverrides() {
+  try {
+    const data = await fs.readFile(ANIMATION_OVERRIDES_PATH, "utf8");
+    const parsed = JSON.parse(data);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeAnimationOverrides(payload: unknown) {
+  await fs.mkdir(path.dirname(ANIMATION_OVERRIDES_PATH), { recursive: true });
+  const data = JSON.stringify(payload ?? {}, null, 2);
+  await fs.writeFile(ANIMATION_OVERRIDES_PATH, data, "utf8");
+}
 
 function getHostMeta(lobbyState: any) {
   const hostEpoch = Number(lobbyState?.hostEpoch ?? 0);
@@ -123,6 +142,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       secret: sessionSecret || "dev-only-secret-not-for-production",
     })
   );
+
+  // === ANIMATION LAB OVERRIDES (DEV TOOLING) ===
+  app.get("/api/animation-overrides", async (_req, res) => {
+    if (isProduction) {
+      return res.status(403).json({ error: "Animation overrides are disabled in production" });
+    }
+    const overrides = await readAnimationOverrides();
+    return res.json(overrides);
+  });
+
+  app.post("/api/animation-overrides", async (req, res) => {
+    if (isProduction) {
+      return res.status(403).json({ error: "Animation overrides are disabled in production" });
+    }
+    const payload = req.body;
+    if (!payload || typeof payload !== "object") {
+      return res.status(400).json({ error: "Invalid animation overrides payload" });
+    }
+    await writeAnimationOverrides(payload);
+    return res.json({ ok: true });
+  });
 
   // === AUTH ROUTES ===
   
