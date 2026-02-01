@@ -11,6 +11,143 @@ const MemoryStoreSession = MemoryStore(session);
 const VALID_MAP_SIZES = new Set(["tiny", "small", "normal", "large", "huge"]);
 const HOST_LEASE_MS = 30000;
 const ANIMATION_OVERRIDES_PATH = path.resolve(process.cwd(), "server", "animation-overrides.json");
+const UNIT_ANIMATION_REGISTRY_PATH = path.resolve(process.cwd(), "client", "src", "utils", "unitAnimationRegistry.ts");
+const ANIMATION_STATES = ["idle", "move", "celebrate", "death", "attack", "hit", "ability"] as const;
+
+type AnimationState = typeof ANIMATION_STATES[number];
+
+const escapeTsString = (value: string) => value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+const formatClipEntry = (entry: any): string => {
+  if (!entry) return '""';
+  if (typeof entry === "string") {
+    return `"${escapeTsString(entry)}"`;
+  }
+  const name = escapeTsString(String(entry.name ?? ""));
+  const weight = Number.isFinite(entry.weight) ? entry.weight : 1;
+  const label = typeof entry.label === "string" ? entry.label.trim() : "";
+  if (!label && weight === 1) return `"${name}"`;
+  const parts = [`name: "${name}"`];
+  if (weight !== 1) parts.push(`weight: ${weight}`);
+  if (label) parts.push(`label: "${escapeTsString(label)}"`);
+  return `{ ${parts.join(", ")} }`;
+};
+
+const formatClipList = (entries: any[], indentLevel: number): string => {
+  if (!entries?.length) return "[]";
+  const indent = "  ".repeat(indentLevel);
+  const closingIndent = "  ".repeat(indentLevel - 1);
+  const lines = entries.map((entry) => `${indent}${formatClipEntry(entry)},`);
+  return `[\n${lines.join("\n")}\n${closingIndent}]`;
+};
+
+const formatNumberRecord = (record: Record<string, number> | undefined, indentLevel: number): string | null => {
+  if (!record) return null;
+  const keys = Object.keys(record).sort();
+  if (!keys.length) return null;
+  const indent = "  ".repeat(indentLevel);
+  const closingIndent = "  ".repeat(indentLevel - 1);
+  const lines = keys.map((key) => `${indent}"${escapeTsString(key)}": ${record[key]},`);
+  return `{\n${lines.join("\n")}\n${closingIndent}}`;
+};
+
+const formatSpec = (spec: any, baseIndent: string): string => {
+  const baseLevel = Math.max(0, Math.round(baseIndent.length / 2));
+  const stateLevel = baseLevel + 2;
+  const itemLevel = baseLevel + 3;
+  const propIndent = `${baseIndent}  `;
+  const lines: string[] = [];
+  if (spec.animatedModelPath) {
+    lines.push(`${propIndent}animatedModelPath: "${escapeTsString(spec.animatedModelPath)}",`);
+  }
+  lines.push(`${propIndent}clips: {`);
+  ANIMATION_STATES.forEach((state) => {
+    const list = spec.clips?.[state] ?? [];
+    if (!list.length) return;
+    lines.push(`${propIndent}  ${state}: ${formatClipList(list, itemLevel)},`);
+  });
+  lines.push(`${propIndent}},`);
+  if (spec.moveSpeedTilesPerSec !== undefined) {
+    lines.push(`${propIndent}moveSpeedTilesPerSec: ${spec.moveSpeedTilesPerSec},`);
+  }
+  if (spec.yawOffset !== undefined) {
+    lines.push(`${propIndent}yawOffset: ${spec.yawOffset},`);
+  }
+  const eventDurations = formatNumberRecord(spec.eventDurationsMs, stateLevel);
+  if (eventDurations) {
+    lines.push(`${propIndent}eventDurationsMs: ${eventDurations},`);
+  }
+  const clipDurations = formatNumberRecord(spec.clipDurationsMs, stateLevel);
+  if (clipDurations) {
+    lines.push(`${propIndent}clipDurationsMs: ${clipDurations},`);
+  }
+  return `{\n${lines.join("\n")}\n${baseIndent}}`;
+};
+
+const replaceOrInsertUnit = (source: string, unitKey: string, spec: any): string => {
+  const token = `${unitKey}: {`;
+  const index = source.indexOf(token);
+  const registryIndex = source.indexOf("export const UNIT_ANIMATION_REGISTRY");
+  if (registryIndex === -1) {
+    throw new Error("UNIT_ANIMATION_REGISTRY not found");
+  }
+  const registryBrace = source.indexOf("{", registryIndex);
+  if (registryBrace === -1) {
+    throw new Error("UNIT_ANIMATION_REGISTRY block not found");
+  }
+
+  let baseIndent = "";
+  if (index !== -1) {
+    const indentLineStart = source.lastIndexOf("\n", index) + 1;
+    baseIndent = source.slice(indentLineStart, index);
+  } else {
+    const registryLineStart = source.lastIndexOf("\n", registryBrace) + 1;
+    const registryIndent = source.slice(registryLineStart, registryBrace);
+    baseIndent = `${registryIndent}  `;
+  }
+  const formatted = `${baseIndent}${unitKey}: ${formatSpec(spec, baseIndent)},`;
+
+  if (index === -1) {
+    let depth = 0;
+    let endIndex = -1;
+    for (let i = registryBrace; i < source.length; i += 1) {
+      if (source[i] === "{") depth += 1;
+      else if (source[i] === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          endIndex = i;
+          break;
+        }
+      }
+    }
+    if (endIndex === -1) {
+      throw new Error("Could not find end of UNIT_ANIMATION_REGISTRY block");
+    }
+    const insertAt = endIndex;
+    return `${source.slice(0, insertAt)}\n${formatted}\n${source.slice(insertAt)}`;
+  }
+
+  const braceStart = source.indexOf("{", index);
+  if (braceStart === -1) throw new Error(`Malformed block for ${unitKey}`);
+  let depth = 0;
+  let endIndex = -1;
+  for (let i = braceStart; i < source.length; i += 1) {
+    if (source[i] === "{") depth += 1;
+    else if (source[i] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        endIndex = i;
+        break;
+      }
+    }
+  }
+  if (endIndex === -1) {
+    throw new Error(`Could not find end of unit block for ${unitKey}`);
+  }
+  let replaceEnd = endIndex + 1;
+  if (source[replaceEnd] === ",") replaceEnd += 1;
+  return `${source.slice(0, index)}${formatted}${source.slice(replaceEnd)}`;
+};
 
 async function readAnimationOverrides() {
   try {
@@ -162,6 +299,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     await writeAnimationOverrides(payload);
     return res.json({ ok: true });
+  });
+
+  app.post("/api/animation-overrides/apply", async (req, res) => {
+    if (isProduction) {
+      return res.status(403).json({ error: "Apply-to-registry is disabled in production" });
+    }
+    const payload = req.body;
+    const units = payload?.units;
+    if (!units || typeof units !== "object") {
+      return res.status(400).json({ error: "Invalid apply payload" });
+    }
+    const unitKeys = Object.keys(units);
+    if (unitKeys.length === 0) {
+      return res.status(400).json({ error: "No units provided" });
+    }
+    let source = await fs.readFile(UNIT_ANIMATION_REGISTRY_PATH, "utf8");
+    unitKeys.forEach((unitKey) => {
+      source = replaceOrInsertUnit(source, unitKey, units[unitKey]);
+    });
+    await fs.writeFile(UNIT_ANIMATION_REGISTRY_PATH, source, "utf8");
+    return res.json({ ok: true, updated: unitKeys });
   });
 
   // === AUTH ROUTES ===
