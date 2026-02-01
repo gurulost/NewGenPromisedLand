@@ -281,7 +281,7 @@ function AnimationStage({
       <OrbitControls
         ref={controlsRef}
         enablePan={false}
-        enableZoom
+        enableZoom={false}
         enableDamping
         dampingFactor={0.08}
       />
