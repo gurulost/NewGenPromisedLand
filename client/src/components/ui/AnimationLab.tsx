@@ -856,6 +856,9 @@ export function AnimationLab() {
   const [exportCopied, setExportCopied] = useState(false);
   const [modelStatus, setModelStatus] = useState<"idle" | "checking" | "ok" | "missing">("idle");
   const [modelCheckNonce, setModelCheckNonce] = useState(0);
+  const [applyStatus, setApplyStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [applyMessage, setApplyMessage] = useState<string | null>(null);
+  const [showExportInstructions, setShowExportInstructions] = useState(false);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -892,6 +895,45 @@ export function AnimationLab() {
     lines.push("// Paste each unit block into UNIT_ANIMATION_REGISTRY in client/src/utils/unitAnimationRegistry.ts");
     return lines.join("\n");
   }, [exportMode, animatedUnits, dirtyUnits, editableSpecs]);
+
+  const exportUnits = useMemo(() => {
+    const keys = exportMode === "all"
+      ? animatedUnits
+      : Array.from(dirtyUnits);
+    const units: Record<string, ExportSpec> = {};
+    keys.forEach((unitKey) => {
+      const spec = buildExportSpec(unitKey, editableSpecs[unitKey]);
+      if (spec) units[unitKey] = spec;
+    });
+    return units;
+  }, [exportMode, animatedUnits, dirtyUnits, editableSpecs]);
+
+  const applyExport = useCallback(async () => {
+    const keys = Object.keys(exportUnits);
+    if (keys.length === 0) {
+      setApplyStatus("error");
+      setApplyMessage("No units selected for apply.");
+      return;
+    }
+    setApplyStatus("saving");
+    setApplyMessage(null);
+    try {
+      const response = await fetch("/api/animation-overrides/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ units: exportUnits }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || `Apply failed (${response.status})`);
+      }
+      setApplyStatus("success");
+      setApplyMessage("Registry updated on server.");
+    } catch (error) {
+      setApplyStatus("error");
+      setApplyMessage(error instanceof Error ? error.message : "Apply failed.");
+    }
+  }, [exportUnits]);
   const copyExportText = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(exportText);
@@ -1209,7 +1251,22 @@ export function AnimationLab() {
               >
                 Copy export
               </button>
+              <button
+                onClick={applyExport}
+                className="px-3 py-1 rounded border border-amber-500/60 text-amber-100 hover:border-amber-300"
+              >
+                Apply to registry
+              </button>
+              <button
+                onClick={() => setShowExportInstructions((value) => !value)}
+                className="px-3 py-1 rounded border border-slate-600 text-slate-200 hover:border-amber-300"
+              >
+                {showExportInstructions ? "Hide instructions" : "Show instructions"}
+              </button>
               {exportCopied && <span className="text-amber-300 text-xs">Copied.</span>}
+              {applyStatus === "saving" && <span className="text-xs text-amber-200">Applying…</span>}
+              {applyStatus === "success" && <span className="text-xs text-emerald-300">{applyMessage}</span>}
+              {applyStatus === "error" && <span className="text-xs text-red-300">{applyMessage}</span>}
             </div>
             <textarea
               value={exportText}
@@ -1219,6 +1276,22 @@ export function AnimationLab() {
             <div className="text-xs text-slate-500">
               Paste each unit block into `UNIT_ANIMATION_REGISTRY` and remove the `ANIMATION_LAB_EXPORT` wrapper.
             </div>
+            <div className="text-xs text-slate-500">
+              “Apply to registry” writes directly to the server file in development environments.
+            </div>
+            {showExportInstructions && (
+              <div className="rounded border border-slate-700 bg-slate-900/60 p-3 text-xs text-slate-300 space-y-2">
+                <div className="text-amber-300 font-semibold">Development workflow</div>
+                <div>1. Make changes in Animation Lab.</div>
+                <div>2. Click <span className="text-amber-200">Apply to registry</span> to patch `client/src/utils/unitAnimationRegistry.ts` automatically.</div>
+                <div>3. Commit and deploy.</div>
+                <div className="text-amber-300 font-semibold pt-2">Production workflow</div>
+                <div>1. Make changes in Animation Lab.</div>
+                <div>2. Click <span className="text-amber-200">Copy export</span>.</div>
+                <div>3. Paste into `UNIT_ANIMATION_REGISTRY` in `client/src/utils/unitAnimationRegistry.ts` and remove the wrapper lines.</div>
+                <div>4. Commit and deploy.</div>
+              </div>
+            )}
           </div>
         )}
 
