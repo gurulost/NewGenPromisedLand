@@ -241,6 +241,70 @@ let serverOverridesLoaded = false;
 let serverOverridesInFlight: Promise<void> | null = null;
 const SERVER_OVERRIDES_ENDPOINT = "/api/animation-overrides";
 
+const normalizeClipEntry = (entry: ClipEntry): { name: string; weight: number; label?: string } => {
+  if (typeof entry === "string") {
+    return { name: entry, weight: 1 };
+  }
+  return {
+    name: entry.name,
+    weight: entry.weight ?? 1,
+    label: entry.label,
+  };
+};
+
+const normalizeNumberRecord = (record?: Record<string, number>) => {
+  if (!record) return undefined;
+  const keys = Object.keys(record).sort();
+  if (keys.length === 0) return undefined;
+  const next: Record<string, number> = {};
+  keys.forEach((key) => {
+    next[key] = record[key];
+  });
+  return next;
+};
+
+const normalizeClipRecord = (clips?: Partial<Record<UnitAnimationState, ClipEntry | ClipEntry[]>>) => {
+  if (!clips) return undefined;
+  const states = Object.keys(clips).sort();
+  if (states.length === 0) return undefined;
+  const next: Partial<Record<UnitAnimationState, { name: string; weight: number; label?: string }[]>> = {};
+  states.forEach((state) => {
+    const entry = clips[state as UnitAnimationState];
+    if (!entry) return;
+    const list = Array.isArray(entry) ? entry : [entry];
+    next[state as UnitAnimationState] = list.map(normalizeClipEntry);
+  });
+  return next;
+};
+
+const normalizeSpec = (spec?: Partial<UnitAnimationSpec>) => {
+  if (!spec) return undefined;
+  const normalized = {
+    animatedModelPath: spec.animatedModelPath,
+    clips: normalizeClipRecord(spec.clips),
+    moveSpeedTilesPerSec: spec.moveSpeedTilesPerSec,
+    yawOffset: spec.yawOffset,
+    eventDurationsMs: normalizeNumberRecord(spec.eventDurationsMs),
+    clipDurationsMs: normalizeNumberRecord(spec.clipDurationsMs),
+  };
+  return normalized;
+};
+
+const normalizeOverrides = (overrides: UnitAnimationOverrides) => {
+  const keys = Object.keys(overrides).sort();
+  const next: Record<string, ReturnType<typeof normalizeSpec> | undefined> = {};
+  keys.forEach((key) => {
+    next[key] = normalizeSpec(overrides[key as keyof UnitAnimationOverrides]);
+  });
+  return next;
+};
+
+const areOverridesEqual = (left: UnitAnimationOverrides, right: UnitAnimationOverrides): boolean => {
+  const leftNorm = normalizeOverrides(left);
+  const rightNorm = normalizeOverrides(right);
+  return JSON.stringify(leftNorm) === JSON.stringify(rightNorm);
+};
+
 const notifyRegistryUpdate = () => {
   registryVersion += 1;
   registrySubscribers.forEach((listener) => listener());
@@ -304,12 +368,20 @@ const persistServerOverrides = (overrides: UnitAnimationOverrides) => {
 };
 
 export const setUnitAnimationOverrides = (overrides: UnitAnimationOverrides) => {
+  if (areOverridesEqual(overrides, registryOverrides)) return;
   registryOverrides = overrides;
   notifyRegistryUpdate();
   persistServerOverrides(overrides);
 };
 
 export const updateUnitAnimationOverride = (unitType: UnitType, spec: Partial<UnitAnimationSpec> | null) => {
+  const nextOverrides = spec
+    ? { ...registryOverrides, [unitType]: spec }
+    : (() => {
+      const { [unitType]: _removed, ...rest } = registryOverrides;
+      return rest;
+    })();
+  if (areOverridesEqual(nextOverrides, registryOverrides)) return;
   if (spec) {
     registryOverrides = { ...registryOverrides, [unitType]: spec };
   } else {
@@ -321,6 +393,7 @@ export const updateUnitAnimationOverride = (unitType: UnitType, spec: Partial<Un
 };
 
 export const clearUnitAnimationOverrides = () => {
+  if (Object.keys(registryOverrides).length === 0) return;
   registryOverrides = {};
   notifyRegistryUpdate();
   persistServerOverrides(registryOverrides);

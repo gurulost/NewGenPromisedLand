@@ -184,6 +184,7 @@ function AnimationStage({
   playNonce,
   playbackRate,
   frameNonce,
+  zoomScale,
 }: {
   scene: THREE.Group;
   animations: THREE.AnimationClip[];
@@ -192,12 +193,14 @@ function AnimationStage({
   playNonce: number;
   playbackRate: number;
   frameNonce: number;
+  zoomScale: number;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const { camera, size } = useThree();
   const framedScene = useMemo(() => {
     const clone = SkeletonUtils.clone(scene);
+    clone.updateWorldMatrix(true, true);
     const box = new THREE.Box3().setFromObject(clone);
     const bounds = new THREE.Vector3();
     if (!box.isEmpty()) {
@@ -221,15 +224,15 @@ function AnimationStage({
     const vFov = THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov ?? 40);
     const aspect = (camera as THREE.PerspectiveCamera).aspect || size.width / Math.max(size.height, 1);
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
-    const paddedHeight = height * 1.06;
-    const paddedWidth = width * 1.08;
+    const paddedHeight = height * 1.3;
+    const paddedWidth = width * 1.25;
     const distanceForHeight = (paddedHeight / 2) / Math.tan(vFov / 2);
     const distanceForWidth = (paddedWidth / 2) / Math.tan(hFov / 2);
-    const distance = Math.max(distanceForHeight, distanceForWidth);
+    const distance = Math.max(distanceForHeight, distanceForWidth) * zoomScale;
     const viewHeight = 2 * distance * Math.tan(vFov / 2);
     const targetY = viewHeight / 2;
     return { distance, targetY };
-  }, [framedScene.bounds, camera, size.width, size.height]);
+  }, [framedScene.bounds, camera, size.width, size.height, zoomScale]);
 
   useLayoutEffect(() => {
     const cam = camera as THREE.PerspectiveCamera;
@@ -274,6 +277,7 @@ function AnimationStage({
       <OrbitControls
         ref={controlsRef}
         enablePan={false}
+        enableZoom
         enableDamping
         dampingFactor={0.08}
       />
@@ -322,6 +326,7 @@ function AnimationInspector({
   const [quickAssignState, setQuickAssignState] = useState<UnitAnimationState>("idle");
   const [playbackRate, setPlaybackRate] = useState(1);
   const [frameNonce, setFrameNonce] = useState(0);
+  const [zoomScale, setZoomScale] = useState(1.4);
 
   const clipDurations = useMemo(() => {
     return new Map(animations.map((clip) => [clip.name, clip.duration]));
@@ -423,6 +428,7 @@ function AnimationInspector({
                   playNonce={playNonce}
                   playbackRate={playbackRate}
                   frameNonce={frameNonce}
+                  zoomScale={zoomScale}
                 />
               </Suspense>
             </Canvas>
@@ -438,10 +444,22 @@ function AnimationInspector({
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
           <button
-            onClick={() => setFrameNonce((value) => value + 1)}
+            onClick={() => {
+              setZoomScale(1.4);
+              setFrameNonce((value) => value + 1);
+            }}
             className="px-3 py-1 rounded border border-slate-600 text-slate-200 hover:border-amber-300"
           >
-            Frame view
+            Reset view
+          </button>
+          <button
+            onClick={() => {
+              setZoomScale((value) => Math.min(2.5, value + 0.2));
+              setFrameNonce((value) => value + 1);
+            }}
+            className="px-3 py-1 rounded border border-slate-600 text-slate-200 hover:border-amber-300"
+          >
+            Zoom out
           </button>
           <button
             onClick={onReplay}
@@ -471,6 +489,19 @@ function AnimationInspector({
               className="accent-amber-400"
             />
             <span className="text-slate-300">{playbackRate.toFixed(2)}x</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Zoom</span>
+            <input
+              type="range"
+              min="0.8"
+              max="2.5"
+              step="0.05"
+              value={zoomScale}
+              onChange={(event) => setZoomScale(Number(event.target.value))}
+              className="accent-amber-400"
+            />
+            <span className="text-slate-300">{zoomScale.toFixed(2)}x</span>
           </div>
         </div>
       </div>
@@ -720,6 +751,8 @@ export function AnimationLab() {
   const [exportOpen, setExportOpen] = useState(false);
   const [exportMode, setExportMode] = useState<"dirty" | "all">("dirty");
   const [exportCopied, setExportCopied] = useState(false);
+  const [modelStatus, setModelStatus] = useState<"idle" | "checking" | "ok" | "missing">("idle");
+  const [modelCheckNonce, setModelCheckNonce] = useState(0);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -814,6 +847,42 @@ export function AnimationLab() {
     }
     return undefined;
   }, [dirtyUnits, editableSpecs]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!modelPath) {
+      setModelStatus("idle");
+      return () => {
+        cancelled = true;
+      };
+    }
+    setModelStatus("checking");
+    const check = async () => {
+      try {
+        const range = await fetch(modelPath, { headers: { Range: "bytes=0-3" } });
+        if (cancelled) return;
+        if (!range.ok) {
+          setModelStatus("missing");
+          return;
+        }
+        const buffer = await range.arrayBuffer();
+        if (cancelled) return;
+        const bytes = new Uint8Array(buffer);
+        const header = String.fromCharCode(bytes[0] ?? 0, bytes[1] ?? 0, bytes[2] ?? 0, bytes[3] ?? 0);
+        if (header !== "glTF") {
+          setModelStatus("missing");
+          return;
+        }
+        setModelStatus("ok");
+      } catch {
+        if (!cancelled) setModelStatus("missing");
+      }
+    };
+    void check();
+    return () => {
+      cancelled = true;
+    };
+  }, [modelPath, modelCheckNonce]);
 
   useEffect(() => {
     const fresh = buildInitialSpecs();
@@ -938,7 +1007,7 @@ export function AnimationLab() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
+    <div className="min-h-screen bg-slate-900 text-slate-100 overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-6 space-y-6 pb-16">
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold">Animation Lab</h1>
@@ -1054,10 +1123,28 @@ export function AnimationLab() {
           <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 text-sm text-slate-300">
             Select a unit with an animated model to continue.
           </div>
+        ) : modelStatus === "missing" ? (
+          <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200 space-y-2">
+            <div className="font-semibold">Animated model not found.</div>
+            <div className="text-xs text-red-100/80">
+              Could not fetch <span className="font-mono">{modelPath}</span>. Ensure the file exists in
+              <span className="font-mono"> client/public/models</span> and is available to the dev server.
+            </div>
+            <button
+              onClick={() => setModelCheckNonce((value) => value + 1)}
+              className="px-3 py-1 rounded border border-red-400/60 text-red-100 hover:border-red-300"
+            >
+              Retry check
+            </button>
+          </div>
+        ) : modelStatus === "checking" ? (
+          <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 text-sm text-slate-300">
+            Checking model availability…
+          </div>
         ) : (
           <ErrorBoundary fallback={
             <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 text-sm text-slate-300">
-              Failed to load animation data. Check the model path and GLB file.
+              Failed to load animation data for <span className="font-mono">{modelPath}</span>. Check the model path and GLB file.
             </div>
           }>
             <Suspense fallback={null}>
