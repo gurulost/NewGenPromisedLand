@@ -185,6 +185,7 @@ function AnimationStage({
   playbackRate,
   frameNonce,
   zoomScale,
+  targetOffset,
 }: {
   scene: THREE.Group;
   animations: THREE.AnimationClip[];
@@ -194,6 +195,7 @@ function AnimationStage({
   playbackRate: number;
   frameNonce: number;
   zoomScale: number;
+  targetOffset: { x: number; y: number };
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const controlsRef = useRef<OrbitControlsImpl>(null);
@@ -236,18 +238,20 @@ function AnimationStage({
 
   useLayoutEffect(() => {
     const cam = camera as THREE.PerspectiveCamera;
-    cam.position.set(0, fit.targetY, fit.distance);
+    const targetX = targetOffset.x;
+    const targetY = fit.targetY + targetOffset.y;
+    cam.position.set(targetX, targetY, fit.distance);
     cam.near = Math.max(0.01, fit.distance / 100);
     cam.far = Math.max(100, fit.distance * 30);
     cam.updateProjectionMatrix();
-    cam.lookAt(0, fit.targetY, 0);
+    cam.lookAt(targetX, targetY, 0);
     if (controlsRef.current) {
-      controlsRef.current.target.set(0, fit.targetY, 0);
+      controlsRef.current.target.set(targetX, targetY, 0);
       controlsRef.current.minDistance = Math.max(0.1, fit.distance * 0.6);
       controlsRef.current.maxDistance = Infinity;
       controlsRef.current.update();
     }
-  }, [camera, fit, frameNonce]);
+  }, [camera, fit, frameNonce, targetOffset.x, targetOffset.y]);
 
   useEffect(() => {
     if (!actions) return;
@@ -327,6 +331,8 @@ function AnimationInspector({
   const [playbackRate, setPlaybackRate] = useState(1);
   const [frameNonce, setFrameNonce] = useState(0);
   const [zoomScale, setZoomScale] = useState(1.6);
+  const [targetOffset, setTargetOffset] = useState({ x: 0, y: 0 });
+  const [nudgeStep, setNudgeStep] = useState(0.25);
 
   const clipDurations = useMemo(() => {
     return new Map(animations.map((clip) => [clip.name, clip.duration]));
@@ -429,6 +435,7 @@ function AnimationInspector({
                   playbackRate={playbackRate}
                   frameNonce={frameNonce}
                   zoomScale={zoomScale}
+                  targetOffset={targetOffset}
                 />
               </Suspense>
             </Canvas>
@@ -446,6 +453,7 @@ function AnimationInspector({
           <button
             onClick={() => {
               setZoomScale(1.6);
+              setTargetOffset({ x: 0, y: 0 });
               setFrameNonce((value) => value + 1);
             }}
             className="px-3 py-1 rounded border border-slate-600 text-slate-200 hover:border-amber-300"
@@ -502,6 +510,51 @@ function AnimationInspector({
               className="accent-amber-400"
             />
             <span className="text-slate-300">{zoomScale.toFixed(2)}x</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Nudge</span>
+            <input
+              type="range"
+              min="0.05"
+              max="2"
+              step="0.05"
+              value={nudgeStep}
+              onChange={(event) => setNudgeStep(Number(event.target.value))}
+              className="accent-amber-400"
+            />
+            <span className="text-slate-300">{nudgeStep.toFixed(2)}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setTargetOffset((prev) => ({ ...prev, y: prev.y + nudgeStep }))}
+              className="px-2 py-1 rounded border border-slate-600 text-xs text-slate-200 hover:border-amber-300"
+            >
+              Up
+            </button>
+            <button
+              onClick={() => setTargetOffset((prev) => ({ ...prev, y: prev.y - nudgeStep }))}
+              className="px-2 py-1 rounded border border-slate-600 text-xs text-slate-200 hover:border-amber-300"
+            >
+              Down
+            </button>
+            <button
+              onClick={() => setTargetOffset((prev) => ({ ...prev, x: prev.x - nudgeStep }))}
+              className="px-2 py-1 rounded border border-slate-600 text-xs text-slate-200 hover:border-amber-300"
+            >
+              Left
+            </button>
+            <button
+              onClick={() => setTargetOffset((prev) => ({ ...prev, x: prev.x + nudgeStep }))}
+              className="px-2 py-1 rounded border border-slate-600 text-xs text-slate-200 hover:border-amber-300"
+            >
+              Right
+            </button>
+            <button
+              onClick={() => setTargetOffset({ x: 0, y: 0 })}
+              className="px-2 py-1 rounded border border-slate-600 text-xs text-slate-200 hover:border-amber-300"
+            >
+              Center
+            </button>
           </div>
         </div>
       </div>
