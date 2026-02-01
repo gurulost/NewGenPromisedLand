@@ -244,7 +244,7 @@ function AnimationStage({
     if (controlsRef.current) {
       controlsRef.current.target.set(0, fit.targetY, 0);
       controlsRef.current.minDistance = Math.max(0.1, fit.distance * 0.6);
-      controlsRef.current.maxDistance = fit.distance * 2.6;
+      controlsRef.current.maxDistance = Infinity;
       controlsRef.current.update();
     }
   }, [camera, fit, frameNonce]);
@@ -326,7 +326,7 @@ function AnimationInspector({
   const [quickAssignState, setQuickAssignState] = useState<UnitAnimationState>("idle");
   const [playbackRate, setPlaybackRate] = useState(1);
   const [frameNonce, setFrameNonce] = useState(0);
-  const [zoomScale, setZoomScale] = useState(1.4);
+  const [zoomScale, setZoomScale] = useState(1.6);
 
   const clipDurations = useMemo(() => {
     return new Map(animations.map((clip) => [clip.name, clip.duration]));
@@ -445,7 +445,7 @@ function AnimationInspector({
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
           <button
             onClick={() => {
-              setZoomScale(1.4);
+              setZoomScale(1.6);
               setFrameNonce((value) => value + 1);
             }}
             className="px-3 py-1 rounded border border-slate-600 text-slate-200 hover:border-amber-300"
@@ -454,7 +454,7 @@ function AnimationInspector({
           </button>
           <button
             onClick={() => {
-              setZoomScale((value) => Math.min(2.5, value + 0.2));
+              setZoomScale((value) => value + 0.4);
               setFrameNonce((value) => value + 1);
             }}
             className="px-3 py-1 rounded border border-slate-600 text-slate-200 hover:border-amber-300"
@@ -495,7 +495,7 @@ function AnimationInspector({
             <input
               type="range"
               min="0.8"
-              max="2.5"
+              max="10"
               step="0.05"
               value={zoomScale}
               onChange={(event) => setZoomScale(Number(event.target.value))}
