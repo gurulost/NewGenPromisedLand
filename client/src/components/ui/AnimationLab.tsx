@@ -553,7 +553,7 @@ function AnimationInspector({
             <input
               type="range"
               min="0.2"
-              max="10"
+              max="100"
               step="0.05"
               value={zoomScale}
               onChange={(event) => setZoomScale(Number(event.target.value))}
