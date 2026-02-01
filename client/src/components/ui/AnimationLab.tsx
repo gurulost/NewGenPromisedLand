@@ -334,10 +334,38 @@ function AnimationInspector({
   const [zoomScale, setZoomScale] = useState(1.6);
   const [targetOffset, setTargetOffset] = useState({ x: 0, y: 0 });
   const [nudgeStep, setNudgeStep] = useState(0.25);
+  const zoomHoldRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clipDurations = useMemo(() => {
     return new Map(animations.map((clip) => [clip.name, clip.duration]));
   }, [animations]);
+
+  const stopZoomHold = useCallback(() => {
+    if (zoomHoldRef.current) {
+      clearInterval(zoomHoldRef.current);
+      zoomHoldRef.current = null;
+    }
+  }, []);
+
+  const startZoomInHold = useCallback(() => {
+    stopZoomHold();
+    zoomHoldRef.current = setInterval(() => {
+      setZoomScale((value) => Math.max(0.2, value - 0.2));
+    }, 80);
+  }, [stopZoomHold]);
+
+  const startZoomOutHold = useCallback(() => {
+    stopZoomHold();
+    zoomHoldRef.current = setInterval(() => {
+      setZoomScale((value) => value + 0.2);
+    }, 80);
+  }, [stopZoomHold]);
+
+  useEffect(() => {
+    return () => {
+      stopZoomHold();
+    };
+  }, [stopZoomHold]);
 
   const registryClipNames = useMemo(() => {
     const names = new Set<string>();
@@ -466,9 +494,30 @@ function AnimationInspector({
               setZoomScale((value) => value + 0.4);
               setFrameNonce((value) => value + 1);
             }}
+            onMouseDown={startZoomOutHold}
+            onMouseUp={stopZoomHold}
+            onMouseLeave={stopZoomHold}
+            onTouchStart={startZoomOutHold}
+            onTouchEnd={stopZoomHold}
+            onTouchCancel={stopZoomHold}
             className="px-3 py-1 rounded border border-slate-600 text-slate-200 hover:border-amber-300"
           >
             Zoom out
+          </button>
+          <button
+            onClick={() => {
+              setZoomScale((value) => Math.max(0.2, value - 0.4));
+              setFrameNonce((value) => value + 1);
+            }}
+            onMouseDown={startZoomInHold}
+            onMouseUp={stopZoomHold}
+            onMouseLeave={stopZoomHold}
+            onTouchStart={startZoomInHold}
+            onTouchEnd={stopZoomHold}
+            onTouchCancel={stopZoomHold}
+            className="px-3 py-1 rounded border border-slate-600 text-slate-200 hover:border-amber-300"
+          >
+            Zoom in
           </button>
           <button
             onClick={onReplay}
@@ -503,7 +552,7 @@ function AnimationInspector({
             <span className="text-slate-400">Zoom</span>
             <input
               type="range"
-              min="0.8"
+              min="0.2"
               max="10"
               step="0.05"
               value={zoomScale}
