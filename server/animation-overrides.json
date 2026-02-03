@@ -1,0 +1,187 @@
+{
+  "worker": {
+    "clips": {
+      "idle": [
+        {
+          "name": "Idle_12",
+          "weight": 25,
+          "label": "Standing Idle"
+        },
+        {
+          "name": "Idle_15",
+          "weight": 25,
+          "label": "Hand Waving Idle"
+        },
+        {
+          "name": "Idle_3",
+          "weight": 25,
+          "label": "swaying idle"
+        },
+        {
+          "name": "Confident_Strut",
+          "weight": 25,
+          "label": "sideways idle"
+        }
+      ],
+      "move": [
+        {
+          "name": "Running",
+          "weight": 10,
+          "label": "Confident Strutting Walk"
+        },
+        {
+          "name": "Idle_7",
+          "weight": 25,
+          "label": "walking tripping"
+        },
+        {
+          "name": "Hip_Hop_Dance",
+          "weight": 40,
+          "label": "chill walk"
+        },
+        {
+          "name": "FunnyDancing_01",
+          "weight": 30,
+          "label": "running"
+        },
+        {
+          "name": "FunnyDancing_03",
+          "weight": 30,
+          "label": "wide walk"
+        }
+      ],
+      "celebrate": [
+        {
+          "name": "Walking",
+          "weight": 50,
+          "label": "Funny Dancing Sideways"
+        },
+        {
+          "name": "Stumble_Walk",
+          "weight": 15,
+          "label": "Shift dance"
+        }
+      ],
+      "death": [],
+      "attack": [],
+      "hit": [],
+      "ability": []
+    }
+  },
+  "warrior": {
+    "clips": {
+      "idle": [
+        {
+          "name": "Idle",
+          "weight": 5,
+          "label": "talking with hands"
+        },
+        {
+          "name": "Walking",
+          "weight": 35,
+          "label": "burpees"
+        },
+        {
+          "name": "Slow_Orc_Walk",
+          "weight": 10,
+          "label": "breathing standing"
+        },
+        {
+          "name": "Proud_Strut",
+          "weight": 20,
+          "label": "Just standing"
+        },
+        {
+          "name": "Hip_Hop_Dance_3",
+          "weight": 25,
+          "label": "look around"
+        },
+        {
+          "name": "Punch_Combo",
+          "weight": 1,
+          "label": "crouch looking"
+        }
+      ],
+      "move": [
+        {
+          "name": "Running",
+          "weight": 15,
+          "label": "full run"
+        },
+        {
+          "name": "Idle_8",
+          "weight": 20,
+          "label": "stomping moving"
+        },
+        {
+          "name": "Burpee_Exercise",
+          "weight": 10,
+          "label": "confident walking"
+        },
+        {
+          "name": "FunnyDancing_02",
+          "weight": 15,
+          "label": "slow chill walk"
+        },
+        {
+          "name": "Dead",
+          "weight": 1,
+          "label": "slow strut"
+        }
+      ],
+      "celebrate": [
+        {
+          "name": "Shake_It_Off_Dance",
+          "weight": 15,
+          "label": "wave hands dance"
+        },
+        {
+          "name": "Agree_Gesture",
+          "weight": 15,
+          "label": "slick hair dance"
+        },
+        {
+          "name": "Casual_Walk",
+          "weight": 20,
+          "label": "scoot dance"
+        },
+        {
+          "name": "Kung_Fu_Punch",
+          "weight": 1,
+          "label": "epic dance"
+        },
+        {
+          "name": "Lunge_Spin_Kick",
+          "weight": 1,
+          "label": "forward dance"
+        }
+      ],
+      "death": [
+        {
+          "name": "Hip_Hop_Dance_2",
+          "weight": 15,
+          "label": "killed"
+        }
+      ],
+      "attack": [
+        {
+          "name": "Idle_11",
+          "weight": 50,
+          "label": "fighting punching"
+        },
+        {
+          "name": "Axe_Breathe_and_Look_Around",
+          "weight": 15,
+          "label": "spin kicking"
+        },
+        {
+          "name": "All_Night_Dance",
+          "weight": 10,
+          "label": "magically  cool fight"
+        }
+      ],
+      "hit": [],
+      "ability": []
+    }
+  }
+}
