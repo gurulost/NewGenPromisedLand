@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { hexToPixel } from "@shared/utils/hex";
 import { ConstructionItem } from "@shared/types/game";
 import { disposeClonedMaterials } from "../../lib/memoryUtils";
+import { getImprovementModelPath, getStructureModelPath, getUnitModelPath } from "../../utils/modelManager";
 
 interface ConstructionProps {
   construction: ConstructionItem;
@@ -12,6 +13,45 @@ interface ConstructionProps {
 
 const HEX_SIZE = 1;
 const PARTICLE_COUNT = 24;
+const FALLBACK_MODEL_PATH = "/models/warrior.glb";
+
+const IMPROVEMENT_SCALES: Record<string, number> = {
+  farm: 0.35,
+  mine: 0.4,
+  forest_camp: 0.35,
+  lumber_hut: 0.35,
+  sawmill: 0.4,
+  plantation: 0.4,
+  irrigation: 0.35,
+  workshop: 0.4,
+  port: 0.4,
+  aqueduct: 0.45,
+  road: 0.3,
+  shrine: 0.4,
+};
+
+const STRUCTURE_SCALES: Record<string, number> = {
+  temple: 0.35,
+  granary: 0.35,
+  lighthouse: 0.4,
+  cathedral: 0.4,
+  academy: 0.35,
+  library: 0.35,
+  fortress: 0.4,
+};
+
+const getConstructionModelPath = (construction: ConstructionItem): string | null => {
+  switch (construction.category) {
+    case "improvements":
+      return getImprovementModelPath(construction.type);
+    case "structures":
+      return getStructureModelPath(construction.type);
+    case "units":
+      return getUnitModelPath(construction.type);
+    default:
+      return null;
+  }
+};
 
 // Holographic shader for the ghostly construction effect
 const holographicVertexShader = `
@@ -272,8 +312,9 @@ export default function Construction({ construction }: ConstructionProps) {
   // Category-based color
   const categoryColor = useMemo(() => getCategoryColor(construction.category), [construction.category]);
 
-  // Load boat model
-  const { scene: boatScene } = useGLTF("/models/boat.glb");
+  const modelPath = useMemo(() => getConstructionModelPath(construction), [construction.category, construction.type]);
+  const hasModel = Boolean(modelPath);
+  const { scene: modelScene } = useGLTF(modelPath ?? FALLBACK_MODEL_PATH);
 
   // Create holographic shader material
   const hologramMaterial = useMemo(() => {
@@ -293,11 +334,21 @@ export default function Construction({ construction }: ConstructionProps) {
     });
   }, [categoryColor]);
 
+  const modelScale = useMemo(() => {
+    if (construction.category === "improvements") {
+      return IMPROVEMENT_SCALES[construction.type] ?? 0.35;
+    }
+    if (construction.category === "structures") {
+      return STRUCTURE_SCALES[construction.type] ?? 0.35;
+    }
+    return 1;
+  }, [construction.category, construction.type]);
+
   // Clone model with holographic material
   const clonedModel = useMemo(() => {
-    if (construction.type !== "boat") return null;
+    if (!hasModel) return null;
 
-    const clone = boatScene.clone();
+    const clone = modelScene.clone();
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.material = hologramMaterial;
@@ -305,7 +356,7 @@ export default function Construction({ construction }: ConstructionProps) {
     });
 
     return clone;
-  }, [boatScene, construction.type, hologramMaterial]);
+  }, [hasModel, modelScene, hologramMaterial]);
 
   useEffect(() => {
     hologramMaterialRef.current = hologramMaterial;
@@ -346,12 +397,10 @@ export default function Construction({ construction }: ConstructionProps) {
       {/* Main construction model/placeholder */}
       <group ref={meshRef} position={[0, 0.1, 0]} scale={[0.8, 0.8, 0.8]}>
         {clonedModel ? (
-          <primitive object={clonedModel} scale={[1, 1, 1]} />
+          <primitive object={clonedModel} scale={[modelScale, modelScale, modelScale]} />
         ) : (
           <mesh material={hologramMaterial}>
-            {construction.type === 'boat' ? (
-              <boxGeometry args={[0.6, 0.2, 1.0]} />
-            ) : construction.category === 'units' ? (
+            {construction.category === 'units' ? (
               <cylinderGeometry args={[0.15, 0.15, 0.4, 12]} />
             ) : (
               <boxGeometry args={[0.4, 0.4, 0.4]} />
