@@ -310,6 +310,11 @@
           "name": "Texting_Walk",
           "weight": 5,
           "label": "preaching"
+        },
+        {
+          "name": "Clapping_Run",
+          "weight": 5,
+          "label": "silly stance"
         }
       ],
       "move": [
@@ -332,6 +337,11 @@
           "name": "Cheer_with_Both_Hands_1",
           "weight": 20,
           "label": "hands walking"
+        },
+        {
+          "name": "Handstand_Flip",
+          "weight": 15,
+          "label": "full run"
         }
       ],
       "celebrate": [
@@ -351,15 +361,6 @@
           "label": "sweetness"
         },
         {
-          "name": "Handstand_Flip",
-          "weight": 15,
-          "label": "full run"
-        },
-        {
-          "name": "Clapping_Run",
-          "weight": 5
-        },
-        {
           "name": "Walking",
           "weight": 30,
           "label": "hyping"
@@ -368,13 +369,14 @@
           "name": "Running",
           "weight": 15,
           "label": "step dance"
+        },
+        {
+          "name": "dying_backwards",
+          "weight": 1,
+          "label": "goofy dance"
         }
       ],
       "death": [
-        {
-          "name": "dying_backwards",
-          "weight": 1
-        },
         {
           "name": "Big_Heart_Gesture",
           "weight": 10,
