@@ -183,5 +183,207 @@
       "hit": [],
       "ability": []
     }
+  },
+  "scout": {
+    "clips": {
+      "idle": [
+        {
+          "name": "Idle_02",
+          "weight": 1,
+          "label": "looking around"
+        },
+        {
+          "name": "Confused_Scratch",
+          "weight": 1,
+          "label": "idle hands out"
+        },
+        {
+          "name": "Walking",
+          "weight": 30,
+          "label": "handstand"
+        },
+        {
+          "name": "Sneaky_Walk",
+          "weight": 18,
+          "label": "idle waving"
+        },
+        {
+          "name": "Female_Bow_Charge_Left_Hand",
+          "weight": 10,
+          "label": "idle breathing"
+        },
+        {
+          "name": "FunnyDancing_03",
+          "weight": 15,
+          "label": "idle sway"
+        },
+        {
+          "name": "Gangnam_Groove",
+          "weight": 15,
+          "label": "idle sway2"
+        }
+      ],
+      "move": [
+        {
+          "name": "Funky_Walk",
+          "weight": 7,
+          "label": "fast charge 2"
+        },
+        {
+          "name": "Female_Throwing_Stance_Charge",
+          "weight": 10,
+          "label": "forward creeping"
+        },
+        {
+          "name": "Idle_11",
+          "weight": 1,
+          "label": "running charge fast"
+        },
+        {
+          "name": "Idle_3",
+          "weight": 1,
+          "label": "shrug walk"
+        },
+        {
+          "name": "Idle_7",
+          "weight": 1,
+          "label": "creeping"
+        },
+        {
+          "name": "Idle_8",
+          "weight": 1,
+          "label": "strong walk"
+        },
+        {
+          "name": "Backflip",
+          "weight": 20,
+          "label": "jog"
+        }
+      ],
+      "celebrate": [
+        {
+          "name": "One_Arm_Handstand",
+          "weight": 35,
+          "label": "backflip"
+        },
+        {
+          "name": "Breakdance_1990",
+          "weight": 15,
+          "label": "side dance"
+        },
+        {
+          "name": "Running",
+          "weight": 10,
+          "label": "headspin"
+        },
+        {
+          "name": "Cautious_Crouch_Walk_Forward",
+          "weight": 15,
+          "label": "gangam style"
+        }
+      ],
+      "death": [],
+      "attack": [],
+      "hit": [],
+      "ability": []
+    }
+  },
+  "missionary": {
+    "clips": {
+      "idle": [
+        {
+          "name": "Long_Breathe_and_Look_Around",
+          "weight": 25,
+          "label": "talking ide"
+        },
+        {
+          "name": "Talk_with_Right_Hand_Open",
+          "weight": 25,
+          "label": "teaching"
+        },
+        {
+          "name": "walking_2",
+          "weight": 30,
+          "label": "idle looking around"
+        },
+        {
+          "name": "Texting_Walk",
+          "weight": 5,
+          "label": "preaching"
+        }
+      ],
+      "move": [
+        {
+          "name": "RunFast",
+          "weight": 10,
+          "label": "just a move"
+        },
+        {
+          "name": "Talk_Passionately",
+          "weight": 20,
+          "label": "strut walk"
+        },
+        {
+          "name": "Talk_with_Left_Hand_Raised",
+          "weight": 30,
+          "label": "run"
+        },
+        {
+          "name": "Cheer_with_Both_Hands_1",
+          "weight": 20,
+          "label": "hands walking"
+        }
+      ],
+      "celebrate": [
+        {
+          "name": "Excited_Walk_M",
+          "weight": 20,
+          "label": "clap hype"
+        },
+        {
+          "name": "happy_jump_m",
+          "weight": 15,
+          "label": "fightdance"
+        },
+        {
+          "name": "Arm_Circle_Shuffle",
+          "weight": 10,
+          "label": "sweetness"
+        },
+        {
+          "name": "Handstand_Flip",
+          "weight": 15,
+          "label": "full run"
+        },
+        {
+          "name": "Clapping_Run",
+          "weight": 5
+        },
+        {
+          "name": "Walking",
+          "weight": 30,
+          "label": "hyping"
+        },
+        {
+          "name": "Running",
+          "weight": 15,
+          "label": "step dance"
+        }
+      ],
+      "death": [
+        {
+          "name": "dying_backwards",
+          "weight": 1
+        },
+        {
+          "name": "Big_Heart_Gesture",
+          "weight": 10,
+          "label": "death"
+        }
+      ],
+      "attack": [],
+      "hit": [],
+      "ability": []
+    }
   }
 }
