@@ -28,6 +28,7 @@ import { GameLogPanel } from "../ui/GameLogPanel";
 import { SettingsMenu } from "../ui/SettingsMenu";
 import { TutorialOverlay } from "../ui/TutorialOverlay";
 import { TutorialLibrary } from "../ui/TutorialLibrary";
+import TutorialEpisodeCoach from "../ui/TutorialEpisodeCoach";
 import { AITurnIndicator } from "../ui/AITurnIndicator";
 import { SpawnDebugPanel } from "../debug/SpawnDebugPanel";
 import MovementControls from "../game/MovementControls";
@@ -64,6 +65,7 @@ interface ActiveNotification {
 export default function GameUI() {
   const isDev = import.meta.env.DEV;
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
+  const gameMode = useLocalGame((state) => state.gameMode);
   const { isMobileUI, isPortrait } = useMobileUI();
   const actionError = useLocalGame((state) => state.actionError);
   const clearActionError = useLocalGame((state) => state.clearActionError);
@@ -763,46 +765,53 @@ export default function GameUI() {
 
   // Tutorial triggers (first-time overlays)
   useEffect(() => {
+    if (gameMode === 'tutorialEpisode') return;
     if (gameState && currentPlayer && isLocalHumanTurn) {
       openTutorialIfNeeded('overview');
     }
-  }, [gameState?.id, currentPlayer?.id, isLocalHumanTurn, openTutorialIfNeeded]);
+  }, [gameMode, gameState?.id, currentPlayer?.id, isLocalHumanTurn, openTutorialIfNeeded]);
 
   useEffect(() => {
+    if (gameMode === 'tutorialEpisode') return;
     if (showTechPanel) {
       openTutorialIfNeeded('tech');
     }
-  }, [showTechPanel, openTutorialIfNeeded]);
+  }, [gameMode, showTechPanel, openTutorialIfNeeded]);
 
   useEffect(() => {
+    if (gameMode === 'tutorialEpisode') return;
     if (showCityPanel) {
       openTutorialIfNeeded('city');
     }
-  }, [showCityPanel, openTutorialIfNeeded]);
+  }, [gameMode, showCityPanel, openTutorialIfNeeded]);
 
   useEffect(() => {
+    if (gameMode === 'tutorialEpisode') return;
     if (selectedWorldElement) {
       openTutorialIfNeeded('world-elements');
     }
-  }, [selectedWorldElement, openTutorialIfNeeded]);
+  }, [gameMode, selectedWorldElement, openTutorialIfNeeded]);
 
   useEffect(() => {
+    if (gameMode === 'tutorialEpisode') return;
     if (selectedVillage) {
       openTutorialIfNeeded('village');
     }
-  }, [selectedVillage, openTutorialIfNeeded]);
+  }, [gameMode, selectedVillage, openTutorialIfNeeded]);
 
   useEffect(() => {
+    if (gameMode === 'tutorialEpisode') return;
     if (selectedUnit && currentPlayer && selectedUnit.playerId === currentPlayer.id) {
       openTutorialIfNeeded('movement');
     }
-  }, [selectedUnit, currentPlayer, openTutorialIfNeeded]);
+  }, [gameMode, selectedUnit, currentPlayer, openTutorialIfNeeded]);
 
   useEffect(() => {
+    if (gameMode === 'tutorialEpisode') return;
     if (isAttackMode) {
       openTutorialIfNeeded('combat');
     }
-  }, [isAttackMode, openTutorialIfNeeded]);
+  }, [gameMode, isAttackMode, openTutorialIfNeeded]);
 
   const isEditableTarget = (target: EventTarget | null) => {
     if (!target || !(target instanceof HTMLElement)) {
@@ -1956,6 +1965,15 @@ export default function GameUI() {
       )}
 
       {/* Tutorial Overlays */}
+      {gameMode === 'tutorialEpisode' && gameState && (
+        <TutorialEpisodeCoach
+          gameState={gameState}
+          currentPlayerId={gameState.players.find(p => !p.isAI)?.id ?? currentPlayer?.id ?? ''}
+          isLocalHumanTurn={isLocalHumanTurn}
+          onOpenTech={() => setShowTechPanel(true)}
+          onOpenBuildMenu={handleShowConstructionHall}
+        />
+      )}
       <TutorialLibrary />
       <TutorialOverlay />
 

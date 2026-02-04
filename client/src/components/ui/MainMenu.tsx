@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { ContentShell } from "../primitives/ContentShell";
 import { PanelHeader } from "../primitives/PanelHeader";
@@ -9,61 +9,7 @@ import { Users, Globe, FolderOpen } from "lucide-react";
 import { listSaves, type ServerSave } from "../../lib/saveApi";
 import SaveLoadMenu from "./SaveLoadMenu";
 import { loadAutosave } from "../../lib/autosaveStorage";
-
-function HeroBackground() {
-  const [videoEnded, setVideoEnded] = useState(false);
-  const [videoLoaded, setVideoLoaded] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (video) {
-      video.load();
-    }
-  }, []);
-
-  const handleVideoEnded = () => {
-    setVideoEnded(true);
-  };
-
-  const handleVideoLoaded = () => {
-    setVideoLoaded(true);
-  };
-
-  return (
-    <div className="absolute inset-0 overflow-hidden">
-      {/* Fallback Background Image */}
-      <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000"
-        style={{
-          backgroundImage: 'url(/assets/hero-image.avif)',
-          opacity: videoEnded || !videoLoaded ? 1 : 0
-        }}
-      />
-
-      {/* Hero Video */}
-      <video
-        ref={videoRef}
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${videoEnded ? 'opacity-0' : 'opacity-100'
-          }`}
-        autoPlay
-        muted
-        playsInline
-        onEnded={handleVideoEnded}
-        onLoadedData={handleVideoLoaded}
-        preload="auto"
-      >
-        <source src="/assets/hero-video.webm" type="video/webm" />
-      </video>
-
-      {/* Gradient Overlay for better text readability */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
-
-      {/* Subtle vignette effect */}
-      <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-black/30" />
-    </div>
-  );
-}
+import { HeroBackground } from "./HeroBackground";
 
 export default function MainMenu() {
   const { setGamePhase, loadGameState } = useLocalGame();
@@ -205,6 +151,18 @@ export default function MainMenu() {
                 <span className="flex items-center justify-center gap-2">
                   <FolderOpen />
                   Load Saved Game
+                </span>
+              </GlowingButton>
+
+              <GlowingButton
+                onClick={() => setGamePhase('tutorialEpisodeIntro')}
+                variant="secondary"
+                className="w-full"
+                size="lg"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <TempleIcon />
+                  Tutorial Episode
                 </span>
               </GlowingButton>
             </div>
