@@ -1637,104 +1637,93 @@ export default function GameUI() {
 
       {/* Construction Hall */}
       {showConstructionHall && selectedCityId && (
-        <div
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-auto"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (e.target === e.currentTarget) {
-              setShowConstructionHall(false);
+        <BuildingMenu
+          city={gameState.cities?.find(c => c.id === selectedCityId)!}
+          player={currentPlayer}
+          gameState={gameState}
+          onBuild={(optionId) => {
+            // Handle construction logic
+            console.log('Starting construction:', optionId);
+            // Determine building category
+            let category: 'improvements' | 'structures' | 'units';
+
+            if (Object.values(STRUCTURE_DEFINITIONS).some(s => s.id === optionId)) {
+              category = 'structures';
+            } else if (Object.values(UNIT_DEFINITIONS).some(u => u.type === optionId)) {
+              category = 'units';
+            } else {
+              category = 'improvements';
             }
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ pointerEvents: 'auto' }}
-          >
-            <BuildingMenu
-              city={gameState.cities?.find(c => c.id === selectedCityId)!}
-              player={currentPlayer}
-              gameState={gameState}
-              onBuild={(optionId) => {
-                // Handle construction logic
-                console.log('Starting construction:', optionId);
-                // Determine building category
-                let category: 'improvements' | 'structures' | 'units';
 
-                if (Object.values(STRUCTURE_DEFINITIONS).some(s => s.id === optionId)) {
-                  category = 'structures';
-                } else if (Object.values(UNIT_DEFINITIONS).some(u => u.type === optionId)) {
-                  category = 'units';
-                } else {
-                  category = 'improvements';
-                }
+            if (category === 'units') {
+              const city = gameState.cities?.find(c => c.id === selectedCityId);
+              if (!city) return;
+              const validTiles = getValidSpawnTiles(gameState, city.coordinate, optionId as any, currentPlayer.id);
 
-                if (category === 'units') {
-                  const city = gameState.cities?.find(c => c.id === selectedCityId);
-                  if (!city) return;
-                  const validTiles = getValidSpawnTiles(gameState, city.coordinate, optionId as any, currentPlayer.id);
+              if (validTiles.length === 0) {
+                alert(`Cannot recruit ${optionId}: No valid spawn locations available.`);
+                return;
+              }
 
-                  if (validTiles.length === 0) {
-                    alert(`Cannot recruit ${optionId}: No valid spawn locations available.`);
-                    return;
-                  }
-
-                  const { startSpawnSelection } = useGameState.getState();
-                  startSpawnSelection({
-                    unitType: optionId as any,
-                    cityId: selectedCityId,
-                    cityCoordinate: city.coordinate,
-                    playerId: currentPlayer.id,
-                    validSpawnTiles: validTiles,
-                    onSelectTile: (coordinate) => {
-                      useLocalGame.getState().dispatch({
-                        type: 'START_CONSTRUCTION',
-                        payload: {
-                          playerId: currentPlayer.id,
-                          buildingType: optionId,
-                          category: 'units',
-                          coordinate,
-                          cityId: selectedCityId
-                        }
-                      });
+              const { startSpawnSelection } = useGameState.getState();
+              startSpawnSelection({
+                unitType: optionId as any,
+                cityId: selectedCityId,
+                cityCoordinate: city.coordinate,
+                playerId: currentPlayer.id,
+                validSpawnTiles: validTiles,
+                onSelectTile: (coordinate) => {
+                  useLocalGame.getState().dispatch({
+                    type: 'START_CONSTRUCTION',
+                    payload: {
+                      playerId: currentPlayer.id,
+                      buildingType: optionId,
+                      category: 'units',
+                      coordinate,
+                      cityId: selectedCityId
                     }
                   });
-                  setShowConstructionHall(false);
-                  return;
                 }
+              });
+              setShowConstructionHall(false);
+              return;
+            }
 
-                // Use the game state construction system
-                const { startConstruction } = useGameState.getState();
-                startConstruction(optionId, category, selectedCityId, currentPlayer.id);
-                setShowConstructionHall(false);
-              }}
-              onClose={() => setShowConstructionHall(false)}
-              onShowCities={() => {
-                setShowConstructionHall(false);
-                setShowCityPanel(true);
-              }}
-            />
-          </div>
-        </div>
+            // Use the game state construction system
+            const { startConstruction } = useGameState.getState();
+            startConstruction(optionId, category, selectedCityId, currentPlayer.id);
+            setShowConstructionHall(false);
+          }}
+          onClose={() => setShowConstructionHall(false)}
+          onShowCities={() => {
+            setShowConstructionHall(false);
+            setShowCityPanel(true);
+          }}
+        />
       )}
 
       {/* City Selector Dialog */}
       {showCitySelector && (
         <div
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-auto"
+          className={`fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-auto ${isMobileUI ? 'p-0' : ''}`}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowCitySelector(false);
             }
           }}
         >
-          <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/40 rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
-            <h2 className="text-xl font-cinzel font-bold text-amber-100 mb-4 text-center">
-              Select a City
-            </h2>
-            <p className="text-amber-200/70 text-sm text-center mb-4">
-              {citySelectorAction === 'city_panel' ? 'Choose a city to view' : 'Choose a city for construction'}
-            </p>
-            <div className="space-y-2 max-h-64 overflow-y-auto touch-scroll">
+          <div
+            className={`bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/40 shadow-2xl w-full ${isMobileUI ? 'h-full max-w-full rounded-none mobile-safe-top mobile-safe-bottom flex flex-col' : 'rounded-xl p-6 max-w-md mx-4'}`}
+          >
+            <div className={`${isMobileUI ? 'p-6 border-b border-amber-500/20' : ''}`}>
+              <h2 className="text-xl font-cinzel font-bold text-amber-100 mb-4 text-center">
+                Select a City
+              </h2>
+              <p className="text-amber-200/70 text-sm text-center mb-4">
+                {citySelectorAction === 'city_panel' ? 'Choose a city to view' : 'Choose a city for construction'}
+              </p>
+            </div>
+            <div className={`space-y-2 overflow-y-auto touch-scroll ${isMobileUI ? 'flex-1 px-6 py-4' : 'max-h-64'}`}>
               {gameState.cities?.filter(city =>
                 currentPlayer.citiesOwned.includes(city.id)
               ).map(city => (
@@ -1757,12 +1746,14 @@ export default function GameUI() {
                 </button>
               ))}
             </div>
-            <button
-              onClick={() => setShowCitySelector(false)}
-              className="w-full mt-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-sm"
-            >
-              Cancel
-            </button>
+            <div className={`${isMobileUI ? 'p-6 border-t border-amber-500/20' : ''}`}>
+              <button
+                onClick={() => setShowCitySelector(false)}
+                className="w-full mt-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-sm"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
