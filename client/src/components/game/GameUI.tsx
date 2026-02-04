@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useKeyboardControls } from "@react-three/drei";
 import { AnimatePresence, motion } from "framer-motion";
 import { Sparkles, Swords } from "lucide-react";
@@ -9,7 +9,6 @@ import { useOnlineGameSync } from "../../hooks/useOnlineGameSync";
 import { getFaction } from "@shared/data/factions";
 import { PlayerHUD } from "../hud/PlayerHUD";
 import SelectedUnitPanel from "../ui/SelectedUnitPanel";
-import UnitActionsPanel from "../ui/AbilitiesPanel";
 import TechPanel from "../ui/TechPanel";
 import CityPanel from "../ui/CityPanel";
 import { BuildingMenu } from "../ui/BuildingMenu";
@@ -18,7 +17,6 @@ import SaveLoadMenu from "../ui/SaveLoadMenu";
 import { TurnTransition, useTurnTransition } from "../ui/TurnTransition";
 import { SaveSystem } from "../ui/SaveSystem";
 import { UnitSelectionUI } from "../effects/UnitSelection";
-import { ActionTooltip } from "../ui/TooltipSystem";
 import { WorldElementPanel } from "../ui/WorldElementPanel";
 import { VillageCapturePanel } from "../ui/VillageCapturePanel";
 import { DiplomacyPanel } from "../ui/DiplomacyPanel";
@@ -34,6 +32,7 @@ import { AITurnIndicator } from "../ui/AITurnIndicator";
 import { SpawnDebugPanel } from "../debug/SpawnDebugPanel";
 import MovementControls from "../game/MovementControls";
 import { useSfxEngine } from "../../hooks/useSfx";
+import { useMobileUI } from "../../hooks/useMobileUI";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
 import { TECHNOLOGIES } from "@shared/data/technologies";
@@ -52,6 +51,8 @@ import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
 import { getValidSpawnTiles } from "@shared/logic/gameReducer";
 import type { Unit } from "@shared/types/unit";
 import type { GameState } from "@shared/types/game";
+import { MobileHUD } from "../hud/MobileHUD";
+import { MobileActionBar } from "../hud/MobileActionBar";
 
 interface ActiveNotification {
   id: string;
@@ -63,6 +64,7 @@ interface ActiveNotification {
 export default function GameUI() {
   const isDev = import.meta.env.DEV;
   const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
+  const { isMobileUI, isPortrait } = useMobileUI();
   const actionError = useLocalGame((state) => state.actionError);
   const clearActionError = useLocalGame((state) => state.clearActionError);
   const onlineSession = useLocalGame((state) => state.onlineSession);
@@ -91,6 +93,7 @@ export default function GameUI() {
   const { triggerFlash, showToast } = useVisualFeedback();
   const playSfx = useSfxEngine();
   const openTutorialIfNeeded = useTutorialStore((state) => state.openIfNeeded);
+  const setTutorialContext = useTutorialStore((state) => state.setActiveProfile);
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [showConstructionHall, setShowConstructionHall] = useState(false);
@@ -741,12 +744,29 @@ export default function GameUI() {
   const [showSettings, setShowSettings] = useState(false);
   // Local screenFlash state removed in favor of VisualFeedbackProvider
 
+  const currentPlayer = gameState?.players?.[gameState.currentPlayerIndex] ?? null;
+  const isLocalHumanTurn = Boolean(
+    currentPlayer &&
+    !currentPlayer.isAI &&
+    (!onlineSession || onlineSession.myPlayerIds?.includes(currentPlayer.id))
+  );
+  const tutorialProfileKey = useMemo(() => {
+    if (!currentPlayer) return null;
+    if (onlineSession?.userId) return `user:${onlineSession.userId}`;
+    const nameKey = currentPlayer.name?.trim() || currentPlayer.id;
+    return `local:${nameKey}`;
+  }, [currentPlayer?.id, currentPlayer?.name, onlineSession?.userId]);
+
+  useEffect(() => {
+    setTutorialContext(tutorialProfileKey, gameState?.id ?? null, isLocalHumanTurn);
+  }, [tutorialProfileKey, gameState?.id, isLocalHumanTurn, setTutorialContext]);
+
   // Tutorial triggers (first-time overlays)
   useEffect(() => {
-    if (gameState) {
+    if (gameState && currentPlayer && isLocalHumanTurn) {
       openTutorialIfNeeded('overview');
     }
-  }, [gameState, openTutorialIfNeeded]);
+  }, [gameState?.id, currentPlayer?.id, isLocalHumanTurn, openTutorialIfNeeded]);
 
   useEffect(() => {
     if (showTechPanel) {
@@ -804,7 +824,6 @@ export default function GameUI() {
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
   const { isAIProcessing, currentAIPlayer } = useAITurn();
-  const currentPlayer = gameState?.players?.[gameState.currentPlayerIndex] ?? null;
   const heapMb = heapBytes ? Math.round(heapBytes / (1024 * 1024)) : null;
 
   if (isDev) {
@@ -1386,7 +1405,11 @@ export default function GameUI() {
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-10">
+    <div
+      className="absolute inset-0 pointer-events-none z-10"
+      data-mobile-ui={isMobileUI ? "true" : "false"}
+      data-orientation={isPortrait ? "portrait" : "landscape"}
+    >
       <TileContextMenu />
 
       {/* AI Turn Indicator - Shows during AI player turns */}
@@ -1553,17 +1576,35 @@ export default function GameUI() {
       )}
 
       {/* Player HUD */}
-      <PlayerHUD
-        player={currentPlayer}
-        gameState={gameState}
-        onShowTechPanel={() => setShowTechPanel(true)}
-        onShowConstructionHall={handleShowConstructionHall}
-        onShowDiplomacy={() => setShowDiplomacy(true)}
-        onEndTurn={handleEndTurn}
-      />
+      {!isMobileUI && (
+        <PlayerHUD
+          player={currentPlayer}
+          gameState={gameState}
+          onShowTechPanel={() => setShowTechPanel(true)}
+          onShowConstructionHall={handleShowConstructionHall}
+          onShowDiplomacy={() => setShowDiplomacy(true)}
+          onEndTurn={handleEndTurn}
+        />
+      )}
+
+      {isMobileUI && (
+        <MobileHUD
+          player={currentPlayer}
+          gameState={gameState}
+          onEndTurn={handleEndTurn}
+          onOpenTech={() => setShowTechPanel(true)}
+          onOpenConstruction={handleShowConstructionHall}
+          onOpenDiplomacy={() => setShowDiplomacy(true)}
+          onOpenSaveLoad={() => setShowSaveLoadMenu(true)}
+          onOpenSettings={() => setShowSettings(true)}
+          onOpenGameLog={() => setShowGameLog(true)}
+          onOpenCities={handleShowCityPanel}
+          onOpenAdvancedSave={() => setShowAdvancedSaveSystem(true)}
+        />
+      )}
 
       {/* Selected Unit Panel - Unified interface with all unit actions */}
-      {selectedUnit && (
+      {!isMobileUI && selectedUnit && (
         <SelectedUnitPanel unit={selectedUnit} />
       )}
 
@@ -1691,7 +1732,7 @@ export default function GameUI() {
             <p className="text-amber-200/70 text-sm text-center mb-4">
               {citySelectorAction === 'city_panel' ? 'Choose a city to view' : 'Choose a city for construction'}
             </p>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
+            <div className="space-y-2 max-h-64 overflow-y-auto touch-scroll">
               {gameState.cities?.filter(city =>
                 currentPlayer.citiesOwned.includes(city.id)
               ).map(city => (
@@ -1872,50 +1913,54 @@ export default function GameUI() {
       />
 
       {/* Enhanced Unit Selection UI */}
-      <UnitSelectionUI
-        selectedUnit={selectedUnit}
-        onUnitAction={handleUnitAction}
-      />
+      {!isMobileUI && (
+        <UnitSelectionUI
+          selectedUnit={selectedUnit}
+          onUnitAction={handleUnitAction}
+        />
+      )}
 
-      {/* Touch-friendly Save/Load Buttons - Bottom Right */}
-      <div className="pointer-events-auto fixed bottom-6 right-6 flex flex-col gap-2">
-        <button
-          className="p-3 min-w-[48px] min-h-[48px] bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all shadow-lg flex items-center justify-center gap-2"
-          onClick={() => setShowSettings(true)}
-          onTouchEnd={(e) => {
-            e.preventDefault();
-            setShowSettings(true);
-          }}
-          title="Settings"
-        >
-          <span className="text-lg">⚙️</span>
-          <span className="text-sm font-medium">Settings</span>
-        </button>
-        <button
-          className="p-3 min-w-[48px] min-h-[48px] bg-amber-700 hover:bg-amber-600 active:bg-amber-500 text-white rounded-lg border border-amber-500/60 transition-all shadow-lg flex items-center justify-center gap-2"
-          onClick={() => setShowSaveLoadMenu(true)}
-          onTouchEnd={(e) => {
-            e.preventDefault();
-            setShowSaveLoadMenu(true);
-          }}
-          title="Save/Load Game (S)"
-        >
-          <span className="text-lg">💾</span>
-          <span className="text-sm font-medium">Save/Load</span>
-        </button>
-        <button
-          className="p-3 min-w-[48px] min-h-[48px] bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all shadow-lg flex items-center justify-center gap-2"
-          onClick={() => setShowAdvancedSaveSystem(true)}
-          onTouchEnd={(e) => {
-            e.preventDefault();
-            setShowAdvancedSaveSystem(true);
-          }}
-          title="Advanced Save System"
-        >
-          <span className="text-lg">📁</span>
-          <span className="text-sm font-medium">Advanced</span>
-        </button>
-      </div>
+      {/* Touch-friendly Save/Load Buttons - Bottom Right (desktop only) */}
+      {!isMobileUI && (
+        <div className="pointer-events-auto fixed bottom-6 right-6 flex flex-col gap-2">
+          <button
+            className="p-3 min-w-[48px] min-h-[48px] bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all shadow-lg flex items-center justify-center gap-2"
+            onClick={() => setShowSettings(true)}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              setShowSettings(true);
+            }}
+            title="Settings"
+          >
+            <span className="text-lg">⚙️</span>
+            <span className="text-sm font-medium">Settings</span>
+          </button>
+          <button
+            className="p-3 min-w-[48px] min-h-[48px] bg-amber-700 hover:bg-amber-600 active:bg-amber-500 text-white rounded-lg border border-amber-500/60 transition-all shadow-lg flex items-center justify-center gap-2"
+            onClick={() => setShowSaveLoadMenu(true)}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              setShowSaveLoadMenu(true);
+            }}
+            title="Save/Load Game (S)"
+          >
+            <span className="text-lg">💾</span>
+            <span className="text-sm font-medium">Save/Load</span>
+          </button>
+          <button
+            className="p-3 min-w-[48px] min-h-[48px] bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all shadow-lg flex items-center justify-center gap-2"
+            onClick={() => setShowAdvancedSaveSystem(true)}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              setShowAdvancedSaveSystem(true);
+            }}
+            title="Advanced Save System"
+          >
+            <span className="text-lg">📁</span>
+            <span className="text-sm font-medium">Advanced</span>
+          </button>
+        </div>
+      )}
 
       {/* Tutorial Overlays */}
       <TutorialLibrary />
@@ -1926,6 +1971,13 @@ export default function GameUI() {
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
       />
+
+      {isMobileUI && (
+        <MobileActionBar
+          unit={selectedUnit}
+          gameState={gameState}
+        />
+      )}
     </div>
   );
 }

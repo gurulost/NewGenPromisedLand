@@ -8,7 +8,7 @@ export function TutorialLibrary() {
   const isOpen = useTutorialStore((state) => state.isLibraryOpen);
   const closeLibrary = useTutorialStore((state) => state.closeLibrary);
   const openCard = useTutorialStore((state) => state.openCard);
-  const skipAllForSession = useTutorialStore((state) => state.skipAllForSession);
+  const skipTutorialForGame = useTutorialStore((state) => state.skipTutorialForGame);
 
   if (!isOpen) return null;
 
@@ -77,11 +77,11 @@ export function TutorialLibrary() {
                 variant="outline"
                 className="border-red-500/40 text-red-200 hover:bg-red-500/10"
                 onClick={() => {
-                  skipAllForSession();
+                  skipTutorialForGame();
                   closeLibrary();
                 }}
               >
-                Skip All This Session
+                Skip Tutorials For This Game
               </Button>
               <Button
                 variant="outline"

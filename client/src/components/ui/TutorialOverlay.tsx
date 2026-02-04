@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { Button } from './button';
+import { cn } from '@/lib/utils';
 import { useTutorialStore } from '../../lib/stores/useTutorial';
 import { getTutorialCard } from '../../lib/tutorial/tutorialCards';
 
@@ -8,17 +9,17 @@ export function TutorialOverlay() {
   const activeCardId = useTutorialStore((state) => state.activeCardId);
   const closeCard = useTutorialStore((state) => state.closeCard);
   const markSeen = useTutorialStore((state) => state.markSeen);
-  const dismissForSession = useTutorialStore((state) => state.dismissForSession);
+  const dismissForGame = useTutorialStore((state) => state.dismissForGame);
   const openLibrary = useTutorialStore((state) => state.openLibrary);
   const clearQueue = useTutorialStore((state) => state.clearQueue);
-  const skipAllForSession = useTutorialStore((state) => state.skipAllForSession);
+  const skipTutorialForGame = useTutorialStore((state) => state.skipTutorialForGame);
 
   const card = getTutorialCard(activeCardId);
 
   if (!card) return null;
 
   const handleClose = () => {
-    dismissForSession(card.id);
+    dismissForGame(card.id);
     closeCard();
   };
 
@@ -36,6 +37,8 @@ export function TutorialOverlay() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleClose]);
+
+  const isOverview = card.id === 'overview';
 
   return (
     <div
@@ -104,15 +107,26 @@ export function TutorialOverlay() {
             </Button>
 
             <div className="flex flex-wrap items-center gap-3">
-              <Button
-                variant="outline"
-                className="border-red-500/40 text-red-200 hover:bg-red-500/10"
-                onClick={() => {
-                  skipAllForSession();
-                }}
-              >
-                Skip All This Session
-              </Button>
+              <div className="flex flex-col items-start gap-1">
+                <Button
+                  variant={isOverview ? 'destructive' : 'outline'}
+                  className={cn(
+                    isOverview
+                      ? 'border-red-400/60 bg-red-600/90 px-5 py-3 text-sm font-semibold text-red-50 hover:bg-red-500'
+                      : 'border-red-500/40 text-red-200 hover:bg-red-500/10'
+                  )}
+                  onClick={() => {
+                    skipTutorialForGame();
+                  }}
+                >
+                  Skip Tutorial
+                </Button>
+                {isOverview && (
+                  <span className="text-[11px] text-red-200/70">
+                    Skips pop-ups for this game only. Help icons stay available.
+                  </span>
+                )}
+              </div>
               <Button
                 variant="outline"
                 className="border-amber-500/40 text-amber-100 hover:bg-amber-500/20"
