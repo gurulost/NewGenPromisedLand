@@ -223,7 +223,9 @@ export default function LobbyRoom() {
     if (userId == null) return;
     if (lobbyStatus !== "playing") return;
 
-    console.log("Lobby status changed to playing, initializing game...", lobbyGameState);
+    if (import.meta.env.DEV) {
+      console.log("Lobby status changed to playing, initializing game...", lobbyGameState);
+    }
     const gameConfig = lobbyGameState as {
       players: Array<{ playerId?: string; userId?: number | null; name: string; factionId: string; isAI: boolean; turnOrder: number }>;
       mapSize?: string;

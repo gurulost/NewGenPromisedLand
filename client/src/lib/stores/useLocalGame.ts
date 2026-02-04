@@ -930,6 +930,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       const tileIndex = new Map<string, any>();
       map.tiles.forEach((tile: any) => tileIndex.set(coordKey(tile.coordinate), tile));
 
+      const setTile = (coord: HexCoordinate, patch: Partial<any>) => {
+        const tile = tileIndex.get(coordKey(coord));
+        if (!tile) return;
+        Object.assign(tile, patch);
+      };
+
       const addCoord = (base: HexCoordinate, dir: HexCoordinate, distance: number): HexCoordinate => ({
         q: base.q + dir.q * distance,
         r: base.r + dir.r * distance,
@@ -947,10 +953,61 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       const humanCity = cities.find(c => c.ownerId === 'tutorial-player-1')!;
       const humanCityCoord = humanCity.coordinate;
 
-      const humanSpawnDir = DIRECTIONS.find(dir => isPassableForTutorial(addCoord(humanCityCoord, dir, 1))) ?? DIRECTIONS[0];
-      const humanWarriorCoord = isPassableForTutorial(addCoord(humanCityCoord, humanSpawnDir, 1))
-        ? addCoord(humanCityCoord, humanSpawnDir, 1)
-        : humanCityCoord;
+      const getNeighbors = (coord: HexCoordinate): HexCoordinate[] =>
+        DIRECTIONS
+          .map((dir) => addCoord(coord, dir, 1))
+          .filter((next) => tileIndex.has(coordKey(next)));
+
+      const getReachableFrom = (start: HexCoordinate): Set<string> => {
+        const reachable = new Set<string>();
+        const queue: HexCoordinate[] = [start];
+        reachable.add(coordKey(start));
+        while (queue.length > 0) {
+          const current = queue.shift()!;
+          for (const next of getNeighbors(current)) {
+            const key = coordKey(next);
+            if (reachable.has(key)) continue;
+            if (!isPassableForTutorial(next)) continue;
+            reachable.add(key);
+            queue.push(next);
+          }
+        }
+        return reachable;
+      };
+
+      const humanSpawnDir =
+        DIRECTIONS.find((dir) => isPassableForTutorial(addCoord(humanCityCoord, dir, 1))) ??
+        DIRECTIONS.find((dir) => tileIndex.has(coordKey(addCoord(humanCityCoord, dir, 1)))) ??
+        DIRECTIONS[0];
+      let humanWarriorCoord = addCoord(humanCityCoord, humanSpawnDir, 1);
+      if (!isPassableForTutorial(humanWarriorCoord)) {
+        const fallback = getNeighbors(humanCityCoord).find((coord) => {
+          const tile = tileIndex.get(coordKey(coord));
+          if (!tile) return false;
+          if (tile.hasCity) return false;
+          return true;
+        });
+        if (fallback) {
+          setTile(fallback, { terrain: 'plains', resources: [], feature: undefined });
+          humanWarriorCoord = fallback;
+        } else {
+          humanWarriorCoord = humanCityCoord;
+        }
+      }
+
+      const ensureNonCityCoord = (coord: HexCoordinate): HexCoordinate => {
+        const tile = tileIndex.get(coordKey(coord));
+        if (!tile || !tile.hasCity) return coord;
+
+        const passableNeighbor = getNeighbors(coord).find((next) => isPassableForTutorial(next));
+        if (passableNeighbor) return passableNeighbor;
+
+        const anyNeighbor = getNeighbors(coord).find((next) => {
+          const neighborTile = tileIndex.get(coordKey(next));
+          return neighborTile && !neighborTile.hasCity;
+        });
+        return anyNeighbor ?? coord;
+      };
 
       const grainDir =
         DIRECTIONS.find(dir => {
@@ -958,9 +1015,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
           if (coord.q === humanWarriorCoord.q && coord.r === humanWarriorCoord.r) return false;
           return isPassableForTutorial(coord);
         }) ?? DIRECTIONS[1];
-      const grainPatchCoord = isPassableForTutorial(addCoord(humanCityCoord, grainDir, 1))
+      let grainPatchCoord = isPassableForTutorial(addCoord(humanCityCoord, grainDir, 1))
         ? addCoord(humanCityCoord, grainDir, 1)
         : humanWarriorCoord;
+      grainPatchCoord = ensureNonCityCoord(grainPatchCoord);
+
+      const reachableFromWarrior = getReachableFrom(humanWarriorCoord);
 
       const findRuinCoord = (): HexCoordinate => {
         const byCoord = (a: any, b: any) =>
@@ -968,7 +1028,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
         const candidatesAtDistance = (distance: number) =>
           map.tiles
-            .filter((tile: any) => hexDistance(tile.coordinate, humanCityCoord) === distance)
+            .filter((tile: any) => {
+              if (hexDistance(tile.coordinate, humanCityCoord) !== distance) return false;
+              return reachableFromWarrior.has(coordKey(tile.coordinate));
+            })
             .sort(byCoord);
 
         // Prefer a fog-hidden ruin within 3–5 tiles of the city.
@@ -993,11 +1056,16 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         return humanWarriorCoord;
       };
 
-      const ruinCoord = findRuinCoord();
+      let ruinCoord = findRuinCoord();
+      ruinCoord = ensureNonCityCoord(ruinCoord);
 
       const findVillageCoord = (): HexCoordinate => {
         const preferred = addCoord(humanCityCoord, humanSpawnDir, 4);
-        if (isPassableForTutorial(preferred) && hexDistance(preferred, ruinCoord) >= 2) {
+        if (
+          isPassableForTutorial(preferred) &&
+          reachableFromWarrior.has(coordKey(preferred)) &&
+          hexDistance(preferred, ruinCoord) >= 2
+        ) {
           return preferred;
         }
         const byCoord = (a: any, b: any) =>
@@ -1005,7 +1073,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
         const candidatesAtDistance = (distance: number) =>
           map.tiles
-            .filter((tile: any) => hexDistance(tile.coordinate, humanCityCoord) === distance)
+            .filter((tile: any) => {
+              if (hexDistance(tile.coordinate, humanCityCoord) !== distance) return false;
+              return reachableFromWarrior.has(coordKey(tile.coordinate));
+            })
             .sort(byCoord);
 
         for (const distance of [4, 5, 6]) {
@@ -1028,7 +1099,8 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         return tileIndex.has(coordKey(preferred)) ? preferred : humanWarriorCoord;
       };
 
-      const villageCoord = findVillageCoord();
+      let villageCoord = findVillageCoord();
+      villageCoord = ensureNonCityCoord(villageCoord);
 
       const findEnemyCoord = (): HexCoordinate => {
         const preferred = addCoord(villageCoord, humanSpawnDir, 1);
@@ -1055,12 +1127,6 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       };
 
       const enemyCoord = findEnemyCoord();
-
-      const setTile = (coord: HexCoordinate, patch: Partial<any>) => {
-        const tile = tileIndex.get(coordKey(coord));
-        if (!tile) return;
-        Object.assign(tile, patch);
-      };
 
       // Curated tutorial tiles (deterministic).
       setTile(grainPatchCoord, {
