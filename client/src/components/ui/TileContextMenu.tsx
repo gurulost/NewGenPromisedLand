@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useGameState } from "@/lib/stores/useGameState";
 import { useMobileUI } from "../../hooks/useMobileUI";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "./sheet";
@@ -14,7 +14,9 @@ export function TileContextMenu() {
   const { tileContextMenu, closeTileContextMenu } = useGameState();
   const { isMobileUI } = useMobileUI();
   const safeMenu = tileContextMenu ?? EMPTY_MENU;
-  const safeClose = typeof closeTileContextMenu === "function" ? closeTileContextMenu : () => {};
+  const safeClose = useCallback(() => {
+    if (typeof closeTileContextMenu === "function") closeTileContextMenu();
+  }, [closeTileContextMenu]);
   const menuRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
@@ -32,7 +34,7 @@ export function TileContextMenu() {
   }, []);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside(event: Event) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         safeClose();
       }

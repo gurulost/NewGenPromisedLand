@@ -16,19 +16,20 @@ export function TutorialOverlay() {
 
   const card = getTutorialCard(activeCardId);
 
-  if (!card) return null;
-
-  const handleClose = () => {
+  const handleClose = React.useCallback(() => {
+    if (!card) return;
     dismissForGame(card.id);
     closeCard();
-  };
+  }, [card, dismissForGame, closeCard]);
 
-  const handleGotIt = () => {
+  const handleGotIt = React.useCallback(() => {
+    if (!card) return;
     markSeen(card.id);
     closeCard();
-  };
+  }, [card, markSeen, closeCard]);
 
   React.useEffect(() => {
+    if (!card) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         handleClose();
@@ -36,7 +37,9 @@ export function TutorialOverlay() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleClose]);
+  }, [card, handleClose]);
+
+  if (!card) return null;
 
   const isOverview = card.id === 'overview';
 

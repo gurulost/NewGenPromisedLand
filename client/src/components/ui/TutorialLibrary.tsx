@@ -10,9 +10,8 @@ export function TutorialLibrary() {
   const openCard = useTutorialStore((state) => state.openCard);
   const skipTutorialForGame = useTutorialStore((state) => state.skipTutorialForGame);
 
-  if (!isOpen) return null;
-
   React.useEffect(() => {
+    if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         closeLibrary();
@@ -20,7 +19,9 @@ export function TutorialLibrary() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeLibrary]);
+  }, [closeLibrary, isOpen]);
+
+  if (!isOpen) return null;
 
   return (
     <div

@@ -90,6 +90,7 @@ export function TutorialEpisodeCoach({
   const [hasAttacked, setHasAttacked] = useState(false);
 
   // Reset coach per new tutorial game.
+  // Intentionally keyed off gameState.id so progress isn't reset on every action.
   useEffect(() => {
     setIsSkipped(false);
     setStepIndex(0);
@@ -124,6 +125,7 @@ export function TutorialEpisodeCoach({
       village: villageTile?.coordinate,
       enemy,
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState.id, currentPlayerId]);
 
   useEffect(() => {
