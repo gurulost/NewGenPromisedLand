@@ -473,7 +473,7 @@ export function TutorialEpisodeCoach({
   return (
     <div className="pointer-events-none fixed right-4 top-4 z-[210] w-[min(420px,calc(100vw-2rem))]">
       <motion.div
-        className="pointer-events-auto rounded-2xl border border-amber-500/35 bg-gradient-to-br from-slate-950/90 via-slate-900/80 to-slate-950/90 shadow-2xl shadow-black/60 backdrop-blur"
+        className="pointer-events-auto max-h-[calc(100vh-2rem)] overflow-hidden rounded-2xl border border-amber-500/35 bg-gradient-to-br from-slate-950/90 via-slate-900/80 to-slate-950/90 shadow-2xl shadow-black/60 backdrop-blur flex flex-col"
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
@@ -513,7 +513,7 @@ export function TutorialEpisodeCoach({
           </div>
         </div>
 
-        <div className="px-4 py-4 text-amber-100">
+        <div className="flex-1 overflow-y-auto px-4 py-4 text-amber-100">
           {body}
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
