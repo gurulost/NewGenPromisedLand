@@ -12,6 +12,7 @@ import { PanelShell } from "../primitives/PanelShell";
 import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
 import { useHotkeys } from "../../hooks/useHotkeys";
+import { useMobileUI } from "../../hooks/useMobileUI";
 import { 
   listSaves, createSave, deleteSave as apiDeleteSave,
   getLocalSavesSnapshot,
@@ -26,6 +27,7 @@ interface SaveLoadMenuProps {
 
 export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuProps) {
   const { gameState, setGameState, setGamePhase } = useLocalGame();
+  const { isMobileUI } = useMobileUI();
   const initialSaves = getLocalSavesSnapshot();
   const [savedGames, setSavedGames] = useState<ServerSave[]>(initialSaves);
   const [autosaveData, setAutosaveData] = useState<AutosavePayload | null>(null);
@@ -199,8 +201,8 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
   };
 
   return (
-    <PanelShell isOpen={true} onClose={onClose} size="full">
-      <div className="p-6 space-y-6">
+    <PanelShell isOpen={true} onClose={onClose} size="full" fullScreen={isMobileUI}>
+      <div className={`space-y-6 ${isMobileUI ? 'p-4 mobile-safe-top mobile-safe-bottom' : 'p-6'}`}>
         <PanelHeader
           icon={<Save />}
           title="Save & Load Game"
@@ -208,7 +210,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
           onClose={onClose}
         />
         
-        <div className="max-h-[calc(90vh-200px)] overflow-y-auto space-y-6">
+        <div className={`overflow-y-auto space-y-6 touch-scroll ${isMobileUI ? 'max-h-[calc(100vh-200px)]' : 'max-h-[calc(90vh-200px)]'}`}>
           {error && (
             <div className="p-3 bg-red-900/50 border border-red-500/50 rounded-lg text-red-200 text-sm">
               {error}
@@ -219,7 +221,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
           {gameState && !onLoadFromMenu && (
             <div>
               <h3 className="text-lg font-semibold text-amber-100 mb-3 font-cinzel">Save Current Game</h3>
-              <div className="flex gap-2">
+              <div className={`${isMobileUI ? 'flex flex-col gap-2' : 'flex gap-2'}`}>
                 <Input
                   placeholder="Enter save name..."
                   value={saveName}

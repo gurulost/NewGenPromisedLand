@@ -17,6 +17,7 @@ import { usePerformanceMode } from "../../hooks/usePerformanceMode";
 import { StepFretDivider } from "../primitives/StepFretDivider";
 import { SunDiskIcon, WarriorShieldIcon, SerpentIcon } from "../primitives/ThematicIcons";
 import { TutorialHelpIcon } from "./TutorialHelpIcon";
+import { useMobileUI } from "../../hooks/useMobileUI";
 
 interface TechPanelProps {
   open: boolean;
@@ -30,6 +31,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const { gameState, dispatch } = useLocalGame();
   const vibrate = useHaptic();
   const perfMode = usePerformanceMode();
+  const { isMobileUI } = useMobileUI();
   const [selectedTech, setSelectedTech] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<CategoryFilter>("all");
@@ -43,7 +45,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const [scrollLeft, setScrollLeft] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-  const [showMinimap, setShowMinimap] = useState(true);
+  const [showMinimap, setShowMinimap] = useState(() => !isMobileUI);
   const [minimapOffset, setMinimapOffset] = useState({ x: 0, y: 0 });
   const [isMinimapDragging, setIsMinimapDragging] = useState(false);
   const minimapRef = useRef<HTMLDivElement>(null);
@@ -51,6 +53,12 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const DRAG_THRESHOLD = 5; // Pixels moved before drag starts
   const MINIMAP_MARGIN = 16;
   const MINIMAP_PADDING = 8;
+
+  useEffect(() => {
+    if (isMobileUI) {
+      setShowMinimap(false);
+    }
+  }, [isMobileUI]);
 
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
   const availableTechs = currentPlayer ? getAvailableTechnologies(currentPlayer.researchedTechs) : [];
@@ -698,7 +706,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
       }}
     >
       <div
-        className="w-full h-full max-w-[95vw] max-h-[95vh] bg-slate-950 border border-slate-700/50 rounded-xl shadow-2xl flex flex-col overflow-hidden"
+        className={`w-full h-full bg-slate-950 border border-slate-700/50 shadow-2xl flex flex-col overflow-hidden ${isMobileUI ? 'max-w-full max-h-full rounded-none mobile-safe-top mobile-safe-bottom' : 'max-w-[95vw] max-h-[95vh] rounded-xl'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -743,7 +751,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
         {/* Filter Bar & Search */}
         <div className="h-14 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between px-6 shrink-0 z-10">
           {/* Category Filter Tabs */}
-          <div className="flex items-center gap-1">
+          <div className={`${isMobileUI ? 'flex items-center gap-1 overflow-x-auto touch-scroll pr-2' : 'flex items-center gap-1'}`}>
             {(['all', 'economic', 'military', 'religious', 'exploration'] as const).map((cat) => (
               <button
                 key={cat}
@@ -764,7 +772,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           </div>
 
           {/* Search Input */}
-          <div className="relative w-64">
+          <div className={`${isMobileUI ? 'relative w-full max-w-xs' : 'relative w-64'}`}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <Input
               placeholder="Search technologies..."
@@ -789,7 +797,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           {/* Left: Scrollable Tech Tree Canvas */}
           <div
             ref={containerRef}
-            className="flex-1 relative overflow-auto bg-slate-950/50 cursor-grab active:cursor-grabbing custom-scrollbar select-none"
+            className="flex-1 relative overflow-auto bg-slate-950/50 cursor-grab active:cursor-grabbing custom-scrollbar select-none touch-scroll"
             style={{ touchAction: 'pan-x pan-y' }}
             onMouseDown={handleMouseDown}
             onMouseLeave={handleMouseLeave}
@@ -916,7 +924,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           </button>
 
           {/* Right: Detail Sidebar - CSS-only responsive */}
-          <div className={`
+            <div className={`
             bg-slate-900 border-l border-slate-800 shrink-0 flex flex-col shadow-2xl z-20
             w-80 lg:w-96 lg:relative lg:translate-x-0
             fixed inset-y-0 right-0 transition-transform duration-300
@@ -936,7 +944,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                   </div>
                 </div>
 
-                <div className="p-6 flex-1 overflow-y-auto space-y-6">
+                <div className="p-6 flex-1 overflow-y-auto space-y-6 touch-scroll">
                   {/* Description */}
                   <p className="text-slate-300 leading-relaxed italic border-l-2 border-amber-500/30 pl-4 py-1">
                     "{detailTech.description}"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronUp, Scroll, X } from 'lucide-react';
+import { Scroll, X } from 'lucide-react';
+import { useMobileUI } from '../../hooks/useMobileUI';
 
 export type GameLogEntryType =
     | 'combat'
@@ -59,6 +60,7 @@ export function GameLogPanel({
 }: GameLogPanelProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [autoScroll, setAutoScroll] = useState(true);
+    const { isMobileUI } = useMobileUI();
 
     // Auto-scroll to bottom when new entries come in
     useEffect(() => {
@@ -75,6 +77,82 @@ export function GameLogPanel({
         acc[entry.turn].push(entry);
         return acc;
     }, {} as Record<number, GameLogEntry[]>);
+
+    if (isMobileUI) {
+        if (!isOpen) return null;
+
+        return (
+            <div className="fixed inset-0 z-50 pointer-events-auto bg-black/80 backdrop-blur-sm">
+                <div className="mobile-safe-top mobile-safe-bottom h-full flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-stone-700/50 bg-stone-900/80">
+                        <div className="flex items-center gap-2">
+                            <Scroll className="w-4 h-4 text-amber-400" />
+                            <h3 className="text-sm font-bold text-stone-200">Game History</h3>
+                        </div>
+                        <button
+                            onClick={onToggle}
+                            className="p-2 rounded-lg bg-stone-800/60 text-stone-200"
+                            aria-label="Close game log"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    <div
+                        ref={scrollRef}
+                        className="flex-1 overflow-y-auto p-3 space-y-2 touch-scroll"
+                        onScroll={(e) => {
+                            const target = e.target as HTMLDivElement;
+                            const isAtBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 20;
+                            setAutoScroll(isAtBottom);
+                        }}
+                    >
+                        {Object.entries(entriesByTurn).map(([turn, turnEntries]) => (
+                            <div key={turn} className="mb-2">
+                                <div className="text-xs text-stone-500 uppercase tracking-wide mb-1 px-2">
+                                    Turn {turn}
+                                </div>
+                                {turnEntries.map(entry => (
+                                    <div
+                                        key={entry.id}
+                                        className="flex items-start gap-2 px-2 py-2 rounded bg-stone-900/40"
+                                    >
+                                        <span className="text-sm mt-0.5">{typeIcons[entry.type]}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <span className={`text-xs font-medium ${typeColors[entry.type]}`}>
+                                                {entry.playerName}:
+                                            </span>
+                                            <p className="text-xs text-stone-300 break-words">
+                                                {entry.message}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
+
+                        {entries.length === 0 && (
+                            <div className="text-center py-8 text-stone-500 text-sm">
+                                No events yet
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="px-4 py-3 border-t border-stone-700/50 bg-stone-900/80">
+                        <div className="flex items-center justify-between text-xs text-stone-400">
+                            <span>{entries.length} events</span>
+                            <button
+                                onClick={() => setAutoScroll(!autoScroll)}
+                                className={`px-2 py-1 rounded ${autoScroll ? 'bg-amber-600/20 text-amber-400' : 'bg-stone-700/50'}`}
+                            >
+                                {autoScroll ? 'Auto-scroll: ON' : 'Auto-scroll: OFF'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <>

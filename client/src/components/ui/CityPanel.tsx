@@ -27,6 +27,7 @@ import { getValidSpawnTiles } from "@shared/logic/gameReducer";
 import { HexCoordinate } from "@shared/types/coordinates";
 import { Progress } from "./progress";
 import { TutorialHelpIcon } from "./TutorialHelpIcon";
+import { useMobileUI } from "../../hooks/useMobileUI";
 
 interface CityPanelProps {
   open: boolean;
@@ -37,6 +38,7 @@ interface CityPanelProps {
 export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
   const { gameState, dispatch } = useLocalGame();
   const { startConstruction, startSpawnSelection } = useGameState();
+  const { isMobileUI } = useMobileUI();
   const [selectedTab, setSelectedTab] = useState<'overview' | 'structures' | 'units' | 'improvements'>('overview');
   const [showAdvancedBuildingMenu, setShowAdvancedBuildingMenu] = useState(false);
   const [showGrowthGuide, setShowGrowthGuide] = useState(false);
@@ -199,7 +201,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+      className={`fixed inset-0 bg-black/80 flex items-center justify-center z-50 ${isMobileUI ? 'p-0' : 'p-4'}`}
       style={{ pointerEvents: 'auto' }}
       onClick={(e) => {
         console.log('🏛️ CityPanel backdrop clicked:', e.target === e.currentTarget);
@@ -209,7 +211,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
       }}
     >
       <Card
-        className="w-full h-full max-w-4xl max-h-[90vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/10 overflow-y-auto"
+        className={`w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/10 overflow-y-auto ${isMobileUI ? 'max-w-full max-h-full rounded-none mobile-safe-top mobile-safe-bottom' : 'max-w-4xl max-h-[90vh]'}`}
         onClick={(e) => {
           console.log('🏛️ CityPanel card clicked');
           e.stopPropagation();
@@ -361,7 +363,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           </div>
         </CardHeader>
 
-        <CardContent className="overflow-y-auto max-h-[calc(90vh-200px)]">
+        <CardContent className={`overflow-y-auto touch-scroll ${isMobileUI ? 'max-h-[calc(100vh-200px)]' : 'max-h-[calc(90vh-200px)]'}`}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>

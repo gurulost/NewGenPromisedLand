@@ -28,6 +28,7 @@ import { UNIT_DEFINITIONS } from '@shared/data/units';
 import { getFaction } from '@shared/data/factions';
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '@shared/types/city';
 import { getPlayerStats } from '../../selectors/player';
+import { useMobileUI } from '../../hooks/useMobileUI';
 import {
   getImprovementEffectSummary,
   getStructureEffectSummary,
@@ -99,6 +100,7 @@ const requirementSummary = (reqs?: BuildRequirement[]) =>
   (reqs || []).map(formatRequirement).join(" • ");
 
 export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShowCities }: BuildingMenuProps) {
+  const { isMobileUI } = useMobileUI();
   const [selectedCategory, setSelectedCategory] = useState<'units' | 'structures' | 'improvements'>('units');
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -234,7 +236,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
 
   return (
     <div 
-      className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto p-4"
+      className={`fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto ${isMobileUI ? 'p-0' : 'p-4'}`}
       onClick={(e) => {
         // Close menu if clicking on backdrop
         if (e.target === e.currentTarget) {
@@ -243,7 +245,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       }}
     >
       <motion.div
-        className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border-2 border-amber-500/30 w-full max-w-[1200px] h-full max-h-[90vh] overflow-hidden shadow-2xl shadow-amber-500/10"
+        className={`relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 w-full h-full overflow-hidden shadow-2xl shadow-amber-500/10 ${isMobileUI ? 'max-w-full max-h-full rounded-none mobile-safe-top mobile-safe-bottom' : 'max-w-[1200px] max-h-[90vh] rounded-2xl'}`}
         onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
         initial={{ scale: 0.8, opacity: 0, y: 50 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -256,8 +258,8 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
         {/* Content Overlay */}
         <div className="relative z-10 h-full flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-900/20 to-amber-800/20 px-8 py-6 border-b border-amber-500/20">
-          <div className="flex items-center justify-between">
+        <div className={`bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20 ${isMobileUI ? 'px-4 py-4' : 'px-8 py-6'}`}>
+          <div className={`flex items-center justify-between ${isMobileUI ? 'flex-wrap gap-3' : ''}`}>
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/25">
                 <Hammer className="w-7 h-7 text-amber-100" />
@@ -269,7 +271,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
             </div>
             
             {/* Resources Display */}
-            <div className="flex items-center gap-6">
+            <div className={`flex items-center gap-6 ${isMobileUI ? 'flex-wrap gap-3 justify-end' : ''}`}>
               <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-500/30 px-3 py-2 rounded-lg">
                 <Star className="w-5 h-5 text-amber-400" />
                 <span aria-label="Stars" className="text-amber-100 font-semibold">{player.stars}</span>
@@ -312,11 +314,11 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
           </div>
         </div>
 
-        <div className="flex h-[calc(100%-88px)]">
+        <div className={`flex h-[calc(100%-88px)] ${isMobileUI ? 'flex-col' : ''}`}>
           {/* Sidebar */}
-          <div className="w-80 bg-slate-800/50 border-r border-slate-600 p-6">
+          <div className={`bg-slate-800/50 border-slate-600 ${isMobileUI ? 'w-full border-b p-4' : 'w-80 border-r p-6'}`}>
             {/* Category Tabs */}
-            <div className="space-y-2 mb-6">
+            <div className={`${isMobileUI ? 'flex gap-2 overflow-x-auto touch-scroll pb-2 mb-4' : 'space-y-2 mb-6'}`}>
               {[
                 { id: 'units', name: 'Units', icon: <Users className="w-5 h-5" /> },
                 { id: 'structures', name: 'Structures', icon: <Castle className="w-5 h-5" /> },
@@ -325,7 +327,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
                 <motion.button
                   key={category.id}
                   className={`
-                    w-full p-4 rounded-xl text-left transition-all flex items-center gap-3
+                    ${isMobileUI ? 'min-w-[140px]' : 'w-full'} p-4 rounded-xl text-left transition-all flex items-center gap-3
                     ${selectedCategory === category.id 
                       ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' 
                       : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
@@ -335,7 +337,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
                     setSelectedCategory(category.id as any);
                     playSound('select');
                   }}
-                  whileHover={{ scale: 1.02 }}
+                  whileHover={isMobileUI ? {} : { scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
                   {category.icon}
@@ -373,8 +375,8 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 p-6">
-            <div className="grid grid-cols-2 gap-6 h-full overflow-y-auto">
+          <div className={`flex-1 ${isMobileUI ? 'p-4' : 'p-6'}`}>
+            <div className={`grid gap-6 h-full overflow-y-auto touch-scroll ${isMobileUI ? 'grid-cols-1' : 'grid-cols-2'}`}>
               <AnimatePresence>
                 {filteredOptions.map((option, index) => (
                   <BuildingCard

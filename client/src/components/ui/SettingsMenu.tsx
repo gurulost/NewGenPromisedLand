@@ -6,6 +6,7 @@ import { Slider } from './slider';
 import { Separator } from './separator';
 import { useAudioControls } from '../../hooks/useAudioIntegration';
 import { useTutorialStore } from '../../lib/stores/useTutorial';
+import { useMobileUI } from '../../hooks/useMobileUI';
 
 interface SettingsMenuProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
     setSfxVolume,
     startBackgroundMusic
   } = useAudioControls();
+  const { isMobileUI } = useMobileUI();
   const openTutorialLibrary = useTutorialStore((state) => state.openLibrary);
 
   const handleMuteToggle = () => {
@@ -36,7 +38,7 @@ export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/40 shadow-2xl shadow-amber-500/20">
+      <DialogContent className={`${isMobileUI ? 'left-0 top-0 translate-x-0 translate-y-0 w-full h-full max-w-full rounded-none mobile-safe-top mobile-safe-bottom' : 'sm:max-w-md'} bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/40 shadow-2xl shadow-amber-500/20`}>
         <DialogHeader className="border-b border-amber-500/20 pb-4">
           <DialogTitle className="flex items-center gap-3 text-amber-100 font-cinzel text-xl">
             <Settings className="w-6 h-6 text-amber-400" />
@@ -44,7 +46,7 @@ export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
           </DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-6 py-4">
+        <div className={`space-y-6 py-4 ${isMobileUI ? 'max-h-[calc(100vh-160px)] overflow-y-auto touch-scroll' : ''}`}>
           <section>
             <h3 className="text-amber-200 font-semibold text-sm mb-4 uppercase tracking-wider flex items-center gap-2">
               <Volume2 className="w-4 h-4" />

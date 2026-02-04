@@ -1420,7 +1420,7 @@ export default function GameUI() {
       />
 
       {onlineSession && hostLeaseExpired && onlineSession.userId !== onlineSession.hostUserId && (
-        <div className="absolute top-4 left-1/2 z-50 -translate-x-1/2 pointer-events-auto">
+        <div className={`absolute ${isMobileUI ? 'top-20' : 'top-4'} left-1/2 z-50 -translate-x-1/2 pointer-events-auto`}>
           <div className="flex items-center gap-3 rounded-lg border border-amber-400/50 bg-black/80 px-4 py-2 text-amber-100 shadow-lg backdrop-blur-sm">
             <span className="text-sm">Host disconnected. Attempting transfer...</span>
             <button
@@ -1451,15 +1451,17 @@ export default function GameUI() {
         </div>
       )}
 
-      <div className="fixed bottom-3 right-3 z-[250] pointer-events-auto">
-        <a
-          href="/animations"
-          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/50 px-3 py-1 text-[11px] text-white/80 backdrop-blur transition hover:border-amber-300 hover:text-white"
-          aria-label="Open Animation Lab"
-        >
-          Animation Lab
-        </a>
-      </div>
+      {!isMobileUI && (
+        <div className="fixed bottom-3 right-3 z-[250] pointer-events-auto">
+          <a
+            href="/animations"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/50 px-3 py-1 text-[11px] text-white/80 backdrop-blur transition hover:border-amber-300 hover:text-white"
+            aria-label="Open Animation Lab"
+          >
+            Animation Lab
+          </a>
+        </div>
+      )}
 
       {isDev && <SpawnDebugPanel />}
 
@@ -1468,7 +1470,7 @@ export default function GameUI() {
         {conquestBanner && (
           <motion.div
             key={`${conquestBanner.type}-${conquestBanner.cityName}`}
-            className="fixed top-6 left-1/2 z-[170] -translate-x-1/2 pointer-events-none"
+            className={`fixed ${isMobileUI ? 'top-24' : 'top-6'} left-1/2 z-[170] -translate-x-1/2 pointer-events-none`}
             initial={{ opacity: 0, y: -20, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.96 }}
@@ -1512,7 +1514,7 @@ export default function GameUI() {
       </AnimatePresence>
       {/* Construction Mode Indicator - Positioned in top-right corner */}
       {constructionMode.isActive && (
-        <div className="absolute top-4 right-4 pointer-events-auto z-50">
+        <div className={`absolute ${isMobileUI ? 'top-20' : 'top-4'} right-4 pointer-events-auto z-50`}>
           <div className="bg-black/90 text-white px-4 py-3 rounded-lg border-2 border-yellow-400 shadow-lg backdrop-blur-sm max-w-xs">
             <div className="text-center">
               <h3 className="text-sm font-bold mb-1">Construction Mode</h3>
@@ -1533,7 +1535,7 @@ export default function GameUI() {
 
       {/* Road Build Mode Indicator */}
       {isRoadBuildMode && (
-        <div className="absolute top-4 right-4 pointer-events-auto z-50">
+        <div className={`absolute ${isMobileUI ? 'top-20' : 'top-4'} right-4 pointer-events-auto z-50`}>
           <div className="bg-black/90 text-white px-4 py-3 rounded-lg border-2 border-amber-400 shadow-lg backdrop-blur-sm max-w-xs">
             <div className="text-center">
               <h3 className="text-sm font-bold mb-1">Road Build Mode</h3>
@@ -1551,7 +1553,7 @@ export default function GameUI() {
 
       {/* Spawn Selection Mode Indicator */}
       {spawnSelectionMode.isActive && (
-        <div className="absolute top-4 right-4 pointer-events-auto z-50">
+        <div className={`absolute ${isMobileUI ? 'top-20' : 'top-4'} right-4 pointer-events-auto z-50`}>
           <div className="bg-black/90 text-white px-4 py-3 rounded-lg border-2 border-cyan-400 shadow-lg backdrop-blur-sm max-w-xs">
             <div className="text-center">
               <h3 className="text-sm font-bold mb-1">Select Spawn Location</h3>
@@ -1568,7 +1570,7 @@ export default function GameUI() {
       )}
 
       {/* Movement Mode Controls */}
-      {isMovementMode && selectedUnit && (
+      {!isMobileUI && isMovementMode && selectedUnit && (
         <MovementControls
           selectedUnit={selectedUnit}
           reachableCount={reachableCoordinates.length}
