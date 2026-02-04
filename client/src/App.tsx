@@ -54,7 +54,7 @@ function GameStage() {
   const { isMobileUI } = useMobileUI();
   const perfMode = usePerformanceMode();
   const allowShadows = perfMode === 'high' && !isMobileUI;
-  const dpr = isMobileUI ? [1, 1.5] : undefined;
+  const dpr = isMobileUI ? ([1, 1.5] as [number, number]) : undefined;
 
   return (
     <Canvas

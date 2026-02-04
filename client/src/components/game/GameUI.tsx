@@ -64,7 +64,7 @@ interface ActiveNotification {
 
 export default function GameUI() {
   const isDev = import.meta.env.DEV;
-  const { gameState, endTurn, useAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
+  const { gameState, endTurn, useAbility: triggerAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
   const gameMode = useLocalGame((state) => state.gameMode);
   const { isMobileUI, isPortrait } = useMobileUI();
   const actionError = useLocalGame((state) => state.actionError);
@@ -340,7 +340,6 @@ export default function GameUI() {
         (stats.particles ?? 0) <= MEMORY_LIMITS.PARTICLE_MAX_EVENTS &&
         (stats.mapToasts ?? 0) <= MEMORY_LIMITS.MAP_TOAST_MAX_ITEMS;
       if (!ok) {
-        // eslint-disable-next-line no-console
         console.warn('[MemoryCaps] Exceeded caps:', stats);
       }
       return { ok, stats };
@@ -1320,7 +1319,7 @@ export default function GameUI() {
   const faction = getFaction(currentPlayer.factionId as any);
 
   const handleUseAbility = (abilityId: string) => {
-    useAbility(currentPlayer.id, abilityId);
+    triggerAbility(currentPlayer.id, abilityId);
   };
 
   const handleActivateAbility = (abilityId: string, targetId?: string) => {
