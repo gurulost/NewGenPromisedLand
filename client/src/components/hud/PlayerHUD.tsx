@@ -9,6 +9,7 @@ import { Progress } from '../ui/progress';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { InfoTooltip } from '../primitives/InfoTooltip';
 import { DissentSystemTooltip, FaithSystemTooltip, PrideSystemTooltip, StarProductionTooltip } from '../ui/TooltipSystem';
+import { TutorialHelpIcon } from '../ui/TutorialHelpIcon';
 
 import { PlayerState, GameState } from '@shared/types/game';
 import { getFaction } from '@shared/data/factions';
@@ -16,6 +17,7 @@ import { GameRuleHelpers, GAME_RULES } from '@shared/data/gameRules';
 import { TECHNOLOGIES } from '@shared/data/technologies';
 import { getPlayerStats, PlayerStats } from '../../selectors/player';
 import { useAutosaveStatus } from '../../lib/stores/useAutosaveStatus';
+import { useTutorialStore } from '../../lib/stores/useTutorial';
 
 function formatRelativeTime(ts: number): string {
   const deltaMs = Date.now() - ts;
@@ -41,12 +43,40 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
   const handleEndTurn = onEndTurn ?? (() => { });
   const autosaveStatus = useAutosaveStatus();
   const [victoryOpen, setVictoryOpen] = useState(false);
+  const openTutorialIfNeeded = useTutorialStore((state) => state.openIfNeeded);
 
   // Moved expensive calculations to selector
   const playerStats = useMemo(() =>
     getPlayerStats(player, gameState),
     [player, gameState]
   );
+
+  const handleTechPanel = () => {
+    openTutorialIfNeeded('hud');
+    onShowTechPanel();
+  };
+
+  const handleConstructionHall = () => {
+    openTutorialIfNeeded('hud');
+    onShowConstructionHall();
+  };
+
+  const handleDiplomacyPanel = () => {
+    openTutorialIfNeeded('hud');
+    onShowDiplomacy();
+  };
+
+  const handleEndTurnClick = () => {
+    openTutorialIfNeeded('end-turn');
+    handleEndTurn();
+  };
+
+  const handleVictoryToggle = (open: boolean) => {
+    if (open) {
+      openTutorialIfNeeded('victory');
+    }
+    setVictoryOpen(open);
+  };
 
   const testimonyPressureLastTurn = useMemo(() => {
     if (!gameState) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
@@ -86,18 +116,21 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
       <Card className="w-72 bg-gradient-to-br from-slate-900/95 via-slate-800/90 to-slate-900/95 
                      border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20 backdrop-blur-sm">
         <CardHeader className="pb-3 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
-          <CardTitle className="flex items-center gap-3 text-amber-100 font-cinzel text-lg font-semibold tracking-wide">
-            <AvatarBadge
-              color={faction.color}
-              size="md"
-              aria-label={`${faction.name} faction`}
-            >
-              <span className="text-white font-bold text-sm">
-                {faction.name.charAt(0)}
-              </span>
-            </AvatarBadge>
-            {player.name}
-          </CardTitle>
+        <CardTitle className="flex w-full items-center gap-3 text-amber-100 font-cinzel text-lg font-semibold tracking-wide">
+          <AvatarBadge
+            color={faction.color}
+            size="md"
+            aria-label={`${faction.name} faction`}
+          >
+            <span className="text-white font-bold text-sm">
+              {faction.name.charAt(0)}
+            </span>
+          </AvatarBadge>
+          {player.name}
+          <div className="ml-auto">
+            <TutorialHelpIcon cardId="hud" label="Open HUD tutorial" />
+          </div>
+        </CardTitle>
           <div className="text-xs text-amber-300/70 font-normal">
             — Leader of the Promised Land —
           </div>
@@ -132,15 +165,15 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
             gameState={gameState}
             playerStats={playerStats}
             isOpen={victoryOpen}
-            onToggle={setVictoryOpen}
+            onToggle={handleVictoryToggle}
           />
 
           {/* Action Buttons */}
           <ActionButtonsSection
-            onShowTechPanel={onShowTechPanel}
-            onShowConstructionHall={onShowConstructionHall}
-            onShowDiplomacy={onShowDiplomacy}
-            onEndTurn={handleEndTurn}
+            onShowTechPanel={handleTechPanel}
+            onShowConstructionHall={handleConstructionHall}
+            onShowDiplomacy={handleDiplomacyPanel}
+            onEndTurn={handleEndTurnClick}
           />
         </CardContent>
       </Card>
@@ -291,48 +324,56 @@ const VictoryProgressSection = React.memo(({ player, gameState, playerStats, isO
 
   return (
     <Collapsible open={isOpen} onOpenChange={onToggle} className="space-y-2">
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          className="w-full rounded-lg border border-amber-500/20 bg-slate-900/40 px-3 py-2 text-left transition-colors hover:bg-slate-800/50"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-sm text-amber-100 font-cinzel font-semibold">
-              <Trophy className="w-4 h-4 text-amber-400" />
-              <span>Victory</span>
-              <InfoTooltip content={
-                <div className="space-y-1 text-xs">
-                  <div>Faith: reach threshold with low dissent.</div>
-                  <div>Economic: income + treasury + tech percent.</div>
-                  <div>Cultural: population + cultural sites + low dissent.</div>
-                  <div>Territory: share of owned cities.</div>
-                </div>
-              }>
-                <Info
-                  className="w-3 h-3 text-amber-400/60 hover:text-amber-400 cursor-help transition-colors"
-                  onClick={(event) => event.stopPropagation()}
-                />
-              </InfoTooltip>
+      <div className="flex items-start gap-2">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex-1 rounded-lg border border-amber-500/20 bg-slate-900/40 px-3 py-2 text-left transition-colors hover:bg-slate-800/50"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm text-amber-100 font-cinzel font-semibold">
+                <Trophy className="w-4 h-4 text-amber-400" />
+                <span>Victory</span>
+                <InfoTooltip content={
+                  <div className="space-y-1 text-xs">
+                    <div>Faith: reach threshold with low dissent.</div>
+                    <div>Economic: income + treasury + tech percent.</div>
+                    <div>Cultural: population + cultural sites + low dissent.</div>
+                    <div>Territory: share of owned cities.</div>
+                  </div>
+                }>
+                  <Info
+                    className="w-3 h-3 text-amber-400/60 hover:text-amber-400 cursor-help transition-colors"
+                    onClick={(event) => event.stopPropagation()}
+                  />
+                </InfoTooltip>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-amber-200/70">
+                <span>{turnLabel}</span>
+                {isOpen ? (
+                  <ChevronUp className="w-3 h-3 text-amber-300" />
+                ) : (
+                  <ChevronDown className="w-3 h-3 text-amber-300" />
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-[11px] text-amber-200/70">
-              <span>{turnLabel}</span>
-              {isOpen ? (
-                <ChevronUp className="w-3 h-3 text-amber-300" />
-              ) : (
-                <ChevronDown className="w-3 h-3 text-amber-300" />
-              )}
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-amber-200/80 font-body">
+              {summaryItems.map(item => (
+                <span key={item.label} className="flex items-center gap-1">
+                  <span className="text-amber-300/80">{item.label}</span>
+                  <span>{item.value}</span>
+                </span>
+              ))}
             </div>
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-amber-200/80 font-body">
-            {summaryItems.map(item => (
-              <span key={item.label} className="flex items-center gap-1">
-                <span className="text-amber-300/80">{item.label}</span>
-                <span>{item.value}</span>
-              </span>
-            ))}
-          </div>
-        </button>
-      </CollapsibleTrigger>
+          </button>
+        </CollapsibleTrigger>
+        <TutorialHelpIcon
+          cardId="victory"
+          label="Open victory tutorial"
+          className="h-8 w-8 mt-1"
+          iconClassName="h-4 w-4"
+        />
+      </div>
       <CollapsibleContent>
         <div className="grid grid-cols-2 gap-2 text-xs text-amber-200/80 font-body">
           <div>
@@ -421,18 +462,26 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
       <span>Diplomacy</span>
     </GlowingButton>
 
-    <GlowingButton
-      variant="default"
-      size="sm"
-      glowColor="green"
-      intensity="high"
-      className="w-full text-sm font-semibold bg-gradient-to-r from-green-600 to-green-700 
-                 text-white border border-green-400/60 hover:from-green-500 hover:to-green-600"
-      onClick={onEndTurn}
-      soundEffect="cta-click"
-    >
-      End Turn
-    </GlowingButton>
+    <div className="flex items-center gap-2">
+      <GlowingButton
+        variant="default"
+        size="sm"
+        glowColor="green"
+        intensity="high"
+        className="flex-1 text-sm font-semibold bg-gradient-to-r from-green-600 to-green-700 
+                   text-white border border-green-400/60 hover:from-green-500 hover:to-green-600"
+        onClick={onEndTurn}
+        soundEffect="cta-click"
+      >
+        End Turn
+      </GlowingButton>
+      <TutorialHelpIcon
+        cardId="end-turn"
+        label="Open end turn tutorial"
+        className="h-9 w-9"
+        iconClassName="h-4 w-4"
+      />
+    </div>
   </div>
 ));
 

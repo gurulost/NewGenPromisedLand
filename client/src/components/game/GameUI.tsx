@@ -28,6 +28,8 @@ import { TileContextMenu } from "../ui/TileContextMenu";
 import { useVisualFeedback } from "../ui/VisualFeedback";
 import { GameLogPanel } from "../ui/GameLogPanel";
 import { SettingsMenu } from "../ui/SettingsMenu";
+import { TutorialOverlay } from "../ui/TutorialOverlay";
+import { TutorialLibrary } from "../ui/TutorialLibrary";
 import { AITurnIndicator } from "../ui/AITurnIndicator";
 import { SpawnDebugPanel } from "../debug/SpawnDebugPanel";
 import MovementControls from "../game/MovementControls";
@@ -43,6 +45,7 @@ import { pushCapped, MEMORY_LIMITS } from "../../lib/memoryUtils";
 import { useMemoryCleanup, useTurnEndCleanup } from "../../hooks/useMemoryCleanup";
 import { requestAutosaveIfDirty } from "../../lib/autosaveManager";
 import { useAutosaveStatus } from "../../lib/stores/useAutosaveStatus";
+import { useTutorialStore } from "../../lib/stores/useTutorial";
 import { isUnitVisibleToPlayer } from "@shared/logic/unitLogic";
 import { hexDistance } from "@shared/utils/hex";
 import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
@@ -87,6 +90,7 @@ export default function GameUI() {
   const [subscribeKeys] = useKeyboardControls();
   const { triggerFlash, showToast } = useVisualFeedback();
   const playSfx = useSfxEngine();
+  const openTutorialIfNeeded = useTutorialStore((state) => state.openIfNeeded);
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [showConstructionHall, setShowConstructionHall] = useState(false);
@@ -736,6 +740,49 @@ export default function GameUI() {
   const [showGameLog, setShowGameLog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   // Local screenFlash state removed in favor of VisualFeedbackProvider
+
+  // Tutorial triggers (first-time overlays)
+  useEffect(() => {
+    if (gameState) {
+      openTutorialIfNeeded('overview');
+    }
+  }, [gameState, openTutorialIfNeeded]);
+
+  useEffect(() => {
+    if (showTechPanel) {
+      openTutorialIfNeeded('tech');
+    }
+  }, [showTechPanel, openTutorialIfNeeded]);
+
+  useEffect(() => {
+    if (showCityPanel) {
+      openTutorialIfNeeded('city');
+    }
+  }, [showCityPanel, openTutorialIfNeeded]);
+
+  useEffect(() => {
+    if (selectedWorldElement) {
+      openTutorialIfNeeded('world-elements');
+    }
+  }, [selectedWorldElement, openTutorialIfNeeded]);
+
+  useEffect(() => {
+    if (selectedVillage) {
+      openTutorialIfNeeded('village');
+    }
+  }, [selectedVillage, openTutorialIfNeeded]);
+
+  useEffect(() => {
+    if (selectedUnit && currentPlayer && selectedUnit.playerId === currentPlayer.id) {
+      openTutorialIfNeeded('movement');
+    }
+  }, [selectedUnit, currentPlayer, openTutorialIfNeeded]);
+
+  useEffect(() => {
+    if (isAttackMode) {
+      openTutorialIfNeeded('combat');
+    }
+  }, [isAttackMode, openTutorialIfNeeded]);
 
   const isEditableTarget = (target: EventTarget | null) => {
     if (!target || !(target instanceof HTMLElement)) {
@@ -1869,6 +1916,10 @@ export default function GameUI() {
           <span className="text-sm font-medium">Advanced</span>
         </button>
       </div>
+
+      {/* Tutorial Overlays */}
+      <TutorialLibrary />
+      <TutorialOverlay />
 
       {/* Settings Menu */}
       <SettingsMenu

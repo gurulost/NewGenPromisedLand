@@ -18,6 +18,7 @@ import { useSfxEngine } from '../../hooks/useSfx';         // optional SFX hook
 import { StaggeredContent, StaggeredContainer } from '../primitives/StaggeredContent';
 import { RequirementBanner } from '../primitives/RequirementBanner';
 import { getTechDisplayName, getWorldElementActionRequirements, WorldElementRequirement } from '../../utils/worldElementRequirements';
+import { TutorialHelpIcon } from './TutorialHelpIcon';
 
 /** ───────────────────────────────────────────────────────────────────────────
  *  Resource‑delta pill (memoised to avoid re‑render churn)                  */
@@ -355,12 +356,15 @@ function PanelHeader({ title, scripture, description, onClose }: PanelHeaderProp
         <p className="text-amber-300/80 text-sm">{scripture}</p>
         {description && <p className="mt-2 text-amber-300/80 text-sm">{description}</p>}
       </div>
-      <Button variant="ghost" size="icon" aria-label="Close panel"
-              onClick={onClose}
-              className="h-10 w-10 rounded-full bg-amber-600/10 p-0 text-amber-300
-                         transition hover:scale-110 hover:bg-amber-600/20 hover:text-amber-100">
-        ×
-      </Button>
+      <div className="flex items-center gap-2">
+        <TutorialHelpIcon cardId="world-elements" label="Open world elements tutorial" />
+        <Button variant="ghost" size="icon" aria-label="Close panel"
+                onClick={onClose}
+                className="h-10 w-10 rounded-full bg-amber-600/10 p-0 text-amber-300
+                           transition hover:scale-110 hover:bg-amber-600/20 hover:text-amber-100">
+          ×
+        </Button>
+      </div>
     </header>
   );
 }

@@ -1,10 +1,11 @@
 import React from 'react';
-import { Settings, Volume2, VolumeX, Music, Zap } from 'lucide-react';
+import { Settings, Volume2, VolumeX, Music, Zap, CircleHelp } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './dialog';
 import { Button } from './button';
 import { Slider } from './slider';
 import { Separator } from './separator';
 import { useAudioControls } from '../../hooks/useAudioIntegration';
+import { useTutorialStore } from '../../lib/stores/useTutorial';
 
 interface SettingsMenuProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
     setSfxVolume,
     startBackgroundMusic
   } = useAudioControls();
+  const openTutorialLibrary = useTutorialStore((state) => state.openLibrary);
 
   const handleMuteToggle = () => {
     const wasMuted = isMuted;
@@ -160,6 +162,30 @@ export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
             </h3>
             <div className="text-slate-500 text-sm italic bg-slate-800/30 p-3 rounded-lg">
               Additional display options coming soon...
+            </div>
+          </section>
+
+          <Separator className="bg-amber-500/20" />
+
+          <section>
+            <h3 className="text-amber-200 font-semibold text-sm mb-3 uppercase tracking-wider flex items-center gap-2">
+              <CircleHelp className="w-4 h-4" />
+              Help & Tutorials
+            </h3>
+            <div className="flex flex-col gap-3">
+              <p className="text-slate-400 text-sm">
+                Reopen tutorial guides and core references anytime.
+              </p>
+              <Button
+                variant="outline"
+                className="border-amber-500/40 text-amber-100 hover:bg-amber-500/20 justify-start"
+                onClick={() => {
+                  openTutorialLibrary();
+                  onClose();
+                }}
+              >
+                Open Tutorial Library
+              </Button>
             </div>
           </section>
         </div>

@@ -13,6 +13,7 @@ import {
   Sparkles, Move, Settings, Swords
 } from "lucide-react";
 import UnitActionsPanel from "./AbilitiesPanel";
+import { TutorialHelpIcon } from "./TutorialHelpIcon";
 
 interface SelectedUnitPanelProps {
   unit: Unit;
@@ -49,7 +50,23 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
     <div className="absolute bottom-4 left-4 pointer-events-auto">
       <Card className="w-64 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20">
         <CardHeader className="pb-2 px-4 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
-          <CardTitle className="text-amber-100 font-cinzel font-semibold tracking-wide text-center">{unitStats.definition.name}</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex-1 text-center text-amber-100 font-cinzel font-semibold tracking-wide">{unitStats.definition.name}</CardTitle>
+            <div className="flex items-center gap-1">
+              <TutorialHelpIcon
+                cardId="movement"
+                label="Open movement tutorial"
+                className="h-7 w-7"
+                iconClassName="h-3.5 w-3.5"
+              />
+              <TutorialHelpIcon
+                cardId="combat"
+                label="Open combat tutorial"
+                className="h-7 w-7"
+                iconClassName="h-3.5 w-3.5"
+              />
+            </div>
+          </div>
           <div className="text-xs text-amber-300/70 font-normal text-center truncate">— Chosen Warrior of the Promised Land —</div>
         </CardHeader>
         <CardContent className="space-y-2 bg-slate-900/40">
