@@ -35,7 +35,16 @@ const applyPlayerDefaults = (player: PlayerState): PlayerState => {
   return normalized;
 };
 
-type GamePhase = 'menu' | 'playerSetup' | 'handoff' | 'playing' | 'gameOver' | 'lobbies' | 'lobbyRoom';
+type GamePhase =
+  | 'menu'
+  | 'tutorialEpisodeIntro'
+  | 'playerSetup'
+  | 'handoff'
+  | 'playing'
+  | 'gameOver'
+  | 'lobbies'
+  | 'lobbyRoom';
+type GameMode = 'standard' | 'tutorialEpisode';
 
 interface OnlineSession {
   lobbyCode: string;
@@ -66,6 +75,7 @@ const canAct = (gameState: GameState | null, onlineSession: OnlineSession | null
 
 interface LocalGameStore {
   gamePhase: GamePhase;
+  gameMode: GameMode;
   gameState: GameState | null;
   onlineSession: OnlineSession | null;
   actionError: ActionError | null;
@@ -91,6 +101,7 @@ interface LocalGameStore {
     isAI?: boolean;
     aiDifficulty?: 'easy' | 'normal' | 'hard';
   }>, mapSize?: MapSize, seed?: number) => void;
+  startTutorialEpisode: () => void;
   endTurn: (playerId: string) => void;
   moveUnit: (unitId: string, targetCoordinate: any) => void;
   attackUnit: (attackerId: string, targetId: string) => void;
@@ -298,12 +309,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
   };
 
   const submitAction = async (action: any): Promise<void> => {
-    const { onlineSession, gameState } = get();
+    const { onlineSession, gameState, gameMode } = get();
     if (!onlineSession) {
       const result = applyActionToState(action);
       if (result.applied && action.type === 'END_TURN') {
         useGameState.getState().setSelectedUnit(null);
-        set({ gamePhase: 'handoff' });
+        set({ gamePhase: gameMode === 'tutorialEpisode' ? 'playing' : 'handoff' });
         if (result.state) {
           requestAutosave(result.state, 'endTurn');
         }
@@ -399,6 +410,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
   return {
     gamePhase: 'menu',
+    gameMode: 'standard',
     gameState: null,
     onlineSession: null,
     actionError: null,
@@ -474,6 +486,8 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     startLocalGame: (playerSetup, mapSize = 'normal', seed) => {
       const resolvedSeed = seed ?? Date.now();
       const isOnline = !!get().onlineSession;
+      // Starting a new standard game always exits tutorial episode mode.
+      set({ gameMode: 'standard' });
       // Starting a new game invalidates any previous autosave resume target.
       void clearAutosave().catch(() => undefined);
 
@@ -688,6 +702,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
           gameState,
           gamePhase: isOnline ? 'playing' : 'handoff',
           isGeneratingMap: false,
+          gameMode: 'standard',
         });
 
         markAutosaveDirty();
@@ -776,6 +791,459 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       finalizeGame(fallback.map, fallback.capitalPositions);
     },
 
+    startTutorialEpisode: () => {
+      const resolvedSeed = 613_031; // Fixed seed: deterministic scenario layout.
+      const gameId = `tutorial-episode-v1-${Date.now()}`;
+      const mapSize: MapSize = 'small';
+
+      // Starting a new game invalidates any previous autosave resume target.
+      void clearAutosave().catch(() => undefined);
+      resetCityNames(gameId);
+
+      // Always start offline in tutorial mode.
+      set({ onlineSession: null, isGeneratingMap: true });
+
+      const playerSetup = [
+        {
+          id: 'tutorial-player-1',
+          name: 'Nephite Leader',
+          factionId: 'NEPHITES',
+          turnOrder: 0,
+          isAI: false,
+        },
+        {
+          id: 'tutorial-ai-1',
+          name: 'Lamanite Patrol',
+          factionId: 'LAMANITES',
+          turnOrder: 1,
+          isAI: true,
+          aiDifficulty: 'easy' as const,
+        },
+      ];
+
+      const players: PlayerState[] = playerSetup.map((setup) => applyPlayerDefaults({
+        id: setup.id,
+        name: setup.name,
+        factionId: setup.factionId,
+        modifiers: [],
+        stats: {
+          faith: 50,
+          pride: 30,
+          internalDissent: 10,
+        },
+        visibilityMask: [],
+        exploredTiles: [],
+        isEliminated: false,
+        isAI: setup.isAI ?? false,
+        aiDifficulty: setup.aiDifficulty ?? 'normal',
+        turnOrder: setup.turnOrder,
+        stars: setup.id === 'tutorial-player-1' ? 15 : 10,
+        researchedTechs: [],
+        researchProgress: 0,
+        researchInspiration: 0,
+        abilityCooldowns: {},
+        constructionQueue: [],
+        citiesOwned: [],
+        currentResearch: undefined,
+        atWarWith: [],
+        alliedWith: [],
+        tradeRoutes: [],
+        diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 },
+      }));
+
+      const playerFactions = playerSetup.map((p) => p.factionId);
+      const mapConfig = MAP_SIZE_CONFIGS[mapSize];
+
+      const mapGenerator = new MapGenerator({
+        width: mapConfig.dimensions,
+        height: mapConfig.dimensions,
+        seed: resolvedSeed,
+        playerCount: players.length,
+        mapSize,
+        minResourceDistance: 2,
+        maxResourcesPerPlayer: 3,
+      }, playerFactions);
+
+      const map = mapGenerator.generateMap();
+      const capitalPositions = mapGenerator.getCapitalPositions();
+
+      // Find city tiles from the generated map for player starting positions
+      const cityTiles = map.tiles.filter((tile: any) => tile.hasCity);
+      const capitalTiles = capitalPositions
+        .map(pos => map.tiles.find((tile: any) =>
+          tile.coordinate.q === pos.q &&
+          tile.coordinate.r === pos.r &&
+          tile.coordinate.s === pos.s
+        ))
+        .filter((tile: any): tile is typeof cityTiles[number] => !!tile);
+      const startTiles = capitalTiles.length === players.length ? capitalTiles : cityTiles;
+
+      const cities = players.map((player, index) => {
+        const cityTile = startTiles[index] || cityTiles[index] || cityTiles[0];
+        return {
+          id: `city-${player.id}`,
+          name: getRandomCityName(player.factionId as FactionId, gameId),
+          coordinate: cityTile.coordinate,
+          ownerId: player.id,
+          population: 1,
+          maxPopulation: 4,
+          level: 1,
+          starProduction: 2,
+          unrestTurns: 0,
+          improvements: [],
+          structures: [],
+          harvestedResources: [],
+        };
+      });
+
+      const playersWithCities = players.map((player, index) => ({
+        ...player,
+        citiesOwned: [cities[index].id],
+      }));
+
+      const exploreAreaAroundCity = (cityCoord: HexCoordinate, playerId: string): void => {
+        const exploreRadius = 2;
+        for (const tile of map.tiles) {
+          const distance = hexDistance(tile.coordinate, cityCoord);
+          if (distance <= exploreRadius) {
+            tile.exploredBy = [...(tile.exploredBy || []), playerId];
+          }
+        }
+      };
+
+      cities.forEach((city, index) => {
+        if (index < players.length) {
+          exploreAreaAroundCity(city.coordinate, players[index].id);
+        }
+      });
+
+      const DIRECTIONS: HexCoordinate[] = [
+        { q: 1, r: 0, s: -1 },
+        { q: 1, r: -1, s: 0 },
+        { q: 0, r: -1, s: 1 },
+        { q: -1, r: 0, s: 1 },
+        { q: -1, r: 1, s: 0 },
+        { q: 0, r: 1, s: -1 },
+      ];
+
+      const coordKey = (coord: HexCoordinate) => `${coord.q},${coord.r}`;
+      const tileIndex = new Map<string, any>();
+      map.tiles.forEach((tile: any) => tileIndex.set(coordKey(tile.coordinate), tile));
+
+      const addCoord = (base: HexCoordinate, dir: HexCoordinate, distance: number): HexCoordinate => ({
+        q: base.q + dir.q * distance,
+        r: base.r + dir.r * distance,
+        s: base.s + dir.s * distance,
+      });
+
+      const isPassableForTutorial = (coord: HexCoordinate): boolean => {
+        const tile = tileIndex.get(coordKey(coord));
+        if (!tile) return false;
+        if (tile.hasCity) return false;
+        if (tile.terrain === 'water' || tile.terrain === 'mountain') return false;
+        return true;
+      };
+
+      const humanCity = cities.find(c => c.ownerId === 'tutorial-player-1')!;
+      const humanCityCoord = humanCity.coordinate;
+
+      const humanSpawnDir = DIRECTIONS.find(dir => isPassableForTutorial(addCoord(humanCityCoord, dir, 1))) ?? DIRECTIONS[0];
+      const humanWarriorCoord = isPassableForTutorial(addCoord(humanCityCoord, humanSpawnDir, 1))
+        ? addCoord(humanCityCoord, humanSpawnDir, 1)
+        : humanCityCoord;
+
+      const grainDir =
+        DIRECTIONS.find(dir => {
+          const coord = addCoord(humanCityCoord, dir, 1);
+          if (coord.q === humanWarriorCoord.q && coord.r === humanWarriorCoord.r) return false;
+          return isPassableForTutorial(coord);
+        }) ?? DIRECTIONS[1];
+      const grainPatchCoord = isPassableForTutorial(addCoord(humanCityCoord, grainDir, 1))
+        ? addCoord(humanCityCoord, grainDir, 1)
+        : humanWarriorCoord;
+
+      const findRuinCoord = (): HexCoordinate => {
+        const byCoord = (a: any, b: any) =>
+          a.coordinate.q - b.coordinate.q || a.coordinate.r - b.coordinate.r;
+
+        const candidatesAtDistance = (distance: number) =>
+          map.tiles
+            .filter((tile: any) => hexDistance(tile.coordinate, humanCityCoord) === distance)
+            .sort(byCoord);
+
+        // Prefer a fog-hidden ruin within 3–5 tiles of the city.
+        for (const distance of [3, 4, 5]) {
+          for (const tile of candidatesAtDistance(distance)) {
+            if (tile.hasCity) continue;
+            if (tile.terrain === 'water' || tile.terrain === 'mountain') continue;
+            if (hexDistance(tile.coordinate, humanWarriorCoord) <= 2) continue;
+            return tile.coordinate;
+          }
+        }
+
+        // Fallback: any safe land tile in that band, even if visible.
+        for (const distance of [3, 4, 5]) {
+          for (const tile of candidatesAtDistance(distance)) {
+            if (tile.hasCity) continue;
+            if (tile.terrain === 'water' || tile.terrain === 'mountain') continue;
+            return tile.coordinate;
+          }
+        }
+
+        return humanWarriorCoord;
+      };
+
+      const ruinCoord = findRuinCoord();
+
+      const findVillageCoord = (): HexCoordinate => {
+        const preferred = addCoord(humanCityCoord, humanSpawnDir, 4);
+        if (isPassableForTutorial(preferred) && hexDistance(preferred, ruinCoord) >= 2) {
+          return preferred;
+        }
+        const byCoord = (a: any, b: any) =>
+          a.coordinate.q - b.coordinate.q || a.coordinate.r - b.coordinate.r;
+
+        const candidatesAtDistance = (distance: number) =>
+          map.tiles
+            .filter((tile: any) => hexDistance(tile.coordinate, humanCityCoord) === distance)
+            .sort(byCoord);
+
+        for (const distance of [4, 5, 6]) {
+          for (const tile of candidatesAtDistance(distance)) {
+            if (tile.hasCity) continue;
+            if (tile.terrain === 'water' || tile.terrain === 'mountain') continue;
+            if (hexDistance(tile.coordinate, ruinCoord) < 2) continue;
+            return tile.coordinate;
+          }
+        }
+
+        for (const distance of [4, 5, 6]) {
+          for (const tile of candidatesAtDistance(distance)) {
+            if (tile.hasCity) continue;
+            if (tile.terrain === 'water' || tile.terrain === 'mountain') continue;
+            return tile.coordinate;
+          }
+        }
+
+        return tileIndex.has(coordKey(preferred)) ? preferred : humanWarriorCoord;
+      };
+
+      const villageCoord = findVillageCoord();
+
+      const findEnemyCoord = (): HexCoordinate => {
+        const preferred = addCoord(villageCoord, humanSpawnDir, 1);
+        if (isPassableForTutorial(preferred)) return preferred;
+        for (const dir of DIRECTIONS) {
+          const coord = addCoord(villageCoord, dir, 1);
+          if (!isPassableForTutorial(coord)) continue;
+          if (coord.q === humanCityCoord.q && coord.r === humanCityCoord.r) continue;
+          if (coord.q === humanWarriorCoord.q && coord.r === humanWarriorCoord.r) continue;
+          return coord;
+        }
+        // If every adjacent tile is blocked by water/mountains, pick an existing neighbor and flatten it to plains.
+        for (const dir of DIRECTIONS) {
+          const coord = addCoord(villageCoord, dir, 1);
+          const tile = tileIndex.get(coordKey(coord));
+          if (!tile) continue;
+          if (tile.hasCity) continue;
+          if (coord.q === humanCityCoord.q && coord.r === humanCityCoord.r) continue;
+          if (coord.q === humanWarriorCoord.q && coord.r === humanWarriorCoord.r) continue;
+          return coord;
+        }
+
+        return humanWarriorCoord;
+      };
+
+      const enemyCoord = findEnemyCoord();
+
+      const setTile = (coord: HexCoordinate, patch: Partial<any>) => {
+        const tile = tileIndex.get(coordKey(coord));
+        if (!tile) return;
+        Object.assign(tile, patch);
+      };
+
+      // Curated tutorial tiles (deterministic).
+      setTile(grainPatchCoord, {
+        terrain: 'plains',
+        resources: ['grain_patch', 'tutorial:episode1:grain_patch_target'],
+        feature: undefined,
+        cityOwner: undefined,
+        captureType: undefined,
+        starBonus: undefined,
+      });
+
+      setTile(ruinCoord, {
+        terrain: 'plains',
+        resources: ['jaredite_ruins', 'tutorial:episode1:ruin_reward:stars:15'],
+        feature: undefined,
+        cityOwner: undefined,
+        captureType: undefined,
+        starBonus: undefined,
+      });
+
+      setTile(villageCoord, {
+        terrain: 'plains',
+        resources: ['tutorial:episode1:village_target'],
+        feature: 'village',
+        cityOwner: undefined,
+        captureType: undefined,
+        starBonus: undefined,
+      });
+
+      // Ensure the patrol's tile is walkable (in case of edge-case terrain).
+      setTile(enemyCoord, {
+        terrain: 'plains',
+        resources: [],
+        feature: undefined,
+      });
+
+      // Find suitable spawn position near a city (not on the city tile itself).
+      const findUnitSpawnPosition = (cityCoord: HexCoordinate): HexCoordinate => {
+        const adjacentTiles = DIRECTIONS.map(dir => addCoord(cityCoord, dir, 1));
+        for (const coord of adjacentTiles) {
+          if (!isPassableForTutorial(coord)) continue;
+          return coord;
+        }
+        return cityCoord;
+      };
+
+      const units: any[] = [];
+
+      // Human starting warrior.
+      units.push({
+        id: `unit-tutorial-player-1-1`,
+        type: 'warrior' as const,
+        playerId: 'tutorial-player-1',
+        coordinate: humanWarriorCoord,
+        hp: 25,
+        maxHp: 25,
+        attack: 6,
+        defense: 4,
+        movement: 3,
+        remainingMovement: 3,
+        maxActions: 1,
+        actionsRemaining: 1,
+        status: 'active' as const,
+        abilities: [],
+        level: 1,
+        experience: 0,
+        visionRadius: 2,
+        attackRange: 1,
+        hasAttacked: false,
+      });
+
+      // AI capital warrior (kept far away).
+      const aiCity = cities.find(c => c.ownerId === 'tutorial-ai-1')!;
+      units.push({
+        id: `unit-tutorial-ai-1-1`,
+        type: 'warrior' as const,
+        playerId: 'tutorial-ai-1',
+        coordinate: findUnitSpawnPosition(aiCity.coordinate),
+        hp: 25,
+        maxHp: 25,
+        attack: 6,
+        defense: 4,
+        movement: 3,
+        remainingMovement: 3,
+        maxActions: 1,
+        actionsRemaining: 1,
+        status: 'active' as const,
+        abilities: [],
+        level: 1,
+        experience: 0,
+        visionRadius: 2,
+        attackRange: 1,
+        hasAttacked: false,
+      });
+
+      // Stationary patrol near the tutorial village.
+      units.push({
+        id: `unit-tutorial-ai-1-2`,
+        type: 'warrior' as const,
+        playerId: 'tutorial-ai-1',
+        coordinate: enemyCoord,
+        hp: 25,
+        maxHp: 25,
+        attack: 6,
+        defense: 4,
+        movement: 0,
+        remainingMovement: 0,
+        maxActions: 1,
+        actionsRemaining: 0,
+        status: 'active' as const,
+        abilities: [],
+        level: 1,
+        experience: 0,
+        visionRadius: 2,
+        attackRange: 1,
+        hasAttacked: false,
+      });
+
+      const getVisionTiles = (centerQ: number, centerR: number, radius: number = 2) => {
+        const tiles: string[] = [];
+        for (let q = centerQ - radius; q <= centerQ + radius; q++) {
+          for (let r = centerR - radius; r <= centerR + radius; r++) {
+            const s = -q - r;
+            const distance = Math.max(
+              Math.abs(q - centerQ),
+              Math.abs(r - centerR),
+              Math.abs(s - (-centerQ - centerR))
+            );
+            if (distance <= radius) {
+              tiles.push(`${q},${r}`);
+            }
+          }
+        }
+        return tiles;
+      };
+
+      const updatedPlayers = playersWithCities.map((player) => {
+        const playerUnits = units.filter(unit => unit.playerId === player.id);
+        const allVisibleTiles: string[] = [];
+        playerUnits.forEach((unit) => {
+          const visionTiles = getVisionTiles(unit.coordinate.q, unit.coordinate.r, 2);
+          allVisibleTiles.push(...visionTiles);
+        });
+        const uniqueVisibleTiles = Array.from(new Set(allVisibleTiles));
+        return {
+          ...player,
+          visibilityMask: uniqueVisibleTiles,
+          exploredTiles: uniqueVisibleTiles,
+        };
+      });
+
+      const gameState: GameState = {
+        id: gameId,
+        rngSeed: resolvedSeed >>> 0,
+        players: updatedPlayers,
+        currentPlayerIndex: 0,
+        turn: 1,
+        phase: 'playing',
+        map,
+        units,
+        cities,
+        improvements: [],
+        structures: [],
+        lastAction: undefined,
+        winner: undefined,
+        victoryType: undefined,
+      };
+
+      pendingMotionTokens.clear();
+      useUnitMotionStore.getState().clearAll();
+      useUnitAnimationEventStore.getState().clearAll();
+
+      set({
+        gameState,
+        gamePhase: 'playing',
+        gameMode: 'tutorialEpisode',
+        isGeneratingMap: false,
+      });
+
+      markAutosaveDirty();
+      requestAutosave(gameState, 'startTutorialEpisode');
+    },
+
     endTurn: (playerId) => {
       void submitAction({
         type: 'END_TURN' as const,
@@ -813,6 +1281,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     resetGame: () => {
       set({
         gamePhase: 'menu',
+        gameMode: 'standard',
         gameState: null,
         onlineSession: null,
         hostLeaseExpired: false,
@@ -829,10 +1298,14 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     loadGameState: (state: GameState) => {
       const normalizedPlayers = state.players.map(applyPlayerDefaults);
       const normalizedState = { ...state, players: normalizedPlayers };
+      const nextMode: GameMode = normalizedState.id?.startsWith('tutorial-episode-')
+        ? 'tutorialEpisode'
+        : 'standard';
       set({
         gameState: normalizedState,
         gamePhase: 'playing',
         isGeneratingMap: false,
+        gameMode: nextMode,
       });
       pendingMotionTokens.clear();
       useUnitMotionStore.getState().clearAll();

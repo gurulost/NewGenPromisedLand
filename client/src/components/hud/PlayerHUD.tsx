@@ -18,6 +18,7 @@ import { TECHNOLOGIES } from '@shared/data/technologies';
 import { getPlayerStats, PlayerStats } from '../../selectors/player';
 import { useAutosaveStatus } from '../../lib/stores/useAutosaveStatus';
 import { useTutorialStore } from '../../lib/stores/useTutorial';
+import { useLocalGame } from '../../lib/stores/useLocalGame';
 
 function formatRelativeTime(ts: number): string {
   const deltaMs = Date.now() - ts;
@@ -44,6 +45,12 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
   const autosaveStatus = useAutosaveStatus();
   const [victoryOpen, setVictoryOpen] = useState(false);
   const openTutorialIfNeeded = useTutorialStore((state) => state.openIfNeeded);
+  const gameMode = useLocalGame((state) => state.gameMode);
+
+  const openIfAllowed = (cardId: Parameters<typeof openTutorialIfNeeded>[0]) => {
+    if (gameMode === 'tutorialEpisode') return;
+    openTutorialIfNeeded(cardId);
+  };
 
   // Moved expensive calculations to selector
   const playerStats = useMemo(() =>
@@ -52,28 +59,28 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
   );
 
   const handleTechPanel = () => {
-    openTutorialIfNeeded('hud');
+    openIfAllowed('hud');
     onShowTechPanel();
   };
 
   const handleConstructionHall = () => {
-    openTutorialIfNeeded('hud');
+    openIfAllowed('hud');
     onShowConstructionHall();
   };
 
   const handleDiplomacyPanel = () => {
-    openTutorialIfNeeded('hud');
+    openIfAllowed('hud');
     onShowDiplomacy();
   };
 
   const handleEndTurnClick = () => {
-    openTutorialIfNeeded('end-turn');
+    openIfAllowed('end-turn');
     handleEndTurn();
   };
 
   const handleVictoryToggle = (open: boolean) => {
     if (open) {
-      openTutorialIfNeeded('victory');
+      openIfAllowed('victory');
     }
     setVictoryOpen(open);
   };

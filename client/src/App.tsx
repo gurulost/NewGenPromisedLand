@@ -7,6 +7,7 @@ import * as THREE from "three";
 import MainMenu from "./components/ui/MainMenu";
 import PlayerSetup from "./components/ui/PlayerSetup";
 import HandoffScreen from "./components/ui/HandoffScreen";
+import TutorialEpisodeIntro from "./components/ui/TutorialEpisodeIntro";
 import LobbyList from "./components/ui/LobbyList";
 import LobbyRoom from "./components/ui/LobbyRoom";
 import GameCanvas from "./components/game/GameCanvas";
@@ -137,6 +138,8 @@ function App() {
               <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
                 <KeyboardControls map={controls}>
                 {gamePhase === 'menu' && <MainMenu />}
+
+                {gamePhase === 'tutorialEpisodeIntro' && <TutorialEpisodeIntro />}
 
                 {gamePhase === 'playerSetup' && <PlayerSetup />}
 

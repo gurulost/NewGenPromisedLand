@@ -69,6 +69,45 @@ function getRuinRewardPool(gameState: GameState, playerId: string): WeightedRuin
   return pool;
 }
 
+function parseTutorialFixedRuinReward(resources: string[] | undefined): RuinReward | null {
+  if (!resources || resources.length === 0) return null;
+
+  const candidates = resources.filter((r) =>
+    String(r).startsWith('tutorial:episode1:ruin_reward:') ||
+    String(r).startsWith('tutorial:ruin_reward:')
+  );
+  if (candidates.length === 0) return null;
+
+  const marker = String(candidates[0]);
+  const parts = marker.split(':');
+  // Supported patterns:
+  // - tutorial:episode1:ruin_reward:stars:15
+  // - tutorial:ruin_reward:stars:15
+  const isEpisode = parts[0] === 'tutorial' && parts[1] === 'episode1' && parts[2] === 'ruin_reward';
+  const isLegacy = parts[0] === 'tutorial' && parts[1] === 'ruin_reward';
+
+  const typeIndex = isEpisode ? 3 : isLegacy ? 2 : -1;
+  const valueIndex = typeIndex >= 0 ? typeIndex + 1 : -1;
+  if (typeIndex < 0 || valueIndex < 0) return null;
+
+  const rewardType = parts[typeIndex] as RuinReward['type'] | undefined;
+  const rawValue = parts[valueIndex];
+  const value = rawValue ? Number.parseInt(rawValue, 10) : NaN;
+  if (!rewardType || !Number.isFinite(value)) return null;
+
+  if (rewardType === 'stars') {
+    const stars = Math.max(0, value);
+    return { type: 'stars', value: stars, description: `${stars} Star cache discovered` };
+  }
+
+  if (rewardType === 'population') {
+    const pop = Math.max(0, value);
+    return { type: 'population', value: pop, description: `+${pop} Population to nearest city` };
+  }
+
+  return null;
+}
+
 export interface WorldElementActionResult {
   success: boolean;
   message: string;
@@ -551,7 +590,11 @@ function executeRuinExploration(
 
   // Always grant +1 Faith for exploring sacred history
   const faithGain = 1;
-  const reward = pickWeightedRuinReward(getRuinRewardPool(gameState, playerId), rng());
+  const tileAt = gameState.map.tiles.find(
+    (tile) => tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
+  );
+  const fixedReward = parseTutorialFixedRuinReward(tileAt?.resources);
+  const reward = fixedReward ?? pickWeightedRuinReward(getRuinRewardPool(gameState, playerId), rng());
 
   let starGain = 0;
   let popGain = 0;

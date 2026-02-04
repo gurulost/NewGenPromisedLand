@@ -8,6 +8,7 @@ import { AITurnManager } from '@shared/ai/aiTurnManager';
  */
 export function useAITurn() {
   const { gameState, dispatch, onlineSession } = useLocalGame();
+  const gameMode = useLocalGame((state) => state.gameMode);
   const aiTurnManagerRef = useRef<AITurnManager | null>(null);
   const isExecutingRef = useRef(false);
   const [isAIProcessing, setIsAIProcessing] = useState(false);
@@ -18,6 +19,32 @@ export function useAITurn() {
     if (onlineSession && onlineSession.userId !== onlineSession.hostUserId) return;
 
     // Check if current player is AI and needs to take a turn
+    if (gameMode === 'tutorialEpisode') {
+      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+      if (currentPlayer?.isAI) {
+        isExecutingRef.current = true;
+        setIsAIProcessing(true);
+        setCurrentAIPlayer({ name: currentPlayer.name, factionId: currentPlayer.factionId });
+
+        const timeoutId = setTimeout(() => {
+          try {
+            dispatch({ type: 'END_TURN', payload: { playerId: currentPlayer.id } });
+          } finally {
+            isExecutingRef.current = false;
+            setIsAIProcessing(false);
+            setCurrentAIPlayer(null);
+          }
+        }, 500);
+
+        return () => {
+          clearTimeout(timeoutId);
+          isExecutingRef.current = false;
+          setIsAIProcessing(false);
+          setCurrentAIPlayer(null);
+        };
+      }
+    }
+
     if (AITurnManager.shouldExecuteAITurn(gameState)) {
       isExecutingRef.current = true;
 
@@ -55,7 +82,7 @@ export function useAITurn() {
         setCurrentAIPlayer(null);
       };
     }
-  }, [gameState?.currentPlayerIndex, gameState?.turn, dispatch, onlineSession?.userId, onlineSession?.hostUserId]);
+  }, [gameState?.currentPlayerIndex, gameState?.turn, dispatch, onlineSession?.userId, onlineSession?.hostUserId, gameMode]);
 
   // Update AI turn manager when game state changes
   useEffect(() => {
