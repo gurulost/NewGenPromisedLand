@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useGameState } from "@/lib/stores/useGameState";
+import { useMobileUI } from "../../hooks/useMobileUI";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "./sheet";
 
 const EMPTY_MENU = {
   isOpen: false,
@@ -10,6 +12,7 @@ const EMPTY_MENU = {
 
 export function TileContextMenu() {
   const { tileContextMenu, closeTileContextMenu } = useGameState();
+  const { isMobileUI } = useMobileUI();
   const safeMenu = tileContextMenu ?? EMPTY_MENU;
   const safeClose = typeof closeTileContextMenu === "function" ? closeTileContextMenu : () => {};
   const menuRef = useRef<HTMLDivElement>(null);
@@ -44,24 +47,72 @@ export function TileContextMenu() {
     if (safeMenu.isOpen) {
       const timer = setTimeout(() => {
         document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener("touchstart", handleClickOutside);
+        document.addEventListener("pointerdown", handleClickOutside);
         document.addEventListener("keydown", handleEscape);
       }, 50);
       
       return () => {
         clearTimeout(timer);
         document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("touchstart", handleClickOutside);
+        document.removeEventListener("pointerdown", handleClickOutside);
         document.removeEventListener("keydown", handleEscape);
       };
     }
     
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+      document.removeEventListener("pointerdown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
   }, [safeMenu.isOpen, safeClose]);
 
   if (!safeMenu.isOpen || safeMenu.options.length === 0) {
     return null;
+  }
+
+  const handleOptionClick = (action: () => void) => {
+    action();
+    safeClose();
+  };
+
+  if (isMobileUI) {
+    return (
+      <Sheet
+        open={safeMenu.isOpen}
+        onOpenChange={(open) => {
+          if (!open) safeClose();
+        }}
+      >
+        <SheetContent
+          side="bottom"
+          className="mobile-safe-bottom bg-slate-950 text-amber-100 border-t border-amber-500/30 p-4"
+        >
+          <SheetHeader className="text-left">
+            <SheetTitle className="font-cinzel text-lg text-amber-100">Select Action</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 grid grid-cols-1 gap-2">
+            {safeMenu.options.map((option) => (
+              <button
+                key={option.id}
+                onClick={() => handleOptionClick(option.action)}
+                className="min-h-[52px] w-full rounded-lg border border-amber-500/30 bg-slate-900/60 px-4 text-left text-sm text-amber-100 flex items-center gap-3"
+              >
+                {option.icon && <span className="text-lg">{option.icon}</span>}
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-sm">{option.label}</span>
+                  {option.subLabel && (
+                    <span className="text-xs text-amber-200/70">{option.subLabel}</span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
   }
 
   const menuWidth = 200;
@@ -87,11 +138,6 @@ export function TileContextMenu() {
   if (top < menuPadding) {
     top = menuPadding;
   }
-
-  const handleOptionClick = (action: () => void) => {
-    action();
-    safeClose();
-  };
 
   return (
     <div

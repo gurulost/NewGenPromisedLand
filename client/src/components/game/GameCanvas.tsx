@@ -18,7 +18,8 @@ import { UnitSelectionEffects, useUnitSelection } from "../effects/UnitSelection
 import MovementOverlay from "./MovementOverlay";
 import { ParticleEffectsContainer } from "../effects/ParticleEffects";
 import { MapPulseEffects } from "../effects/MapPulseEffects";
-import { usePerformanceMode } from "../../hooks/usePerformanceMode";
+import { usePerformanceMode, useShouldReduceEffects } from "../../hooks/usePerformanceMode";
+import { useMobileUI } from "../../hooks/useMobileUI";
 import { initModelPreloading } from "../../utils/modelManager";
 
 export default function GameCanvas() {
@@ -33,6 +34,8 @@ export default function GameCanvas() {
   const cinematicTimelineRef = useRef<gsap.core.Timeline | null>(null);
   const preloadKeyRef = useRef<string | null>(null);
   const performanceMode = usePerformanceMode();
+  const reduceEffects = useShouldReduceEffects();
+  const { isMobileUI } = useMobileUI();
 
   // Enhanced selection and effects
   const {
@@ -465,10 +468,10 @@ export default function GameCanvas() {
       <MapToastContainer />
 
       {/* Particle Effects for captures and rewards */}
-      <ParticleEffectsContainer />
+      {!(reduceEffects || isMobileUI) && <ParticleEffectsContainer />}
 
       {/* Map pulse rings for major events */}
-      <MapPulseEffects />
+      {!(reduceEffects || isMobileUI) && <MapPulseEffects />}
 
       {/* Combat Effects - Note: Moved to GameUI to avoid HTML in R3F */}
 

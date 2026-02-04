@@ -18,7 +18,9 @@ import { FloatingTextManager } from "./components/ui/FloatingText";
 import { AudioProvider } from "./components/ui/AudioProvider";
 import { WorldBuildLoader } from "./components/ui/WorldBuildLoader";
 import { MapGenerationOverlay } from "./components/ui/MapGenerationOverlay";
-import { useTouchModeProvider, TouchModeContext } from "./hooks/useTouchMode";
+import { useTouchModeProvider } from "./hooks/useTouchMode";
+import { useMobileUI } from "./hooks/useMobileUI";
+import { usePerformanceMode } from "./hooks/usePerformanceMode";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "@fontsource/inter";
 
@@ -46,6 +48,62 @@ const controls = [
   { name: "load", keys: ["KeyL"] },
   { name: "diplomacy", keys: ["KeyD"] },
 ];
+
+function GameStage() {
+  const { isMobileUI } = useMobileUI();
+  const perfMode = usePerformanceMode();
+  const allowShadows = perfMode === 'high' && !isMobileUI;
+  const dpr = isMobileUI ? [1, 1.5] : undefined;
+
+  return (
+    <Canvas
+      shadows={allowShadows}
+      dpr={dpr}
+      camera={{
+        position: [0, 8, 8],
+        fov: 45,
+        near: 0.5,
+        far: 1000
+      }}
+      gl={{
+        antialias: perfMode === 'high' && !isMobileUI,
+        powerPreference: "high-performance",
+        toneMapping: THREE.ACESFilmicToneMapping,
+        toneMappingExposure: 1.3,
+      }}
+      className="absolute inset-0"
+    >
+      <color attach="background" args={["#0f172a"]} />
+
+      {/* Lighting - Much brighter for better tile visibility */}
+      <ambientLight intensity={1.15} color="#ffffff" />
+      <hemisphereLight
+        color="#ffffff"
+        groundColor="#6b7280"
+        intensity={0.65}
+      />
+      <directionalLight
+        position={[10, 10, 5]}
+        intensity={3.0}
+        color="#fff3d6"
+        castShadow={allowShadows}
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+      />
+      {/* Additional light for better coverage */}
+      <directionalLight
+        position={[-10, 10, -5]}
+        intensity={1.8}
+        color="#e0f2fe"
+        castShadow={allowShadows}
+      />
+
+      <Suspense fallback={null}>
+        <GameCanvas />
+      </Suspense>
+    </Canvas>
+  );
+}
 
 function App() {
   const { gamePhase } = useLocalGame();
@@ -90,50 +148,7 @@ function App() {
 
                 {(gamePhase === 'playing' || gamePhase === 'gameOver') && (
                   <ErrorBoundary>
-                    <Canvas
-                      shadows
-                      camera={{
-                        position: [0, 8, 8],
-                        fov: 45,
-                        near: 0.5,
-                        far: 1000
-                      }}
-                      gl={{
-                        antialias: true,
-                        powerPreference: "high-performance",
-                        toneMapping: THREE.ACESFilmicToneMapping,
-                        toneMappingExposure: 1.3,
-                      }}
-                      className="absolute inset-0"
-                    >
-                      <color attach="background" args={["#0f172a"]} />
-
-                      {/* Lighting - Much brighter for better tile visibility */}
-                      <ambientLight intensity={1.15} color="#ffffff" />
-                      <hemisphereLight
-                        color="#ffffff"
-                        groundColor="#6b7280"
-                        intensity={0.65}
-                      />
-                      <directionalLight
-                        position={[10, 10, 5]}
-                        intensity={3.0}
-                        color="#fff3d6"
-                        castShadow
-                        shadow-mapSize-width={2048}
-                        shadow-mapSize-height={2048}
-                      />
-                      {/* Additional light for better coverage */}
-                      <directionalLight
-                        position={[-10, 10, -5]}
-                        intensity={1.8}
-                        color="#e0f2fe"
-                      />
-
-                      <Suspense fallback={null}>
-                        <GameCanvas />
-                      </Suspense>
-                    </Canvas>
+                    <GameStage />
                     <GameUI />
                     <WorldBuildLoader enabled />
                   </ErrorBoundary>
