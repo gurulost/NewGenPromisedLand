@@ -16,6 +16,7 @@ import { useHaptic } from "../../hooks/useHaptic";
 import { usePerformanceMode } from "../../hooks/usePerformanceMode";
 import { StepFretDivider } from "../primitives/StepFretDivider";
 import { SunDiskIcon, WarriorShieldIcon, SerpentIcon } from "../primitives/ThematicIcons";
+import { TutorialHelpIcon } from "./TutorialHelpIcon";
 
 interface TechPanelProps {
   open: boolean;
@@ -718,6 +719,12 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             <div className="w-64">
               <ProgressSummary />
             </div>
+            <TutorialHelpIcon
+              cardId="tech"
+              label="Open technology tutorial"
+              className="h-9 w-9"
+              iconClassName="h-4 w-4"
+            />
             <Button
               variant="ghost"
               size="icon"

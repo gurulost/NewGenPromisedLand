@@ -15,6 +15,7 @@ import { useHotkeys } from '../../hooks/useHotkeys';
 import { useSfxEngine } from '../../hooks/useSfx';
 import { StaggeredContent, StaggeredContainer } from '../primitives/StaggeredContent';
 import { ResourceDeltaBadge } from './WorldElementPanel';
+import { TutorialHelpIcon } from './TutorialHelpIcon';
 
 export interface VillageCapturePanelProps {
     gameState: GameState;
@@ -105,12 +106,15 @@ export function VillageCapturePanel(props: VillageCapturePanelProps) {
                                             Your unit has discovered a neutral settlement. How will you claim it?
                                         </p>
                                     </div>
-                                    <Button variant="ghost" size="icon" aria-label="Close panel"
-                                        onClick={onClose}
-                                        className="h-10 w-10 rounded-full bg-amber-600/10 p-0 text-amber-300
+                                    <div className="flex items-center gap-2">
+                                        <TutorialHelpIcon cardId="village" label="Open village tutorial" />
+                                        <Button variant="ghost" size="icon" aria-label="Close panel"
+                                            onClick={onClose}
+                                            className="h-10 w-10 rounded-full bg-amber-600/10 p-0 text-amber-300
                                    transition hover:scale-110 hover:bg-amber-600/20 hover:text-amber-100">
-                                        ×
-                                    </Button>
+                                            ×
+                                        </Button>
+                                    </div>
                                 </header>
                             </StaggeredContent>
 

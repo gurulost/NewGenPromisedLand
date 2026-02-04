@@ -26,6 +26,7 @@ import { Input } from "./input";
 import { getValidSpawnTiles } from "@shared/logic/gameReducer";
 import { HexCoordinate } from "@shared/types/coordinates";
 import { Progress } from "./progress";
+import { TutorialHelpIcon } from "./TutorialHelpIcon";
 
 interface CityPanelProps {
   open: boolean;
@@ -291,6 +292,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               )}
             </CardTitle>
             <div className="flex items-center gap-4">
+              <TutorialHelpIcon cardId="city" label="Open city tutorial" />
               <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-500/30 px-3 py-2 rounded-lg">
                 <Star className="w-4 h-4 text-amber-400" />
                 <span className="font-semibold text-amber-100">{currentPlayer.stars}</span>
