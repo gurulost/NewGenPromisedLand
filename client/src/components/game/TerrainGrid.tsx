@@ -95,7 +95,7 @@ export default function TerrainGrid({ map }: TerrainGridProps) {
         isExplored: hasBeenExplored
       };
     });
-  }, [map.tiles, currentPlayer?.id, gameState?.visibility, gameState?.cities]);
+  }, [map.tiles, currentPlayer, gameState]);
   
   return (
     <group>

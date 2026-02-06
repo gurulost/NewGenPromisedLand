@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Info } from 'lucide-react';
 import { getWorldElement } from '@shared/data/worldElements';
@@ -69,7 +69,7 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
     return false;
   };
 
-  const showTooltip = (event: React.MouseEvent) => {
+  const showTooltip = useCallback((event: React.MouseEvent) => {
     if (disabled || shouldHideForModals()) return;
 
     event.stopPropagation();
@@ -77,11 +77,11 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
     const tooltipPosition = calculatePosition(rect, placement);
     setPosition(tooltipPosition);
     setIsVisible(true);
-  };
+  }, [disabled, placement]);
 
-  const hideTooltip = () => {
+  const hideTooltip = useCallback(() => {
     setIsVisible(false);
-  };
+  }, []);
 
   // Hide tooltip and force re-render when modals open/close
   const [shouldHide, setShouldHide] = useState(false);
@@ -107,7 +107,7 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
     });
 
     return () => observer.disconnect();
-  }, [isVisible]);
+  }, [hideTooltip, isVisible]);
 
   useEffect(() => {
     const handleClickOutside = (event: Event) => {
@@ -120,7 +120,7 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
       document.addEventListener('click', handleClickOutside);
       return () => document.removeEventListener('click', handleClickOutside);
     }
-  }, [isVisible]);
+  }, [hideTooltip, isVisible]);
 
   // Enhanced tooltip with premium styling - should hide behind modals
   const tooltipElement = isVisible && !shouldHideForModals() && (
@@ -219,7 +219,7 @@ export function Tooltip({
   const elementRef = useRef<HTMLElement>();
   const isTouchRef = useRef(false);
 
-  const showTooltip = (event: PointerEvent | MouseEvent) => {
+  const showTooltip = useCallback((event: PointerEvent | MouseEvent) => {
     if (disabled) return;
 
     // Track if this is a touch interaction
@@ -238,17 +238,17 @@ export function Tooltip({
     timeoutRef.current = setTimeout(() => {
       setIsVisible(true);
     }, delay);
-  };
+  }, [delay, disabled, placement]);
 
-  const hideTooltip = () => {
+  const hideTooltip = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
     setIsVisible(false);
-  };
+  }, []);
 
   // Click-to-toggle for touch devices
-  const handleClick = (event: MouseEvent) => {
+  const handleClick = useCallback((event: MouseEvent) => {
     if (disabled) return;
 
     // Only toggle on touch devices - desktop uses hover
@@ -259,7 +259,7 @@ export function Tooltip({
       setPosition(tooltipPosition);
       setIsVisible(prev => !prev);
     }
-  };
+  }, [disabled, placement]);
 
   // Close tooltip when clicking outside on touch devices
   useEffect(() => {
@@ -273,7 +273,7 @@ export function Tooltip({
 
     document.addEventListener('touchstart', handleClickOutside);
     return () => document.removeEventListener('touchstart', handleClickOutside);
-  }, [isVisible]);
+  }, [hideTooltip, isVisible]);
 
   useEffect(() => {
     const element = elementRef.current;
@@ -289,7 +289,7 @@ export function Tooltip({
       element.removeEventListener('pointerleave', hideTooltip);
       element.removeEventListener('click', handleClick as EventListener);
     };
-  }, [disabled]);
+  }, [disabled, handleClick, hideTooltip, showTooltip]);
 
   const clonedChild = React.cloneElement(children, {
     ref: (el: HTMLElement) => {

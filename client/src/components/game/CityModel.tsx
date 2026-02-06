@@ -70,7 +70,7 @@ export function CityModel({ city, position, isPlayerCity }: CityModelProps) {
     });
 
     return clone;
-  }, [scene, isPlayerCity, city.level]);
+  }, [scene, isPlayerCity]);
 
   // Apply auto-grounding to the cloned scene
   const groundedScene = useMemo(() => {

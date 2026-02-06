@@ -312,7 +312,7 @@ export default function Construction({ construction }: ConstructionProps) {
   // Category-based color
   const categoryColor = useMemo(() => getCategoryColor(construction.category), [construction.category]);
 
-  const modelPath = useMemo(() => getConstructionModelPath(construction), [construction.category, construction.type]);
+  const modelPath = useMemo(() => getConstructionModelPath(construction), [construction]);
   const hasModel = Boolean(modelPath);
   const { scene: modelScene } = useGLTF(modelPath ?? FALLBACK_MODEL_PATH);
 
@@ -332,7 +332,7 @@ export default function Construction({ construction }: ConstructionProps) {
       side: THREE.DoubleSide,
       depthWrite: false,
     });
-  }, [categoryColor]);
+  }, [categoryColor, progress, opacity]);
 
   const modelScale = useMemo(() => {
     if (construction.category === "improvements") {

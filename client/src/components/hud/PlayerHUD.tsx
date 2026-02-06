@@ -114,7 +114,7 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
     }
 
     return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
-  }, [gameState?.lastAction, player.id]);
+  }, [gameState, player.id]);
 
   if (!gameState) return null;
 
@@ -484,7 +484,7 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
       </GlowingButton>
       <TutorialHelpIcon
         cardId="end-turn"
-        label="Open end turn tutorial"
+        label="Open turn tutorial"
         className="h-9 w-9"
         iconClassName="h-4 w-4"
       />
