@@ -22,7 +22,7 @@ jobs:
       - name: Run unit tests
         run: npx vitest run test/unit --coverage --coverage.reporter=text --coverage.reporter=json-summary --reporter=verbose
       
-      - name: Coverage gate
+      - name: Coverage report
         run: |
           MIN_COVERAGE=20
           COVERAGE=$(jq '.total.lines.pct' coverage/coverage-summary.json)
