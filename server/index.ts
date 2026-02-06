@@ -96,13 +96,62 @@ app.use((req, res, next) => {
   // Serve API + client on a configurable port (defaults to 5000).
   const requestedPort = Number(process.env.PORT);
   const port = Number.isFinite(requestedPort) && requestedPort > 0 ? requestedPort : 5000;
-  const listenOptions: Parameters<typeof server.listen>[0] = {
-    port,
-    host: "0.0.0.0",
-    ...(process.env.REUSE_PORT === "false" ? {} : { reusePort: true }),
-  };
+  const shouldPreferReusePort = process.env.REUSE_PORT !== "false";
+  const listenBaseOptions = { port, host: "0.0.0.0" } as const;
 
-  server.listen(listenOptions, () => {
-    logMessage(`serving on port ${port}`);
-  });
+  const listenOnce = (allowReusePort: boolean) =>
+    new Promise<void>((resolve, reject) => {
+      const listenOptions: Parameters<typeof server.listen>[0] = allowReusePort
+        ? { ...listenBaseOptions, reusePort: true }
+        : listenBaseOptions;
+
+      const cleanup = () => {
+        server.off("error", onListenError);
+        server.off("listening", onListening);
+      };
+
+      const onListenError = (err: NodeJS.ErrnoException) => {
+        cleanup();
+        reject(err);
+      };
+
+      const onListening = () => {
+        cleanup();
+        resolve();
+      };
+
+      server.once("error", onListenError);
+      server.once("listening", onListening);
+      server.listen(listenOptions);
+    });
+
+  try {
+    await listenOnce(shouldPreferReusePort);
+    logMessage(`serving on port ${port}${shouldPreferReusePort ? " (reusePort enabled)" : ""}`);
+  } catch (err) {
+    const listenError = err as NodeJS.ErrnoException;
+    const shouldRetryWithoutReusePort =
+      shouldPreferReusePort && (listenError.code === "ENOTSUP" || listenError.code === "EINVAL");
+
+    if (shouldRetryWithoutReusePort) {
+      logMessage("reusePort unsupported in this environment; retrying without it.");
+      try {
+        await listenOnce(false);
+        logMessage(`serving on port ${port}`);
+      } catch (fallbackError) {
+        const finalError = fallbackError as NodeJS.ErrnoException;
+        console.error("[express] failed to start server", {
+          code: finalError.code,
+          message: finalError.message,
+        });
+        process.exit(1);
+      }
+    } else {
+      console.error("[express] failed to start server", {
+        code: listenError.code,
+        message: listenError.message,
+      });
+      process.exit(1);
+    }
+  }
 })();
