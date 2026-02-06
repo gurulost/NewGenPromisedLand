@@ -278,11 +278,13 @@ export default function GameCanvas() {
 
     window.addEventListener('ruinsCinematic', handleRuinsCinematic as EventListener);
 
+    const controls = controlsRef.current;
+
     return () => {
       window.removeEventListener('ruinsCinematic', handleRuinsCinematic as EventListener);
       cinematicTimelineRef.current?.kill();
-      if (controlsRef.current) {
-        controlsRef.current.enabled = true;
+      if (controls) {
+        controls.enabled = true;
       }
     };
   }, [camera]);

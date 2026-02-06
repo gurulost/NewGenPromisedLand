@@ -238,7 +238,7 @@ export default function MapFeatures() {
       return humanPlayers[0];
     }
     return activePlayer ?? gameState.players[0];
-  }, [gameState, onlineSession, activePlayer?.id]);
+  }, [gameState, onlineSession, activePlayer]);
   
   // Memoize visible features to avoid recalculating on every render
   const { visibleCities, visibleTiles, exploredTiles, visibleImprovements, visibleStructures, visibleVillages } = useMemo(() => {

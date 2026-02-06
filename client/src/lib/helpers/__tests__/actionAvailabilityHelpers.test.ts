@@ -135,7 +135,7 @@ describe('ActionAvailabilityHelpers', () => {
 
     it('should handle tile with resources for harvesting', () => {
       mockUnit.type = 'worker';
-      mockGameState.map.tiles[0].resources = ['grain'];
+      mockGameState.map.tiles[0].resources = ['grain_patch'];
       
       const availability = getActionAvailability(mockUnit, mockGameState);
       

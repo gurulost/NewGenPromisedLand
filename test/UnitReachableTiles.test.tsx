@@ -97,11 +97,25 @@ describe('Unit reachable tiles', () => {
       turn: 1,
       phase: 'playing',
       map: {
-        width: 1,
-        height: 1,
+        width: 3,
+        height: 3,
         tiles: [
           {
             coordinate: { q: 0, r: 0, s: 0 },
+            terrain: 'plains',
+            resources: [],
+            hasCity: false,
+            exploredBy: [],
+          },
+          {
+            coordinate: { q: 1, r: 0, s: -1 },
+            terrain: 'plains',
+            resources: [],
+            hasCity: false,
+            exploredBy: [],
+          },
+          {
+            coordinate: { q: 0, r: 1, s: -1 },
             terrain: 'plains',
             resources: [],
             hasCity: false,
