@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const appPort = Number(process.env.PLAYWRIGHT_APP_PORT ?? 5100);
+const appBaseUrl = `http://localhost:${appPort}`;
+
 export default defineConfig({
   testDir: './test/e2e',
   fullyParallel: true,
@@ -9,7 +12,7 @@ export default defineConfig({
   reporter: process.env.CI ? 'html' : 'list',
   
   use: {
-    baseURL: 'http://localhost:5000',
+    baseURL: appBaseUrl,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure'
@@ -44,8 +47,15 @@ export default defineConfig({
 
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:5000',
-    reuseExistingServer: !process.env.CI,
+    url: `${appBaseUrl}/__health`,
+    env: {
+      ...process.env,
+      PORT: String(appPort),
+      REUSE_PORT: 'false',
+      DATABASE_URL: process.env.DATABASE_URL ?? 'postgresql://codex:codex@127.0.0.1:5432/codex',
+      DISABLE_SAVE_API: 'true',
+    },
+    reuseExistingServer: false,
     timeout: 120 * 1000,
   },
 });

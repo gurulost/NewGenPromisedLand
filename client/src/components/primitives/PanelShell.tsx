@@ -78,9 +78,10 @@ export function PanelShell({
       <Dialog 
         as="div" 
         className={clsx(
-          "fixed inset-0 z-50 pointer-events-auto",
+          "fixed inset-0 z-[var(--z-modal-backdrop)] pointer-events-auto",
           fullScreen ? "flex" : "flex items-center justify-center p-4"
         )}
+        data-ui-layer="modal"
         onClose={onClose}
         aria-labelledby={ariaLabelledBy}
       >
@@ -117,8 +118,9 @@ export function PanelShell({
         >
           <motion.div
             {...motionProps}
+            data-ui-layer="modal-content"
             className={clsx(
-              "relative w-full text-amber-100 shadow-2xl shadow-black/60",
+              "relative z-[var(--z-modal-content)] w-full text-amber-100 shadow-2xl shadow-black/60",
               fullScreen 
                 ? "h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" 
                 : clsx(

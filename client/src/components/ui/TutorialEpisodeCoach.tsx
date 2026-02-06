@@ -7,6 +7,7 @@ import { hexDistance } from "@shared/utils/hex";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useMapPulseStore } from "../effects/MapPulseEffects";
+import { useMobileUI } from "../../hooks/useMobileUI";
 import { Button } from "./button";
 import { cn } from "@/lib/utils";
 
@@ -77,6 +78,7 @@ export function TutorialEpisodeCoach({
   const addPulse = useMapPulseStore((s) => s.addPulse);
   const selectedUnit = useGameState((s) => s.selectedUnit);
   const setSelectedUnit = useGameState((s) => s.setSelectedUnit);
+  const { isMobileUI } = useMobileUI();
 
   const player = useMemo(
     () => gameState.players.find((p) => p.id === currentPlayerId) ?? null,
@@ -267,7 +269,14 @@ export function TutorialEpisodeCoach({
 
   if (isSkipped) {
     return (
-      <div className="pointer-events-none fixed right-4 top-4 z-[210]">
+      <div
+        className={cn(
+          "pointer-events-none fixed z-[var(--z-tutorial)]",
+          isMobileUI
+            ? "left-2 top-[calc(var(--mobile-hud-height,0px)+0.5rem)] max-w-[calc(100vw-1rem)]"
+            : "right-4 top-4"
+        )}
+      >
         <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-slate-950/80 px-3 py-2 text-xs text-amber-100 shadow-lg shadow-black/40 backdrop-blur">
           <span className="font-cinzel">Tutorial Episode</span>
           <span className="text-amber-200/40">•</span>
@@ -469,11 +478,17 @@ export function TutorialEpisodeCoach({
   })();
 
   const showSkipBig = stepId === "arrival";
+  const coachContainerClass = isMobileUI
+    ? "pointer-events-none fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-[var(--z-tutorial)]"
+    : "pointer-events-none fixed right-4 top-4 z-[var(--z-tutorial)] w-[min(420px,calc(100vw-2rem))]";
 
   return (
-    <div className="pointer-events-none fixed right-4 top-4 z-[210] w-[min(420px,calc(100vw-2rem))]">
+    <div className={coachContainerClass}>
       <motion.div
-        className="pointer-events-auto max-h-[calc(100vh-2rem)] overflow-hidden rounded-2xl border border-amber-500/35 bg-gradient-to-br from-slate-950/90 via-slate-900/80 to-slate-950/90 shadow-2xl shadow-black/60 backdrop-blur flex flex-col"
+        className={cn(
+          "pointer-events-auto overflow-hidden rounded-2xl border border-amber-500/35 bg-gradient-to-br from-slate-950/90 via-slate-900/80 to-slate-950/90 shadow-2xl shadow-black/60 backdrop-blur flex flex-col",
+          isMobileUI ? "w-full max-h-[min(55vh,420px)]" : "max-h-[calc(100vh-2rem)]"
+        )}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}

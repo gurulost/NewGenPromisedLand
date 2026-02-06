@@ -281,7 +281,9 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
 
   return (
     <div 
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[var(--z-modal-backdrop)] pointer-events-auto"
+      data-ui-layer="modal"
+      data-testid="advanced-save-system"
       onClick={(e) => {
         // Close system if clicking on backdrop
         if (e.target === e.currentTarget) {
@@ -294,7 +296,8 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
-        className="bg-slate-900 rounded-xl border border-slate-600 w-[800px] max-h-[80vh] overflow-hidden shadow-2xl"
+        data-ui-layer="modal-content"
+        className="z-[var(--z-modal-content)] bg-slate-900 rounded-xl border border-slate-600 w-[800px] max-h-[80vh] overflow-hidden shadow-2xl"
         onKeyDown={handleKeyDown}
         onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
         initial={{ scale: 0.9, opacity: 0 }}

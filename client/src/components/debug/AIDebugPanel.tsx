@@ -78,8 +78,8 @@ export function AIDebugPanel({ visible, onClose, currentPlayerId }: AIDebugPanel
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 pointer-events-auto">
-      <Card className="w-full max-w-6xl h-full max-h-[90vh] bg-slate-900 border-amber-500/30 overflow-hidden">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 pointer-events-auto" data-ui-layer="modal">
+      <Card data-ui-layer="modal-content" className="z-[var(--z-modal-content)] w-full max-w-6xl h-full max-h-[90vh] bg-slate-900 border-amber-500/30 overflow-hidden">
         <CardHeader className="border-b border-slate-700">
           <div className="flex items-center justify-between">
             <CardTitle className="text-amber-100 flex items-center gap-2">

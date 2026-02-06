@@ -60,6 +60,7 @@ export default function TutorialEpisodeIntro() {
             >
               <GlowingButton
                 onClick={() => startTutorialEpisode()}
+                data-testid="tutorial-begin-episode"
                 className="w-full"
                 size="lg"
               >
@@ -87,4 +88,3 @@ export default function TutorialEpisodeIntro() {
     </div>
   );
 }
-

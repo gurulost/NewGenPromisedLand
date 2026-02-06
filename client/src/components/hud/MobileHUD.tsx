@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Star, BookOpen, Hammer, ScrollText, Settings, Save, ShieldHalf, Menu as MenuIcon, Home } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -36,6 +36,7 @@ export function MobileHUD({
 }: MobileHUDProps) {
   const { isPortrait } = useMobileUI();
   const [menuOpen, setMenuOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const playerStats = useMemo(() => getPlayerStats(player, gameState), [player, gameState]);
 
@@ -44,8 +45,32 @@ export function MobileHUD({
     action();
   };
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const updateHeight = () => {
+      const height = Math.ceil(rootRef.current?.getBoundingClientRect().height ?? 0);
+      document.documentElement.style.setProperty('--mobile-hud-height', `${height}px`);
+    };
+
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    const observer = typeof ResizeObserver !== 'undefined' && rootRef.current
+      ? new ResizeObserver(updateHeight)
+      : null;
+    if (observer && rootRef.current) {
+      observer.observe(rootRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateHeight);
+      observer?.disconnect();
+      document.documentElement.style.removeProperty('--mobile-hud-height');
+    };
+  }, []);
+
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 pointer-events-auto">
+    <div ref={rootRef} className="fixed top-0 left-0 right-0 z-[var(--z-hud)] pointer-events-auto">
       <div className="mobile-safe-top bg-slate-900/85 border-b border-amber-500/20 backdrop-blur-md">
         <div className={clsx("px-3 py-2", isPortrait ? "space-y-2" : "flex items-center justify-between gap-3")}>
           <div className={clsx("flex items-center gap-3", isPortrait ? "w-full justify-between" : "")}>
@@ -88,7 +113,7 @@ export function MobileHUD({
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetContent
           side="bottom"
-          className="mobile-safe-bottom bg-slate-950 text-amber-100 border-t border-amber-500/30 p-4"
+          className="mobile-safe-bottom max-h-[calc(100dvh-0.5rem)] overflow-y-auto touch-scroll bg-slate-950 text-amber-100 border-t border-amber-500/30 p-4"
         >
           <SheetHeader className="text-left">
             <SheetTitle className="font-cinzel text-lg text-amber-100">Game Menu</SheetTitle>

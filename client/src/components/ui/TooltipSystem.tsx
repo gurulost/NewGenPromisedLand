@@ -49,19 +49,26 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
 
   // Check if any modals are open that should hide tooltips and info icons
   const shouldHideForModals = () => {
-    // Check for any fixed positioned modals with high z-index
+    // Detect active modal layers regardless of specific z-index classes.
     const modalSelectors = [
+      '[data-ui-layer="modal"]',
+      '[data-ui-layer="modal-content"]',
+      '[role="dialog"]',
       '[class*="fixed"][class*="z-50"]',
       '[class*="fixed"][class*="z-[50]"]',
-      '[class*="fixed"][class*="z-100"]',
-      '[class*="fixed"][class*="z-[100]"]',
-      '.fixed.z-50',
-      '.fixed.z-100'
     ];
 
     for (const selector of modalSelectors) {
-      const modals = document.querySelectorAll(selector);
-      if (modals.length > 0) {
+      const modals = Array.from(document.querySelectorAll(selector));
+      const hasVisibleModal = modals.some((modal) => {
+        const style = window.getComputedStyle(modal);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+          return false;
+        }
+        const rect = modal.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      if (hasVisibleModal) {
         return true;
       }
     }
@@ -125,7 +132,7 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
   // Enhanced tooltip with premium styling - should hide behind modals
   const tooltipElement = isVisible && !shouldHideForModals() && (
     <div
-      className="fixed z-[45] pointer-events-none"
+      className="fixed z-[var(--z-floating)] pointer-events-none"
       style={{
         left: position.x,
         top: position.y,
@@ -307,7 +314,7 @@ export function Tooltip({
 
   const tooltipElement = isVisible && (
     <div
-      className="fixed z-[60] pointer-events-none"
+      className="fixed z-[var(--z-toast)] pointer-events-none"
       style={{
         left: position.x,
         top: position.y,

@@ -7,6 +7,9 @@ import { fileURLToPath } from "url";
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.get("/__health", (_req, res) => {
+  res.status(200).json({ ok: true });
+});
 
 const logMessage = (message: string, source = "express") => {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -90,14 +93,16 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client
-  const port = 5000;
-  server.listen({
+  // Serve API + client on a configurable port (defaults to 5000).
+  const requestedPort = Number(process.env.PORT);
+  const port = Number.isFinite(requestedPort) && requestedPort > 0 ? requestedPort : 5000;
+  const listenOptions: Parameters<typeof server.listen>[0] = {
     port,
     host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+    ...(process.env.REUSE_PORT === "false" ? {} : { reusePort: true }),
+  };
+
+  server.listen(listenOptions, () => {
     logMessage(`serving on port ${port}`);
   });
 })();

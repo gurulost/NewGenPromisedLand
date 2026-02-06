@@ -1379,8 +1379,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // === GAME SAVES ROUTES ===
+  const isSaveApiDisabled = process.env.DISABLE_SAVE_API === "true";
+  const respondSaveApiDisabled = (res: Response) =>
+    res.status(503).json({ error: "Save API unavailable" });
   
   app.get("/api/saves", async (req, res) => {
+    if (isSaveApiDisabled) {
+      return respondSaveApiDisabled(res);
+    }
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) {
@@ -1395,6 +1401,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/saves/:id", async (req, res) => {
+    if (isSaveApiDisabled) {
+      return respondSaveApiDisabled(res);
+    }
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) {
@@ -1419,6 +1428,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/saves", async (req, res) => {
+    if (isSaveApiDisabled) {
+      return respondSaveApiDisabled(res);
+    }
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) {
@@ -1442,6 +1454,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.put("/api/saves/:id", async (req, res) => {
+    if (isSaveApiDisabled) {
+      return respondSaveApiDisabled(res);
+    }
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) {
@@ -1468,6 +1483,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/saves/:id", async (req, res) => {
+    if (isSaveApiDisabled) {
+      return respondSaveApiDisabled(res);
+    }
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) {

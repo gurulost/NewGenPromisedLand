@@ -133,7 +133,7 @@ export function FloatingTextManager() {
     };
 
     return (
-        <div className="fixed inset-0 pointer-events-none overflow-hidden z-[100]">
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-[var(--z-feedback)]">
             <AnimatePresence>
                 {texts.map((data) => (
                     <FloatingTextItem key={data.id} data={data} onComplete={handleComplete} />

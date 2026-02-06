@@ -138,7 +138,7 @@ export function TechDiscoveryPanel({ techId, onClose }: TechDiscoveryPanelProps)
 
   return (
     <Transition appear show={!!tech} as={Fragment}>
-      <Dialog as="div" className="relative z-[190]" onClose={onClose}>
+      <Dialog as="div" className="relative z-[var(--z-modal-backdrop)]" data-ui-layer="modal" onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -162,7 +162,7 @@ export function TechDiscoveryPanel({ techId, onClose }: TechDiscoveryPanelProps)
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-amber-500/40 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-8 text-left shadow-2xl">
+              <Dialog.Panel data-ui-layer="modal-content" className="relative z-[var(--z-modal-content)] w-full max-w-2xl overflow-hidden rounded-3xl border border-amber-500/40 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-8 text-left shadow-2xl">
                 <div className={`absolute -inset-8 bg-gradient-to-r ${categoryStyle.accent} opacity-70 blur-2xl`} />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.12),_transparent_50%)]" />
                 <motion.div

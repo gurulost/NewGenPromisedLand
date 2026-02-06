@@ -29,6 +29,7 @@ interface GameLogPanelProps {
     isOpen: boolean;
     onToggle: () => void;
     maxEntries?: number;
+    avoidBottomLeft?: boolean;
 }
 
 const typeIcons: Record<GameLogEntryType, string> = {
@@ -56,11 +57,16 @@ export function GameLogPanel({
     currentTurn,
     isOpen,
     onToggle,
-    maxEntries = 100
+    maxEntries = 100,
+    avoidBottomLeft = false
 }: GameLogPanelProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [autoScroll, setAutoScroll] = useState(true);
     const { isMobileUI } = useMobileUI();
+    const desktopBottomClass = avoidBottomLeft
+        ? 'bottom-[calc(env(safe-area-inset-bottom)+1rem+var(--selected-unit-panel-height,0px)+0.75rem)]'
+        : 'bottom-[calc(env(safe-area-inset-bottom)+1rem)]';
+    const desktopLeftClass = 'left-[calc(env(safe-area-inset-left)+1rem)]';
 
     // Auto-scroll to bottom when new entries come in
     useEffect(() => {
@@ -82,8 +88,8 @@ export function GameLogPanel({
         if (!isOpen) return null;
 
         return (
-            <div className="fixed inset-0 z-50 pointer-events-auto bg-black/80 backdrop-blur-sm">
-                <div className="mobile-safe-top mobile-safe-bottom h-full flex flex-col">
+            <div data-ui-layer="modal" className="fixed inset-0 z-[var(--z-modal-backdrop)] pointer-events-auto bg-black/80 backdrop-blur-sm">
+                <div data-ui-layer="modal-content" className="z-[var(--z-modal-content)] mobile-safe-top mobile-safe-bottom h-full flex flex-col">
                     <div className="flex items-center justify-between px-4 py-3 border-b border-stone-700/50 bg-stone-900/80">
                         <div className="flex items-center gap-2">
                             <Scroll className="w-4 h-4 text-amber-400" />
@@ -162,7 +168,7 @@ export function GameLogPanel({
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     onClick={onToggle}
-                    className="fixed bottom-4 left-4 z-50 flex items-center gap-2 px-3 py-2 bg-stone-800/90 border border-stone-600/50 rounded-lg hover:bg-stone-700/90 transition-colors backdrop-blur-sm"
+                    className={`fixed ${desktopBottomClass} ${desktopLeftClass} z-[var(--z-floating)] flex items-center gap-2 px-3 py-2 bg-stone-800/90 border border-stone-600/50 rounded-lg hover:bg-stone-700/90 transition-colors backdrop-blur-sm`}
                 >
                     <Scroll className="w-4 h-4 text-amber-400" />
                     <span className="text-sm text-stone-300">Game Log</span>
@@ -182,7 +188,7 @@ export function GameLogPanel({
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -300 }}
                         transition={{ type: 'spring', damping: 25 }}
-                        className="fixed bottom-4 left-4 z-50 w-80 max-h-96 bg-stone-900/95 border border-stone-600/50 rounded-xl shadow-xl backdrop-blur-sm overflow-hidden"
+                        className={`fixed ${desktopBottomClass} ${desktopLeftClass} z-[var(--z-floating)] w-80 max-w-[calc(100vw-env(safe-area-inset-left)-env(safe-area-inset-right)-2rem)] max-h-[calc(100vh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] bg-stone-900/95 border border-stone-600/50 rounded-xl shadow-xl backdrop-blur-sm overflow-hidden flex flex-col`}
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between px-4 py-3 border-b border-stone-700/50 bg-stone-800/50">
@@ -204,7 +210,7 @@ export function GameLogPanel({
                         {/* Entries List */}
                         <div
                             ref={scrollRef}
-                            className="max-h-72 overflow-y-auto p-2 space-y-1"
+                            className="min-h-0 flex-1 overflow-y-auto p-2 space-y-1"
                             onScroll={(e) => {
                                 const target = e.target as HTMLDivElement;
                                 const isAtBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 20;

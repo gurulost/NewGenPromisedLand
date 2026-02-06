@@ -203,19 +203,20 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
 
   return (
     <div
-      className={`fixed inset-0 bg-black/80 flex items-center justify-center z-50 ${isMobileUI ? 'p-0' : 'p-4'}`}
+      className={`fixed inset-0 bg-black/80 flex items-center justify-center z-[var(--z-modal-backdrop)] ${isMobileUI ? 'p-0' : 'p-4'}`}
+      data-ui-layer="modal"
+      data-testid="city-panel"
       style={{ pointerEvents: 'auto' }}
       onClick={(e) => {
-        console.log('🏛️ CityPanel backdrop clicked:', e.target === e.currentTarget);
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
     >
       <Card
-        className={`w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/10 overflow-y-auto ${isMobileUI ? 'max-w-full max-h-full rounded-none mobile-safe-top mobile-safe-bottom' : 'max-w-4xl max-h-[90vh]'}`}
+        data-ui-layer="modal-content"
+        className={`z-[var(--z-modal-content)] w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/10 overflow-y-auto ${isMobileUI ? 'max-w-full max-h-full rounded-none mobile-safe-top mobile-safe-bottom' : 'max-w-4xl max-h-[90vh]'}`}
         onClick={(e) => {
-          console.log('🏛️ CityPanel card clicked');
           e.stopPropagation();
         }}
       >
@@ -305,7 +306,6 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               <Button
                 variant="outline"
                 onClick={(e) => {
-                  console.log('🏛️ CityPanel Close button clicked');
                   e.stopPropagation();
                   onClose();
                 }}
@@ -353,7 +353,6 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               variant="outline"
               size="sm"
               onClick={() => {
-                console.log('Construction Hall button clicked');
                 setShowAdvancedBuildingMenu(true);
               }}
               className="flex items-center gap-2 bg-gradient-to-r from-purple-600/10 to-blue-600/10 border-purple-500/30 hover:from-purple-600/20 hover:to-blue-600/20"
@@ -643,7 +642,6 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           player={currentPlayer}
           gameState={gameState}
           onBuild={(optionId) => {
-            console.log('Starting construction:', optionId);
             // Determine building category
             let category: 'improvements' | 'structures' | 'units';
 
@@ -663,7 +661,6 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
             }
 
             // For structures and improvements, use construction mode
-            console.log(`Starting tile selection for ${optionId}`);
             startConstruction(optionId, category, city.id, currentPlayer.id);
             setShowAdvancedBuildingMenu(false);
             // Close the main city panel to show the map clearly
@@ -675,7 +672,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
 
       {showGrowthGuide && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
+          className="fixed inset-0 z-[var(--z-modal-content)] flex items-center justify-center bg-black/70 p-4"
+          data-ui-layer="modal-content"
           onClick={() => setShowGrowthGuide(false)}
         >
           <div

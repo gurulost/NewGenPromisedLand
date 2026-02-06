@@ -12,12 +12,12 @@ interface HUDShellProps {
 }
 
 const positionClasses = {
-  'top-left': 'top-4 left-4',
-  'top-right': 'top-4 right-4', 
-  'bottom-left': 'bottom-4 left-4',
-  'bottom-right': 'bottom-4 right-4',
-  'top-center': 'top-4 left-1/2 -translate-x-1/2',
-  'bottom-center': 'bottom-4 left-1/2 -translate-x-1/2'
+  'top-left': 'top-[calc(env(safe-area-inset-top)+1rem)] left-[calc(env(safe-area-inset-left)+1rem)]',
+  'top-right': 'top-[calc(env(safe-area-inset-top)+1rem)] right-[calc(env(safe-area-inset-right)+1rem)]',
+  'bottom-left': 'bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-[calc(env(safe-area-inset-left)+1rem)]',
+  'bottom-right': 'bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-[calc(env(safe-area-inset-right)+1rem)]',
+  'top-center': 'top-[calc(env(safe-area-inset-top)+1rem)] left-1/2 -translate-x-1/2',
+  'bottom-center': 'bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 -translate-x-1/2'
 };
 
 const spacingClasses = {
@@ -47,8 +47,7 @@ export function HUDShell({
     <motion.div
       {...motionProps}
       className={clsx(
-        "absolute pointer-events-auto z-40",
-        "env(safe-area-inset-top) env(safe-area-inset-left) env(safe-area-inset-right) env(safe-area-inset-bottom)",
+        "absolute pointer-events-auto z-[var(--z-hud)]",
         positionClasses[position],
         spacingClasses[spacing],
         className
