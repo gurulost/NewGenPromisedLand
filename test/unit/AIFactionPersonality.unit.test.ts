@@ -53,4 +53,12 @@ describe("Faction personality mapping", () => {
 
     expect(personality.unitPreferences).toContain("worker");
   });
+
+  it("accepts legacy punctuation/casing faction IDs", () => {
+    const engine = new FactionPersonalityEngine(makePlayer("p4", "Hagoth's Mariners"), 1337);
+    const personality = engine.getPersonality();
+
+    expect(personality.preferredVictory).toBe("economic");
+    expect(personality.unitPreferences).toContain("voyager");
+  });
 });

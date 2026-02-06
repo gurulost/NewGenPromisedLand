@@ -139,6 +139,12 @@ describe("Faction expansion runtime hooks", () => {
     );
     expect(hagothNoSeafaring.players[0].stars).toBe(1);
 
+    const hagothLegacyCasing = resolveActionState(
+      makePortIncomeState("Hagoth's Mariners", []),
+      { type: "END_TURN", payload: { playerId: "p1" } } as any
+    );
+    expect(hagothLegacyCasing.players[0].stars).toBe(1);
+
     const hagothWithSeafaring = resolveActionState(
       makePortIncomeState("HAGOTHS_MARINERS", ["seafaring"]),
       { type: "END_TURN", payload: { playerId: "p1" } } as any
@@ -147,7 +153,7 @@ describe("Faction expansion runtime hooks", () => {
   });
 
   it("applies taskmaster intimidation aura only to adjacent enemy military units", () => {
-    const p1 = makePlayer("p1", "AMULONITES", []);
+    const p1 = makePlayer("p1", "amulonites", []);
     const p2 = makePlayer("p2", "NEPHITES", []);
     p2.citiesOwned = ["city-2"];
 

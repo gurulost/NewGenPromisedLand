@@ -20,6 +20,7 @@ import { useUnitAnimationEventStore } from "./useUnitAnimationEventStore";
 
 const applyPlayerDefaults = (player: PlayerState): PlayerState => {
   const normalized: PlayerState = { ...player };
+  normalized.factionId = coerceFactionId(player.factionId) ?? player.factionId;
   normalized.modifiers = player.modifiers ?? [];
   normalized.researchedTechs = player.researchedTechs ?? [];
   normalized.researchProgress = player.researchProgress ?? 0;
@@ -498,41 +499,42 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       resetCityNames(gameId);
 
       // Create initial game state
-      const players: PlayerState[] = playerSetup.map(setup => applyPlayerDefaults({
-        // Faction defaults are authoritative for standard games.
-        id: setup.id,
-        name: setup.name,
-        factionId: setup.factionId,
-        modifiers: [],
-        stats: (() => {
-          const factionId = coerceFactionId(setup.factionId);
-          return factionId
-            ? FACTIONS[factionId].startingStats
-            : { faith: 50, pride: 30, internalDissent: 10 };
-        })(),
-        visibilityMask: [],
-        exploredTiles: [],
-        isEliminated: false,
-        isAI: setup.isAI ?? false,
-        aiDifficulty: setup.aiDifficulty ?? 'normal',
-        turnOrder: setup.turnOrder,
-        stars: 10, // Starting currency
-        researchedTechs: [], // No starting technologies
-        researchProgress: 0,
-        researchInspiration: 0,
-        abilityCooldowns: {},
-        constructionQueue: [],
-        citiesOwned: [],
-        currentResearch: undefined,
-        // Diplomatic relations - start with none
-        atWarWith: [],
-        alliedWith: [],
-        tradeRoutes: [],
-        diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 },
-      }));
+      const players: PlayerState[] = playerSetup.map(setup => {
+        // Canonicalize faction ids up front so all downstream faction checks are stable.
+        // Fallback remains Nephites for malformed external data.
+        const factionId = coerceFactionId(setup.factionId) ?? 'NEPHITES';
+
+        return applyPlayerDefaults({
+          // Faction defaults are authoritative for standard games.
+          id: setup.id,
+          name: setup.name,
+          factionId,
+          modifiers: [],
+          stats: { ...FACTIONS[factionId].startingStats },
+          visibilityMask: [],
+          exploredTiles: [],
+          isEliminated: false,
+          isAI: setup.isAI ?? false,
+          aiDifficulty: setup.aiDifficulty ?? 'normal',
+          turnOrder: setup.turnOrder,
+          stars: 10, // Starting currency
+          researchedTechs: [], // No starting technologies
+          researchProgress: 0,
+          researchInspiration: 0,
+          abilityCooldowns: {},
+          constructionQueue: [],
+          citiesOwned: [],
+          currentResearch: undefined,
+          // Diplomatic relations - start with none
+          atWarWith: [],
+          alliedWith: [],
+          tradeRoutes: [],
+          diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 },
+        });
+      });
 
       // Extract faction IDs for terrain generation
-      const playerFactions = playerSetup.map(p => p.factionId);
+      const playerFactions = players.map(p => p.factionId);
 
       // Get map configuration based on selected size
       const resolvedMapSize = MAP_SIZE_CONFIGS[mapSize] ? mapSize : "normal";

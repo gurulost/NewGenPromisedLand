@@ -6,13 +6,14 @@ import { UNIT_DEFINITIONS, getUnitDefinition } from '../data/units';
 import { TECHNOLOGIES } from '../data/technologies';
 import { GAME_RULES, GameRuleHelpers } from '../data/gameRules';
 import { getFaction } from '../data/factions';
+import { coerceFactionId } from '../types/factionId';
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '../types/city';
 import { TacticalEngine, TacticalTarget } from './aiTacticalEngine';
 import { FactionPersonalityEngine } from './aiFactionPersonality';
 import { SeededRNG, aiDebugOverlay } from './aiFoundation';
 import { emitTelemetry } from '../logic/telemetry';
 import { getTechCostDetails } from '../logic/technologyHelpers';
-import { calculateReachableTiles, canUnitReachCoordinate, getUnitActionsRemaining, getUnitAttackRangeFromDefinition } from '../logic/unitLogic';
+import { calculateReachableTiles, canUnitReachCoordinate, getUnitActionsRemaining, getUnitAttackRangeFromDefinition, isPassableForUnit } from '../logic/unitLogic';
 import { resolveCombat } from '../logic/combatResolver';
 import { getFriendlyBuildAnchors, isTileExploredByPlayer, isWithinFriendlyBuildRadius, STRUCTURE_BUILD_RADIUS } from '../logic/constructionRules';
 import type { Technology } from '../data/technologies';
@@ -401,7 +402,7 @@ export class AIEngine {
     }
 
     // 5. Strategic positioning near faction territory
-    const faction = getFaction(this.aiPlayer.factionId as any);
+    const faction = this.getAIFaction();
     priority += this.evaluateStrategicValue(coordinate, faction);
 
     return priority;
@@ -443,7 +444,7 @@ export class AIEngine {
     }
 
     // Faction-specific tech preferences
-    const faction = getFaction(this.aiPlayer.factionId as any);
+    const faction = this.getAIFaction();
     // AI will prioritize techs that align with faction strengths
     if (faction.name.includes('Nephite') && tech.category === 'religious') {
       priority += 20;
@@ -666,7 +667,7 @@ export class AIEngine {
         if (friendlyUnits.length > 0) {
           const nearestFriendly = this.findNearestUnit(unit.coordinate, friendlyUnits);
           if (nearestFriendly && hexDistance(unit.coordinate, nearestFriendly.coordinate) > 2) {
-            const moveTarget = this.findPositionNear(nearestFriendly.coordinate, 2);
+            const moveTarget = this.findPositionNear(nearestFriendly.coordinate, 2, unit);
             if (moveTarget) {
               decisions.push({
                 type: 'MOVE_UNIT',
@@ -2685,21 +2686,22 @@ export class AIEngine {
     });
   }
 
-  private findPositionNear(coord: HexCoordinate, distance: number): HexCoordinate | null {
+  private findPositionNear(coord: HexCoordinate, distance: number, unit?: Unit): HexCoordinate | null {
     // Find valid position near target coordinate
     const neighbors = hexNeighbors(coord);
-    return neighbors.find(pos => this.isValidMovePosition(pos)) || null;
+    return neighbors.find(pos => this.isValidMovePosition(pos, unit)) || null;
   }
 
   private isValidMovePosition(coord: HexCoordinate, unit?: Unit): boolean {
-    const tile = this.gameState.map.tiles.find(t =>
-      t.coordinate.q === coord.q && t.coordinate.r === coord.r
-    );
-    if (!tile) return false;
-    if (tile.terrain === 'water') {
-      return unit ? this.isNavalTransportUnit(unit) : false;
+    if (!unit) {
+      const tile = this.gameState.map.tiles.find(t =>
+        t.coordinate.q === coord.q && t.coordinate.r === coord.r
+      );
+      if (!tile) return false;
+      return tile.terrain !== 'water' && tile.terrain !== 'mountain';
     }
-    return true;
+
+    return isPassableForUnit(coord, this.gameState, unit);
   }
 
   private getPersonalityModifier(actionType: string): number {
@@ -2721,6 +2723,11 @@ export class AIEngine {
       case 'pride': return Math.round((1 - personality.piety) * 100);
       default: return 50;
     }
+  }
+
+  private getAIFaction() {
+    const factionId = coerceFactionId(this.aiPlayer.factionId) ?? 'NEPHITES';
+    return getFaction(factionId);
   }
 
   private getAvailableTechnologies(): any[] {
