@@ -150,6 +150,8 @@ export function UnitModel({
       priestcraft_preacher: 0.58,
       converted_missionary: 0.58,
       scribe_teacher: 0.58,
+      shipwright: 0.58,
+      taskmaster: 0.58,
       prophet: 0.6,
 
       // Standard infantry (medium)
@@ -157,6 +159,7 @@ export function UnitModel({
       spearman: 0.65,
       guard: 0.65,
       peacekeeping_guard: 0.65,
+      amulonite_enforcer: 0.65,
       commander: 0.7,
 
       // Elite/special infantry (medium-large)
@@ -169,6 +172,7 @@ export function UnitModel({
 
       // Naval units
       boat: 0.8,
+      voyager: 0.8,
     };
 
     return UNIT_SCALES[unit.type] ?? 0.65;

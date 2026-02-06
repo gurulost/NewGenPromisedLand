@@ -135,6 +135,12 @@ const getAbilityDescriptor = (abilityId: string): EffectDescriptor => {
       value: "Move on water and transport up to 2 land units.",
       iconKey: "naval",
     }),
+    AMPHIBIOUS: () => ({
+      id: `ability_${normalized}`,
+      label: name,
+      value: "Can move between water and land tiles.",
+      iconKey: "naval",
+    }),
     COASTAL_EXPLORATION: () => ({
       id: `ability_COASTAL_EXPLORATION`,
       label: "Coastal Exploration",
@@ -194,6 +200,12 @@ const getAbilityDescriptor = (abilityId: string): EffectDescriptor => {
       label: name,
       value: "While defending or fortified, gain +4 defense.",
       iconKey: "defense",
+    }),
+    INTIMIDATE: () => ({
+      id: `ability_${normalized}`,
+      label: name,
+      value: "Inflicts Intimidated on adjacent enemy military units (-1 attack for 1 turn).",
+      iconKey: "attack",
     }),
   };
 
@@ -397,7 +409,7 @@ export const getImprovementEffectSummary = (improvementDef: ImprovementDefinitio
     effects.push({
       id: "port_seafaring",
       label: "Seafaring bonus",
-      value: "+1 star/turn with Seafaring technology.",
+      value: "+1 star/turn with Seafaring technology (Hagoth's Mariners receive this bonus by default).",
       iconKey: "naval",
     });
   }

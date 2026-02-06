@@ -575,6 +575,16 @@ export default function GameUI() {
           triggerFlash('blue');
           showToast(`Enemy missionaries weakened ${myAffected.unitIds.length} unit(s) (-${penalty} Attack, ${duration} turn)`, 'warning');
         }
+      } else if (action.type === 'INTIMIDATION_AURA') {
+        if (!currentPlayerId) return;
+        const affected: Array<{ playerId: string; unitIds: string[] }> = action.payload?.affected || [];
+        const myAffected = affected.find(a => a.playerId === currentPlayerId);
+        if (myAffected?.unitIds?.length) {
+          const penalty = action.payload?.attackPenalty ?? 1;
+          const duration = action.payload?.durationTurns ?? 1;
+          triggerFlash('red');
+          showToast(`Enemy taskmasters intimidated ${myAffected.unitIds.length} unit(s) (-${penalty} Attack, ${duration} turn)`, 'warning');
+        }
       }
     };
 

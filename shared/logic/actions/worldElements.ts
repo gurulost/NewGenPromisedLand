@@ -13,6 +13,10 @@ import { executeElementHarvest, executeElementBuild } from "../worldElementActio
 import { nextFloat, nextId } from "../rng";
 import { getUnitActionsRemaining, spendUnitActions } from "../unitLogic";
 
+const isNavalTransportUnit = (unit: { type: string; abilities?: string[] }) =>
+  unit.type === "boat" ||
+  (unit.abilities || []).some(a => String(a).toUpperCase() === "NAVAL_TRANSPORT");
+
 export function handleConquerVillage(
   state: GameState,
   payload: { unitId: string; playerId: string }
@@ -422,9 +426,7 @@ export function handleWorldElementHarvest(
       (requiredTag === "naval_commander" &&
         unit.type === "commander" &&
         (unit.abilities || []).some(a => String(a).toUpperCase() === "NAVAL_COMMAND")) ||
-      (requiredTag === "naval_transport" &&
-        (unit.type === "boat" ||
-          (unit.abilities || []).some(a => String(a).toUpperCase() === "NAVAL_TRANSPORT")));
+      (requiredTag === "naval_transport" && isNavalTransportUnit(unit));
     if (!canActAsTag) return state;
   } else if (payload.elementId !== "jaredite_ruins") {
     if (unit.type !== "worker") return state;
@@ -478,9 +480,7 @@ export function handleWorldElementBuild(
       (requiredTag === "naval_commander" &&
         unit.type === "commander" &&
         (unit.abilities || []).some(a => String(a).toUpperCase() === "NAVAL_COMMAND")) ||
-      (requiredTag === "naval_transport" &&
-        (unit.type === "boat" ||
-          (unit.abilities || []).some(a => String(a).toUpperCase() === "NAVAL_TRANSPORT")));
+      (requiredTag === "naval_transport" && isNavalTransportUnit(unit));
     if (!canActAsTag) return state;
   } else if (unit.type !== "worker") {
     return state;

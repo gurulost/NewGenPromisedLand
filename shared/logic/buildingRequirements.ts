@@ -180,9 +180,12 @@ export function getUnitBuildRequirements(
   const spawnTiles = city
     ? getValidSpawnTiles(state, city.coordinate, unitDef.type, player.id).length
     : 0;
+  const isNavalSpawnUnit =
+    unitDef.type === "boat" ||
+    (unitDef.abilities || []).some(a => String(a).toUpperCase() === "NAVAL_TRANSPORT");
 
   const spawnLabel =
-    unitDef.type === "boat"
+    isNavalSpawnUnit
       ? "Adjacent explored water tiles"
       : "Explored land tiles within 2";
 

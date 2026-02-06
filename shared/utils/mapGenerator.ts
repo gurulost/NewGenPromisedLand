@@ -219,6 +219,26 @@ export const TRIBAL_SPAWN_MODIFIERS: Record<FactionId, TribalSpawnModifiers> = {
     fish: 1.0,          // Neutral fish
     ruins: 2.0,         // 2.0× ruins (ancient civilization)
     lore: "Ancient civilization with extensive ruins and mountainous territory"
+  },
+  HAGOTHS_MARINERS: {
+    mountain: 0.9,      // Slightly fewer mountains
+    forest: 1.2,        // Better timber access
+    grainField: 0.9,    // Slightly less agrarian density
+    wildAnimal: 0.9,    // Slightly reduced animal density
+    water: 2.3,         // Strong coastal identity
+    fish: 2.0,          // High fish access
+    ruins: 1.0,         // Neutral ruins
+    lore: "Maritime shipbuilders with strong coastal economies and exploratory traditions"
+  },
+  AMULONITES: {
+    mountain: 1.0,      // Neutral mountain
+    forest: 1.0,        // Neutral forest
+    grainField: 1.3,    // Fertile and extractive homeland
+    wildAnimal: 1.2,    // Strong husbandry/hunting opportunities
+    water: 0.9,         // Slightly less coastal
+    fish: 0.8,          // Lower fish reliance
+    ruins: 0.9,         // Slightly fewer ruins
+    lore: "Taskmaster regimes built on agricultural extraction and coercive control"
   }
 };
 

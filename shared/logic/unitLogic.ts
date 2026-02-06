@@ -16,6 +16,10 @@ export const unitHasAbility = (unit: Unit, abilityId: string) =>
   (unit.abilities || []).some(ability => normalizeAbility(String(ability)) === normalizeAbility(abilityId));
 const unitHasBombardment = (unit: Unit) =>
   unitHasAbility(unit, 'SIEGE') || unitHasAbility(unit, 'BOMBARDMENT');
+const definitionHasAbility = (
+  unitDef: ReturnType<typeof getUnitDefinition> | undefined,
+  abilityId: string
+) => (unitDef?.abilities || []).some(ability => normalizeAbility(String(ability)) === normalizeAbility(abilityId));
 
 export const getUnitAttackRangeFromDefinition = (
   unitDef?: ReturnType<typeof getUnitDefinition>
@@ -36,7 +40,13 @@ export const getEffectiveAttackRange = (unit: Unit): number => {
 const isNavalUnit = (unit?: Unit) => {
   if (!unit) return false;
   const unitDef = getUnitDefinition(unit.type as any);
-  return !!unitDef?.abilities?.includes('NAVAL_TRANSPORT') || unit.type === 'boat';
+  return definitionHasAbility(unitDef, 'NAVAL_TRANSPORT') || unit.type === 'boat';
+};
+
+const isAmphibiousUnit = (unit?: Unit) => {
+  if (!unit) return false;
+  const unitDef = getUnitDefinition(unit.type as any);
+  return definitionHasAbility(unitDef, 'AMPHIBIOUS');
 };
 
 export const getUnitMaxActions = (unit: Unit): number => {
@@ -85,10 +95,11 @@ export function isPassableForUnit(
   if (!tile) return false;
   
   const isNaval = isNavalUnit(unit);
+  const isAmphibious = isAmphibiousUnit(unit);
 
   // Special-case naval movement: boats (and other NAVAL_TRANSPORT units) can move on water.
   if (tile.terrain === 'water') {
-    return isNaval;
+    return isNaval || isAmphibious;
   }
 
   // Check basic terrain passability using game rules
@@ -96,8 +107,8 @@ export function isPassableForUnit(
   const isImpassable = GAME_RULES.terrain.impassableTypes.includes(tile.terrain);
   if (isImpassable || movementCost === undefined) return false;
 
-  // Naval units remain on water (no disembark system yet).
-  if (isNaval) return false;
+  // Naval units remain on water unless amphibious.
+  if (isNaval && !isAmphibious) return false;
   
   // Allow movement to unexplored tiles (units can explore new areas)
   // Units should be able to move to and explore adjacent unexplored tiles
@@ -187,16 +198,17 @@ export function getMovementCostForCoordinate(
   if (!tile) return Infinity;
 
   const naval = isNavalUnit(unit);
+  const amphibious = isAmphibiousUnit(unit);
 
   if (tile.terrain === 'water') {
-    return naval ? 1 : Infinity;
+    return (naval || amphibious) ? 1 : Infinity;
   }
 
   const baseCost = GAME_RULES.terrain.movementCosts[tile.terrain];
   const isImpassable = GAME_RULES.terrain.impassableTypes.includes(tile.terrain);
   if (isImpassable || baseCost === undefined) return Infinity;
 
-  if (naval) return Infinity;
+  if (naval && !amphibious) return Infinity;
 
   const hasRoad = (gameState.improvements || []).some(
     imp =>

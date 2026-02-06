@@ -16,7 +16,7 @@
 - **Game Reducer**: 20 tests covering all state transitions
 - **Unit Logic**: 34 tests for movement, combat, and abilities
 - **Line of Sight**: 15 tests for fog-of-war and visibility
-- **Faction Mechanics**: Complete validation of all 6 factions
+- **Faction Mechanics**: Complete validation of all 8 factions
 - **Technology System**: Research validation and prerequisites
 
 **3. UI Integration Testing (Enhanced)**
@@ -86,7 +86,7 @@
 
 #### Construction Hall Features
 - ✅ **Real Data Integration**: Uses actual game definitions
-- ✅ **Faction Compatibility**: All 6 factions supported
+- ✅ **Faction Compatibility**: All 8 factions supported
 - ✅ **Technology Gates**: Proper research requirement validation
 - ✅ **Resource Management**: Accurate cost calculations
 - ✅ **Visual Polish**: AAA-quality design elements tested

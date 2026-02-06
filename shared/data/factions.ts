@@ -211,6 +211,66 @@ export const FACTIONS: Record<FactionId, Faction> = {
     strengths: ['Powerful late game', 'Unique mechanics', 'Strong units'],
     weaknesses: ['Unpredictable', 'Self-destructive tendencies', 'Complex management'],
   },
+
+  HAGOTHS_MARINERS: {
+    id: 'HAGOTHS_MARINERS',
+    name: "Hagoth's Mariners",
+    description: 'A seafaring people focused on coastal expansion, shipbuilding, and northward exploration.',
+    color: '#0891b2',
+    startingStats: {
+      faith: 60,
+      pride: 45,
+      internalDissent: 25,
+    },
+    abilities: [
+      {
+        id: 'SHIPBUILDING_TRADITION',
+        name: 'Shipbuilding Tradition',
+        description: 'Ports generate +1★/turn even before Seafaring (does not stack with Seafaring).',
+        cost: 0,
+        cooldown: 0,
+        type: 'passive',
+      },
+      {
+        id: 'NORTHWARD_VENTURES',
+        name: 'Northward Ventures',
+        description: 'Voyagers are Amphibious and can move between sea and land.',
+        cost: 0,
+        cooldown: 0,
+        type: 'passive',
+      },
+    ],
+    uniqueUnits: getFactionSpecificUnitTypes('HAGOTHS_MARINERS'),
+    playstyle: 'Coastal expansion and port-driven economy with amphibious mobility.',
+    strengths: ['Strong coastal economy', 'High strategic mobility', 'Fast map exploration'],
+    weaknesses: ['Map-dependent inland value', 'Pride pressure from prosperity', 'Less durable frontline ships'],
+  },
+
+  AMULONITES: {
+    id: 'AMULONITES',
+    name: 'Amulonites',
+    description: 'An oppressive regime that converts forced labor into wealth and weakens enemies through fear.',
+    color: '#7c2d12',
+    startingStats: {
+      faith: 20,
+      pride: 70,
+      internalDissent: 55,
+    },
+    abilities: [
+      {
+        id: 'BONDAGE_TASKMASTERS',
+        name: 'Bondage Taskmasters',
+        description: 'At end of turn, adjacent enemy military units near Taskmasters become Intimidated.',
+        cost: 0,
+        cooldown: 0,
+        type: 'passive',
+      },
+    ],
+    uniqueUnits: getFactionSpecificUnitTypes('AMULONITES'),
+    playstyle: 'Coercive economy and intimidation warfare under constant dissent risk.',
+    strengths: ['Fast early-mid economy', 'Reliable attack debuff pressure', 'Durable midgame infantry'],
+    weaknesses: ['Low faith baseline', 'High internal instability', 'Can collapse if dissent is unmanaged'],
+  },
 };
 
 export const getFaction = (id: FactionId): Faction => {
