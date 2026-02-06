@@ -48,6 +48,9 @@ const controls = [
   { name: "save", keys: ["KeyS"] },
   { name: "load", keys: ["KeyL"] },
   { name: "diplomacy", keys: ["KeyD"] },
+  { name: "attack", keys: ["KeyA"] },
+  { name: "move", keys: ["KeyM"] },
+  { name: "ability", keys: ["KeyQ"] },
 ];
 
 function GameStage() {

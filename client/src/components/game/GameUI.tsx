@@ -9,6 +9,7 @@ import { useOnlineGameSync } from "../../hooks/useOnlineGameSync";
 import { getFaction } from "@shared/data/factions";
 import { PlayerHUD } from "../hud/PlayerHUD";
 import SelectedUnitPanel from "../ui/SelectedUnitPanel";
+import UnitActionsPanel from "../ui/AbilitiesPanel";
 import TechPanel from "../ui/TechPanel";
 import CityPanel from "../ui/CityPanel";
 import { BuildingMenu } from "../ui/BuildingMenu";
@@ -99,6 +100,7 @@ export default function GameUI() {
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [showConstructionHall, setShowConstructionHall] = useState(false);
+  const [showQuickUnitActions, setShowQuickUnitActions] = useState(false);
   const [techRevealQueue, setTechRevealQueue] = useState<string[]>([]);
   const [activeTechReveal, setActiveTechReveal] = useState<string | null>(null);
   const [conquestBanner, setConquestBanner] = useState<{ type: 'capture' | 'conversion'; cityName: string } | null>(null);
@@ -159,6 +161,10 @@ export default function GameUI() {
       clearActionError();
     }
   }, [actionError, clearActionError, showToast]);
+
+  useEffect(() => {
+    setShowQuickUnitActions(false);
+  }, [selectedUnit?.id]);
 
   useEffect(() => {
     if (!onlineSession) {
@@ -812,27 +818,79 @@ export default function GameUI() {
     }
   }, [gameMode, isAttackMode, openTutorialIfNeeded]);
 
-  const isEditableTarget = (target: EventTarget | null) => {
-    if (!target || !(target instanceof HTMLElement)) {
-      return false;
-    }
-    if (target.isContentEditable) {
-      return true;
-    }
-    const tagName = target.tagName;
-    return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
-  };
-
-  const shouldIgnoreGlobalHotkeys = () => {
-    if (showSaveLoadMenu) return true;
-    if (typeof document === 'undefined') return false;
-    return isEditableTarget(document.activeElement);
-  };
-
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
   const { isAIProcessing, currentAIPlayer } = useAITurn();
   const heapMb = heapBytes ? Math.round(heapBytes / (1024 * 1024)) : null;
+
+  const shouldIgnoreGlobalHotkeys = useCallback(() => {
+    if (
+      showSaveLoadMenu ||
+      showAdvancedSaveSystem ||
+      showTechPanel ||
+      showCityPanel ||
+      showConstructionHall ||
+      showCitySelector ||
+      showDiplomacy ||
+      showSettings ||
+      showQuickUnitActions ||
+      !!selectedWorldElement ||
+      !!selectedVillage ||
+      !!ruinsReward ||
+      !!activeTechReveal ||
+      isTransitioning
+    ) {
+      return true;
+    }
+
+    if (typeof document === 'undefined') return false;
+    const active = document.activeElement;
+    if (!active || !(active instanceof HTMLElement)) return false;
+    if (active.isContentEditable) return true;
+
+    const tagName = active.tagName;
+    return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
+  }, [
+    showSaveLoadMenu,
+    showAdvancedSaveSystem,
+    showTechPanel,
+    showCityPanel,
+    showConstructionHall,
+    showCitySelector,
+    showDiplomacy,
+    showSettings,
+    showQuickUnitActions,
+    selectedWorldElement,
+    selectedVillage,
+    ruinsReward,
+    activeTechReveal,
+    isTransitioning
+  ]);
+
+  const triggerQuickUnitAction = useCallback((action: 'attack' | 'move' | 'ability') => {
+    if (!selectedUnit) return;
+    const actionsRemaining = selectedUnit.actionsRemaining ?? selectedUnit.maxActions ?? 1;
+    const movementRemaining = selectedUnit.remainingMovement ?? 0;
+
+    switch (action) {
+      case 'attack':
+        if (actionsRemaining <= 0) return;
+        setShowQuickUnitActions(false);
+        setAttackMode(true);
+        break;
+      case 'move':
+        if (movementRemaining <= 0) return;
+        setShowQuickUnitActions(false);
+        setMovementMode(true);
+        break;
+      case 'ability':
+        if (actionsRemaining <= 0) return;
+        setShowQuickUnitActions(true);
+        break;
+      default:
+        break;
+    }
+  }, [selectedUnit, setAttackMode, setMovementMode]);
 
   if (isDev) {
     console.log(
@@ -882,7 +940,7 @@ export default function GameUI() {
       }
     );
     return unsubscribe;
-  }, [subscribeKeys, showSaveLoadMenu]);
+  }, [subscribeKeys, handleEndTurn, shouldIgnoreGlobalHotkeys]);
 
   // Deselect unit with escape
   useEffect(() => {
@@ -895,7 +953,7 @@ export default function GameUI() {
       }
     );
     return unsubscribe;
-  }, [subscribeKeys, selectedUnit, setSelectedUnit, showSaveLoadMenu]);
+  }, [subscribeKeys, selectedUnit, setSelectedUnit, shouldIgnoreGlobalHotkeys]);
 
   // Save/Load keyboard shortcut
   useEffect(() => {
@@ -908,7 +966,7 @@ export default function GameUI() {
       }
     );
     return unsubscribe;
-  }, [subscribeKeys, showSaveLoadMenu]);
+  }, [subscribeKeys, shouldIgnoreGlobalHotkeys]);
 
   // Diplomacy keyboard shortcut
   useEffect(() => {
@@ -921,7 +979,44 @@ export default function GameUI() {
       }
     );
     return unsubscribe;
-  }, [subscribeKeys, showSaveLoadMenu]);
+  }, [subscribeKeys, shouldIgnoreGlobalHotkeys]);
+
+  // Unit quick-action hotkeys (A/M/Q)
+  useEffect(() => {
+    const unsubscribe = subscribeKeys(
+      (state) => state.attack,
+      (pressed) => {
+        if (pressed && selectedUnit && !shouldIgnoreGlobalHotkeys()) {
+          triggerQuickUnitAction('attack');
+        }
+      }
+    );
+    return unsubscribe;
+  }, [subscribeKeys, selectedUnit, shouldIgnoreGlobalHotkeys, triggerQuickUnitAction]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeKeys(
+      (state) => state.move,
+      (pressed) => {
+        if (pressed && selectedUnit && !shouldIgnoreGlobalHotkeys()) {
+          triggerQuickUnitAction('move');
+        }
+      }
+    );
+    return unsubscribe;
+  }, [subscribeKeys, selectedUnit, shouldIgnoreGlobalHotkeys, triggerQuickUnitAction]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeKeys(
+      (state) => state.ability,
+      (pressed) => {
+        if (pressed && selectedUnit && !shouldIgnoreGlobalHotkeys()) {
+          triggerQuickUnitAction('ability');
+        }
+      }
+    );
+    return unsubscribe;
+  }, [subscribeKeys, selectedUnit, shouldIgnoreGlobalHotkeys, triggerQuickUnitAction]);
 
   // Handle world element actions
   const handleWorldElementAction = (actionType: 'harvest' | 'build', unitId: string) => {
@@ -1343,23 +1438,8 @@ export default function GameUI() {
   };
 
   const handleUnitAction = (action: string) => {
-    if (!selectedUnit) return;
-
-    switch (action) {
-      case 'attack':
-        // Enter attack mode - show attack indicators
-        console.log('Attack mode activated');
-        setAttackMode(true);
-        break;
-      case 'move':
-        // Enter move mode - show movement indicators  
-        console.log('Move mode activated');
-        setMovementMode(true);
-        break;
-      case 'ability':
-        // Use unit ability
-        console.log('Using unit ability');
-        break;
+    if (action === 'attack' || action === 'move' || action === 'ability') {
+      triggerQuickUnitAction(action);
     }
   };
 
@@ -1369,7 +1449,7 @@ export default function GameUI() {
     ) || [];
 
     if (playerCities.length === 0) {
-      console.log('No cities owned by player');
+      showToast("You do not control any cities yet.", "warning");
       return;
     }
 
@@ -1388,7 +1468,7 @@ export default function GameUI() {
     ) || [];
 
     if (playerCities.length === 0) {
-      console.log('No cities owned by player');
+      showToast("You do not control any cities yet.", "warning");
       return;
     }
 
@@ -1918,6 +1998,13 @@ export default function GameUI() {
         <UnitSelectionUI
           selectedUnit={selectedUnit}
           onUnitAction={handleUnitAction}
+        />
+      )}
+
+      {!isMobileUI && showQuickUnitActions && selectedUnit && (
+        <UnitActionsPanel
+          unit={selectedUnit}
+          onClose={() => setShowQuickUnitActions(false)}
         />
       )}
 
