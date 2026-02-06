@@ -1,6 +1,7 @@
 import type { GameState, PlayerState } from "../types/game";
 import type { HexCoordinate } from "../types/coordinates";
 import type { ImprovementDefinition, StructureDefinition } from "../types/city";
+import { coerceFactionId } from "../types/factionId";
 import type { UnitDefinition } from "../types/unit";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "../types/city";
 import { getUnitDefinition } from "../data/units";
@@ -135,15 +136,16 @@ export function getUnitBuildRequirements(
   }
 
   if (unitDef.factionSpecific.length > 0) {
+    const playerFactionId = coerceFactionId(player.factionId);
     const factionNames = unitDef.factionSpecific.map((id) => {
-      const faction = getFaction(id as any);
+      const faction = getFaction(id);
       return faction ? faction.name : String(id);
     });
     requirements.push({
       id: "faction",
       label: "Faction",
       value: factionNames.join(", "),
-      status: unitDef.factionSpecific.includes(player.factionId) ? "met" : "unmet",
+      status: !!playerFactionId && unitDef.factionSpecific.includes(playerFactionId) ? "met" : "unmet",
     });
   }
 

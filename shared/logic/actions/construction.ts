@@ -1,5 +1,6 @@
 import { GameState } from "../../types/game";
 import { UnitType } from "../../types/unit";
+import { coerceFactionId } from "../../types/factionId";
 import { HexCoordinate } from "../../types/coordinates";
 import { GAME_RULES } from "../../data/gameRules";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "../../types/city";
@@ -111,7 +112,8 @@ export function handleStartConstruction(
       return state;
     }
     if (unitDef.requiredTechnology && !player.researchedTechs.includes(unitDef.requiredTechnology)) return state;
-    if (unitDef.factionSpecific.length > 0 && !unitDef.factionSpecific.includes(player.factionId)) return state;
+    const playerFactionId = coerceFactionId(player.factionId);
+    if (unitDef.factionSpecific.length > 0 && (!playerFactionId || !unitDef.factionSpecific.includes(playerFactionId))) return state;
     cost.stars = unitDef.cost;
     buildTime = 1;
     if (unitDef.requirements) {
@@ -485,7 +487,8 @@ export function handleRecruitUnit(
   }
 
   const playerFaction = state.players.find(p => p.id === playerId)?.factionId;
-  if (unitDef.factionSpecific.length > 0 && (!playerFaction || !unitDef.factionSpecific.includes(playerFaction))) {
+  const playerFactionId = playerFaction ? coerceFactionId(playerFaction) : null;
+  if (unitDef.factionSpecific.length > 0 && (!playerFactionId || !unitDef.factionSpecific.includes(playerFactionId))) {
     return state;
   }
 
@@ -631,7 +634,8 @@ export function handleBuildUnit(
   const unitDef = getUnitDefinition(unitType as any);
   if (!unitDef) return state;
   if (unitDef.requiredTechnology && !player.researchedTechs.includes(unitDef.requiredTechnology)) return state;
-  if (unitDef.factionSpecific.length > 0 && !unitDef.factionSpecific.includes(player.factionId)) return state;
+  const playerFactionId = coerceFactionId(player.factionId);
+  if (unitDef.factionSpecific.length > 0 && (!playerFactionId || !unitDef.factionSpecific.includes(playerFactionId))) return state;
 
   const targetCity = (state.cities || []).find(c =>
     c.ownerId === playerId &&

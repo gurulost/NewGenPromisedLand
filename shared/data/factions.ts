@@ -1,4 +1,5 @@
 import { Faction, FactionId } from "../types/faction";
+import { getFactionSpecificUnitTypes } from "./units";
 
 export const FACTIONS: Record<FactionId, Faction> = {
   NEPHITES: {
@@ -30,7 +31,7 @@ export const FACTIONS: Record<FactionId, Faction> = {
         type: 'passive',
       }
     ],
-    uniqueUnits: ['stripling_warrior', 'missionary'],
+    uniqueUnits: getFactionSpecificUnitTypes('NEPHITES'),
     playstyle: 'Defensive and spiritual growth focused',
     strengths: ['Strong defense', 'Unit inspiration', 'Faith-based abilities'],
     weaknesses: ['Slower expansion', 'Vulnerable to pride-based attacks'],
@@ -65,7 +66,7 @@ export const FACTIONS: Record<FactionId, Faction> = {
         requirements: { pride: 60 },
       }
     ],
-    uniqueUnits: ['warrior', 'scout'],
+    uniqueUnits: getFactionSpecificUnitTypes('LAMANITES'),
     playstyle: 'Aggressive early game warfare',
     strengths: ['Strong early combat', 'Fast movement', 'Intimidation'],
     weaknesses: ['High internal dissent', 'Weaker late game', 'Resource management'],
@@ -100,7 +101,7 @@ export const FACTIONS: Record<FactionId, Faction> = {
         requirements: { faith: 40 },
       }
     ],
-    uniqueUnits: ['royal_envoy', 'worker'],
+    uniqueUnits: getFactionSpecificUnitTypes('MULEKITES'),
     playstyle: 'Exploration and cultural expansion',
     strengths: ['Rapid expansion', 'Knowledge recovery', 'Diplomacy'],
     weaknesses: ['Weaker military', 'Vulnerable early game'],
@@ -136,7 +137,7 @@ export const FACTIONS: Record<FactionId, Faction> = {
         requirements: { faith: 80 },
       }
     ],
-    uniqueUnits: ['missionary', 'stripling_warrior', 'guard'],
+    uniqueUnits: getFactionSpecificUnitTypes('ANTI_NEPHI_LEHIES'),
     playstyle: 'Peaceful conversion and defense',
     strengths: ['Unit conversion', 'High faith', 'Cultural victory'],
     weaknesses: ['Cannot initiate combat', 'Limited military options'],
@@ -171,7 +172,7 @@ export const FACTIONS: Record<FactionId, Faction> = {
         type: 'passive',
       }
     ],
-    uniqueUnits: ['royal_envoy', 'commander'],
+    uniqueUnits: getFactionSpecificUnitTypes('ZORAMITES'),
     playstyle: 'Economic dominance with high risk',
     strengths: ['Resource generation', 'Economic victory', 'Civic power'],
     weaknesses: ['High dissent', 'Faith penalties', 'Internal instability'],
@@ -205,7 +206,7 @@ export const FACTIONS: Record<FactionId, Faction> = {
         type: 'active',
       }
     ],
-    uniqueUnits: ['commander', 'warrior'],
+    uniqueUnits: getFactionSpecificUnitTypes('JAREDITES'),
     playstyle: 'High risk, high reward cyclical power',
     strengths: ['Powerful late game', 'Unique mechanics', 'Strong units'],
     weaknesses: ['Unpredictable', 'Self-destructive tendencies', 'Complex management'],

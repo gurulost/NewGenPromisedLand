@@ -1,27 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { UNIT_DEFINITIONS, getUnitDefinition, getUnitsForFaction } from './units';
+import { UNIT_DEFINITIONS, getFactionSpecificUnitTypes, getUnitDefinition, getUnitsForFaction } from './units';
+import { FactionIdSchema } from '../types/faction';
+import { UnitTypeSchema } from '../types/unit';
 
 describe('Unit Definitions', () => {
-  it('should have all unit types defined', () => {
-    const unitTypes = [
-      'warrior',
-      'stripling_warrior',
-      'royal_envoy',
-      'missionary',
-      'priestcraft_preacher',
-      'converted_missionary',
-      'scribe_teacher',
-      'prophet',
-      'guard',
-      'scout',
-      'slinger',
-      'worker',
-      'commander'
-    ];
-    
-    unitTypes.forEach(type => {
+  it('should have all unit types defined from schema', () => {
+    const unitTypes = UnitTypeSchema.options;
+
+    unitTypes.forEach((type) => {
       expect(UNIT_DEFINITIONS[type]).toBeDefined();
     });
+
+    expect(Object.keys(UNIT_DEFINITIONS)).toHaveLength(unitTypes.length);
   });
 
   it('should have complete unit stats', () => {
@@ -87,6 +77,16 @@ describe('Unit Definitions', () => {
     // Verify common units are included for all factions
     const commonUnits = nephiteUnits.filter(unit => unit.factionSpecific.length === 0);
     expect(commonUnits.length).toBeGreaterThan(0);
+  });
+
+  it('should expose faction-specific unit types consistent with unit definitions', () => {
+    FactionIdSchema.options.forEach((factionId) => {
+      const expected = UnitTypeSchema.options.filter((unitType) =>
+        UNIT_DEFINITIONS[unitType].factionSpecific.includes(factionId)
+      );
+
+      expect(getFactionSpecificUnitTypes(factionId)).toEqual(expected);
+    });
   });
 
   it('should have reasonable stat ranges', () => {

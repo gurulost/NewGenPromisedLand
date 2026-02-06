@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { HexCoordinateSchema } from "./coordinates";
+import { FactionIdSchema } from "./factionId";
 
 export const UnitTypeSchema = z.enum([
   // Common units (available to all factions)
@@ -125,7 +126,7 @@ export const UnitDefinitionSchema = z.object({
       perTurn: CooldownDeltaSchema,
     }).optional(),
   }).optional(),
-  factionSpecific: z.array(z.string()).default([]),
+  factionSpecific: z.array(FactionIdSchema).default([]),
   abilities: z.array(z.string()).default([]),
   requiredTechnology: z.string().optional(), // Technology required to unlock this unit
 });

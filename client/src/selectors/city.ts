@@ -1,4 +1,5 @@
 import { City, STRUCTURE_DEFINITIONS, StructureType } from '@shared/types/city';
+import { coerceFactionId } from '@shared/types/factionId';
 import { GameState, PlayerState } from '@shared/types/game';
 import { UNIT_DEFINITIONS } from '@shared/data/units';
 
@@ -63,7 +64,8 @@ export function getCityValidation(city: City, player: PlayerState, gameState: Ga
     }
     
     if (unitDef.factionSpecific && unitDef.factionSpecific.length > 0) {
-      if (!unitDef.factionSpecific.includes(player.factionId)) {
+      const factionId = coerceFactionId(player.factionId);
+      if (!factionId || !unitDef.factionSpecific.includes(factionId)) {
         return false;
       }
     }
