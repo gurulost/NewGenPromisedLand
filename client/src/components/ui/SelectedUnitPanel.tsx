@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Progress } from "./progress";
 import { Button } from "./button";
@@ -22,6 +22,31 @@ interface SelectedUnitPanelProps {
 export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
   const { gameState } = useLocalGame();
   const [showActionsPanel, setShowActionsPanel] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const updateHeight = () => {
+      const height = Math.ceil(panelRef.current?.getBoundingClientRect().height ?? 0);
+      document.documentElement.style.setProperty("--selected-unit-panel-height", `${height}px`);
+    };
+
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    const observer = typeof ResizeObserver !== "undefined" && panelRef.current
+      ? new ResizeObserver(updateHeight)
+      : null;
+    if (observer && panelRef.current) {
+      observer.observe(panelRef.current);
+    }
+
+    return () => {
+      window.removeEventListener("resize", updateHeight);
+      observer?.disconnect();
+      document.documentElement.style.removeProperty("--selected-unit-panel-height");
+    };
+  }, []);
 
   // Memoize unit definition lookup and calculated stats
   const unitStats = useMemo(() => {
@@ -47,8 +72,11 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
   }, [gameState, unit]);
 
   return (
-    <div className="absolute bottom-4 left-4 pointer-events-auto">
-      <Card className="w-64 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20">
+    <div
+      ref={panelRef}
+      className="absolute bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-[calc(env(safe-area-inset-left)+1rem)] pointer-events-auto"
+    >
+      <Card className="w-64 max-w-[calc(100vw-env(safe-area-inset-left)-env(safe-area-inset-right)-2rem)] max-h-[calc(100vh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] flex flex-col overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20">
         <CardHeader className="pb-2 px-4 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
           <div className="flex items-center justify-between">
             <CardTitle className="flex-1 text-center text-amber-100 font-cinzel font-semibold tracking-wide">{unitStats.definition.name}</CardTitle>
@@ -69,7 +97,7 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
           </div>
           <div className="text-xs text-amber-300/70 font-normal text-center truncate">— Chosen Warrior of the Promised Land —</div>
         </CardHeader>
-        <CardContent className="space-y-2 bg-slate-900/40">
+        <CardContent className="flex-1 min-h-0 overflow-y-auto touch-scroll space-y-2 bg-slate-900/40">
           <div className="text-sm text-amber-200/90 font-body bg-amber-900/10 rounded p-2 border border-amber-500/20">
             {unitStats.definition.description}
           </div>

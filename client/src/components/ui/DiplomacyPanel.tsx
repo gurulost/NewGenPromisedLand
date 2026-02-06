@@ -103,7 +103,7 @@ export function DiplomacyPanel({ gameState, currentPlayerId, onClose }: Diplomac
 
     return (
         <Transition appear show as={Fragment}>
-            <Dialog as="div" className="fixed inset-0 z-50 flex items-center justify-center p-4" onClose={onClose}>
+            <Dialog as="div" className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4" data-ui-layer="modal" onClose={onClose}>
                 <Transition.Child
                     as={motion.div}
                     initial={{ opacity: 0 }} animate={{ opacity: 0.7 }} exit={{ opacity: 0 }}
@@ -123,7 +123,8 @@ export function DiplomacyPanel({ gameState, currentPlayerId, onClose }: Diplomac
                         initial={{ scale: 0.85, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.9, opacity: 0 }}
-                        className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl
+                        data-ui-layer="modal-content"
+                        className="relative z-[var(--z-modal-content)] w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl
                        bg-gradient-to-br from-stone-900/95 to-stone-800/90 border border-amber-600/40
                        text-amber-100 shadow-2xl shadow-black/60 p-6"
                     >

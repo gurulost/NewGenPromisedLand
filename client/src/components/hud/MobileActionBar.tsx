@@ -58,7 +58,7 @@ export function MobileActionBar({ unit, gameState }: MobileActionBarProps) {
 
   return (
     <>
-      <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-auto">
+      <div className="fixed bottom-0 left-0 right-0 z-[var(--z-hud)] pointer-events-auto">
         <div className="mobile-safe-bottom bg-slate-950/85 border-t border-amber-500/20 backdrop-blur-md px-3 py-3">
           <div className={clsx(
             "mobile-action-grid grid gap-2",

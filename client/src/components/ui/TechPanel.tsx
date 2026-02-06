@@ -699,14 +699,17 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto p-0 md:p-6"
+      className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[var(--z-modal-backdrop)] pointer-events-auto p-0 md:p-6"
+      data-ui-layer="modal"
+      data-testid="tech-panel"
       style={{ pointerEvents: "auto" }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className={`w-full h-full bg-slate-950 border border-slate-700/50 shadow-2xl flex flex-col overflow-hidden ${isMobileUI ? 'max-w-full max-h-full rounded-none mobile-safe-top mobile-safe-bottom' : 'max-w-[95vw] max-h-[95vh] rounded-xl'}`}
+        data-ui-layer="modal-content"
+        className={`z-[var(--z-modal-content)] w-full h-full bg-slate-950 border border-slate-700/50 shadow-2xl flex flex-col overflow-hidden ${isMobileUI ? 'max-w-full max-h-full rounded-none mobile-safe-top mobile-safe-bottom' : 'max-w-[95vw] max-h-[95vh] rounded-xl'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -918,7 +921,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
           {/* Mobile Toggle Button */}
           <button
             onClick={() => setShowMobileSidebar(!showMobileSidebar)}
-            className="lg:hidden fixed bottom-4 right-4 z-40 bg-amber-600 text-white p-3 rounded-full shadow-xl hover:bg-amber-500 transition-all"
+            className="lg:hidden fixed bottom-4 right-4 z-[var(--z-modal-content)] bg-amber-600 text-white p-3 rounded-full shadow-xl hover:bg-amber-500 transition-all"
           >
             <ChevronDown className={`w-6 h-6 transition-transform ${showMobileSidebar ? 'rotate-180' : ''}`} />
           </button>

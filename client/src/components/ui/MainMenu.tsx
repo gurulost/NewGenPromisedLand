@@ -106,6 +106,7 @@ export default function MainMenu() {
                 onClick={() => {
                   setGamePhase('playerSetup');
                 }}
+                data-testid="start-game"
                 className="w-full"
                 size="lg"
                 variant={savedGames.length > 0 ? "secondary" : "default"}
@@ -156,6 +157,7 @@ export default function MainMenu() {
 
               <GlowingButton
                 onClick={() => setGamePhase('tutorialEpisodeIntro')}
+                data-testid="menu-tutorial-episode"
                 variant="secondary"
                 className="w-full"
                 size="lg"

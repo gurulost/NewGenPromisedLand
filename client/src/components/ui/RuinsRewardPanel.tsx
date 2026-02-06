@@ -3,7 +3,6 @@ import { Dialog, Transition } from '@headlessui/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSfxEngine } from '../../hooks/useSfx';
 import { Button } from './button';
-import { TOKENS } from '../../theme/tokens';
 import { getRarityColor, getRewardIcon, RuinsReward } from '../../../../shared/data/ruinsRewards';
 
 interface RuinsRewardPanelProps {
@@ -16,11 +15,16 @@ export function RuinsRewardPanel({ reward, onClose }: RuinsRewardPanelProps) {
     const [showContent, setShowContent] = useState(false);
 
     useEffect(() => {
-        if (reward) {
-            playSfx('panel-open');
-            // Delay showing content slightly for dramatic effect
-            setTimeout(() => setShowContent(true), 300);
+        if (!reward) {
+            setShowContent(false);
+            return;
         }
+
+        playSfx('panel-open');
+        setShowContent(false);
+        // Delay showing content slightly for dramatic effect.
+        const timer = window.setTimeout(() => setShowContent(true), 300);
+        return () => window.clearTimeout(timer);
     }, [reward, playSfx]);
 
     if (!reward) return null;
@@ -30,7 +34,7 @@ export function RuinsRewardPanel({ reward, onClose }: RuinsRewardPanelProps) {
 
     return (
         <Transition appear show={!!reward} as={Fragment}>
-            <Dialog as="div" className="relative z-50" onClose={onClose}>
+            <Dialog as="div" className="relative z-[var(--z-modal-backdrop)]" data-ui-layer="modal" onClose={onClose}>
                 <Transition.Child
                     as={Fragment}
                     enter="ease-out duration-300"
@@ -54,7 +58,7 @@ export function RuinsRewardPanel({ reward, onClose }: RuinsRewardPanelProps) {
                             leaveFrom="opacity-100 scale-100"
                             leaveTo="opacity-0 scale-95"
                         >
-                            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 border-2 border-amber-600/50 p-6 text-left align-middle shadow-xl transition-all">
+                            <Dialog.Panel data-ui-layer="modal-content" className="z-[var(--z-modal-content)] w-full max-w-md transform overflow-hidden rounded-2xl bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 border-2 border-amber-600/50 p-6 text-left align-middle shadow-xl transition-all">
 
                                 {/* Header with animated icon */}
                                 <div className="flex flex-col items-center justify-center mb-6">

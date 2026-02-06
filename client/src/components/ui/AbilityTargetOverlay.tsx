@@ -72,7 +72,8 @@ export function AbilityTargetOverlay({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-[120] flex items-end md:items-center justify-center pointer-events-auto bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-end md:items-center justify-center pointer-events-auto bg-black/50 backdrop-blur-sm"
+          data-ui-layer="modal"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -86,7 +87,8 @@ export function AbilityTargetOverlay({
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
-            className="w-full max-w-xl bg-slate-900/95 border border-amber-500/30 rounded-t-3xl md:rounded-2xl shadow-2xl shadow-amber-500/20 overflow-hidden"
+            data-ui-layer="modal-content"
+            className="z-[var(--z-modal-content)] w-full max-w-xl bg-slate-900/95 border border-amber-500/30 rounded-t-3xl md:rounded-2xl shadow-2xl shadow-amber-500/20 overflow-hidden"
             style={{ touchAction: 'manipulation' }}
             onClick={(event) => event.stopPropagation()}
           >

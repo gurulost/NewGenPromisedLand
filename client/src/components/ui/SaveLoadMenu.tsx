@@ -202,7 +202,10 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
 
   return (
     <PanelShell isOpen={true} onClose={onClose} size="full" fullScreen={isMobileUI}>
-      <div className={`space-y-6 ${isMobileUI ? 'p-4 mobile-safe-top mobile-safe-bottom' : 'p-6'}`}>
+      <div
+        data-testid="save-load-menu"
+        className={`space-y-6 ${isMobileUI ? 'p-4 mobile-safe-top mobile-safe-bottom' : 'p-6'}`}
+      >
         <PanelHeader
           icon={<Save />}
           title="Save & Load Game"

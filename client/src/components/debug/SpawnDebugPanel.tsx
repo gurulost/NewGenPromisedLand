@@ -114,7 +114,7 @@ export function SpawnDebugPanel() {
   const statusClass = (ok: boolean) => ok ? "text-emerald-200" : "text-rose-200";
 
   return (
-    <div className="fixed bottom-3 right-3 z-[320] w-[320px] rounded-lg border border-white/10 bg-black/70 p-3 text-[11px] text-white/80 shadow-xl backdrop-blur pointer-events-auto">
+    <div className="fixed bottom-3 right-3 z-[var(--z-toast)] w-[320px] rounded-lg border border-white/10 bg-black/70 p-3 text-[11px] text-white/80 shadow-xl backdrop-blur pointer-events-auto">
       <div className="flex items-center justify-between">
         <div className="font-semibold text-white/90">Spawn Debug</div>
         <button

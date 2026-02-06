@@ -3,6 +3,20 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --z-game-base: 10;
+    --z-hud: 120;
+    --z-floating: 140;
+    --z-toast: 160;
+    --z-feedback: 180;
+    --z-modal-backdrop: 280;
+    --z-modal-content: 290;
+    --z-tutorial: 320;
+    --z-critical: 9999;
+    --mobile-hud-height: 0px;
+    --selected-unit-panel-height: 0px;
+  }
+
   * {
     @apply border-border;
   }

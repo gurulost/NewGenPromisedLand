@@ -741,8 +741,12 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
   const actions = getUnitActions();
 
   return (
-    <div className={`fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto ${isMobileUI ? 'p-0' : 'p-4'}`}>
-      <Card className={`w-full overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20 touch-scroll ${isMobileUI ? 'max-w-full max-h-full rounded-none mobile-safe-top mobile-safe-bottom' : 'max-w-[500px] max-h-[85vh]'}`}>
+    <div
+      className={`fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[var(--z-modal-backdrop)] pointer-events-auto ${isMobileUI ? 'p-0' : 'p-4'}`}
+      data-ui-layer="modal"
+      data-testid="unit-actions-panel"
+    >
+      <Card data-ui-layer="modal-content" className={`z-[var(--z-modal-content)] w-full overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20 touch-scroll ${isMobileUI ? 'max-w-full max-h-full rounded-none mobile-safe-top mobile-safe-bottom' : 'max-w-[500px] max-h-[85vh]'}`}>
         <CardHeader className="bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-3 text-amber-100 font-cinzel">

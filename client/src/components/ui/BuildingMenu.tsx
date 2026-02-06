@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Hammer, 
@@ -105,7 +105,6 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'cost' | 'name' | 'buildTime'>('cost');
-  const audioRef = useRef<HTMLAudioElement>(null);
 
   const playerStats = getPlayerStats(player, gameState);
   const totalStarProduction = playerStats.starProduction;
@@ -113,8 +112,8 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
 
   // Play UI sounds
   const playSound = (soundType: 'hover' | 'select' | 'build' | 'error') => {
-    // Sound effects would be implemented here
-    console.log(`Playing ${soundType} sound`);
+    void soundType;
+    // Sound effects can be wired in here when a shared UI sound bus is enabled.
   };
 
   const resolveFactionNames = (ids: string[]) =>
@@ -236,7 +235,9 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
 
   return (
     <div 
-      className={`fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto ${isMobileUI ? 'p-0' : 'p-4'}`}
+      className={`fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[var(--z-modal-backdrop)] pointer-events-auto ${isMobileUI ? 'p-0' : 'p-4'}`}
+      data-ui-layer="modal"
+      data-testid="building-menu"
       onClick={(e) => {
         // Close menu if clicking on backdrop
         if (e.target === e.currentTarget) {
@@ -245,7 +246,8 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
       }}
     >
       <motion.div
-        className={`relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 w-full h-full overflow-hidden shadow-2xl shadow-amber-500/10 ${isMobileUI ? 'max-w-full max-h-full rounded-none mobile-safe-top mobile-safe-bottom' : 'max-w-[1200px] max-h-[90vh] rounded-2xl'}`}
+        data-ui-layer="modal-content"
+        className={`relative z-[var(--z-modal-content)] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 w-full h-full overflow-hidden shadow-2xl shadow-amber-500/10 ${isMobileUI ? 'max-w-full max-h-full rounded-none mobile-safe-top mobile-safe-bottom' : 'max-w-[1200px] max-h-[90vh] rounded-2xl'}`}
         onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
         initial={{ scale: 0.8, opacity: 0, y: 50 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
