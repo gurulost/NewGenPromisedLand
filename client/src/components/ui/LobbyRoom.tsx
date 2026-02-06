@@ -7,16 +7,8 @@ import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
 import { ArrowLeft, Users, Copy, Check, UserPlus, Bot, RefreshCw, Loader2 } from "lucide-react";
 import { FACTIONS } from "@shared/data/factions";
+import { coerceFactionId } from "@shared/types/factionId";
 import type { MapSize } from "@shared/utils/mapGenerator";
-
-const FACTION_COLORS: Record<string, string> = {
-  nephites: "bg-blue-600",
-  lamanites: "bg-red-600",
-  mulekites: "bg-purple-600",
-  anti_nephi_lehies: "bg-green-600",
-  zoramites: "bg-yellow-600",
-  jaredites: "bg-orange-600",
-};
 
 function SeatSlot({
   seat,
@@ -38,6 +30,8 @@ function SeatSlot({
   const isMySeat = seat?.userId === userId;
   const isEmpty = !seat;
   const isAISeat = seat?.isAI;
+  const seatFactionId = coerceFactionId(seat?.factionId);
+  const seatFaction = seatFactionId ? FACTIONS[seatFactionId] : null;
 
   const handleClaim = async () => {
     if (playerName.trim()) {
@@ -124,8 +118,11 @@ function SeatSlot({
             )
           ) : (
             <>
-              <span className={`px-2 py-0.5 rounded text-xs ${seat.factionId ? FACTION_COLORS[seat.factionId] || "bg-slate-600" : "bg-slate-600"}`}>
-                {seat.factionId ? FACTIONS[seat.factionId as keyof typeof FACTIONS]?.name || seat.factionId : "?"}
+              <span
+                className={`px-2 py-0.5 rounded text-xs text-white ${seatFaction ? "" : "bg-slate-600"}`}
+                style={seatFaction ? { backgroundColor: seatFaction.color } : undefined}
+              >
+                {seatFaction ? seatFaction.name : (seat?.factionId || "?")}
               </span>
               <span className="text-amber-100 text-sm truncate">
                 {isAISeat ? `AI: ${seat.playerName || "Bot"}` : seat.playerName || "Unknown"}

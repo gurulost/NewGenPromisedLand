@@ -1,4 +1,11 @@
-import { UnitDefinitionSchema, type UnitDefinition, type UnitDefinitionInput, type UnitType } from "../types/unit";
+import {
+  UnitDefinitionSchema,
+  UnitTypeSchema,
+  type UnitDefinition,
+  type UnitDefinitionInput,
+  type UnitType,
+} from "../types/unit";
+import type { FactionId } from "../types/factionId";
 
 const RAW_UNIT_DEFINITIONS = {
   // === COMMON UNITS (Available to all factions) ===
@@ -380,12 +387,18 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = Object.fromEnt
   ])
 ) as Record<UnitType, UnitDefinition>;
 
+const UNIT_TYPE_ORDER = UnitTypeSchema.options;
+
 export const getUnitDefinition = (type: UnitType): UnitDefinition => {
   return UNIT_DEFINITIONS[type];
 };
 
-export const getUnitsForFaction = (factionId: string): UnitDefinition[] => {
-  return Object.values(UNIT_DEFINITIONS).filter(unit => 
-    unit.factionSpecific.length === 0 || unit.factionSpecific.includes(factionId)
-  );
+export const getFactionSpecificUnitTypes = (factionId: FactionId): UnitType[] => {
+  return UNIT_TYPE_ORDER.filter((unitType) => UNIT_DEFINITIONS[unitType].factionSpecific.includes(factionId));
+};
+
+export const getUnitsForFaction = (factionId: FactionId): UnitDefinition[] => {
+  return UNIT_TYPE_ORDER
+    .map((unitType) => UNIT_DEFINITIONS[unitType])
+    .filter((unit) => unit.factionSpecific.length === 0 || unit.factionSpecific.includes(factionId));
 };

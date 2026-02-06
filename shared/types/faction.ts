@@ -1,15 +1,9 @@
 import { z } from "zod";
+import { UnitTypeSchema } from "./unit";
+import { FactionIdSchema } from "./factionId";
 
-export const FactionIdSchema = z.enum([
-  'NEPHITES',
-  'LAMANITES', 
-  'MULEKITES',
-  'ANTI_NEPHI_LEHIES',
-  'ZORAMITES',
-  'JAREDITES'
-]);
-
-export type FactionId = z.infer<typeof FactionIdSchema>;
+export { FactionIdSchema } from "./factionId";
+export type { FactionId } from "./factionId";
 
 export const FactionAbilitySchema = z.object({
   id: z.string(),
@@ -38,7 +32,7 @@ export const FactionSchema = z.object({
     internalDissent: z.number(),
   }),
   abilities: z.array(FactionAbilitySchema),
-  uniqueUnits: z.array(z.string()),
+  uniqueUnits: z.array(UnitTypeSchema),
   playstyle: z.string(),
   strengths: z.array(z.string()),
   weaknesses: z.array(z.string()),
