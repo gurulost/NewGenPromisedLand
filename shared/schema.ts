@@ -42,7 +42,7 @@ export const gameLobbies = pgTable("game_lobbies", {
   code: varchar("code", { length: 8 }).notNull().unique(),
   name: text("name").notNull(),
   hostUserId: integer("host_user_id").notNull().references(() => users.id),
-  maxPlayers: integer("max_players").notNull().default(6),
+  maxPlayers: integer("max_players").notNull().default(8),
   mapSize: text("map_size").notNull().default("normal"),
   status: text("status").notNull().default("waiting"),
   gameState: jsonb("game_state"),

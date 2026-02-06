@@ -135,7 +135,8 @@ function calculatePlayerStarIncome(
     const improvementDef = IMPROVEMENT_DEFINITIONS[improvement.type as keyof typeof IMPROVEMENT_DEFINITIONS];
     if (improvementDef && improvement.constructionTurns === 0) {
       let production = improvement.starProduction;
-      if (improvement.type === 'port' && player.researchedTechs?.includes('seafaring')) {
+      const hasHagothPortBonus = player.factionId === 'HAGOTHS_MARINERS';
+      if (improvement.type === 'port' && (hasHagothPortBonus || player.researchedTechs?.includes('seafaring'))) {
         production += 1;
       }
       starIncome += production;
@@ -696,21 +697,21 @@ export function handleEndTurn(
   // - clears temporary command buffs (rallied / rallyBuff / tacticalCommand)
   const currentPlayerData = updatedPlayers.find(p => p.id === currentPlayer.id);
   const isTestimonyFaction = currentPlayerData?.factionId === 'NEPHITES' || currentPlayerData?.factionId === 'ANTI_NEPHI_LEHIES';
+  const isAmuloniteFaction = currentPlayerData?.factionId === 'AMULONITES';
+  const isEligibleEnemyMilitaryUnit = (u: Unit): boolean => {
+    // Exclude civilian/influence units (prevents weird non-combat clumps and future drift).
+    const def = getUnitDefinition(u.type as any);
+    const tags = def?.tags ?? [];
+    return !tags.includes('civilian') && !tags.includes('influence') && !tags.includes('diplomat');
+  };
 
   if (isTestimonyFaction) {
-    const isEligibleEnemyUnit = (u: Unit): boolean => {
-      // Exclude civilian/influence units (prevents weird non-combat clumps and future drift).
-      const def = getUnitDefinition(u.type as any);
-      const tags = def?.tags ?? [];
-      return !tags.includes('civilian') && !tags.includes('influence') && !tags.includes('diplomat');
-    };
-
     const myMissionaries = updatedUnits.filter(u => u.playerId === currentPlayer.id && u.type === 'missionary');
     const affectedUnitIds = new Set<string>();
     myMissionaries.forEach(missionary => {
       const adjacentEnemyUnits = updatedUnits.filter(u =>
         u.playerId !== currentPlayer.id &&
-        isEligibleEnemyUnit(u) &&
+        isEligibleEnemyMilitaryUnit(u) &&
         hexDistance(u.coordinate, missionary.coordinate) <= 1
       );
 
@@ -753,6 +754,60 @@ export function handleEndTurn(
         payload: {
           sourcePlayerId: currentPlayer.id,
           attackPenalty: penalty,
+          durationTurns,
+          affected: Object.entries(appliedByOwner).map(([playerId, unitIds]) => ({
+            playerId,
+            unitIds: Array.from(unitIds),
+          })),
+        }
+      });
+    }
+  }
+
+  // === Intimidation Aura (Taskmasters) ===
+  // Amulonite taskmasters apply an intimidation debuff to adjacent enemy military units.
+  if (isAmuloniteFaction) {
+    const myTaskmasters = updatedUnits.filter(u => u.playerId === currentPlayer.id && u.type === 'taskmaster');
+    const affectedUnitIds = new Set<string>();
+
+    myTaskmasters.forEach(taskmaster => {
+      const adjacentEnemyUnits = updatedUnits.filter(u =>
+        u.playerId !== currentPlayer.id &&
+        isEligibleEnemyMilitaryUnit(u) &&
+        hexDistance(u.coordinate, taskmaster.coordinate) <= 1
+      );
+
+      adjacentEnemyUnits.forEach(enemyUnit => {
+        affectedUnitIds.add(enemyUnit.id);
+      });
+    });
+
+    if (affectedUnitIds.size > 0) {
+      const durationTurns = 1;
+      const attackPenalty = 1;
+      const appliedByOwner: Record<string, Set<string>> = {};
+
+      updatedUnits = updatedUnits.map((u: any) => {
+        if (!affectedUnitIds.has(u.id)) return u;
+
+        const withEffect = applyStatusEffect(u, {
+          type: 'INTIMIDATED',
+          turnsRemaining: durationTurns,
+          sourcePlayerId: currentPlayer.id,
+        });
+
+        if (!withEffect) return u;
+
+        if (!appliedByOwner[u.playerId]) appliedByOwner[u.playerId] = new Set();
+        appliedByOwner[u.playerId].add(u.id);
+        return withEffect;
+      });
+
+      endTurnEvents.push({
+        type: 'INTIMIDATION_AURA',
+        payload: {
+          sourcePlayerId: currentPlayer.id,
+          attackPenalty,
           durationTurns,
           affected: Object.entries(appliedByOwner).map(([playerId, unitIds]) => ({
             playerId,

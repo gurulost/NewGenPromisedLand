@@ -67,7 +67,7 @@ export default function PlayerSetup() {
   };
 
   const addPlayer = () => {
-    if (players.length < 6) {
+    if (players.length < 8) {
       const nextNumber = nextIdRef.current;
       nextIdRef.current += 1;
       setPlayers([...players, {
@@ -179,12 +179,12 @@ export default function PlayerSetup() {
                   </div>
                   <div>
                     <div className="text-xs uppercase tracking-[0.3em] text-amber-200/70 font-cinzel">Match Ledger</div>
-                    <div className="text-xs text-amber-200/60">Unique factions required • Up to 6 seats</div>
+                    <div className="text-xs text-amber-200/60">Unique factions required • Up to 8 seats</div>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-amber-200">
-                    Players {players.length}/6
+                    Players {players.length}/8
                   </span>
                   <span className="rounded-full border border-slate-500/40 bg-slate-900/60 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-amber-100/80">
                     Humans {humanCount}
@@ -430,7 +430,7 @@ export default function PlayerSetup() {
                     })}
                   </div>
 
-                  {players.length < 6 && (
+                  {players.length < 8 && (
                     <GlowingButton
                       variant="ghost"
                       glowColor="amber"
@@ -439,7 +439,7 @@ export default function PlayerSetup() {
                     >
                       <span className="flex items-center justify-center gap-2">
                         <Plus />
-                        Add Player (Max 6)
+                        Add Player (Max 8)
                       </span>
                     </GlowingButton>
                   )}

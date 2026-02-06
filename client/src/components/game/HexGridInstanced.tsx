@@ -112,8 +112,12 @@ function isValidConstructionTile(
 
   if (category === 'units') {
     // Units can be placed on:
-    if (buildingType === 'boat') {
-      // Boats need adjacent water tiles or city on water
+    const unitDef = getUnitDefinition(buildingType as any);
+    const isNavalSpawnUnit =
+      buildingType === 'boat' ||
+      (unitDef?.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_TRANSPORT');
+    if (isNavalSpawnUnit) {
+      // Naval transport units need adjacent water tiles or city on water
       const isCityTile = tile.coordinate.q === city.coordinate.q && tile.coordinate.r === city.coordinate.r;
       if (isCityTile && tile.terrain === 'water') return true;
       return tile.terrain === 'water' && hexDistance(tile.coordinate, city.coordinate) === 1 && !hasUnit;

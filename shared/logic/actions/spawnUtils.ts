@@ -2,8 +2,14 @@ import { GameState } from "../../types/game";
 import { UnitType } from "../../types/unit";
 import { HexCoordinate } from "../../types/coordinates";
 import { GAME_RULES } from "../../data/gameRules";
+import { getUnitDefinition } from "../../data/units";
 import { hexDistance, hexNeighbors } from "../../utils/hex";
 import { isTileExploredByPlayer } from "../constructionRules";
+
+const isNavalSpawnUnitType = (unitType: UnitType) => {
+  const def = getUnitDefinition(unitType);
+  return unitType === "boat" || (def.abilities || []).some(a => String(a).toUpperCase() === "NAVAL_TRANSPORT");
+};
 
 export function getUnitSpawnCoordinate(
   state: GameState,
@@ -36,7 +42,7 @@ export function getUnitSpawnCoordinate(
     return true;
   };
 
-  if (unitType === "boat") {
+  if (isNavalSpawnUnitType(unitType)) {
     const adjacentTiles = hexNeighbors(cityCoordinate);
     const validBoatTiles = adjacentTiles
       .map(neighbor => state.map.tiles.find(t =>
@@ -117,7 +123,7 @@ export function getValidSpawnTiles(
     return !hasEnemy && unitsOnTile.length < MAX_UNITS_PER_TILE;
   };
 
-  if (unitType === "boat") {
+  if (isNavalSpawnUnitType(unitType)) {
     const adjacentTiles = hexNeighbors(cityCoordinate);
     return adjacentTiles
       .map(neighbor => state.map.tiles.find(t =>

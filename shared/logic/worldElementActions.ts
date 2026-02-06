@@ -159,7 +159,7 @@ function getUnitRequirementMessage(
       return 'Requires a Naval Commander on this tile (Commander with Naval Command)';
     }
     if (requiredTag === 'naval_transport') {
-      return 'Requires a Boat on this tile';
+      return 'Requires a naval transport unit on this tile';
     }
     return `Requires a unit with ${requiredTag} capability on this tile`;
   }

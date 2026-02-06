@@ -108,7 +108,8 @@ export function getPlayerStats(player: PlayerState, gameState?: GameState | null
   const improvementIncome = playerImprovements.reduce((sum, imp) => {
     if (imp.constructionTurns !== 0) return sum;
     let stars = imp.starProduction ?? 0;
-    if (imp.type === 'port' && player.researchedTechs?.includes('seafaring')) stars += 1;
+    const hasHagothPortBonus = player.factionId === 'HAGOTHS_MARINERS';
+    if (imp.type === 'port' && (hasHagothPortBonus || player.researchedTechs?.includes('seafaring'))) stars += 1;
     return sum + stars;
   }, 0);
   if (improvementIncome > 0) breakdown.push({ source: `Improvements (${playerImprovements.length})`, amount: improvementIncome });

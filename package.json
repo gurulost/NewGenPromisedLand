@@ -11,7 +11,7 @@
     "lint": "eslint client/src --ext .ts,.tsx",
     "lint:hooks": "eslint client/src --ext .ts,.tsx --rule 'react-hooks/rules-of-hooks: error'",
     "postinstall": "node scripts/fix-tldts.cjs",
-    "ai:sim": "node --loader ts-node/esm scripts/run-ai-sim.ts",
+    "ai:sim": "tsx scripts/run-ai-sim.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

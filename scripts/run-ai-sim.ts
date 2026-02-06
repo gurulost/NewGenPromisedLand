@@ -1,7 +1,7 @@
 import { simulateAITurns } from '../shared/ai/aiHarness';
 import { GameState, PlayerState } from '../shared/types/game';
 import { MapGenerator } from '../shared/utils/mapGenerator';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 type SimOptions = {
   turns: number;
@@ -23,7 +23,7 @@ function createPlayers(count: number): PlayerState[] {
     players.push({
       id: `ai_${i}`,
       name: `AI ${i + 1}`,
-      factionId: 'nephites',
+      factionId: 'NEPHITES',
       isAI: true,
       aiDifficulty: 'normal',
       stars: 10,
@@ -39,6 +39,10 @@ function createPlayers(count: number): PlayerState[] {
       turnOrder: i,
       abilityCooldowns: {},
       constructionQueue: [],
+      atWarWith: [],
+      alliedWith: [],
+      tradeRoutes: [],
+      diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 },
     });
   }
   return players;
@@ -55,7 +59,7 @@ function createInitialState(options: SimOptions): GameState {
       minResourceDistance: 2,
       maxResourcesPerPlayer: 3,
     },
-    new Array(options.aiCount).fill('nephites')
+    new Array(options.aiCount).fill('NEPHITES')
   );
 
   const map = generator.generateMap();
@@ -63,8 +67,17 @@ function createInitialState(options: SimOptions): GameState {
   const players = createPlayers(options.aiCount);
 
   // Assign starting cities
+  const initialCityTiles = map.tiles.filter(t => t.hasCity);
+  const tileKey = (q: number, r: number, s: number) => `${q},${r},${s}`;
+  const usedTiles = new Set<string>();
   const cities = players.map((player, idx) => {
-    const startTile = map.tiles.find(t => t.hasCity) || map.tiles[idx] || map.tiles[0];
+    const fallbackTile = map.tiles.find(
+      tile => !usedTiles.has(tileKey(tile.coordinate.q, tile.coordinate.r, tile.coordinate.s))
+    );
+    const startTile = initialCityTiles[idx] || fallbackTile || map.tiles[0];
+    usedTiles.add(tileKey(startTile.coordinate.q, startTile.coordinate.r, startTile.coordinate.s));
+    startTile.hasCity = true;
+    startTile.cityOwner = player.id;
     return {
       id: `city_${player.id}`,
       name: `${player.name} Capital`,
@@ -97,7 +110,8 @@ function createInitialState(options: SimOptions): GameState {
   });
 
   const initialState: GameState = {
-    id: uuidv4(),
+    id: randomUUID(),
+    rngSeed: options.seed,
     players,
     currentPlayerIndex: 0,
     turn: 1,

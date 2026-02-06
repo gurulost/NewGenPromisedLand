@@ -262,7 +262,7 @@ export class TacticalEngine {
             t.coordinate.q === q && t.coordinate.r === r
           );
 
-          if (tile && this.isPassable(tile)) {
+          if (tile && this.isPassable(tile, unit)) {
             const threat = this.assessThreat(coord);
             const safetyScore = this.calculateSafetyScore(coord, unit);
 
@@ -479,8 +479,13 @@ export class TacticalEngine {
     return Math.max(0, priority);
   }
 
-  private isPassable(tile: any): boolean {
-    return tile.terrain !== 'water' && tile.terrain !== 'mountain';
+  private isPassable(tile: any, unit?: Unit): boolean {
+    if (tile.terrain === 'water') {
+      if (!unit) return false;
+      const def = getUnitDefinition(unit.type);
+      return unit.type === 'boat' || (def.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_TRANSPORT');
+    }
+    return tile.terrain !== 'mountain';
   }
 
   private getTerrainBonus(coord: HexCoordinate): number {

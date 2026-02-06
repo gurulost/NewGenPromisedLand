@@ -130,6 +130,30 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
     cooldown: 15,
   },
 
+  SHIPBUILDING_TRADITION: {
+    id: 'SHIPBUILDING_TRADITION',
+    name: 'Shipbuilding Tradition',
+    description: 'Ports generate +1 star/turn even without Seafaring.',
+    type: 'faction',
+    effect: 'HAGOTH_PORT_BONUS',
+  },
+
+  NORTHWARD_VENTURES: {
+    id: 'NORTHWARD_VENTURES',
+    name: 'Northward Ventures',
+    description: 'Voyagers are amphibious and can make landfall.',
+    type: 'faction',
+    effect: 'HAGOTH_AMPHIBIOUS_VOYAGER',
+  },
+
+  BONDAGE_TASKMASTERS: {
+    id: 'BONDAGE_TASKMASTERS',
+    name: 'Bondage Taskmasters',
+    description: 'Taskmasters intimidate adjacent enemy military units at end of turn.',
+    type: 'faction',
+    effect: 'TASKMASTER_INTIMIDATION_AURA',
+  },
+
   // Legacy ability ids (kept for compatibility with existing UI/tests)
   lamanite_guerrilla_tactics: {
     id: 'lamanite_guerrilla_tactics',
@@ -187,6 +211,22 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
     description: 'Double defense but cannot move',
     type: 'unit',
     effect: 'DEFENSIVE_STANCE',
+  },
+
+  AMPHIBIOUS: {
+    id: 'AMPHIBIOUS',
+    name: 'Amphibious',
+    description: 'Can move between water and land tiles.',
+    type: 'unit',
+    effect: 'AMPHIBIOUS_MOVEMENT',
+  },
+
+  INTIMIDATE: {
+    id: 'INTIMIDATE',
+    name: 'Intimidate',
+    description: 'Applies Intimidated to nearby enemy military units.',
+    type: 'unit',
+    effect: 'INTIMIDATION_DEBUFF',
   },
 
   ANTI_CAVALRY: {

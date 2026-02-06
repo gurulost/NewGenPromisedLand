@@ -4,6 +4,7 @@ import {
   calculateReachableTiles, 
   canSelectUnit, 
   canUnitReachCoordinate,
+  getMovementCostForCoordinate,
   getValidAttackTargets,
   canUnitAttackTarget,
   isUnitVisibleToPlayer,
@@ -130,6 +131,41 @@ describe('Unit Logic', () => {
       mockGameState.units.push(friendlyUnit);
 
       expect(isPassableForUnit({ q: 1, r: 1, s: -2 }, mockGameState, testUnit)).toBe(true);
+    });
+
+    it('should allow amphibious voyager movement on both water and land', () => {
+      const voyager: Unit = {
+        ...testUnit,
+        id: 'voyager-1',
+        type: 'voyager',
+      };
+
+      expect(isPassableForUnit({ q: -1, r: 0, s: 1 }, mockGameState, voyager)).toBe(true);
+      expect(isPassableForUnit({ q: 1, r: 0, s: -1 }, mockGameState, voyager)).toBe(true);
+    });
+
+    it('should keep boat movement restricted to water', () => {
+      const boat: Unit = {
+        ...testUnit,
+        id: 'boat-1',
+        type: 'boat',
+      };
+
+      expect(isPassableForUnit({ q: -1, r: 0, s: 1 }, mockGameState, boat)).toBe(true);
+      expect(isPassableForUnit({ q: 1, r: 0, s: -1 }, mockGameState, boat)).toBe(false);
+    });
+  });
+
+  describe('getMovementCostForCoordinate', () => {
+    it('should provide finite movement costs for voyager on water and land', () => {
+      const voyager: Unit = {
+        ...testUnit,
+        id: 'voyager-cost',
+        type: 'voyager',
+      };
+
+      expect(getMovementCostForCoordinate({ q: -1, r: 0, s: 1 }, mockGameState, voyager)).toBe(1);
+      expect(getMovementCostForCoordinate({ q: 1, r: 0, s: -1 }, mockGameState, voyager)).toBeGreaterThan(0);
     });
   });
 

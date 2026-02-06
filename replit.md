@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chronicles of the Promised Land is a browser-first, 2.5D turn-based strategy game inspired by the Book of Mormon. It features six factions (Nephites, Lamanites, Mulekites, Anti-Nephi-Lehies, Zoramites, and Jaredites) competing for dominance in ancient Americas through faith, warfare, and diplomacy. The project aims for AAA-quality UI/UX and deep strategic gameplay akin to Polytopia and Civilization.
+Chronicles of the Promised Land is a browser-first, 2.5D turn-based strategy game inspired by the Book of Mormon. It features eight factions (Nephites, Lamanites, Mulekites, Anti-Nephi-Lehies, Zoramites, Jaredites, Hagoth's Mariners, and Amulonites) competing for dominance in ancient Americas through faith, warfare, and diplomacy. The project aims for AAA-quality UI/UX and deep strategic gameplay akin to Polytopia and Civilization.
 
 ## User Preferences
 

@@ -157,6 +157,15 @@ export const GameStateSchema = z.object({
       })
     }),
     z.object({
+      type: z.literal('INTIMIDATION_AURA'),
+      payload: z.object({
+        sourcePlayerId: z.string(),
+        attackPenalty: z.number(),
+        durationTurns: z.number(),
+        affected: z.array(z.object({ playerId: z.string(), unitIds: z.array(z.string()) })),
+      })
+    }),
+    z.object({
       type: z.literal('MORALE_EVENT'),
       payload: z.object({
         playerId: z.string(),

@@ -8,6 +8,8 @@ import { buildPathfindingInputs } from "../pathfindingInputs";
 import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenerator";
 import { getRandomCityName, resetCityNames } from "@shared/data/cityNames";
 import { FactionId } from "@shared/types/faction";
+import { FACTIONS } from "@shared/data/factions";
+import { coerceFactionId } from "@shared/types/factionId";
 import { useGameState } from "./useGameState";
 import { useUnitMotionStore } from "./useUnitMotionStore";
 import { gameDebugger } from "../../utils/gameDebug";
@@ -497,15 +499,17 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
       // Create initial game state
       const players: PlayerState[] = playerSetup.map(setup => applyPlayerDefaults({
+        // Faction defaults are authoritative for standard games.
         id: setup.id,
         name: setup.name,
         factionId: setup.factionId,
         modifiers: [],
-        stats: {
-          faith: 50,
-          pride: 30,
-          internalDissent: 10,
-        },
+        stats: (() => {
+          const factionId = coerceFactionId(setup.factionId);
+          return factionId
+            ? FACTIONS[factionId].startingStats
+            : { faith: 50, pride: 30, internalDissent: 10 };
+        })(),
         visibilityMask: [],
         exploredTiles: [],
         isEliminated: false,
