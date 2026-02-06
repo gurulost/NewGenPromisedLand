@@ -7,6 +7,8 @@ export const FactionIdSchema = z.enum([
   "ANTI_NEPHI_LEHIES",
   "ZORAMITES",
   "JAREDITES",
+  "HAGOTHS_MARINERS",
+  "AMULONITES",
 ]);
 
 export type FactionId = z.infer<typeof FactionIdSchema>;

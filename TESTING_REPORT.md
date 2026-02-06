@@ -12,7 +12,7 @@
 - **Game Reducer**: Complete state management validation
 - **Unit Movement**: Pathfinding, terrain validation, movement ranges
 - **Combat System**: Damage calculations, unit death scenarios
-- **Faction Mechanics**: All 6 factions tested with unique abilities
+- **Faction Mechanics**: All 8 factions tested with unique abilities
 - **Technology System**: Research validation and prerequisites
 - **Coordinate Utilities**: Hexagonal grid mathematics
 

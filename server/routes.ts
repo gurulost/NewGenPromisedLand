@@ -421,7 +421,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new lobby
   app.post("/api/lobbies", requireAuth, async (req, res) => {
     try {
-      const { name, maxPlayers = 6, mapSize = "normal" } = req.body;
+      const { name, maxPlayers = 8, mapSize = "normal" } = req.body;
       if (!name) {
         return res.status(400).json({ error: "Lobby name required" });
       }

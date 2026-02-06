@@ -113,6 +113,40 @@ export const FACTION_CITY_NAMES: Record<FactionId, string[]> = {
         'Shule',          // Righteous king
         'Omer',           // Restored ruler
     ],
+
+    // Hagoth's Mariners - coastal and nautical place names
+    HAGOTHS_MARINERS: [
+        'Irreantum',
+        'Hagoth',
+        'Shipyard of Bountiful',
+        'Northward Haven',
+        'Moriantum',
+        'Narrow Neck',
+        'Narrow Pass',
+        'Sidon Mouth',
+        'East Sea',
+        'West Sea',
+        'Cape Moroni',
+        'Coast of Nephihah',
+        'Many Waters',
+    ],
+
+    // Amulonites - priestcraft, bondage, and occupied-land themes
+    AMULONITES: [
+        'Land of Amulon',
+        'Amulon',
+        'Tower of Noah',
+        "Noah's Court",
+        'Shemlon',
+        'Shimnilon',
+        'Shilom',
+        'Waters of Mormon',
+        'Helam',
+        'Land of Nephi',
+        'Lehi-Nephi',
+        'Middoni',
+        'Bondage Camp',
+    ],
 };
 
 // Track used names per game to avoid duplicates

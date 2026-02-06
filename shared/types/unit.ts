@@ -24,7 +24,11 @@ export const UnitTypeSchema = z.enum([
   'royal_envoy',           // Mulekites, Zoramites
   'wilderness_hunter',     // Lamanites
   'ancient_giant',         // Jaredites
-  'peacekeeping_guard'     // Anti-Nephi-Lehies
+  'peacekeeping_guard',    // Anti-Nephi-Lehies
+  'voyager',               // Hagoth's Mariners
+  'shipwright',            // Hagoth's Mariners
+  'taskmaster',            // Amulonites
+  'amulonite_enforcer'     // Amulonites
 ]);
 
 export type UnitType = z.infer<typeof UnitTypeSchema>;

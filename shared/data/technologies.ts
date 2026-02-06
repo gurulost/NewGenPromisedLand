@@ -26,7 +26,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     prerequisites: [],
     unlocks: {
       improvements: ['farm', 'road'],
-      units: ['worker']
+      units: ['worker', 'taskmaster']
     },
     category: 'economic'
   },
@@ -154,7 +154,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 12,
     prerequisites: ['hunting', 'organization'],
     unlocks: {
-      units: ['spearman'],
+      units: ['spearman', 'amulonite_enforcer'],
       improvements: ['workshop']
     },
     category: 'military'
@@ -167,7 +167,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 8,
     prerequisites: ['hunting'],
     unlocks: {
-      units: ['boat'],
+      units: ['boat', 'voyager'],
       improvements: ['port'],
       structures: ['lighthouse']
     },
@@ -181,6 +181,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 12,
     prerequisites: ['sailing'],
     unlocks: {
+      units: ['shipwright'],
       benefits: ['Ports +1★/turn']
     },
     category: 'exploration'

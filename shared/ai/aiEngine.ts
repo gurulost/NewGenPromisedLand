@@ -2050,7 +2050,8 @@ export class AIEngine {
   }
 
   private cityCanProduceUnit(city: City, unitDef: UnitDefinition, cityHasHarbor: boolean): boolean {
-    if (unitDef.type === 'boat' && !cityHasHarbor) {
+    const requiresHarbor = unitDef.type === 'boat' || (unitDef.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_TRANSPORT');
+    if (requiresHarbor && !cityHasHarbor) {
       return false;
     }
     return true;
@@ -2119,7 +2120,8 @@ export class AIEngine {
       reasons.push('siege capability');
     }
 
-    if (unitDef.type === 'boat') {
+    const isNavalTransport = unitDef.type === 'boat' || (unitDef.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_TRANSPORT');
+    if (isNavalTransport) {
       score += this.personalityEngine.getDecisionModifier('expand') * 20;
       reasons.push('naval reach');
     }
@@ -2452,7 +2454,7 @@ export class AIEngine {
     let bestDistance = currentDistance;
 
     for (const neighbor of hexNeighbors(unit.coordinate)) {
-      if (!this.isValidMovePosition(neighbor)) continue;
+      if (!this.isValidMovePosition(neighbor, unit)) continue;
       if (this.isTileOccupiedByFriendly(neighbor, unit.playerId)) continue;
       if (this.isTileOccupiedByEnemy(neighbor, unit.playerId)) continue;
 
@@ -2467,12 +2469,18 @@ export class AIEngine {
   }
 
   private isExplorerUnit(unit: Unit): boolean {
-    if (unit.type === 'scout' || unit.type === 'boat') return true;
+    if (unit.type === 'scout' || this.isNavalTransportUnit(unit)) return true;
     const abilities = new Set(unit.abilities?.map(a => a.toUpperCase()) ?? []);
     if (abilities.has('RECONNAISSANCE') || abilities.has('NAVAL_COMMAND')) {
       return true;
     }
     return unit.type === 'commander';
+  }
+
+  private isNavalTransportUnit(unit: Unit): boolean {
+    if (unit.type === 'boat') return true;
+    const unitDef = getUnitDefinition(unit.type);
+    return (unitDef.abilities || []).some(a => String(a).toUpperCase() === 'NAVAL_TRANSPORT');
   }
 
   private findBestExplorer(
@@ -2683,11 +2691,15 @@ export class AIEngine {
     return neighbors.find(pos => this.isValidMovePosition(pos)) || null;
   }
 
-  private isValidMovePosition(coord: HexCoordinate): boolean {
+  private isValidMovePosition(coord: HexCoordinate, unit?: Unit): boolean {
     const tile = this.gameState.map.tiles.find(t =>
       t.coordinate.q === coord.q && t.coordinate.r === coord.r
     );
-    return tile ? tile.terrain !== 'water' : false;
+    if (!tile) return false;
+    if (tile.terrain === 'water') {
+      return unit ? this.isNavalTransportUnit(unit) : false;
+    }
+    return true;
   }
 
   private getPersonalityModifier(actionType: string): number {
@@ -2752,7 +2764,7 @@ export class AIEngine {
   private evaluateNavalMovement(): AIDecision[] {
     const decisions: AIDecision[] = [];
     const myUnits = this.getMyUnits();
-    const myBoats = myUnits.filter((u: Unit) => u.type === 'boat');
+    const myBoats = myUnits.filter((u: Unit) => this.isNavalTransportUnit(u));
 
     // Skip if no boats available
     if (myBoats.length === 0) return decisions;
@@ -2760,7 +2772,7 @@ export class AIEngine {
     for (const unit of myUnits) {
       if (this.reservedUnits.has(unit.id)) continue;
       if (unit.remainingMovement <= 0) continue;
-      if (unit.type === 'boat') continue;
+      if (this.isNavalTransportUnit(unit)) continue;
 
       // Check if unit needs naval transport
       const navalOpp = this.findNavalOpportunity(unit);
@@ -2943,7 +2955,7 @@ export class AIEngine {
    * Find available boat near an embark point
    */
   private findAvailableBoat(nearPoint: HexCoordinate): Unit | null {
-    const myBoats = this.getMyUnits().filter(u => u.type === 'boat');
+    const myBoats = this.getMyUnits().filter(u => this.isNavalTransportUnit(u));
 
     let nearestBoat: Unit | null = null;
     let nearestDist = Infinity;
@@ -3023,7 +3035,7 @@ export class AIEngine {
     const myUnits = this.getMyUnits();
 
     return myUnits.filter(unit => {
-      if (unit.type === 'boat') return false;
+      if (this.isNavalTransportUnit(unit)) return false;
       if (this.isUnitOnBoat(unit)) return false;
 
       // Check if near coast

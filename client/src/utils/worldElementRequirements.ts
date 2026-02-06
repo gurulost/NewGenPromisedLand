@@ -32,12 +32,12 @@ const unitRequirement = (elementId: string, actionType: "harvest" | "build", req
   }
   if (requiresUnitTag === "naval_transport") {
     const boatTech = getTechDisplayName(unitTech("boat"));
-    const detailParts = ["Boat or naval transport unit"];
+    const detailParts = ["Any naval transport unit (Boat, Voyager, etc.)"];
     if (boatTech) detailParts.push(`Tech: ${boatTech}`);
 
     return {
       id: "unit",
-      label: "Boat on tile",
+      label: "Naval transport unit on tile",
       detail: detailParts.join(" • "),
     } satisfies WorldElementRequirement;
   }

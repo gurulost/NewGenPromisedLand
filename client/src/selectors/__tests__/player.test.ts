@@ -81,6 +81,51 @@ describe('Player Selectors', () => {
         starProduction: fallback,
       });
     });
+
+    it('applies Hagoth port bonus without Seafaring in selector parity', () => {
+      const hagothState: GameState = {
+        ...mockGameState,
+        players: [
+          {
+            ...mockGameState.players[0],
+            factionId: 'HAGOTHS_MARINERS',
+            researchedTechs: [],
+            citiesOwned: ['city-1'],
+          },
+        ],
+        cities: [
+          {
+            id: 'city-1',
+            name: 'Port City',
+            coordinate: { q: 0, r: 0, s: 0 },
+            ownerId: 'player1',
+            population: 1,
+            maxPopulation: 4,
+            level: 1,
+            starProduction: 0,
+            unrestTurns: 0,
+            improvements: [],
+            structures: [],
+            harvestedResources: [],
+          },
+        ],
+        improvements: [
+          {
+            id: 'port-1',
+            type: 'port',
+            coordinate: { q: 1, r: 0, s: -1 },
+            ownerId: 'player1',
+            starProduction: 0,
+            cityId: 'city-1',
+            constructionTurns: 0,
+          },
+        ],
+      } as GameState;
+
+      const stats = getPlayerStats(hagothState.players[0], hagothState);
+      expect(stats.starProduction).toBe(1);
+      expect(stats.starProductionBreakdown.some(entry => entry.source.includes('Improvements') && entry.amount === 1)).toBe(true);
+    });
   });
 
   describe('player stats validation', () => {

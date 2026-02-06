@@ -378,6 +378,86 @@ const RAW_UNIT_DEFINITIONS = {
     factionSpecific: ['ANTI_NEPHI_LEHIES'], // Anti-Nephi-Lehies only
     abilities: ['PACIFIST_DEFENSE', 'PROTECTIVE_AURA', 'NON_VIOLENCE'],
   },
+
+  voyager: {
+    type: 'voyager',
+    name: 'Voyager',
+    description: 'Hagoth-inspired expedition vessel that can make landfall and scout new shores.',
+    baseStats: {
+      hp: 18,
+      attack: 5,
+      defense: 3,
+      movement: 4,
+      visionRadius: 4,
+      attackRange: 1,
+    },
+    cost: 12,
+    factionSpecific: ['HAGOTHS_MARINERS'],
+    abilities: ['NAVAL_TRANSPORT', 'COASTAL_EXPLORATION', 'AMPHIBIOUS'],
+    requiredTechnology: 'sailing',
+  },
+
+  shipwright: {
+    type: 'shipwright',
+    name: 'Shipwright',
+    description: 'A maritime engineer who expands sea trade and shipbuilding capacity.',
+    tags: ['civilian', 'influence'],
+    baseStats: {
+      hp: 16,
+      attack: 1,
+      defense: 2,
+      movement: 3,
+      visionRadius: 2,
+      attackRange: 1,
+    },
+    cost: 14,
+    factionSpecific: ['HAGOTHS_MARINERS'],
+    abilities: [],
+    requiredTechnology: 'seafaring',
+    passiveEffects: {
+      perTurn: { stars: 1, pride: 1 },
+    },
+  },
+
+  taskmaster: {
+    type: 'taskmaster',
+    name: 'Taskmaster',
+    description: 'An oppressive overseer that extracts output at steep social and spiritual cost.',
+    tags: ['civilian', 'influence'],
+    baseStats: {
+      hp: 18,
+      attack: 1,
+      defense: 2,
+      movement: 3,
+      visionRadius: 2,
+      attackRange: 1,
+    },
+    cost: 12,
+    factionSpecific: ['AMULONITES'],
+    abilities: [],
+    requiredTechnology: 'organization',
+    passiveEffects: {
+      perTurn: { stars: 1, pride: 2, dissent: 2, faith: -1 },
+    },
+  },
+
+  amulonite_enforcer: {
+    type: 'amulonite_enforcer',
+    name: 'Amulonite Enforcer',
+    description: 'Heavy infantry that imposes order through intimidation and fortified defense.',
+    baseStats: {
+      hp: 24,
+      attack: 7,
+      defense: 6,
+      movement: 2,
+      visionRadius: 2,
+      attackRange: 1,
+    },
+    cost: 15,
+    factionSpecific: ['AMULONITES'],
+    abilities: ['INTIMIDATE', 'FORTIFY'],
+    requiredTechnology: 'bronze_working',
+  },
 } satisfies Record<UnitType, UnitDefinitionInput>;
 
 export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = Object.fromEntries(

@@ -116,6 +116,37 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
     return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
   }, [gameState, player.id]);
 
+  const intimidationAuraLastTurn = useMemo(() => {
+    if (!gameState) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+
+    const action: any = gameState.lastAction;
+    if (!action) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+
+    if (action.type === 'END_TURN_RESOLUTION') {
+      const events = action.payload?.events || [];
+      const intimidationEvent = events.find((e: any) => e?.type === 'INTIMIDATION_AURA');
+      const affected: Array<{ playerId: string; unitIds: string[] }> = intimidationEvent?.payload?.affected || [];
+      const mine = affected.find(a => a.playerId === player.id);
+      return {
+        unitsAffected: mine?.unitIds?.length || 0,
+        attackPenalty: intimidationEvent?.payload?.attackPenalty || 0,
+        durationTurns: intimidationEvent?.payload?.durationTurns || 0,
+      };
+    }
+
+    if (action.type === 'INTIMIDATION_AURA') {
+      const affected: Array<{ playerId: string; unitIds: string[] }> = action.payload?.affected || [];
+      const mine = affected.find(a => a.playerId === player.id);
+      return {
+        unitsAffected: mine?.unitIds?.length || 0,
+        attackPenalty: action.payload?.attackPenalty || 0,
+        durationTurns: action.payload?.durationTurns || 0,
+      };
+    }
+
+    return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+  }, [gameState, player.id]);
+
   if (!gameState) return null;
 
   return (
@@ -164,7 +195,11 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
           />
 
           {/* Faith/Pride/Dissent Progress Bars */}
-          <ResourceProgressSection playerStats={playerStats} testimonyPressureLastTurn={testimonyPressureLastTurn} />
+          <ResourceProgressSection
+            playerStats={playerStats}
+            testimonyPressureLastTurn={testimonyPressureLastTurn}
+            intimidationAuraLastTurn={intimidationAuraLastTurn}
+          />
 
           {/* Victory Progress */}
           <VictoryProgressSection
@@ -232,9 +267,10 @@ const StarResourcesSection = React.memo(({ stars, starProduction, breakdown }: {
   </div>
 ));
 
-const ResourceProgressSection = React.memo(({ playerStats, testimonyPressureLastTurn }: {
+const ResourceProgressSection = React.memo(({ playerStats, testimonyPressureLastTurn, intimidationAuraLastTurn }: {
   playerStats: PlayerStats;
   testimonyPressureLastTurn: { unitsAffected: number; attackPenalty: number; durationTurns: number };
+  intimidationAuraLastTurn: { unitsAffected: number; attackPenalty: number; durationTurns: number };
 }) => (
   <div className="space-y-3">
     {/* Faith Progress */}
@@ -282,6 +318,11 @@ const ResourceProgressSection = React.memo(({ playerStats, testimonyPressureLast
         <span className="text-amber-100 font-body font-medium">{playerStats.dissentPercentage}/100</span>
       </div>
       <Progress value={playerStats.dissentPercentage} className="h-2" />
+      {intimidationAuraLastTurn.unitsAffected > 0 && intimidationAuraLastTurn.attackPenalty > 0 && (
+        <div className="mt-1 text-xs text-red-200/70 font-body">
+          Intimidation aura: {intimidationAuraLastTurn.unitsAffected} unit(s) -{intimidationAuraLastTurn.attackPenalty} attack ({intimidationAuraLastTurn.durationTurns} turn)
+        </div>
+      )}
     </div>
   </div>
 ));

@@ -239,6 +239,77 @@ export function WarriorShieldIcon({ className, size = 'md' }: ThematicIconProps)
 }
 
 /**
+ * Sailboat icon
+ * Represents maritime exploration and shipbuilding traditions
+ */
+export function SailboatIcon({ className, size = 'md' }: ThematicIconProps) {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            className={clsx(sizeMap[size], 'text-current', className)}
+            aria-hidden="true"
+        >
+            <path d="M3 19h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path
+                d="M12 4v10M12 5l6 6h-6"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+            <path
+                d="M6 19c1.5 1.4 3 1.4 4.5 0s3-1.4 4.5 0 3 1.4 4.5 0"
+                stroke="currentColor"
+                strokeWidth="1.25"
+                strokeLinecap="round"
+            />
+            <path
+                d="M5 15l7 2 7-2"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="currentColor"
+                fillOpacity="0.15"
+            />
+        </svg>
+    );
+}
+
+/**
+ * Tower icon
+ * Represents hierarchy, control, and taskmaster authority
+ */
+export function TowerIcon({ className, size = 'md' }: ThematicIconProps) {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            className={clsx(sizeMap[size], 'text-current', className)}
+            aria-hidden="true"
+        >
+            <path
+                d="M8 21h8l-1-12H9L8 21z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="currentColor"
+                fillOpacity="0.12"
+            />
+            <path
+                d="M7 9h10l-1-4H8L7 9z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="currentColor"
+                fillOpacity="0.2"
+            />
+            <path d="M10 13h4M10 16h4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+            <path d="M11 21v-3h2v3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+        </svg>
+    );
+}
+
+/**
  * Map of faction IDs to their thematic icons
  */
 export const FactionIcons: Record<string, React.FC<ThematicIconProps>> = {
@@ -248,6 +319,8 @@ export const FactionIcons: Record<string, React.FC<ThematicIconProps>> = {
     ANTI_NEPHI_LEHIES: SunDiskIcon,
     ZORAMITES: HeaddressIcon,
     JAREDITES: SerpentIcon,
+    HAGOTHS_MARINERS: SailboatIcon,
+    AMULONITES: TowerIcon,
 };
 
 /**

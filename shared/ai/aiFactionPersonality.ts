@@ -134,6 +134,38 @@ const FACTION_PERSONALITIES: Record<string, Partial<FactionPersonality>> = {
     retreatThreshold: 0.1,
     attackThreshold: 0.3,
     settlementSpacing: 7
+  },
+
+  'hagoths-mariners': {
+    aggression: 0.45,
+    piety: 0.65,
+    opportunism: 0.75,
+    riskTolerance: 0.6,
+    expansionism: 0.8,
+    diplomacy: 0.6,
+    preferredVictory: 'economic',
+    buildingPriorities: ['lighthouse', 'granary', 'temple', 'academy'],
+    techPriorities: ['hunting', 'sailing', 'seafaring', 'trade', 'navigation'],
+    unitPreferences: ['voyager', 'boat', 'scout', 'shipwright'],
+    retreatThreshold: 0.45,
+    attackThreshold: 0.65,
+    settlementSpacing: 5
+  },
+
+  amulonites: {
+    aggression: 0.65,
+    piety: 0.15,
+    opportunism: 0.85,
+    riskTolerance: 0.75,
+    expansionism: 0.7,
+    diplomacy: 0.15,
+    preferredVictory: 'conquest',
+    buildingPriorities: ['fortress', 'granary', 'temple', 'academy'],
+    techPriorities: ['organization', 'mining', 'bronze_working', 'trade', 'leadership'],
+    unitPreferences: ['amulonite_enforcer', 'taskmaster', 'spearman', 'guard'],
+    retreatThreshold: 0.25,
+    attackThreshold: 0.5,
+    settlementSpacing: 6
   }
 };
 
@@ -158,7 +190,8 @@ export class FactionPersonalityEngine {
    */
   private initializePersonality(): FactionPersonality {
     const faction = getFaction(this.player.factionId as any);
-    const template = FACTION_PERSONALITIES[faction.id] || FACTION_PERSONALITIES.nephites;
+    const key = faction.id.toLowerCase().replace(/_/g, '-');
+    const template = FACTION_PERSONALITIES[key] || FACTION_PERSONALITIES.nephites;
     
     // Add some randomization to make each AI unique
     const personality: FactionPersonality = {

@@ -35,7 +35,7 @@ Chronicles of the Promised Land uses Vitest as its primary testing framework, pr
    - Valid terrain and ability settings
 
 2. **Faction System**
-   - All six factions defined with complete data
+   - All eight factions defined with complete data
    - Unique colors and abilities
    - Proper faction structure validation
 

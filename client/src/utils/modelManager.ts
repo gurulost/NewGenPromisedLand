@@ -27,6 +27,7 @@ export const MODEL_PATHS = {
     cavalry: '/models/cavalry.glb',
     catapult: '/models/catapult.glb',
     boat: '/models/boat.glb',
+    voyager: '/models/boat.glb',
 
     // Scout variants
     wilderness_hunter: '/models/wilderness_hunter.glb',
@@ -38,6 +39,9 @@ export const MODEL_PATHS = {
     converted_missionary: '/models/converted_missionary.glb',
     scribe_teacher: '/models/scribe_teacher.glb',
     prophet: '/models/prophet.glb',
+    shipwright: '/models/settler.glb',
+    taskmaster: '/models/priestcraft_preacher.glb',
+    amulonite_enforcer: '/models/guard.glb',
   },
   // Village models
   village: '/models/village.glb', // Upgraded village model
