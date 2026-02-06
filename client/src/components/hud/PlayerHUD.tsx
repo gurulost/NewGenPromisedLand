@@ -525,7 +525,7 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
       </GlowingButton>
       <TutorialHelpIcon
         cardId="end-turn"
-        label="Open turn flow tutorial"
+        label="Open turn progression tutorial"
         className="h-9 w-9"
         iconClassName="h-4 w-4"
       />

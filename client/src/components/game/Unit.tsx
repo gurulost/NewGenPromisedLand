@@ -255,9 +255,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   useEffect(() => {
     if (!motion) {
       lastPulseIndexRef.current = -1;
-      if (unitGroupRef.current?.position) {
-        unitGroupRef.current.position.set(pixelPos.x, 0, pixelPos.y);
-      }
+      unitGroupRef.current?.position?.set?.(pixelPos.x, 0, pixelPos.y);
     }
   }, [motion, pixelPos.x, pixelPos.y]);
 
@@ -282,6 +280,10 @@ export default function Unit({ unit, isSelected }: UnitProps) {
     const group = unitGroupRef.current;
     if (motion && group?.position) {
       const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const groupPosition = group.position;
+      if (!groupPosition) {
+        return;
+      }
       if (motion.expiresAtMs && motion.expiresAtMs <= now) {
         stopMotion(unit.id);
         lastPulseIndexRef.current = -1;
@@ -309,7 +311,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
       if (motion.mode === "pending") {
         const hold = motion.points[0];
         if (hold) {
-          group.position.set(hold.x, 0, hold.z);
+          groupPosition.set(hold.x, 0, hold.z);
         }
         if (movingVisualRef.current) {
           movingVisualRef.current = false;
@@ -321,8 +323,8 @@ export default function Unit({ unit, isSelected }: UnitProps) {
         lastMotionIdRef.current = motion.id;
         lastMotionMoveAtRef.current = 0;
         lastMotionPosRef.current = {
-          x: group.position.x,
-          z: group.position.z,
+          x: groupPosition.x,
+          z: groupPosition.z,
         };
       }
       const elapsedSec = (now - motion.startTimeMs) / 1000;
@@ -331,7 +333,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
 
       if (progressTiles >= maxIndex) {
         const end = motion.points[maxIndex];
-        group.position.set(end.x, 0, end.z);
+        groupPosition.set(end.x, 0, end.z);
         stopMotion(unit.id);
         lastPulseIndexRef.current = -1;
       } else {
@@ -343,7 +345,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
         if (from && to) {
           const x = from.x + (to.x - from.x) * localT;
           const z = from.z + (to.z - from.z) * localT;
-          group.position.set(x, 0, z);
+          groupPosition.set(x, 0, z);
 
           if (meshRef.current) {
             const dx = to.x - from.x;
