@@ -33,7 +33,7 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
       isWounded: unit.hp < unitDef.baseStats.hp,
       isFullMovement: unit.remainingMovement === unitDef.baseStats.movement
     };
-  }, [unit.type, unit.hp, unit.remainingMovement, unit.movement]);
+  }, [unit.type, unit.hp, unit.remainingMovement]);
 
   // Memoize action availability to determine button states
   const actionAvailability = useMemo(() => {

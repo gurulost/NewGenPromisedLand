@@ -49,7 +49,7 @@ export default function WaterAnimation({ map }: WaterAnimationProps) {
         coordinate: tile.coordinate
       };
     });
-  }, [map.tiles, currentPlayer?.id, gameState?.visibility]);
+  }, [map.tiles, currentPlayer, gameState?.visibility, gameState?.cities]);
   
   // Custom water shader for beautiful animated water
   const waterMaterial = useMemo(() => {

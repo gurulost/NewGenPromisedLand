@@ -254,8 +254,9 @@ export default function LobbyRoom() {
     const myPlayerIds = assignments
       .filter((assignment) => assignment.userId === userId)
       .map((assignment) => assignment.playerId);
-    const snapshotVersion = gameConfig.snapshotVersion ?? 0;
-    const initialActionVersion = gameConfig.snapshot ? snapshotVersion : 0;
+    const initialActionVersion = typeof gameConfig.actionVersion === "number"
+      ? gameConfig.actionVersion
+      : (gameConfig.snapshotVersion ?? 0);
     const isHostSession = lobbyHostUserId === userId;
 
     setOnlineSession({

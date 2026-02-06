@@ -206,12 +206,15 @@ export default function Unit({ unit, isSelected }: UnitProps) {
       })
         .then((reachable) => {
           if (reachableRequestIdRef.current !== requestId) return;
-          const reachableKeys = reachable.map((coord) => `${coord.q},${coord.r}`);
+          const reachableMoves = reachable.filter(
+            (coord) => coord.q !== unit.coordinate.q || coord.r !== unit.coordinate.r
+          );
+          const reachableKeys = reachableMoves.map((coord) => `${coord.q},${coord.r}`);
           if (isDev) {
             console.log("Reachable tiles:", reachableKeys);
           }
           setReachableTiles(reachableKeys);
-          setReachableCoordinates(reachable);
+          setReachableCoordinates(reachableMoves);
         })
         .catch((error) => {
           if (reachableRequestIdRef.current !== requestId) return;
@@ -226,13 +229,11 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   }, [
     isSelected,
     isMovementMode,
-    unit.coordinate,
-    unit.remainingMovement,
+    unit,
     gameState,
     setReachableTiles,
     setReachableCoordinates,
     isDev,
-    unit.id,
   ]);
 
   const perfMode = usePerformanceMode();
@@ -254,7 +255,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   useEffect(() => {
     if (!motion) {
       lastPulseIndexRef.current = -1;
-      if (unitGroupRef.current) {
+      if (unitGroupRef.current?.position) {
         unitGroupRef.current.position.set(pixelPos.x, 0, pixelPos.y);
       }
     }
@@ -278,7 +279,8 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   }, [isIdle]);
 
   useFrame((state) => {
-    if (motion && unitGroupRef.current) {
+    const group = unitGroupRef.current;
+    if (motion && group?.position) {
       const now = typeof performance !== "undefined" ? performance.now() : Date.now();
       if (motion.expiresAtMs && motion.expiresAtMs <= now) {
         stopMotion(unit.id);
@@ -307,7 +309,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
       if (motion.mode === "pending") {
         const hold = motion.points[0];
         if (hold) {
-          unitGroupRef.current.position.set(hold.x, 0, hold.z);
+          group.position.set(hold.x, 0, hold.z);
         }
         if (movingVisualRef.current) {
           movingVisualRef.current = false;
@@ -319,8 +321,8 @@ export default function Unit({ unit, isSelected }: UnitProps) {
         lastMotionIdRef.current = motion.id;
         lastMotionMoveAtRef.current = 0;
         lastMotionPosRef.current = {
-          x: unitGroupRef.current.position.x,
-          z: unitGroupRef.current.position.z,
+          x: group.position.x,
+          z: group.position.z,
         };
       }
       const elapsedSec = (now - motion.startTimeMs) / 1000;
@@ -329,7 +331,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
 
       if (progressTiles >= maxIndex) {
         const end = motion.points[maxIndex];
-        unitGroupRef.current.position.set(end.x, 0, end.z);
+        group.position.set(end.x, 0, end.z);
         stopMotion(unit.id);
         lastPulseIndexRef.current = -1;
       } else {
@@ -341,7 +343,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
         if (from && to) {
           const x = from.x + (to.x - from.x) * localT;
           const z = from.z + (to.z - from.z) * localT;
-          unitGroupRef.current.position.set(x, 0, z);
+          group.position.set(x, 0, z);
 
           if (meshRef.current) {
             const dx = to.x - from.x;

@@ -4,6 +4,7 @@ import { useLocalGame } from "../lib/stores/useLocalGame";
 export function useOnlineGameSync() {
   const onlineSession = useLocalGame((state) => state.onlineSession);
   const applyRemoteAction = useLocalGame((state) => state.applyRemoteAction);
+  const loadGameState = useLocalGame((state) => state.loadGameState);
   const setOnlineActionVersion = useLocalGame((state) => state.setOnlineActionVersion);
   const setOnlineQueueVersion = useLocalGame((state) => state.setOnlineQueueVersion);
   const setOnlineHost = useLocalGame((state) => state.setOnlineHost);
@@ -82,10 +83,7 @@ export function useOnlineGameSync() {
               }
 
               if (currentPlayerId !== entry.actorId) {
-                if (typeof entry.queueVersion === "number") {
-                  setOnlineQueueVersion(entry.queueVersion);
-                }
-                processedQueueRef.current.delete(entry.id);
+                // Keep out-of-turn actions queued; the server now enforces turn authority.
                 continue;
               }
 
@@ -154,6 +152,22 @@ export function useOnlineGameSync() {
         if (!currentState) return;
 
         const committedData = await committedRes.json();
+        if (committedData?.needsSnapshot) {
+          const snapshotRes = await fetch(`/api/lobbies/${latestSession.lobbyCode}/state`, {
+            credentials: "include",
+          });
+          if (snapshotRes.ok) {
+            const snapshotData = await snapshotRes.json();
+            if (snapshotData?.state) {
+              loadGameState(snapshotData.state);
+            }
+            if (typeof snapshotData?.actionVersion === "number") {
+              setOnlineActionVersion(snapshotData.actionVersion);
+            }
+          }
+          return;
+        }
+
         const actions = Array.isArray(committedData.actions) ? committedData.actions : [];
         for (const entry of actions) {
           applyRemoteAction(entry.action);
@@ -176,6 +190,7 @@ export function useOnlineGameSync() {
       clearInterval(interval);
     };
   }, [
+    onlineSession,
     onlineSession?.lobbyCode,
     onlineSession?.userId,
     onlineSession?.hostUserId,
@@ -184,5 +199,6 @@ export function useOnlineGameSync() {
     setOnlineQueueVersion,
     setOnlineHost,
     setHostLeaseStatus,
+    loadGameState,
   ]);
 }

@@ -82,7 +82,7 @@ export function useAITurn() {
         setCurrentAIPlayer(null);
       };
     }
-  }, [gameState?.currentPlayerIndex, gameState?.turn, dispatch, onlineSession?.userId, onlineSession?.hostUserId, gameMode]);
+  }, [gameState, dispatch, onlineSession, gameMode]);
 
   // Update AI turn manager when game state changes
   useEffect(() => {

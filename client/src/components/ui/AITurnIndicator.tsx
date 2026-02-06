@@ -429,6 +429,9 @@ export function AITurnIndicator({ isVisible, aiName }: AITurnIndicatorProps) {
 
     // Select random variant when component becomes visible
     const variant = useMemo(() => {
+        if (!isVisible) {
+            return INDICATOR_VARIANTS[0];
+        }
         return INDICATOR_VARIANTS[Math.floor(Math.random() * INDICATOR_VARIANTS.length)];
     }, [isVisible]);
 

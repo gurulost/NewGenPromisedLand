@@ -131,7 +131,7 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
     };
 
     return { harvestUnitId: defaultHarvest(), buildUnitId: defaultBuild() };
-  }, [coordinate.q, coordinate.r, element, element?.immediateAction?.requiresUnitTag, element?.longTermBuild?.requiresUnitTag, elementId, gameState.units, player, playerId, unitId]);
+  }, [coordinate.q, coordinate.r, element, elementId, gameState.units, player, playerId, unitId]);
 
   const harvest = canExecuteElementAction(gameState, playerId, elementId, 'harvest', coordinate, harvestUnitId ?? undefined);
   const build = canExecuteElementAction(gameState, playerId, elementId, 'build', coordinate, buildUnitId ?? undefined);
@@ -186,7 +186,7 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
       effectPermanent: { popDelta: 0, starsPerTurn: 0 },
       uiTooltipBuild: 'Already constructed',
     };
-  }, [coordinate.q, coordinate.r, element, elementId, gameState.map.tiles, player?.researchedTechs]);
+  }, [coordinate.q, coordinate.r, element, elementId, gameState.map.tiles, player]);
 
   const harvestRequirements = useMemo(
     () => getWorldElementActionRequirements(elementId, 'harvest'),

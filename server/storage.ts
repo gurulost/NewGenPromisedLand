@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, isNull, sql } from "drizzle-orm";
 import { 
   users, type User, type InsertUser,
   gameSaves, type GameSave, type InsertGameSave,
@@ -23,12 +23,24 @@ export interface IStorage {
   getLobbyById(id: number): Promise<GameLobby | undefined>;
   getOpenLobbies(): Promise<GameLobby[]>;
   updateLobby(id: number, lobby: Partial<InsertGameLobby>): Promise<GameLobby | undefined>;
+  touchLobby(id: number): Promise<GameLobby | undefined>;
+  updateLobbyIfUnchanged(
+    id: number,
+    expectedUpdatedAt: Date,
+    lobby: Partial<InsertGameLobby>
+  ): Promise<GameLobby | undefined>;
   deleteLobby(id: number): Promise<boolean>;
   
   // Seat methods
   createSeat(seat: InsertPlayerSeat): Promise<PlayerSeat>;
   getSeatsByLobbyId(lobbyId: number): Promise<PlayerSeat[]>;
   getSeatById(id: number): Promise<PlayerSeat | undefined>;
+  claimSeatIfAvailable(
+    lobbyId: number,
+    seatIndex: number,
+    userId: number,
+    playerName: string
+  ): Promise<PlayerSeat | undefined>;
   updateSeat(id: number, seat: Partial<InsertPlayerSeat>): Promise<PlayerSeat | undefined>;
   deleteSeat(id: number): Promise<boolean>;
   deleteSeatsByUserId(lobbyId: number, userId: number): Promise<boolean>;
@@ -109,6 +121,31 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async touchLobby(id: number): Promise<GameLobby | undefined> {
+    const [updated] = await db.update(gameLobbies)
+      .set({ updatedAt: new Date() })
+      .where(eq(gameLobbies.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateLobbyIfUnchanged(
+    id: number,
+    expectedUpdatedAt: Date,
+    lobby: Partial<InsertGameLobby>
+  ): Promise<GameLobby | undefined> {
+    const [updated] = await db.update(gameLobbies)
+      .set({ ...lobby, updatedAt: new Date() })
+      .where(
+        and(
+          eq(gameLobbies.id, id),
+          sql`date_trunc('milliseconds', ${gameLobbies.updatedAt}) = date_trunc('milliseconds', ${expectedUpdatedAt})`,
+        ),
+      )
+      .returning();
+    return updated;
+  }
+
   async deleteLobby(id: number): Promise<boolean> {
     const result = await db.delete(gameLobbies).where(eq(gameLobbies.id, id)).returning();
     return result.length > 0;
@@ -129,6 +166,31 @@ export class DatabaseStorage implements IStorage {
   async getSeatById(id: number): Promise<PlayerSeat | undefined> {
     const [seat] = await db.select().from(playerSeats).where(eq(playerSeats.id, id));
     return seat;
+  }
+
+  async claimSeatIfAvailable(
+    lobbyId: number,
+    seatIndex: number,
+    userId: number,
+    playerName: string
+  ): Promise<PlayerSeat | undefined> {
+    const [updated] = await db.update(playerSeats)
+      .set({
+        userId,
+        playerName,
+        isAI: false,
+        isReady: false,
+      })
+      .where(
+        and(
+          eq(playerSeats.lobbyId, lobbyId),
+          eq(playerSeats.seatIndex, seatIndex),
+          isNull(playerSeats.userId),
+          eq(playerSeats.isAI, false),
+        ),
+      )
+      .returning();
+    return updated;
   }
 
   async updateSeat(id: number, seat: Partial<InsertPlayerSeat>): Promise<PlayerSeat | undefined> {

@@ -13,7 +13,10 @@ const pickMessage = () => MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
 
 export function MapGenerationOverlay() {
   const isGeneratingMap = useLocalGame((state) => state.isGeneratingMap);
-  const message = useMemo(() => pickMessage(), [isGeneratingMap]);
+  const message = useMemo(
+    () => (isGeneratingMap ? pickMessage() : MESSAGES[0]),
+    [isGeneratingMap]
+  );
 
   return (
     <AnimatePresence>
