@@ -586,6 +586,7 @@ export default function GameUI() {
 
     handleAction(rootAction);
   }, [
+    gameState,
     gameState?.lastAction,
     gameState?.cities,
     gameState?.units,
@@ -631,6 +632,7 @@ export default function GameUI() {
 
     prevCityLevelsRef.current = nextLevels;
   }, [
+    gameState,
     gameState?.cities,
     gameState?.currentPlayerIndex,
     onlineSession,
@@ -762,7 +764,7 @@ export default function GameUI() {
     if (onlineSession?.userId) return `user:${onlineSession.userId}`;
     const nameKey = currentPlayer.name?.trim() || currentPlayer.id;
     return `local:${nameKey}`;
-  }, [currentPlayer?.id, currentPlayer?.name, onlineSession?.userId]);
+  }, [currentPlayer, onlineSession?.userId]);
 
   useEffect(() => {
     setTutorialContext(tutorialProfileKey, gameState?.id ?? null, isLocalHumanTurn);
@@ -774,7 +776,7 @@ export default function GameUI() {
     if (gameState && currentPlayer && isLocalHumanTurn) {
       openTutorialIfNeeded('overview');
     }
-  }, [gameMode, gameState?.id, currentPlayer?.id, isLocalHumanTurn, openTutorialIfNeeded]);
+  }, [gameMode, gameState, currentPlayer, isLocalHumanTurn, openTutorialIfNeeded]);
 
   useEffect(() => {
     if (gameMode === 'tutorialEpisode') return;
@@ -904,7 +906,7 @@ export default function GameUI() {
   }
 
   // Enhanced end turn with transition  
-  const handleEndTurn = () => {
+  const handleEndTurn = useCallback(() => {
     if (!gameState || !currentPlayer) return;
 
     // Close any open context menu
@@ -927,7 +929,7 @@ export default function GameUI() {
       endTurn(currentPlayer.id); // Pass the current player's ID
       completeTransition();
     }, 1000);
-  };
+  }, [gameState, currentPlayer, closeTileContextMenu, startTransition, endTurn, completeTransition]);
 
   // Keyboard controls
   useEffect(() => {
@@ -980,7 +982,6 @@ export default function GameUI() {
     );
     return unsubscribe;
   }, [subscribeKeys, shouldIgnoreGlobalHotkeys]);
-
   // Unit quick-action hotkeys (A/M/Q)
   useEffect(() => {
     const unsubscribe = subscribeKeys(
@@ -1159,7 +1160,7 @@ export default function GameUI() {
     return () => {
       window.removeEventListener('villageEncounter', handleVillageEncounter as EventListener);
     };
-  }, []);
+  }, [isDev]);
 
   // Handle diplomacy actions
   useEffect(() => {
@@ -1244,7 +1245,7 @@ export default function GameUI() {
     };
   }, [isDev]);
 
-  const triggerLegendaryShimmer = () => {
+  const triggerLegendaryShimmer = useCallback(() => {
     if (shimmerTimeoutRef.current) {
       window.clearTimeout(shimmerTimeoutRef.current);
     }
@@ -1252,9 +1253,9 @@ export default function GameUI() {
     shimmerTimeoutRef.current = window.setTimeout(() => {
       setShowLegendaryShimmer(false);
     }, 1200);
-  };
+  }, []);
 
-  const playRuinsRewardSfx = (reward: any) => {
+  const playRuinsRewardSfx = useCallback((reward: any) => {
     if (reward.type === 'curse') {
       playSfx('ruins-curse');
       return;
@@ -1274,9 +1275,9 @@ export default function GameUI() {
         playSfx('ruins-common');
         break;
     }
-  };
+  }, [playSfx]);
 
-  const presentRuinsReward = (reward: any, coordinate?: { q: number; r: number }) => {
+  const presentRuinsReward = useCallback((reward: any, coordinate?: { q: number; r: number }) => {
     setRuinsReward(reward);
 
     const { triggerFlash: flash, showToast: toast } = visualRef.current;
@@ -1359,7 +1360,7 @@ export default function GameUI() {
       };
       setGameLogEntries(prev => pushCapped(prev, newEntry, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
     }
-  };
+  }, [playRuinsRewardSfx, triggerLegendaryShimmer]);
 
   // Handle ruins rewards
   useEffect(() => {
@@ -1394,7 +1395,7 @@ export default function GameUI() {
     return () => {
       window.removeEventListener('ruinsReward', handleRuinsReward as EventListener);
     };
-  }, []);
+  }, [presentRuinsReward]);
 
 
 

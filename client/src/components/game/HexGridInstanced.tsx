@@ -202,7 +202,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       return humanPlayers[0];
     }
     return activePlayer ?? gameState.players[0];
-  }, [gameState, onlineSession, activePlayer?.id]);
+  }, [gameState, onlineSession, activePlayer]);
 
   // Memoized fog of war calculation with line-of-sight - massive CPU performance boost
   const { visibleTileKeys, exploredTileKeys, tileInstanceData } = useMemo(() => {
@@ -337,7 +337,14 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
     });
 
     return { visibleTileKeys: visible, exploredTileKeys: explored, tileInstanceData: instanceData };
-  }, [gameState?.units, viewPlayer?.id, map.tiles, spawnSelectionMode.isActive, spawnSelectionMode.validSpawnTiles]);
+  }, [
+    gameState,
+    viewPlayer,
+    map,
+    validConstructionTiles,
+    spawnSelectionMode.isActive,
+    spawnSelectionMode.validSpawnTiles,
+  ]);
 
   // Create hex geometry once
   const hexGeometry = useMemo(() => {

@@ -61,12 +61,12 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   }, [isMobileUI]);
 
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
-  const availableTechs = currentPlayer ? getAvailableTechnologies(currentPlayer.researchedTechs) : [];
   const researchedCount = currentPlayer?.researchedTechs.length || 0;
   const normalizedSearch = search.trim().toLowerCase();
 
   const techStatuses = useMemo(() => {
     if (!currentPlayer) return {};
+    const availableTechs = getAvailableTechnologies(currentPlayer.researchedTechs);
     const statuses: Record<string, TechStatus> = {};
     Object.keys(TECHNOLOGIES).forEach(techId => {
       if (currentPlayer.researchedTechs.includes(techId)) {
@@ -80,7 +80,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
       }
     });
     return statuses;
-  }, [currentPlayer, availableTechs]);
+  }, [currentPlayer]);
 
   // Compute path highlighting - all prerequisites leading to selected tech
   const highlightedTechs = useMemo(() => {

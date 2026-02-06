@@ -1,4 +1,5 @@
 import type { HexCoordinate } from "@shared/types/coordinates";
+import { findPath, getReachableTiles } from "@shared/logic/pathfinding";
 
 interface PathfindingRequest {
   id: string;
@@ -21,11 +22,49 @@ interface PathfindingResponse {
 type PendingRequest = {
   resolve: (result: HexCoordinate[]) => void;
   reject: (error: string) => void;
+  fallback: () => HexCoordinate[];
   timeoutId?: ReturnType<typeof setTimeout>;
 };
 
 let worker: Worker | null = null;
 const pending = new Map<string, PendingRequest>();
+
+const buildPathfindingFns = (passableTiles: string[], tileCosts: Record<string, number>) => {
+  const passableSet = new Set(passableTiles);
+  const isPassable = (coord: HexCoordinate): boolean => {
+    const key = `${coord.q},${coord.r}`;
+    return passableSet.has(key);
+  };
+  const getMoveCost = (coord: HexCoordinate): number => {
+    const key = `${coord.q},${coord.r}`;
+    const cost = tileCosts[key];
+    return typeof cost === "number" ? cost : 1;
+  };
+  return { isPassable, getMoveCost };
+};
+
+const runFindPathFallback = (params: {
+  start: HexCoordinate;
+  goal: HexCoordinate;
+  passableTiles: string[];
+  tileCosts: Record<string, number>;
+  maxCost: number;
+}) => {
+  const { start, goal, passableTiles, tileCosts, maxCost } = params;
+  const { isPassable, getMoveCost } = buildPathfindingFns(passableTiles, tileCosts);
+  return findPath(start, goal, isPassable, maxCost, getMoveCost);
+};
+
+const runReachableFallback = (params: {
+  start: HexCoordinate;
+  passableTiles: string[];
+  tileCosts: Record<string, number>;
+  maxCost: number;
+}) => {
+  const { start, passableTiles, tileCosts, maxCost } = params;
+  const { isPassable, getMoveCost } = buildPathfindingFns(passableTiles, tileCosts);
+  return getReachableTiles(start, maxCost, isPassable, getMoveCost);
+};
 
 const ensureWorker = () => {
   if (worker) return worker;
@@ -41,7 +80,11 @@ const ensureWorker = () => {
       clearTimeout(entry.timeoutId);
     }
     if (error) {
-      entry.reject(error);
+      try {
+        entry.resolve(entry.fallback());
+      } catch {
+        entry.reject(error);
+      }
       return;
     }
     entry.resolve(result);
@@ -50,16 +93,28 @@ const ensureWorker = () => {
     console.error("Pathfinding worker error:", error);
     pending.forEach((entry) => {
       if (entry.timeoutId) clearTimeout(entry.timeoutId);
-      entry.reject("Pathfinding worker error");
+      try {
+        entry.resolve(entry.fallback());
+      } catch {
+        entry.reject("Pathfinding worker error");
+      }
     });
     pending.clear();
+    worker?.terminate();
+    worker = null;
   };
   worker.onmessageerror = () => {
     pending.forEach((entry) => {
       if (entry.timeoutId) clearTimeout(entry.timeoutId);
-      entry.reject("Pathfinding worker message error");
+      try {
+        entry.resolve(entry.fallback());
+      } catch {
+        entry.reject("Pathfinding worker message error");
+      }
     });
     pending.clear();
+    worker?.terminate();
+    worker = null;
   };
   return worker;
 };
@@ -79,6 +134,9 @@ export const findPathAsync = (params: {
   if (!passableTiles.length) {
     return Promise.resolve([]);
   }
+  if (typeof Worker === "undefined") {
+    return Promise.resolve(runFindPathFallback({ start, goal, passableTiles, tileCosts, maxCost }));
+  }
   const id = makeId("path");
   const request: PathfindingRequest = {
     id,
@@ -89,10 +147,25 @@ export const findPathAsync = (params: {
     const timeoutId = setTimeout(() => {
       if (!pending.has(id)) return;
       pending.delete(id);
-      reject("Pathfinding request timed out");
+      try {
+        resolve(runFindPathFallback({ start, goal, passableTiles, tileCosts, maxCost }));
+      } catch {
+        reject("Pathfinding request timed out");
+      }
     }, Math.max(timeoutMs, 0));
-    pending.set(id, { resolve, reject, timeoutId });
-    ensureWorker().postMessage(request);
+    const fallback = () => runFindPathFallback({ start, goal, passableTiles, tileCosts, maxCost });
+    pending.set(id, { resolve, reject, fallback, timeoutId });
+    try {
+      ensureWorker().postMessage(request);
+    } catch {
+      pending.delete(id);
+      clearTimeout(timeoutId);
+      try {
+        resolve(fallback());
+      } catch {
+        reject("Pathfinding worker unavailable");
+      }
+    }
   });
 };
 
@@ -107,6 +180,9 @@ export const getReachableTilesAsync = (params: {
   if (!passableTiles.length) {
     return Promise.resolve([]);
   }
+  if (typeof Worker === "undefined") {
+    return Promise.resolve(runReachableFallback({ start, passableTiles, tileCosts, maxCost }));
+  }
   const id = makeId("reachable");
   const request: PathfindingRequest = {
     id,
@@ -117,10 +193,25 @@ export const getReachableTilesAsync = (params: {
     const timeoutId = setTimeout(() => {
       if (!pending.has(id)) return;
       pending.delete(id);
-      reject("Reachable tiles request timed out");
+      try {
+        resolve(runReachableFallback({ start, passableTiles, tileCosts, maxCost }));
+      } catch {
+        reject("Reachable tiles request timed out");
+      }
     }, Math.max(timeoutMs, 0));
-    pending.set(id, { resolve, reject, timeoutId });
-    ensureWorker().postMessage(request);
+    const fallback = () => runReachableFallback({ start, passableTiles, tileCosts, maxCost });
+    pending.set(id, { resolve, reject, fallback, timeoutId });
+    try {
+      ensureWorker().postMessage(request);
+    } catch {
+      pending.delete(id);
+      clearTimeout(timeoutId);
+      try {
+        resolve(fallback());
+      } catch {
+        reject("Pathfinding worker unavailable");
+      }
+    }
   });
 };
 

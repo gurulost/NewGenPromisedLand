@@ -13,7 +13,11 @@ const isEditableTarget = (target: EventTarget | null) => {
   return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
 };
 
-export function useHotkeys(keys: string | string[], callback: () => void, deps: any[] = []) {
+export function useHotkeys(
+  keys: string | string[],
+  callback: () => void,
+  deps: ReadonlyArray<unknown> = []
+) {
   const callbackRef = useRef(callback);
 
   useEffect(() => {
@@ -47,5 +51,5 @@ export function useHotkeys(keys: string | string[], callback: () => void, deps: 
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [keys, ...deps]);
+  }, [keys, deps]);
 }

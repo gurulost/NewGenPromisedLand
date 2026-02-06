@@ -93,7 +93,7 @@ function TerrainGLTFModel({ terrain, position, color, opacity, modelPath }: {
     });
     
     return clone;
-  }, [gltf?.scene]);
+  }, [gltf]);
 
   // Update tint/opacity without re-cloning.
   useEffect(() => {
