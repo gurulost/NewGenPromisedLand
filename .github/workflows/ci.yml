@@ -129,11 +129,6 @@ jobs:
       
       - name: Install Playwright
         run: npx playwright install --with-deps
-      
-      - name: Start development server
-        run: |
-          npm run dev > /tmp/e2e-dev-server.log 2>&1 &
-          npx wait-on http://localhost:5000 --timeout 120000
         
       - name: Run E2E tests
         run: npx playwright test test/e2e --reporter=html
