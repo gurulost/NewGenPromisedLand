@@ -1,12 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { FACTIONS, getFaction, getAllFactions } from './factions';
+import { FactionIdSchema } from '../types/faction';
+import { UNIT_DEFINITIONS } from './units';
+import { UnitTypeSchema } from '../types/unit';
 
 describe('Factions', () => {
-  it('should have all six factions defined', () => {
+  it('should have all factions defined from schema', () => {
     const allFactions = getAllFactions();
-    expect(allFactions).toHaveLength(6);
-    
-    const expectedFactionIds = ['NEPHITES', 'LAMANITES', 'MULEKITES', 'ANTI_NEPHI_LEHIES', 'ZORAMITES', 'JAREDITES'];
+    const expectedFactionIds = FactionIdSchema.options;
+    expect(allFactions).toHaveLength(expectedFactionIds.length);
+
     expectedFactionIds.forEach(id => {
       expect(FACTIONS[id]).toBeDefined();
     });
@@ -60,15 +63,15 @@ describe('Factions', () => {
     });
   });
 
-  it('should have starting units defined', () => {
+  it('should have unique units derived from faction-specific unit gating', () => {
     const allFactions = getAllFactions();
-    
+
     allFactions.forEach(faction => {
+      const expectedUnitTypes = UnitTypeSchema.options.filter((unitType) =>
+        UNIT_DEFINITIONS[unitType].factionSpecific.includes(faction.id)
+      );
+      expect(faction.uniqueUnits).toEqual(expectedUnitTypes);
       expect(faction.uniqueUnits.length).toBeGreaterThan(0);
-      faction.uniqueUnits.forEach(unitType => {
-        expect(typeof unitType).toBe('string');
-        expect(unitType.length).toBeGreaterThan(0);
-      });
     });
   });
 

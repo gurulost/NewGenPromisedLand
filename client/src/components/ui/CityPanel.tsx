@@ -9,6 +9,7 @@ import { Star, Building, Sword, Hammer, Users, Sparkles, Pencil, Check, X, Info 
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS, type ImprovementType, type StructureType } from "@shared/types/city";
 import { getUnitDefinition, UNIT_DEFINITIONS } from "@shared/data/units";
 import { getFaction } from "@shared/data/factions";
+import { coerceFactionId } from "@shared/types/factionId";
 import type { UnitType } from "@shared/types/unit";
 import {
   getStructureEffectSummary,
@@ -50,6 +51,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
   if (!open || !gameState) return null;
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  const currentFactionId = coerceFactionId(currentPlayer.factionId);
   const city = gameState.cities?.find(c => c.id === cityId);
 
   if (!city) return null;
@@ -145,7 +147,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
         (!unitDef.requirements.pride || currentPlayer.stats.pride >= unitDef.requirements.pride) &&
         (!unitDef.requirements.dissent || currentPlayer.stats.internalDissent >= unitDef.requirements.dissent));
     const factionMatch = unitDef.factionSpecific.length === 0 ||
-      unitDef.factionSpecific.includes(currentPlayer.factionId);
+      (!!currentFactionId && unitDef.factionSpecific.includes(currentFactionId));
 
     return currentPlayer.stars >= unitDef.cost && hasSpace && hasRequiredTech && meetsRequirements && factionMatch;
   };
@@ -161,7 +163,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
     }
 
     const factionMatch = unitDef.factionSpecific.length === 0 ||
-      unitDef.factionSpecific.includes(currentPlayer.factionId);
+      (!!currentFactionId && unitDef.factionSpecific.includes(currentFactionId));
 
     if (!factionMatch) {
       return "Wrong Faction";
@@ -560,7 +562,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.values(UNIT_DEFINITIONS)
-                  .filter(unit => unit.factionSpecific.length === 0 || unit.factionSpecific.includes(currentPlayer.factionId))
+                  .filter(unit => unit.factionSpecific.length === 0 || (!!currentFactionId && unit.factionSpecific.includes(currentFactionId)))
                   .filter(unit => {
                     if (!unit.requiredTechnology) return true;
                     return currentPlayer.researchedTechs.includes(unit.requiredTechnology);
@@ -572,7 +574,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                     const factionTag = unit.factionSpecific.length > 0
                       ? (() => {
                           const names = unit.factionSpecific.map((id) => {
-                            const faction = getFaction(id as any);
+                            const faction = getFaction(id);
                             return faction ? faction.name : String(id);
                           });
                           return names.length === 1 ? `${names[0]} only` : `Only: ${names.join(', ')}`;
