@@ -144,7 +144,7 @@ export function TileContextMenu() {
   return (
     <div
       ref={menuRef}
-      className="fixed z-[9999] bg-slate-800/95 backdrop-blur-sm border border-amber-500/50 rounded-lg shadow-xl overflow-hidden pointer-events-auto"
+      className="fixed z-[var(--z-floating)] bg-slate-800/95 backdrop-blur-sm border border-amber-500/50 rounded-lg shadow-xl overflow-hidden pointer-events-auto"
       style={{
         left: `${left}px`,
         top: `${top}px`,

@@ -97,7 +97,7 @@ export function ScreenFlash({ type, onComplete }: ScreenFlashProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className={`fixed inset-0 pointer-events-none z-[200] ${colors[type]}`}
+            className={`fixed inset-0 pointer-events-none z-[var(--z-feedback)] ${colors[type]}`}
         />
     );
 }
@@ -110,7 +110,7 @@ interface ToastContainerProps {
 
 export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
     return (
-        <div className="fixed top-4 right-4 z-[150] flex flex-col gap-2 pointer-events-auto">
+        <div className="fixed top-4 right-4 z-[var(--z-toast)] flex flex-col gap-2 pointer-events-auto">
             <AnimatePresence mode="popLayout">
                 {toasts.map(toast => (
                     <ToastNotification key={toast.id} toast={toast} onDismiss={onDismiss} />

@@ -99,7 +99,7 @@ export function UnitSelectionUI({
 
   return (
     <motion.div
-      className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 pointer-events-auto"
+      className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[var(--z-floating)] pointer-events-auto"
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 100, opacity: 0 }}

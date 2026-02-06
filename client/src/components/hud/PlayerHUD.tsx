@@ -120,8 +120,7 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
 
   return (
     <HUDShell position="top-left">
-      <Card className="w-72 bg-gradient-to-br from-slate-900/95 via-slate-800/90 to-slate-900/95 
-                     border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20 backdrop-blur-sm">
+      <Card className="w-72 max-w-[calc(100vw-env(safe-area-inset-left)-env(safe-area-inset-right)-2rem)] max-h-[calc(100vh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] flex flex-col overflow-hidden bg-gradient-to-br from-slate-900/95 via-slate-800/90 to-slate-900/95 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20 backdrop-blur-sm">
         <CardHeader className="pb-3 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
         <CardTitle className="flex w-full items-center gap-3 text-amber-100 font-cinzel text-lg font-semibold tracking-wide">
           <AvatarBadge
@@ -155,7 +154,7 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
           ) : null}
         </CardHeader>
 
-        <CardContent className="space-y-4 bg-slate-900/40 p-4">
+        <CardContent className="flex-1 min-h-0 overflow-y-auto touch-scroll space-y-4 bg-slate-900/40 p-4">
           {/* Star Resources */}
           <StarResourcesSection
             stars={player.stars}
@@ -431,6 +430,7 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
         size="sm"
         glowColor="blue"
         intensity="medium"
+        data-testid="hud-knowledge-button"
         className="w-full bg-gradient-to-r from-blue-600/20 to-blue-700/20 border-blue-400/60 
                    text-blue-100 text-xs px-4 py-3 min-h-[48px] justify-center"
         onClick={onShowTechPanel}
@@ -484,7 +484,7 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
       </GlowingButton>
       <TutorialHelpIcon
         cardId="end-turn"
-        label="Open turn tutorial"
+        label="Open turn flow tutorial"
         className="h-9 w-9"
         iconClassName="h-4 w-4"
       />

@@ -305,6 +305,7 @@ function TwinklingStar({ x, y, size, delay, duration }: typeof STARS[0]) {
 export function WorldBuildLoader({ enabled }: { enabled: boolean }) {
   const { active, progress, item, loaded, total } = useProgress();
   const safeProgress = Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0;
+  const isLoading = safeProgress < 100 && (active || safeProgress > 0);
   const itemLabel = useMemo(() => formatItemLabel(item), [item]);
   const stage = useMemo(() => {
     const sorted = [...STAGES].sort((a, b) => a.threshold - b.threshold);
@@ -330,10 +331,6 @@ export function WorldBuildLoader({ enabled }: { enabled: boolean }) {
 
   useEffect(() => {
     if (!enabled || completedOnce) return;
-    const isLoading =
-      active ||
-      (safeProgress > 0 && safeProgress < 100) ||
-      (total > 0 && safeProgress < 100);
 
     if (isLoading) {
       if (!visible) {
@@ -361,7 +358,7 @@ export function WorldBuildLoader({ enabled }: { enabled: boolean }) {
       }, remaining + consecrationDelay);
       return () => window.clearTimeout(timer);
     }
-  }, [enabled, completedOnce, active, safeProgress, total, visible, startedAt, isConsecrating]);
+  }, [enabled, completedOnce, isLoading, safeProgress, visible, startedAt, isConsecrating]);
 
   if (!enabled || (!visible && completedOnce)) {
     return null;
@@ -374,7 +371,8 @@ export function WorldBuildLoader({ enabled }: { enabled: boolean }) {
     <AnimatePresence>
       {visible && (
         <motion.div
-          className="absolute inset-0 z-[9999] flex items-center justify-center overflow-hidden"
+          data-testid="world-build-loader"
+          className={`absolute inset-0 z-[var(--z-critical)] flex items-center justify-center overflow-hidden ${isLoading ? "pointer-events-auto" : "pointer-events-none"}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

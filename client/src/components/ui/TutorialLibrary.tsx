@@ -25,7 +25,7 @@ export function TutorialLibrary() {
 
   return (
     <div
-      className="fixed inset-0 z-[210] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[var(--z-tutorial)] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
       onClick={closeLibrary}

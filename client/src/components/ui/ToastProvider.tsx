@@ -41,7 +41,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {/* Toast Container - Bottom right, less obtrusive during gameplay */}
-      <div className="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm">
+      <div className="fixed bottom-4 right-4 z-[var(--z-toast)] space-y-2 max-w-sm">
         <AnimatePresence mode="popLayout">
           {visibleToasts.map((toast) => (
             <Toast
