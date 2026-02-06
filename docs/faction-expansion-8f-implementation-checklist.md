@@ -2,7 +2,7 @@
 
 Status: COMPLETE
 Owner: Codex
-Last Updated: 2026-02-06
+Last Updated: 2026-02-06 (post-implementation hardening pass)
 Branch Target: `codex/factions-8-hagoth-amulonites`
 
 This file is the source of truth for completion and production sign-off for expanding from 6 factions to 8 factions.
@@ -152,3 +152,6 @@ This file is the source of truth for completion and production sign-off for expa
 - [x] Added requirement: world element naval checks and messaging boat-specific logic generalized.
 - [x] Added requirement: AI simulation smoke script was broken (`ts-node`/`uuid` dependency mismatch); fixed to `tsx` + `randomUUID` and validated.
 - [x] Added requirement: enforce faction personality key mapping for uppercase IDs via tests.
+- [x] Added requirement: normalize/coerce legacy faction id formats (hyphens/spaces/apostrophes/casing) to avoid runtime drift in hooks/selectors/AI.
+- [x] Added requirement: harden AI faction resolution fallback and nullish-template defaults to prevent undefined faction crashes and numeric default drift.
+- [x] Added requirement: use unit passability checks in AI movement helpers to reduce invalid movement intents.
