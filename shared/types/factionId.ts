@@ -22,6 +22,14 @@ export const coerceFactionId = (value: unknown): FactionId | null => {
     return null;
   }
 
-  const parsed = FactionIdSchema.safeParse(value.toUpperCase());
+  const normalized = value
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/[^A-Z_]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  const parsed = FactionIdSchema.safeParse(normalized);
   return parsed.success ? parsed.data : null;
 };

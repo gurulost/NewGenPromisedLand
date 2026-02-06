@@ -125,6 +125,18 @@ describe('Player Selectors', () => {
       const stats = getPlayerStats(hagothState.players[0], hagothState);
       expect(stats.starProduction).toBe(1);
       expect(stats.starProductionBreakdown.some(entry => entry.source.includes('Improvements') && entry.amount === 1)).toBe(true);
+
+      const legacyFactionState: GameState = {
+        ...hagothState,
+        players: [
+          {
+            ...hagothState.players[0],
+            factionId: "Hagoth's Mariners",
+          },
+        ],
+      } as GameState;
+      const legacyStats = getPlayerStats(legacyFactionState.players[0], legacyFactionState);
+      expect(legacyStats.starProduction).toBe(1);
     });
   });
 

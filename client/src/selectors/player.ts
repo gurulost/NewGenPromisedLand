@@ -4,6 +4,7 @@ import { hexNeighbors } from '@shared/utils/hex';
 import type { HexCoordinate } from '@shared/types/coordinates';
 import { computeUnitPassiveEffectsForPlayer } from '@shared/logic/unitPassiveEffects';
 import { getUnitDefinition } from '@shared/data/units';
+import { coerceFactionId } from '@shared/types/factionId';
 
 export interface PlayerStats {
   faithPercentage: number;
@@ -105,10 +106,11 @@ export function getPlayerStats(player: PlayerState, gameState?: GameState | null
 
   // Improvements income (includes seafaring port bonus to match reducer)
   const playerImprovements = gameState.improvements?.filter(imp => imp.ownerId === player.id) || [];
+  const normalizedFactionId = coerceFactionId(player.factionId);
   const improvementIncome = playerImprovements.reduce((sum, imp) => {
     if (imp.constructionTurns !== 0) return sum;
     let stars = imp.starProduction ?? 0;
-    const hasHagothPortBonus = player.factionId === 'HAGOTHS_MARINERS';
+    const hasHagothPortBonus = normalizedFactionId === 'HAGOTHS_MARINERS';
     if (imp.type === 'port' && (hasHagothPortBonus || player.researchedTechs?.includes('seafaring'))) stars += 1;
     return sum + stars;
   }, 0);

@@ -5,6 +5,7 @@
 
 import { PlayerState } from '../types/game';
 import { getFaction } from '../data/factions';
+import { coerceFactionId } from '../types/factionId';
 import { SeededRNG } from './aiFoundation';
 
 export interface FactionPersonality {
@@ -189,33 +190,34 @@ export class FactionPersonalityEngine {
    * Initialize personality from faction template
    */
   private initializePersonality(): FactionPersonality {
-    const faction = getFaction(this.player.factionId as any);
+    const factionId = coerceFactionId(this.player.factionId) ?? 'NEPHITES';
+    const faction = getFaction(factionId);
     const key = faction.id.toLowerCase().replace(/_/g, '-');
     const template = FACTION_PERSONALITIES[key] || FACTION_PERSONALITIES.nephites;
     
     // Add some randomization to make each AI unique
     const personality: FactionPersonality = {
-      aggression: this.randomizeValue(template.aggression || 0.5),
-      piety: this.randomizeValue(template.piety || 0.5),
-      opportunism: this.randomizeValue(template.opportunism || 0.5),
-      riskTolerance: this.randomizeValue(template.riskTolerance || 0.5),
-      expansionism: this.randomizeValue(template.expansionism || 0.5),
-      diplomacy: this.randomizeValue(template.diplomacy || 0.5),
+      aggression: this.randomizeValue(template.aggression ?? 0.5),
+      piety: this.randomizeValue(template.piety ?? 0.5),
+      opportunism: this.randomizeValue(template.opportunism ?? 0.5),
+      riskTolerance: this.randomizeValue(template.riskTolerance ?? 0.5),
+      expansionism: this.randomizeValue(template.expansionism ?? 0.5),
+      diplomacy: this.randomizeValue(template.diplomacy ?? 0.5),
       
       preferredVictory: template.preferredVictory || 'conquest',
       buildingPriorities: [...(template.buildingPriorities || [])],
       techPriorities: [...(template.techPriorities || [])],
       unitPreferences: [...(template.unitPreferences || [])],
       
-      retreatThreshold: template.retreatThreshold || 0.4,
-      attackThreshold: template.attackThreshold || 0.6,
-      settlementSpacing: template.settlementSpacing || 5,
+      retreatThreshold: template.retreatThreshold ?? 0.4,
+      attackThreshold: template.attackThreshold ?? 0.6,
+      settlementSpacing: template.settlementSpacing ?? 5,
       
       currentMood: {
         confidence: 0.5,
         desperation: 0.0,
-        zealotry: template.piety || 0.5,
-        pragmatism: 1 - (template.piety || 0.5)
+        zealotry: template.piety ?? 0.5,
+        pragmatism: 1 - (template.piety ?? 0.5)
       }
     };
     
@@ -393,7 +395,8 @@ export class FactionPersonalityEngine {
    * Get faction-specific flavor text for AI actions
    */
   getActionFlavor(actionType: string): string {
-    const faction = getFaction(this.player.factionId as any);
+    const factionId = coerceFactionId(this.player.factionId) ?? 'NEPHITES';
+    const faction = getFaction(factionId);
     const factionName = faction.name;
     
     const flavors: Record<string, string[]> = {

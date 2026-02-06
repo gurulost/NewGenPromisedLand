@@ -1,6 +1,7 @@
 import { GameState, PlayerState } from "../../types/game";
 import { Unit, UnitType } from "../../types/unit";
 import { HexCoordinate } from "../../types/coordinates";
+import { coerceFactionId } from "../../types/factionId";
 import { hexDistance, hexNeighbors } from "../../utils/hex";
 import { getUnitDefinition } from "../../data/units";
 import { getActiveModifiers, getUnitModifiers, GameModifier } from "../../data/modifiers";
@@ -131,11 +132,12 @@ function calculatePlayerStarIncome(
   }
 
   const playerImprovements = state.improvements?.filter(imp => imp.ownerId === player.id) || [];
+  const factionId = coerceFactionId(player.factionId);
   playerImprovements.forEach(improvement => {
     const improvementDef = IMPROVEMENT_DEFINITIONS[improvement.type as keyof typeof IMPROVEMENT_DEFINITIONS];
     if (improvementDef && improvement.constructionTurns === 0) {
       let production = improvement.starProduction;
-      const hasHagothPortBonus = player.factionId === 'HAGOTHS_MARINERS';
+      const hasHagothPortBonus = factionId === 'HAGOTHS_MARINERS';
       if (improvement.type === 'port' && (hasHagothPortBonus || player.researchedTechs?.includes('seafaring'))) {
         production += 1;
       }
@@ -696,8 +698,9 @@ export function handleEndTurn(
   // - temporary attack penalty
   // - clears temporary command buffs (rallied / rallyBuff / tacticalCommand)
   const currentPlayerData = updatedPlayers.find(p => p.id === currentPlayer.id);
-  const isTestimonyFaction = currentPlayerData?.factionId === 'NEPHITES' || currentPlayerData?.factionId === 'ANTI_NEPHI_LEHIES';
-  const isAmuloniteFaction = currentPlayerData?.factionId === 'AMULONITES';
+  const actingFactionId = coerceFactionId(currentPlayerData?.factionId);
+  const isTestimonyFaction = actingFactionId === 'NEPHITES' || actingFactionId === 'ANTI_NEPHI_LEHIES';
+  const isAmuloniteFaction = actingFactionId === 'AMULONITES';
   const isEligibleEnemyMilitaryUnit = (u: Unit): boolean => {
     // Exclude civilian/influence units (prevents weird non-combat clumps and future drift).
     const def = getUnitDefinition(u.type as any);
