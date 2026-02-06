@@ -3,6 +3,11 @@ import { defineConfig, devices } from '@playwright/test';
 const appPort = Number(process.env.PLAYWRIGHT_APP_PORT ?? 5100);
 const appBaseUrl = `http://localhost:${appPort}`;
 
+const desktopChromiumProject = {
+  name: 'chromium',
+  use: { ...devices['Desktop Chrome'] },
+};
+
 export default defineConfig({
   testDir: './test/e2e',
   fullyParallel: true,
@@ -15,35 +20,34 @@ export default defineConfig({
     baseURL: appBaseUrl,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure'
+    video: process.env.CI ? 'off' : 'retain-on-failure'
   },
 
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-    {
-      name: 'mobile-chrome',
-      use: { ...devices['Pixel 5'] },
-    },
-    {
-      name: 'mobile-safari',
-      use: { ...devices['iPhone 12'] },
-    },
-    {
-      name: 'tablet',
-      use: { ...devices['iPad Pro'] },
-    }
-  ],
+  projects: process.env.CI
+    ? [desktopChromiumProject]
+    : [
+        desktopChromiumProject,
+        {
+          name: 'firefox',
+          use: { ...devices['Desktop Firefox'] },
+        },
+        {
+          name: 'webkit',
+          use: { ...devices['Desktop Safari'] },
+        },
+        {
+          name: 'mobile-chrome',
+          use: { ...devices['Pixel 5'] },
+        },
+        {
+          name: 'mobile-safari',
+          use: { ...devices['iPhone 12'] },
+        },
+        {
+          name: 'tablet',
+          use: { ...devices['iPad Pro'] },
+        }
+      ],
 
   webServer: {
     command: 'npm run dev',
