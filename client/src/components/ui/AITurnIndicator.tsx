@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Compass, Eye, Scroll, Moon, Flame, Swords, Sparkles } from 'lucide-react';
 import { usePerformanceMode } from '../../hooks/usePerformanceMode';
+import { ModalLayer, ModalLayerContent } from '../primitives/ModalLayer';
 
 interface AITurnIndicatorProps {
     isVisible: boolean;
@@ -440,90 +441,94 @@ export function AITurnIndicator({ isVisible, aiName }: AITurnIndicatorProps) {
     return (
         <AnimatePresence>
             {isVisible && (
-                <motion.div
-                    className="fixed inset-0 z-[var(--z-feedback)] flex items-center justify-center"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.5 }}
-                >
-                    {/* Backdrop with gradient */}
+                <ModalLayer asChild>
                     <motion.div
-                        className={`absolute inset-0 bg-gradient-to-br ${variant.bgGradient} backdrop-blur-md`}
-                        style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+                        className="fixed inset-0 z-[var(--z-feedback)] flex items-center justify-center"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                    />
-
-                    {/* Subtle vignette */}
-                    <div className="absolute inset-0 pointer-events-none" style={{
-                        background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.4) 100%)',
-                    }} />
-
-                    {/* Content */}
-                    <motion.div
-                        className="relative flex flex-col items-center gap-6"
-                        initial={{ scale: 0.7, y: 30, opacity: 0 }}
-                        animate={{ scale: 1, y: 0, opacity: 1 }}
-                        exit={{ scale: 0.8, y: -30, opacity: 0 }}
-                        transition={{ type: 'spring', stiffness: 180, damping: 18 }}
+                        transition={{ duration: 0.5 }}
                     >
-                        {/* Animation container with enhanced glow */}
+                        {/* Backdrop with gradient */}
                         <motion.div
-                            className={`relative p-10 rounded-full bg-gradient-to-br from-slate-800/90 via-slate-900/95 to-slate-800/90 border border-white/10 shadow-2xl ${variant.glowColor}`}
-                            animate={highPerf ? {
-                                boxShadow: [
-                                    `0 0 40px rgba(0,0,0,0.3), 0 0 60px ${variant.glowColor.replace('shadow-', '').replace('/60', '')}`,
-                                    `0 0 50px rgba(0,0,0,0.3), 0 0 80px ${variant.glowColor.replace('shadow-', '').replace('/60', '')}`,
-                                    `0 0 40px rgba(0,0,0,0.3), 0 0 60px ${variant.glowColor.replace('shadow-', '').replace('/60', '')}`,
-                                ]
-                            } : {}}
-                            transition={{ duration: 2, repeat: Infinity }}
-                        >
-                            <AnimationComponent highPerf={highPerf} />
-                        </motion.div>
+                            className={`absolute inset-0 bg-gradient-to-br ${variant.bgGradient} backdrop-blur-md`}
+                            style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                        />
 
-                        {/* Title with enhanced typography */}
-                        <motion.div
-                            className="text-center space-y-2"
-                            initial={{ opacity: 0, y: 15 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3, duration: 0.5 }}
-                        >
-                            <h2 className={`text-3xl font-cinzel font-bold bg-gradient-to-r ${variant.color} bg-clip-text text-transparent`}
-                                style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>
-                                {aiName || 'The opponent'}
-                            </h2>
-                            <p className="text-xl text-white/80 font-body italic">
-                                {variant.title}
-                            </p>
-                            <p className="text-sm text-white/50 font-body">
-                                {variant.subtitle}
-                            </p>
-                        </motion.div>
+                        {/* Subtle vignette */}
+                        <div className="absolute inset-0 pointer-events-none" style={{
+                            background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.4) 100%)',
+                        }} />
 
-                        {/* Pulsing dots with trail effect */}
-                        <div className="flex gap-3 mt-2">
-                            {[...Array(3)].map((_, i) => (
+                        {/* Content */}
+                        <ModalLayerContent asChild>
+                            <motion.div
+                                className="relative flex flex-col items-center gap-6"
+                                initial={{ scale: 0.7, y: 30, opacity: 0 }}
+                                animate={{ scale: 1, y: 0, opacity: 1 }}
+                                exit={{ scale: 0.8, y: -30, opacity: 0 }}
+                                transition={{ type: 'spring', stiffness: 180, damping: 18 }}
+                            >
+                                {/* Animation container with enhanced glow */}
                                 <motion.div
-                                    key={i}
-                                    className={`w-2.5 h-2.5 rounded-full bg-gradient-to-r ${variant.color}`}
-                                    animate={{
-                                        scale: [1, 1.6, 1],
-                                        opacity: [0.4, 1, 0.4],
-                                    }}
-                                    transition={{
-                                        duration: 1.2,
-                                        repeat: Infinity,
-                                        delay: i * 0.2,
-                                        ease: 'easeInOut',
-                                    }}
-                                />
-                            ))}
-                        </div>
+                                    className={`relative p-10 rounded-full bg-gradient-to-br from-slate-800/90 via-slate-900/95 to-slate-800/90 border border-white/10 shadow-2xl ${variant.glowColor}`}
+                                    animate={highPerf ? {
+                                        boxShadow: [
+                                            `0 0 40px rgba(0,0,0,0.3), 0 0 60px ${variant.glowColor.replace('shadow-', '').replace('/60', '')}`,
+                                            `0 0 50px rgba(0,0,0,0.3), 0 0 80px ${variant.glowColor.replace('shadow-', '').replace('/60', '')}`,
+                                            `0 0 40px rgba(0,0,0,0.3), 0 0 60px ${variant.glowColor.replace('shadow-', '').replace('/60', '')}`,
+                                        ]
+                                    } : {}}
+                                    transition={{ duration: 2, repeat: Infinity }}
+                                >
+                                    <AnimationComponent highPerf={highPerf} />
+                                </motion.div>
+
+                                {/* Title with enhanced typography */}
+                                <motion.div
+                                    className="text-center space-y-2"
+                                    initial={{ opacity: 0, y: 15 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.3, duration: 0.5 }}
+                                >
+                                    <h2 className={`text-3xl font-cinzel font-bold bg-gradient-to-r ${variant.color} bg-clip-text text-transparent`}
+                                        style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>
+                                        {aiName || 'The opponent'}
+                                    </h2>
+                                    <p className="text-xl text-white/80 font-body italic">
+                                        {variant.title}
+                                    </p>
+                                    <p className="text-sm text-white/50 font-body">
+                                        {variant.subtitle}
+                                    </p>
+                                </motion.div>
+
+                                {/* Pulsing dots with trail effect */}
+                                <div className="flex gap-3 mt-2">
+                                    {[...Array(3)].map((_, i) => (
+                                        <motion.div
+                                            key={i}
+                                            className={`w-2.5 h-2.5 rounded-full bg-gradient-to-r ${variant.color}`}
+                                            animate={{
+                                                scale: [1, 1.6, 1],
+                                                opacity: [0.4, 1, 0.4],
+                                            }}
+                                            transition={{
+                                                duration: 1.2,
+                                                repeat: Infinity,
+                                                delay: i * 0.2,
+                                                ease: 'easeInOut',
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+                            </motion.div>
+                        </ModalLayerContent>
                     </motion.div>
-                </motion.div>
+                </ModalLayer>
             )}
         </AnimatePresence>
     );

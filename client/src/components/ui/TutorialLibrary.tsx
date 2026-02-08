@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { Button } from './button';
+import { ModalLayer, ModalLayerContent } from '../primitives/ModalLayer';
 import { useTutorialStore } from '../../lib/stores/useTutorial';
 import { TUTORIAL_CARD_ORDER, TUTORIAL_CARDS } from '../../lib/tutorial/tutorialCards';
 
@@ -24,13 +25,11 @@ export function TutorialLibrary() {
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[var(--z-tutorial)] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-      role="dialog"
-      aria-modal="true"
+    <ModalLayer
+      className="fixed inset-0 z-[var(--z-tutorial)] pointer-events-auto flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
       onClick={closeLibrary}
     >
-      <div
+      <ModalLayerContent
         className="relative w-full max-w-2xl rounded-2xl border border-amber-500/40 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6 text-amber-100 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
@@ -94,8 +93,8 @@ export function TutorialLibrary() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </ModalLayerContent>
+    </ModalLayer>
   );
 }
 

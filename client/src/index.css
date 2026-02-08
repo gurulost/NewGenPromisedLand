@@ -37,6 +37,12 @@
   position: fixed;
 }
 
+/* Guardrail: modal layers must remain interactive even when nested in pointer-events:none HUD wrappers. */
+[data-ui-layer="modal"],
+[data-ui-layer="modal-content"] {
+  pointer-events: auto;
+}
+
 canvas {
   width: 100% !important;
   height: 100% !important;

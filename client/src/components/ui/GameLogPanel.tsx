@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Scroll, X } from 'lucide-react';
 import { useMobileUI } from '../../hooks/useMobileUI';
+import { ModalLayer, ModalLayerContent } from '../primitives/ModalLayer';
 
 export type GameLogEntryType =
     | 'combat'
@@ -88,8 +89,8 @@ export function GameLogPanel({
         if (!isOpen) return null;
 
         return (
-            <div data-ui-layer="modal" className="fixed inset-0 z-[var(--z-modal-backdrop)] pointer-events-auto bg-black/80 backdrop-blur-sm">
-                <div data-ui-layer="modal-content" className="z-[var(--z-modal-content)] mobile-safe-top mobile-safe-bottom h-full flex flex-col">
+            <ModalLayer className="fixed inset-0 z-[var(--z-modal-backdrop)] bg-black/80 backdrop-blur-sm">
+                <ModalLayerContent className="z-[var(--z-modal-content)] mobile-safe-top mobile-safe-bottom h-full flex flex-col">
                     <div className="flex items-center justify-between px-4 py-3 border-b border-stone-700/50 bg-stone-900/80">
                         <div className="flex items-center gap-2">
                             <Scroll className="w-4 h-4 text-amber-400" />
@@ -155,8 +156,8 @@ export function GameLogPanel({
                             </button>
                         </div>
                     </div>
-                </div>
-            </div>
+                </ModalLayerContent>
+            </ModalLayer>
         );
     }
 
@@ -168,7 +169,7 @@ export function GameLogPanel({
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     onClick={onToggle}
-                    className={`fixed ${desktopBottomClass} ${desktopLeftClass} z-[var(--z-floating)] flex items-center gap-2 px-3 py-2 bg-stone-800/90 border border-stone-600/50 rounded-lg hover:bg-stone-700/90 transition-colors backdrop-blur-sm`}
+                    className={`fixed ${desktopBottomClass} ${desktopLeftClass} z-[var(--z-floating)] pointer-events-auto flex items-center gap-2 px-3 py-2 bg-stone-800/90 border border-stone-600/50 rounded-lg hover:bg-stone-700/90 transition-colors backdrop-blur-sm`}
                 >
                     <Scroll className="w-4 h-4 text-amber-400" />
                     <span className="text-sm text-stone-300">Game Log</span>
@@ -188,7 +189,7 @@ export function GameLogPanel({
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -300 }}
                         transition={{ type: 'spring', damping: 25 }}
-                        className={`fixed ${desktopBottomClass} ${desktopLeftClass} z-[var(--z-floating)] w-80 max-w-[calc(100vw-env(safe-area-inset-left)-env(safe-area-inset-right)-2rem)] max-h-[calc(100vh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] bg-stone-900/95 border border-stone-600/50 rounded-xl shadow-xl backdrop-blur-sm overflow-hidden flex flex-col`}
+                        className={`fixed ${desktopBottomClass} ${desktopLeftClass} z-[var(--z-floating)] pointer-events-auto w-80 max-w-[calc(100vw-env(safe-area-inset-left)-env(safe-area-inset-right)-2rem)] max-h-[calc(100vh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] bg-stone-900/95 border border-stone-600/50 rounded-xl shadow-xl backdrop-blur-sm overflow-hidden flex flex-col`}
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between px-4 py-3 border-b border-stone-700/50 bg-stone-800/50">
