@@ -560,40 +560,10 @@ export function handleActivateFactionAbility(
   state: GameState,
   payload: { playerId: string; abilityId: string; targetId?: string }
 ): GameState {
-  const { playerId, abilityId } = payload;
-
-  const player = state.players.find(p => p.id === playerId);
-  if (!player) return state;
-
-  const ability = ABILITIES[abilityId];
-  if (!ability) return state;
-
-  if (ability.requirements) {
-    const hasResources = Object.entries(ability.requirements).every(([resource, cost]) => {
-      if (resource === "faith") return player.stats.faith >= cost;
-      if (resource === "pride") return player.stats.pride >= cost;
-      return true;
-    });
-
-    if (!hasResources) return state;
-  }
-
-  let updatedPlayer = { ...player };
-  if (ability.requirements?.faith) {
-    updatedPlayer.stats = {
-      ...updatedPlayer.stats,
-      faith: updatedPlayer.stats.faith - ability.requirements.faith
-    };
-  }
-  if (ability.requirements?.pride) {
-    updatedPlayer.stats = {
-      ...updatedPlayer.stats,
-      pride: updatedPlayer.stats.pride - ability.requirements.pride
-    };
-  }
-
-  return {
-    ...state,
-    players: state.players.map(p => p.id === playerId ? updatedPlayer : p)
-  };
+  // Keep activation and use semantics in one place so effects/cooldowns stay consistent.
+  return handleUseAbility(state, {
+    playerId: payload.playerId,
+    abilityId: payload.abilityId,
+    targetUnitId: payload.targetId
+  });
 }

@@ -588,12 +588,25 @@ export function handleHarvestResource(
   const player = state.players.find(p => p.id === unit.playerId);
   if (!player) return state;
 
+  const resourceIds = new Set((resourceTile.resources || []).map(resource => String(resource)));
+  const hasResource = (...ids: string[]) => ids.some(id => resourceIds.has(id));
+
+  const hasForestry = player.researchedTechs.includes("forestry");
+  const hasMining = player.researchedTechs.includes("mining");
+  const hasHunting = player.researchedTechs.includes("hunting");
+  const hasAgriculture = player.researchedTechs.includes("agriculture");
+  const hasFishing = player.researchedTechs.includes("fishing");
+
   let canHarvest = false;
-  if (resourceTile.terrain === "forest" && player.researchedTechs.includes("forestry")) {
+  if ((resourceTile.terrain === "forest" || hasResource("timber_grove")) && hasForestry) {
     canHarvest = true;
-  } else if (resourceTile.terrain === "mountain" && player.researchedTechs.includes("mining")) {
+  } else if ((resourceTile.terrain === "mountain" || hasResource("ore_vein", "ore", "metal")) && hasMining) {
     canHarvest = true;
-  } else if (resourceTile.resources?.includes("animals") && player.researchedTechs.includes("hunting")) {
+  } else if (hasResource("animals", "wild_goats") && hasHunting) {
+    canHarvest = true;
+  } else if (hasResource("grain_patch", "grain", "fruit") && hasAgriculture) {
+    canHarvest = true;
+  } else if (hasResource("fishing_shoal", "fish") && hasFishing) {
     canHarvest = true;
   }
 

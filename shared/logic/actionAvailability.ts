@@ -43,6 +43,24 @@ const ACTIVE_ABILITIES = new Set([
   'NAVAL_COMMAND',
 ]);
 
+// Legacy save compatibility: older ids are normalized to current world element ids.
+const LEGACY_WORLD_ELEMENT_ALIASES: Record<string, string> = {
+  grain: 'grain_patch',
+  fruit: 'grain_patch',
+  animals: 'wild_goats',
+  fish: 'fishing_shoal',
+  ore: 'ore_vein',
+  metal: 'ore_vein',
+  ruins: 'jaredite_ruins',
+};
+
+function normalizeWorldElementId(resourceId: string): string | null {
+  const normalized = String(resourceId || '').toLowerCase();
+  if (WORLD_ELEMENTS[normalized]) return normalized;
+  const alias = LEGACY_WORLD_ELEMENT_ALIASES[normalized];
+  return alias && WORLD_ELEMENTS[alias] ? alias : null;
+}
+
 function getAbilityAvailability(unit: Unit, player: PlayerState, _gameState: GameState): boolean {
   const unitDef = getUnitDefinition(unit.type);
   const abilities = (unit.abilities?.length ? unit.abilities : unitDef?.abilities || []).map(normalizeAbility);
@@ -130,7 +148,9 @@ export function getActionAvailabilityForUnit(
   const currentTile = gameState.map.tiles.find(tile =>
     tile.coordinate.q === unit.coordinate.q && tile.coordinate.r === unit.coordinate.r
   );
-  const worldElementIds = (currentTile?.resources || []).filter(resource => WORLD_ELEMENTS[resource]);
+  const worldElementIds = (currentTile?.resources || [])
+    .map(resource => normalizeWorldElementId(resource))
+    .filter((resourceId): resourceId is string => Boolean(resourceId));
   const canHarvest = isPlayerTurn && actionsRemaining > 0 && worldElementIds.length > 0;
   const hasImprovement = (gameState.improvements || []).some(imp =>
     imp.coordinate.q === unit.coordinate.q && imp.coordinate.r === unit.coordinate.r

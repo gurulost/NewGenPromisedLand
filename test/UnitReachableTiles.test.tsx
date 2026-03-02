@@ -9,12 +9,11 @@ import type { Unit as UnitType } from '../shared/types/unit';
 
 vi.mock('../client/src/lib/stores/useGameState');
 vi.mock('../client/src/lib/stores/useLocalGame');
-vi.mock('../client/src/hooks/usePathfindingWorker', () => ({
-  usePathfindingWorker: () => ({
-    getReachableTiles: vi.fn((start, passable, tileCosts, maxCost, callback) => {
-      callback([{ q: 1, r: 0, s: -1 }, { q: 0, r: 1, s: -1 }], null);
-    }),
-  }),
+vi.mock('../client/src/lib/pathfindingClient', () => ({
+  getReachableTilesAsync: vi.fn().mockResolvedValue([
+    { q: 1, r: 0, s: -1 },
+    { q: 0, r: 1, s: -1 },
+  ]),
 }));
 vi.mock('@react-three/fiber', () => ({
   useFrame: () => undefined,
