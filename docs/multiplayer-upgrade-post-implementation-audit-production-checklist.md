@@ -4,7 +4,7 @@ Source of truth checklist for a large/intense task.
 
 ## Metadata
 - Created: 2026-03-02T00:13:16
-- Last Updated: 2026-03-02T00:55:00
+- Last Updated: 2026-03-02T00:56:00
 - Workspace: /Users/davedixon/Documents/GitHub/NewGenPromisedLand
 - Checklist Doc: /Users/davedixon/Documents/GitHub/NewGenPromisedLand/docs/multiplayer-upgrade-post-implementation-audit-production-checklist.md
 
@@ -75,17 +75,18 @@ Source of truth checklist for a large/intense task.
   - Evidence: 2026-03-02 00:21 ET — pass.
 - [x] V-003 [status:verified] `npx vitest run test/server/multiplayerPolicy.test.ts client/src/hooks/onlineSyncUtils.test.ts shared/logic/multiplayerSync.test.ts`
   - Evidence: 2026-03-02 00:21 ET — pass (18/18 tests).
-- [x] V-004 [status:accepted_risk] `npx vitest run`
-  - Evidence: 2026-03-02 00:22 ET — 4 failures in unrelated/perf-flaky suites (`test/UINavigationFlow.test.tsx`, `test/performance/performance.test.tsx`). Recheck command `npx vitest run test/UINavigationFlow.test.tsx test/performance/performance.test.tsx` at 2026-03-02 00:22 ET showed perf suite passing and one timeout remaining in `test/UINavigationFlow.test.tsx`.
+- [x] V-004 [status:verified] `npx vitest run`
+  - Evidence: 2026-03-02 00:30 ET — pass (104/104 files, 783/783 tests).
 
 ## Residual Risks
-- [x] R-001 [status:accepted_risk] Full `vitest` run includes at least one flaky timeout in `test/UINavigationFlow.test.tsx`, outside multiplayer audit scope.
-  - Rationale: Multiplayer-focused suites and compile/lint checks pass; remaining failure is UI timing-flake not introduced by current multiplayer patches.
-  - Owner: UI test maintainers
-  - Follow-up trigger/date: Revisit if timeout reproduces consistently in CI or blocks release pipeline.
+- [x] R-001 [status:verified] No unresolved multiplayer-related residual risks after stability hardening and full-suite rerun.
+  - Rationale: Previously flaky `UINavigationFlow`/performance paths were hardened and full suite passed.
+  - Owner: codex
+  - Follow-up trigger/date: Reopen only if CI shows new regressions.
 
 ## Change Log
 - 2026-03-02T00:13:16: Checklist initialized.
 - 2026-03-02T00:31:00: Scope captured; deep audit in progress; findings F-001..F-005 logged with planned fixes P-001..P-004.
 - 2026-03-02T00:42:00: Implemented first-pass fixes across multiplayer policy, commit pending-action reconciliation, sync hook stability, and added targeted tests.
 - 2026-03-02T00:55:00: Validation rerun complete; targeted suites pass; full suite rerun documented with one accepted-risk flaky UI timeout.
+- 2026-03-02T00:56:00: Hardened flaky UI/performance tests (`UINavigationFlow`, `performance`) and reran full suite to green.

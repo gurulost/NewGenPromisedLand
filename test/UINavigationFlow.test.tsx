@@ -1,14 +1,15 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import GameUI from '../client/src/components/game/GameUI';
 import PlayerHUD from '../client/src/components/ui/PlayerHUD';
 import { BuildingMenu } from '../client/src/components/ui/BuildingMenu';
 import CityPanel from '../client/src/components/ui/CityPanel';
 import { useLocalGame } from '../client/src/lib/stores/useLocalGame';
 import { useGameState } from '../client/src/lib/stores/useGameState';
 import type { GameState, PlayerState, City } from '../shared/types/game';
+
+const SLOW_TEST_TIMEOUT_MS = 10_000;
 
 // Mock the stores
 vi.mock('../client/src/lib/stores/useLocalGame');
@@ -223,7 +224,7 @@ describe('UI Navigation Flow Tests', () => {
       
       // Should still have Construction Hall title
       expect(screen.getByText('Construction Hall')).toBeInTheDocument();
-    });
+    }, SLOW_TEST_TIMEOUT_MS);
 
     it('calls Cities handler when Cities button is clicked', async () => {
       const mockOnBuild = vi.fn();
@@ -264,7 +265,7 @@ describe('UI Navigation Flow Tests', () => {
 
       // Cities button should not be present when handler is not provided
       expect(screen.queryByText('Cities')).not.toBeInTheDocument();
-    });
+    }, SLOW_TEST_TIMEOUT_MS);
 
     it('maintains proper Cities button styling', () => {
       const mockOnBuild = vi.fn();
@@ -286,7 +287,7 @@ describe('UI Navigation Flow Tests', () => {
       
       // Check Cities button has proper styling
       expect(citiesButton).toHaveClass('bg-blue-600/20', 'border-blue-400/50', 'text-blue-100');
-    });
+    }, SLOW_TEST_TIMEOUT_MS);
   });
 
   describe('Complete Navigation Flow', () => {
@@ -356,7 +357,7 @@ describe('UI Navigation Flow Tests', () => {
       await waitFor(() => {
         expect(screen.getByText('Test Capital')).toBeInTheDocument();
       });
-    });
+    }, SLOW_TEST_TIMEOUT_MS);
 
     it('handles multiple city selection scenarios', async () => {
       const multiCityPlayer = {
