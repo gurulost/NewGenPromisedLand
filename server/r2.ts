@@ -1,23 +1,29 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
+import { VOICE_LIMITS } from "@shared/types/voiceLimits";
+
+export { VOICE_LIMITS };
+
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID ?? "";
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID ?? "";
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY ?? "";
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME ?? "";
 const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL ?? "").replace(/\/$/, "");
 
+// All five env vars must be present for voice uploads to work.
 export const R2_CONFIGURED =
   Boolean(R2_ACCOUNT_ID) &&
   Boolean(R2_ACCESS_KEY_ID) &&
   Boolean(R2_SECRET_ACCESS_KEY) &&
-  Boolean(R2_BUCKET_NAME);
+  Boolean(R2_BUCKET_NAME) &&
+  Boolean(R2_PUBLIC_URL);
 
 const PRESIGNED_EXPIRY_SECONDS = 300;
 
 // Allowed base MIME types (without codec params). Browsers typically send
-// "audio/webm;codecs=opus" or "audio/mp4;codecs=mp4a.40.2" — we strip the
-// codec suffix before checking so any valid base type is accepted.
+// "audio/webm;codecs=opus" or "audio/mp4;codecs=mp4a.40.2" — the codec suffix
+// is stripped before checking so any valid base type is accepted.
 const ALLOWED_AUDIO_BASE_TYPES = new Set<string>([
   "audio/webm",
   "audio/ogg",
@@ -28,11 +34,6 @@ const ALLOWED_AUDIO_BASE_TYPES = new Set<string>([
   "audio/aac",
 ]);
 
-export const VOICE_LIMITS = {
-  maxDurationMs: 180_000,
-  maxBytes: 8_388_608,
-} as const;
-
 // NOTE: R2 bucket CORS must be configured in the Cloudflare dashboard to allow
 // direct browser PUTs from your app domain. Required rule:
 //   AllowedOrigins: ["https://your-app-domain"]
@@ -40,18 +41,26 @@ export const VOICE_LIMITS = {
 //   AllowedHeaders: ["Content-Type"]
 // Without this, browser PUT requests to presigned URLs will be blocked.
 
+// S3Client is lazily created and cached as a module-level singleton to avoid
+// overhead from instantiating a new client (connection pool, config parsing)
+// on every presign request.
+let _r2Client: S3Client | null = null;
+
 function getR2Client(): S3Client {
   if (!R2_CONFIGURED) {
     throw new Error("R2 object storage is not configured");
   }
-  return new S3Client({
-    region: "auto",
-    endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: R2_ACCESS_KEY_ID,
-      secretAccessKey: R2_SECRET_ACCESS_KEY,
-    },
-  });
+  if (!_r2Client) {
+    _r2Client = new S3Client({
+      region: "auto",
+      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: R2_ACCESS_KEY_ID,
+        secretAccessKey: R2_SECRET_ACCESS_KEY,
+      },
+    });
+  }
+  return _r2Client;
 }
 
 function normalizeBaseMimeType(mimeType: string): string {
@@ -96,6 +105,7 @@ export async function createVoiceUploadUrl(params: {
 }): Promise<PresignedVoiceUpload> {
   const { lobbyCode, messageId, mimeType, contentLength } = params;
 
+  // Validate everything before making any network calls.
   if (!isAllowedVoiceMimeType(mimeType)) {
     throw Object.assign(new Error(`Unsupported audio type: ${normalizeBaseMimeType(mimeType)}`), { status: 415 });
   }
@@ -113,6 +123,7 @@ export async function createVoiceUploadUrl(params: {
   const safeId = sanitizeObjectKeySegment(messageId);
   const ext = mimeTypeToExtension(mimeType);
   const objectKey = `voice/${safeCode}/${safeId}.${ext}`;
+  const publicUrl = `${R2_PUBLIC_URL}/${objectKey}`;
 
   const client = getR2Client();
   // The ContentType in the presigned command must exactly match the
@@ -128,14 +139,6 @@ export async function createVoiceUploadUrl(params: {
     expiresIn: PRESIGNED_EXPIRY_SECONDS,
   });
 
-  if (!R2_PUBLIC_URL) {
-    throw Object.assign(
-      new Error("R2_PUBLIC_URL is required for voice notes. Set it to your bucket's public base URL."),
-      { status: 503 }
-    );
-  }
-
-  const publicUrl = `${R2_PUBLIC_URL}/${objectKey}`;
   return { uploadUrl, objectKey, publicUrl, expiresInSeconds: PRESIGNED_EXPIRY_SECONDS };
 }
 

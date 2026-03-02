@@ -217,12 +217,14 @@ export function ChatFeed({ messages, currentUserId, onRetryMessage }: ChatFeedPr
                 {message.status === "failed" && (
                   <span className="inline-flex items-center gap-1 text-red-200">
                     <AlertTriangle className="h-3 w-3" />
-                    Failed to send
+                    {message.type === "voice" && !message.audioUrl
+                      ? "Upload failed — re-record to send"
+                      : "Failed to send"}
                   </span>
                 )}
                 {message.status === "sent" && <span className="text-slate-300/60">Sent</span>}
 
-                {message.status === "failed" && (
+                {message.status === "failed" && (message.type !== "voice" || Boolean(message.audioUrl)) && (
                   <button
                     type="button"
                     onClick={() => onRetryMessage(message)}

@@ -51,10 +51,9 @@ const normalizeWaveformPeaks = (value: unknown): number[] | undefined => {
   return normalized.length > 0 ? normalized : undefined;
 };
 
-const isAllowedAudioUrl = (value: string): boolean =>
-  value.startsWith("https://") ||
-  value.startsWith("http://") ||
-  value.startsWith("/");
+// Only HTTPS URLs are accepted. http:// is excluded (leaks user IPs to arbitrary
+// hosts on playback). Relative paths are excluded (could reference server internals).
+const isAllowedAudioUrl = (value: string): boolean => value.startsWith("https://");
 
 const isLegacyDataUrl = (value: string): boolean =>
   value.startsWith("data:audio/");

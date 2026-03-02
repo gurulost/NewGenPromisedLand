@@ -10,6 +10,8 @@ import {
   type ChatTypingEventPayload,
 } from "@shared/types/chatEvents";
 
+import { VOICE_LIMITS } from "@shared/types/voiceLimits";
+
 import type { ChatIdentity, ChatMessage, VoiceDraft } from "@/components/chat/types";
 import { useChatUIState } from "@/hooks/useChatUIState";
 
@@ -31,11 +33,9 @@ const createMessageId = (): string => {
   return `chat_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 };
 
-const MAX_VOICE_BYTES = 8_388_608;
-const MAX_VOICE_DURATION_MS = 180_000;
-
 interface PresignedUploadResponse {
   uploadUrl: string;
+  objectKey: string;
   publicUrl: string;
   expiresInSeconds: number;
 }
@@ -46,11 +46,11 @@ const uploadVoiceBlob = async (
   messageId: string,
   durationMs: number
 ): Promise<string> => {
-  if (blob.size > MAX_VOICE_BYTES) {
-    throw new Error(`Voice note too large (max ${MAX_VOICE_BYTES / 1024 / 1024} MB)`);
+  if (blob.size > VOICE_LIMITS.maxBytes) {
+    throw new Error(`Voice note too large (max ${VOICE_LIMITS.maxBytes / 1024 / 1024} MB)`);
   }
-  if (durationMs > MAX_VOICE_DURATION_MS) {
-    throw new Error(`Voice note too long (max ${MAX_VOICE_DURATION_MS / 1000}s)`);
+  if (durationMs > VOICE_LIMITS.maxDurationMs) {
+    throw new Error(`Voice note too long (max ${VOICE_LIMITS.maxDurationMs / 1000}s)`);
   }
 
   const presignRes = await fetch(
@@ -109,7 +109,9 @@ const postJson = async <T,>(url: string, body: Record<string, unknown>): Promise
     credentials: "include",
   });
   if (!response.ok) {
-    throw new Error(`Request failed (${response.status})`);
+    const errorBody = await response.json().catch(() => ({})) as Record<string, unknown>;
+    const serverMessage = typeof errorBody?.error === "string" ? errorBody.error : undefined;
+    throw new Error(serverMessage ?? `Request failed (${response.status})`);
   }
   try {
     return (await response.json()) as T;
