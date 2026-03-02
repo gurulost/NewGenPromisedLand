@@ -5,13 +5,14 @@ import type {
   ChatTransportEvent,
   ChatTypingEventPayload,
 } from "@shared/types/chatEvents";
+import { VOICE_LIMITS } from "@shared/types/voiceLimits";
 
 export const CHAT_LIMITS = {
   maxMessages: 240,
   maxEvents: 1000,
   maxTextLength: 800,
-  maxAudioDurationMs: 180000,
-  maxAudioUrlChars: 2_500_000,
+  maxAudioDurationMs: VOICE_LIMITS.maxDurationMs,
+  maxAudioUrlChars: 2048,
   maxWaveformPeaks: 128,
   typingTtlMs: 5000,
 } as const;
@@ -51,11 +52,12 @@ const normalizeWaveformPeaks = (value: unknown): number[] | undefined => {
   return normalized.length > 0 ? normalized : undefined;
 };
 
-const isAllowedAudioUrl = (value: string): boolean =>
-  value.startsWith("data:audio/") ||
-  value.startsWith("https://") ||
-  value.startsWith("http://") ||
-  value.startsWith("/");
+// Only HTTPS URLs are accepted. http:// is excluded (leaks user IPs to arbitrary
+// hosts on playback). Relative paths are excluded (could reference server internals).
+const isAllowedAudioUrl = (value: string): boolean => value.startsWith("https://");
+
+const isLegacyDataUrl = (value: string): boolean =>
+  value.startsWith("data:audio/");
 
 const normalizeReadMap = (value: unknown): Record<string, number> => {
   if (!value || typeof value !== "object") return {};
@@ -121,7 +123,9 @@ const normalizeMessageRecord = (value: unknown): ChatMessageRecord | null => {
   } else {
     const audioUrl = String(raw.audioUrl ?? "");
     const audioDurationMs = toFiniteInt(raw.audioDurationMs);
-    if (!audioUrl || audioDurationMs <= 0 || audioUrl.length > CHAT_LIMITS.maxAudioUrlChars) return null;
+    const isValidUrl = isAllowedAudioUrl(audioUrl) && audioUrl.length <= CHAT_LIMITS.maxAudioUrlChars;
+    const isLegacy = isLegacyDataUrl(audioUrl) && audioUrl.length <= 2_500_000;
+    if (!audioUrl || audioDurationMs <= 0 || (!isValidUrl && !isLegacy)) return null;
     base.audioUrl = audioUrl;
     base.audioDurationMs = Math.min(audioDurationMs, CHAT_LIMITS.maxAudioDurationMs);
     base.waveformPeaks = normalizeWaveformPeaks(raw.waveformPeaks);
@@ -229,7 +233,7 @@ export function validateIncomingChatMessage(input: unknown): { valid: true; mess
 
   const audioUrl = String(raw.audioUrl ?? "");
   if (!audioUrl || !isAllowedAudioUrl(audioUrl) || audioUrl.length > CHAT_LIMITS.maxAudioUrlChars) {
-    return { valid: false, error: "Invalid voice audio payload" };
+    return { valid: false, error: "Voice messages must provide a storage URL (data-URLs are no longer accepted)" };
   }
   const audioDurationMs = toFiniteInt(raw.audioDurationMs);
   if (audioDurationMs <= 0 || audioDurationMs > CHAT_LIMITS.maxAudioDurationMs) {

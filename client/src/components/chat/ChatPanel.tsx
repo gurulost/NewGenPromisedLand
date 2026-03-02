@@ -34,24 +34,6 @@ const FALLBACK_STATE: ChatLobbyState = {
   lastReadAt: 0,
 };
 
-function dataUrlToBlob(dataUrl: string): Blob | null {
-  const parts = dataUrl.split(",");
-  if (parts.length !== 2) return null;
-  const meta = parts[0] ?? "";
-  const mimeMatch = /data:(.*?);base64/.exec(meta);
-  const mimeType = mimeMatch?.[1] ?? "application/octet-stream";
-  try {
-    const decoded = atob(parts[1]);
-    const bytes = new Uint8Array(decoded.length);
-    for (let index = 0; index < decoded.length; index += 1) {
-      bytes[index] = decoded.charCodeAt(index);
-    }
-    return new Blob([bytes], { type: mimeType });
-  } catch {
-    return null;
-  }
-}
-
 export function ChatPanel({
   identity,
   isOpen,
@@ -91,7 +73,7 @@ export function ChatPanel({
   );
 
   const internalChannel = useChatChannel(channel ? null : identity);
-  const { sendTextMessage, sendVoiceMessage, sendTypingStart, sendTypingStop, markRead } = channel ?? internalChannel;
+  const { sendTextMessage, sendVoiceMessage, retryVoiceMessage, sendTypingStart, sendTypingStop, markRead } = channel ?? internalChannel;
   const readTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -198,20 +180,16 @@ export function ChatPanel({
       return;
     }
 
-    if (message.type === "voice" && message.audioUrl) {
-      const blob = dataUrlToBlob(message.audioUrl);
-      if (!blob) return;
-      await sendVoiceMessage({
-        blob,
-        mimeType: blob.type,
-        durationMs: message.audioDurationMs ?? 0,
-        waveformPeaks: message.waveformPeaks ?? [],
-      }, {
-        messageId: message.id,
+    if (message.type === "voice") {
+      await retryVoiceMessage({
+        id: message.id,
+        audioUrl: message.audioUrl,
+        audioDurationMs: message.audioDurationMs,
+        waveformPeaks: message.waveformPeaks,
         createdAt: message.createdAt,
       });
     }
-  }, [sendTextMessage, sendVoiceMessage]);
+  }, [sendTextMessage, retryVoiceMessage]);
 
   if (!isOpen) return null;
 

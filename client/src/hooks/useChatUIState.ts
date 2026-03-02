@@ -240,7 +240,12 @@ export const useChatUIState = create<ChatStore>((set, get) => ({
       const hadMessage = prevLobby.messages.some((entry) => entry.id === message.id);
       const nextMessages = upsertMessages(prevLobby.messages, message);
       const isOwnMessage = typeof activeUserId === "number" && message.senderUserId === activeUserId;
-      const shouldIncrementUnread = !hadMessage && !isOwnMessage && !prevLobby.isOpen;
+      const isChatFocused =
+        typeof document === "undefined"
+          ? true
+          : document.visibilityState === "visible" && document.hasFocus();
+      const shouldTreatOpenAsRead = prevLobby.isOpen && isChatFocused;
+      const shouldIncrementUnread = !hadMessage && !isOwnMessage && !shouldTreatOpenAsRead;
       const nextUnreadCount = shouldIncrementUnread ? prevLobby.unreadCount + 1 : prevLobby.unreadCount;
 
       const previewText = message.type === "voice"

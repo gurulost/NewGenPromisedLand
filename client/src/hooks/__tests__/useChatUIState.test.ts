@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ChatMessage } from "@/components/chat/types";
 import { useChatUIState } from "@/hooks/useChatUIState";
@@ -18,9 +18,16 @@ const createMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
 });
 
 describe("useChatUIState", () => {
+  let hasFocusSpy: ReturnType<typeof vi.spyOn> | null = null;
+
   beforeEach(() => {
     useChatUIState.setState({ byLobby: {} });
     window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    hasFocusSpy?.mockRestore();
+    hasFocusSpy = null;
   });
 
   it("keeps unread count until explicit read mark after opening", () => {
@@ -60,5 +67,29 @@ describe("useChatUIState", () => {
     const lobbyState = useChatUIState.getState().byLobby[LOBBY_CODE];
     expect(lobbyState?.unreadCount).toBe(0);
     expect(lobbyState?.messages).toHaveLength(1);
+  });
+
+  it("increments unread when chat is open but window is not focused", () => {
+    const store = useChatUIState.getState();
+    store.ensureLobby(LOBBY_CODE);
+    store.setLobbyOpen(LOBBY_CODE, true);
+
+    hasFocusSpy = vi.spyOn(document, "hasFocus").mockReturnValue(false);
+
+    store.receiveMessage(LOBBY_CODE, createMessage({ id: "off-focus" }), { activeUserId: 7 });
+    const lobbyState = useChatUIState.getState().byLobby[LOBBY_CODE];
+    expect(lobbyState?.unreadCount).toBe(1);
+  });
+
+  it("keeps unread unchanged when chat is open and focused", () => {
+    const store = useChatUIState.getState();
+    store.ensureLobby(LOBBY_CODE);
+    store.setLobbyOpen(LOBBY_CODE, true);
+
+    hasFocusSpy = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+
+    store.receiveMessage(LOBBY_CODE, createMessage({ id: "focused" }), { activeUserId: 7 });
+    const lobbyState = useChatUIState.getState().byLobby[LOBBY_CODE];
+    expect(lobbyState?.unreadCount).toBe(0);
   });
 });

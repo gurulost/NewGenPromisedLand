@@ -29,6 +29,13 @@ import {
   pruneTyping,
   validateIncomingChatMessage,
 } from "./chatState";
+import {
+  R2_CONFIGURED,
+  VOICE_LIMITS,
+  isAllowedVoiceMimeType,
+  isVoiceStorageUrl,
+  createVoiceUploadUrl,
+} from "./r2";
 import type {
   ChatMessageEventPayload,
   ChatMessagesResponse,
@@ -395,6 +402,13 @@ const chatTypingRateLimit = createRateLimitMiddleware({
   maxHits: 300,
   key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:chat-typing`,
   label: "chat-typing",
+});
+
+const chatVoiceUploadRateLimit = createRateLimitMiddleware({
+  windowMs: 60 * 1000,
+  maxHits: 20,
+  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:voice-upload`,
+  label: "voice-upload",
 });
 
 const multiplayerTelemetry = {
@@ -1152,12 +1166,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Request a presigned R2 upload URL for a voice note
+  app.post("/api/lobbies/:code/chat/voice-upload", requireAuth, chatVoiceUploadRateLimit, async (req, res) => {
+    if (!R2_CONFIGURED) {
+      return res.status(503).json({ error: "Voice storage not configured" });
+    }
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) return res.status(404).json({ error: "Lobby not found" });
+      if (!isChatEnabledLobbyStatus(lobby.status)) {
+        return res.status(409).json({ error: "Chat unavailable for this lobby state" });
+      }
+      const seats = await storage.getSeatsByLobbyId(lobby.id);
+      const userId = req.session.userId!;
+      if (!isLobbyParticipant(lobby.hostUserId, seats, userId)) {
+        return res.status(403).json({ error: "Not a participant" });
+      }
+
+      const { messageId, mimeType, contentLength, durationMs } = req.body;
+      if (!messageId || typeof messageId !== "string") {
+        return res.status(400).json({ error: "messageId required (max 128 chars)" });
+      }
+      const normalizedMessageId = messageId.trim();
+      if (!normalizedMessageId || normalizedMessageId.length > 128) {
+        return res.status(400).json({ error: "messageId required (max 128 chars)" });
+      }
+      if (!mimeType || typeof mimeType !== "string") {
+        return res.status(400).json({ error: "mimeType required" });
+      }
+      if (!isAllowedVoiceMimeType(mimeType)) {
+        return res.status(415).json({ error: `Unsupported audio type` });
+      }
+      const parsedLength = Number(contentLength);
+      if (!Number.isFinite(parsedLength) || parsedLength <= 0) {
+        return res.status(400).json({ error: "contentLength must be a positive number" });
+      }
+      if (parsedLength > VOICE_LIMITS.maxBytes) {
+        return res.status(413).json({
+          error: `Voice note too large (max ${Math.round(VOICE_LIMITS.maxBytes / 1024 / 1024)} MB)`,
+          maxBytes: VOICE_LIMITS.maxBytes,
+        });
+      }
+      const parsedDuration = Number(durationMs);
+      if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+        return res.status(400).json({
+          error: "durationMs must be a positive number",
+          maxDurationMs: VOICE_LIMITS.maxDurationMs,
+        });
+      }
+      if (parsedDuration > VOICE_LIMITS.maxDurationMs) {
+        return res.status(400).json({
+          error: `Voice note too long (max ${VOICE_LIMITS.maxDurationMs / 1000}s)`,
+          maxDurationMs: VOICE_LIMITS.maxDurationMs,
+        });
+      }
+
+      const result = await createVoiceUploadUrl({
+        lobbyCode: lobby.code,
+        messageId: normalizedMessageId,
+        mimeType,
+        contentLength: parsedLength,
+      });
+
+      return res.json(result);
+    } catch (err: any) {
+      if (err?.status === 413) return res.status(413).json({ error: err.message, maxBytes: VOICE_LIMITS.maxBytes });
+      if (err?.status === 415) return res.status(415).json({ error: err.message });
+      if (err?.status === 400) return res.status(400).json({ error: err.message });
+      if (err?.status === 503) return res.status(503).json({ error: err.message });
+      console.error("Failed to create voice upload URL:", err);
+      return res.status(500).json({ error: "Failed to create voice upload URL" });
+    }
+  });
+
   // Send text/voice chat message
   app.post("/api/lobbies/:code/chat/messages", requireAuth, chatWriteRateLimit, async (req, res) => {
     try {
       const validated = validateIncomingChatMessage(req.body);
       if (!validated.valid) {
         return res.status(400).json({ error: validated.error });
+      }
+      if (validated.message.type === "voice") {
+        if (!R2_CONFIGURED) {
+          return res.status(503).json({ error: "Voice storage not configured" });
+        }
+        if (!isVoiceStorageUrl(validated.message.audioUrl ?? "")) {
+          return res.status(400).json({ error: "Invalid voice storage URL" });
+        }
       }
 
       for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {

@@ -10,6 +10,8 @@ import {
   type ChatTypingEventPayload,
 } from "@shared/types/chatEvents";
 
+import { VOICE_LIMITS } from "@shared/types/voiceLimits";
+
 import type { ChatIdentity, ChatMessage, VoiceDraft } from "@/components/chat/types";
 import { useChatUIState } from "@/hooks/useChatUIState";
 
@@ -18,6 +20,7 @@ const POLL_INTERVAL_MS = 1200;
 export interface UseChatChannelResult {
   sendTextMessage: (text: string, options?: { messageId?: string; createdAt?: number }) => Promise<void>;
   sendVoiceMessage: (draft: VoiceDraft, options?: { messageId?: string; createdAt?: number }) => Promise<void>;
+  retryVoiceMessage: (message: { id: string; audioUrl?: string; audioDurationMs?: number; waveformPeaks?: number[]; createdAt: number }) => Promise<void>;
   sendTypingStart: () => void;
   sendTypingStop: () => void;
   markRead: () => void;
@@ -30,19 +33,71 @@ const createMessageId = (): string => {
   return `chat_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 };
 
-const toDataUrl = async (blob: Blob): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-      reject(new Error("Failed to encode audio"));
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("Failed to encode audio"));
-    reader.readAsDataURL(blob);
+interface PresignedUploadResponse {
+  uploadUrl: string;
+  objectKey: string;
+  publicUrl: string;
+  expiresInSeconds: number;
+}
+
+const isHttpsAudioUrl = (value: string | undefined): value is string =>
+  typeof value === "string" && value.startsWith("https://");
+
+const uploadVoiceBlob = async (
+  blob: Blob,
+  lobbyCode: string,
+  messageId: string,
+  durationMs: number
+): Promise<string> => {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) {
+    throw new Error("Voice note duration is unavailable. Please re-record.");
+  }
+  if (blob.size > VOICE_LIMITS.maxBytes) {
+    throw new Error(`Voice note too large (max ${VOICE_LIMITS.maxBytes / 1024 / 1024} MB)`);
+  }
+  if (durationMs > VOICE_LIMITS.maxDurationMs) {
+    throw new Error(`Voice note too long (max ${VOICE_LIMITS.maxDurationMs / 1000}s)`);
+  }
+
+  const presignRes = await fetch(
+    `/api/lobbies/${encodeURIComponent(lobbyCode)}/chat/voice-upload`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messageId,
+        mimeType: blob.type || "audio/webm",
+        contentLength: blob.size,
+        durationMs,
+      }),
+      credentials: "include",
+    }
+  );
+
+  if (!presignRes.ok) {
+    const body = await presignRes.json().catch(() => ({}));
+    throw new Error(body?.error ?? `Failed to get upload URL (${presignRes.status})`);
+  }
+
+  const presignPayload = (await presignRes.json()) as Partial<PresignedUploadResponse>;
+  const uploadUrl = typeof presignPayload.uploadUrl === "string" ? presignPayload.uploadUrl : "";
+  const publicUrl = typeof presignPayload.publicUrl === "string" ? presignPayload.publicUrl : "";
+  if (!uploadUrl || !publicUrl) {
+    throw new Error("Invalid upload response from server");
+  }
+
+  const putRes = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": blob.type || "audio/webm" },
+    body: blob,
   });
+
+  if (!putRes.ok) {
+    throw new Error(`Upload to storage failed (${putRes.status})`);
+  }
+
+  return publicUrl;
+};
 
 const dispatchWindowEvent = <T,>(eventName: string, payload: T): void => {
   if (typeof window === "undefined") return;
@@ -65,7 +120,9 @@ const postJson = async <T,>(url: string, body: Record<string, unknown>): Promise
     credentials: "include",
   });
   if (!response.ok) {
-    throw new Error(`Request failed (${response.status})`);
+    const errorBody = await response.json().catch(() => ({})) as Record<string, unknown>;
+    const serverMessage = typeof errorBody?.error === "string" ? errorBody.error : undefined;
+    throw new Error(serverMessage ?? `Request failed (${response.status})`);
   }
   try {
     return (await response.json()) as T;
@@ -398,7 +455,6 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
 
     const id = options?.messageId ?? createMessageId();
     const createdAt = options?.createdAt ?? Date.now();
-    let encodedAudioUrl: string | undefined;
 
     const pendingMessage: ChatMessage = {
       id,
@@ -418,8 +474,15 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
       suppressPeek: true,
     });
 
+    let uploadedUrl: string | undefined;
+
     try {
-      encodedAudioUrl = await toDataUrl(draft.blob);
+      uploadedUrl = await uploadVoiceBlob(
+        draft.blob,
+        identity.lobbyCode,
+        id,
+        draft.durationMs
+      );
 
       const result = await postJson<{
         eventVersion?: number;
@@ -428,7 +491,7 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
       }>(`/api/lobbies/${encodeURIComponent(identity.lobbyCode)}/chat/messages`, {
         id,
         type: "voice",
-        audioUrl: encodedAudioUrl,
+        audioUrl: uploadedUrl,
         audioDurationMs: draft.durationMs,
         waveformPeaks: draft.waveformPeaks,
         createdAt,
@@ -436,7 +499,7 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
 
       const responseMessage = result?.message;
       updateMessage(identity.lobbyCode, id, "sent", {
-        audioUrl: responseMessage?.audioUrl ?? encodedAudioUrl,
+        audioUrl: responseMessage?.audioUrl ?? uploadedUrl,
         audioDurationMs: responseMessage?.audioDurationMs ?? draft.durationMs,
         waveformPeaks: responseMessage?.waveformPeaks ?? draft.waveformPeaks,
         senderName: responseMessage?.senderName ?? identity.userName,
@@ -447,14 +510,70 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
       if (eventVersion !== null) {
         lastEventVersionRef.current = Math.max(lastEventVersionRef.current, eventVersion);
       }
-    } catch {
-      updateMessage(identity.lobbyCode, id, "failed", encodedAudioUrl ? { audioUrl: encodedAudioUrl } : undefined);
+    } catch (err) {
+      updateMessage(identity.lobbyCode, id, "failed", uploadedUrl ? { audioUrl: uploadedUrl } : undefined);
+      console.warn("[chat] Voice send failed:", err instanceof Error ? err.message : String(err));
     }
   }, [identity, receiveMessage, updateMessage]);
+
+  // Retry a previously failed voice message. If the audio was already uploaded
+  // to object storage (https:// URL), skip the upload step and re-POST only the
+  // message metadata. If there is no audioUrl (upload never completed), the
+  // message cannot be retried without the original blob — the user must re-record.
+  const retryVoiceMessage = useCallback(async (message: {
+    id: string;
+    audioUrl?: string;
+    audioDurationMs?: number;
+    waveformPeaks?: number[];
+    createdAt: number;
+  }) => {
+    if (!identity) return;
+    const { id, audioUrl, audioDurationMs, waveformPeaks, createdAt } = message;
+
+    if (!isHttpsAudioUrl(audioUrl) || !Number.isFinite(audioDurationMs) || (audioDurationMs ?? 0) <= 0) {
+      // Missing/invalid uploaded URL or duration means this failed note cannot be
+      // retried safely without a new recording.
+      return;
+    }
+
+    updateMessage(identity.lobbyCode, id, "pending");
+
+    try {
+      const result = await postJson<{
+        eventVersion?: number;
+        message?: ChatMessageEventPayload & { version?: number };
+      }>(`/api/lobbies/${encodeURIComponent(identity.lobbyCode)}/chat/messages`, {
+        id,
+        type: "voice",
+        audioUrl,
+        audioDurationMs,
+        waveformPeaks,
+        createdAt,
+      });
+
+      const responseMessage = result?.message;
+      updateMessage(identity.lobbyCode, id, "sent", {
+        audioUrl: responseMessage?.audioUrl ?? audioUrl,
+        audioDurationMs: responseMessage?.audioDurationMs ?? audioDurationMs,
+        waveformPeaks: responseMessage?.waveformPeaks ?? waveformPeaks,
+        senderName: responseMessage?.senderName ?? identity.userName,
+        senderFactionId: responseMessage?.senderFactionId ?? identity.senderFactionId,
+      });
+
+      const eventVersion = asFiniteInt(result?.eventVersion);
+      if (eventVersion !== null) {
+        lastEventVersionRef.current = Math.max(lastEventVersionRef.current, eventVersion);
+      }
+    } catch (err) {
+      updateMessage(identity.lobbyCode, id, "failed");
+      console.warn("[chat] Voice retry failed:", err instanceof Error ? err.message : String(err));
+    }
+  }, [identity, updateMessage]);
 
   return {
     sendTextMessage,
     sendVoiceMessage,
+    retryVoiceMessage,
     sendTypingStart,
     sendTypingStop,
     markRead,
