@@ -55,4 +55,16 @@ describe("r2 voice URL helpers", () => {
     expect(mod.isVoiceStorageUrl("https://cdn.example.com/chat/not-voice/message.webm")).toBe(false);
     expect(mod.isVoiceStorageUrl("https://tracker.example.net/voice/ROOM/message.webm")).toBe(false);
   });
+
+  it("scopes voice URLs to a lobby prefix when requested", async () => {
+    process.env.R2_ACCOUNT_ID = "acct";
+    process.env.R2_ACCESS_KEY_ID = "key";
+    process.env.R2_SECRET_ACCESS_KEY = "secret";
+    process.env.R2_BUCKET_NAME = "bucket";
+    process.env.R2_PUBLIC_URL = "https://cdn.example.com/chat";
+
+    const mod = await loadR2Module();
+    expect(mod.isVoiceStorageUrlForLobby("https://cdn.example.com/chat/voice/ROOMA/message.webm", "ROOMA")).toBe(true);
+    expect(mod.isVoiceStorageUrlForLobby("https://cdn.example.com/chat/voice/ROOMB/message.webm", "ROOMA")).toBe(false);
+  });
 });
