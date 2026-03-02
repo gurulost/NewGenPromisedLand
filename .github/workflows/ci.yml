@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -39,6 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -54,6 +58,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -69,6 +75,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -84,6 +92,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -116,6 +126,8 @@ jobs:
       SESSION_SECRET: ci-e2e-session-secret
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -161,6 +173,8 @@ jobs:
       SESSION_SECRET: ci-lighthouse-session-secret
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
