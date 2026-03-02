@@ -32,6 +32,7 @@ import {
 import {
   R2_CONFIGURED,
   VOICE_LIMITS,
+  isAllowedVoiceMimeType,
   createVoiceUploadUrl,
 } from "./r2";
 import type {
@@ -400,6 +401,13 @@ const chatTypingRateLimit = createRateLimitMiddleware({
   maxHits: 300,
   key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:chat-typing`,
   label: "chat-typing",
+});
+
+const chatVoiceUploadRateLimit = createRateLimitMiddleware({
+  windowMs: 60 * 1000,
+  maxHits: 20,
+  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:voice-upload`,
+  label: "voice-upload",
 });
 
 const multiplayerTelemetry = {
@@ -1158,13 +1166,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Request a presigned R2 upload URL for a voice note
-  app.post("/api/lobbies/:code/chat/voice-upload", requireAuth, async (req, res) => {
+  app.post("/api/lobbies/:code/chat/voice-upload", requireAuth, chatVoiceUploadRateLimit, async (req, res) => {
     if (!R2_CONFIGURED) {
       return res.status(503).json({ error: "Voice storage not configured" });
     }
     try {
       const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
       if (!lobby) return res.status(404).json({ error: "Lobby not found" });
+      if (!isChatEnabledLobbyStatus(lobby.status)) {
+        return res.status(409).json({ error: "Chat unavailable for this lobby state" });
+      }
       const seats = await storage.getSeatsByLobbyId(lobby.id);
       const userId = req.session.userId!;
       if (!isLobbyParticipant(lobby.hostUserId, seats, userId)) {
@@ -1177,6 +1188,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (!mimeType || typeof mimeType !== "string") {
         return res.status(400).json({ error: "mimeType required" });
+      }
+      if (!isAllowedVoiceMimeType(mimeType)) {
+        return res.status(415).json({ error: `Unsupported audio type` });
       }
       const parsedLength = Number(contentLength);
       if (!Number.isFinite(parsedLength) || parsedLength <= 0) {
@@ -1208,6 +1222,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (err?.status === 413) return res.status(413).json({ error: err.message, maxBytes: VOICE_LIMITS.maxBytes });
       if (err?.status === 415) return res.status(415).json({ error: err.message });
       if (err?.status === 400) return res.status(400).json({ error: err.message });
+      if (err?.status === 503) return res.status(503).json({ error: err.message });
       console.error("Failed to create voice upload URL:", err);
       return res.status(500).json({ error: "Failed to create voice upload URL" });
     }

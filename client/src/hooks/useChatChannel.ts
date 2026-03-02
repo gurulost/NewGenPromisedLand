@@ -18,6 +18,7 @@ const POLL_INTERVAL_MS = 1200;
 export interface UseChatChannelResult {
   sendTextMessage: (text: string, options?: { messageId?: string; createdAt?: number }) => Promise<void>;
   sendVoiceMessage: (draft: VoiceDraft, options?: { messageId?: string; createdAt?: number }) => Promise<void>;
+  retryVoiceMessage: (message: { id: string; audioUrl?: string; audioDurationMs?: number; waveformPeaks?: number[]; createdAt: number }) => Promise<void>;
   sendTypingStart: () => void;
   sendTypingStop: () => void;
   markRead: () => void;
@@ -497,15 +498,69 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
         lastEventVersionRef.current = Math.max(lastEventVersionRef.current, eventVersion);
       }
     } catch (err) {
-      const errMessage = err instanceof Error ? err.message : undefined;
       updateMessage(identity.lobbyCode, id, "failed", uploadedUrl ? { audioUrl: uploadedUrl } : undefined);
-      console.warn("[chat] Voice send failed:", errMessage);
+      console.warn("[chat] Voice send failed:", err instanceof Error ? err.message : String(err));
     }
   }, [identity, receiveMessage, updateMessage]);
+
+  // Retry a previously failed voice message. If the audio was already uploaded
+  // to object storage (https:// URL), skip the upload step and re-POST only the
+  // message metadata. If there is no audioUrl (upload never completed), the
+  // message cannot be retried without the original blob — the user must re-record.
+  const retryVoiceMessage = useCallback(async (message: {
+    id: string;
+    audioUrl?: string;
+    audioDurationMs?: number;
+    waveformPeaks?: number[];
+    createdAt: number;
+  }) => {
+    if (!identity) return;
+    const { id, audioUrl, audioDurationMs, waveformPeaks, createdAt } = message;
+
+    if (!audioUrl || (!audioUrl.startsWith("https://") && !audioUrl.startsWith("http://"))) {
+      // Upload never completed — nothing we can do without the original blob.
+      // Leave the message as "failed" so the user knows to re-record.
+      return;
+    }
+
+    updateMessage(identity.lobbyCode, id, "pending");
+
+    try {
+      const result = await postJson<{
+        eventVersion?: number;
+        message?: ChatMessageEventPayload & { version?: number };
+      }>(`/api/lobbies/${encodeURIComponent(identity.lobbyCode)}/chat/messages`, {
+        id,
+        type: "voice",
+        audioUrl,
+        audioDurationMs,
+        waveformPeaks,
+        createdAt,
+      });
+
+      const responseMessage = result?.message;
+      updateMessage(identity.lobbyCode, id, "sent", {
+        audioUrl: responseMessage?.audioUrl ?? audioUrl,
+        audioDurationMs: responseMessage?.audioDurationMs ?? audioDurationMs,
+        waveformPeaks: responseMessage?.waveformPeaks ?? waveformPeaks,
+        senderName: responseMessage?.senderName ?? identity.userName,
+        senderFactionId: responseMessage?.senderFactionId ?? identity.senderFactionId,
+      });
+
+      const eventVersion = asFiniteInt(result?.eventVersion);
+      if (eventVersion !== null) {
+        lastEventVersionRef.current = Math.max(lastEventVersionRef.current, eventVersion);
+      }
+    } catch (err) {
+      updateMessage(identity.lobbyCode, id, "failed");
+      console.warn("[chat] Voice retry failed:", err instanceof Error ? err.message : String(err));
+    }
+  }, [identity, updateMessage]);
 
   return {
     sendTextMessage,
     sendVoiceMessage,
+    retryVoiceMessage,
     sendTypingStart,
     sendTypingStop,
     markRead,
