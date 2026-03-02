@@ -34,6 +34,7 @@ import {
   VOICE_LIMITS,
   isAllowedVoiceMimeType,
   isVoiceStorageUrl,
+  isVoiceStorageUrlForLobby,
   createVoiceUploadUrl,
 } from "./r2";
 import type {
@@ -1191,6 +1192,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!normalizedMessageId || normalizedMessageId.length > 128) {
         return res.status(400).json({ error: "messageId required (max 128 chars)" });
       }
+      if (!/^[a-zA-Z0-9\-_]+$/.test(normalizedMessageId)) {
+        return res.status(400).json({ error: "messageId must use only letters, numbers, '-' and '_'" });
+      }
+      const lobbyState = (lobby.gameState as any) || {};
+      const chatState = normalizeLobbyChatState(lobbyState.chat);
+      if (chatState.messages.some((entry) => entry.id === normalizedMessageId)) {
+        return res.status(409).json({ error: "messageId already exists" });
+      }
       if (!mimeType || typeof mimeType !== "string") {
         return res.status(400).json({ error: "mimeType required" });
       }
@@ -1259,6 +1268,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
         if (!lobby) {
           return res.status(404).json({ error: "Lobby not found" });
+        }
+        if (validated.message.type === "voice" && !isVoiceStorageUrlForLobby(validated.message.audioUrl ?? "", lobby.code)) {
+          return res.status(400).json({ error: "Invalid voice storage URL for lobby" });
         }
         if (!isChatEnabledLobbyStatus(lobby.status)) {
           return res.status(409).json({ error: "Chat unavailable for this lobby state" });

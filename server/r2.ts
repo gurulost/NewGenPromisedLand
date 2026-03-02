@@ -72,6 +72,10 @@ function sanitizeObjectKeySegment(value: string): string {
   return value.replace(/[^a-zA-Z0-9\-_]/g, "_").slice(0, 128);
 }
 
+function voiceObjectPrefixForLobby(lobbyCode: string): string {
+  return `${VOICE_OBJECT_PREFIX}${sanitizeObjectKeySegment(lobbyCode)}/`;
+}
+
 function mimeTypeToExtension(mimeType: string): string {
   const base = normalizeBaseMimeType(mimeType);
   const sub = base.split("/")[1] ?? "webm";
@@ -95,6 +99,12 @@ export function isVoiceStorageUrl(audioUrl: string): boolean {
   if (!R2_PUBLIC_URL) return false;
   const normalized = String(audioUrl ?? "");
   return normalized.startsWith(`${R2_PUBLIC_URL}/${VOICE_OBJECT_PREFIX}`);
+}
+
+export function isVoiceStorageUrlForLobby(audioUrl: string, lobbyCode: string): boolean {
+  if (!R2_PUBLIC_URL) return false;
+  const normalized = String(audioUrl ?? "");
+  return normalized.startsWith(`${R2_PUBLIC_URL}/${voiceObjectPrefixForLobby(lobbyCode)}`);
 }
 
 export interface PresignedVoiceUpload {
@@ -126,10 +136,9 @@ export async function createVoiceUploadUrl(params: {
     );
   }
 
-  const safeCode = sanitizeObjectKeySegment(lobbyCode);
   const safeId = sanitizeObjectKeySegment(messageId);
   const ext = mimeTypeToExtension(mimeType);
-  const objectKey = `${VOICE_OBJECT_PREFIX}${safeCode}/${safeId}.${ext}`;
+  const objectKey = `${voiceObjectPrefixForLobby(lobbyCode)}${safeId}.${ext}`;
   const publicUrl = `${R2_PUBLIC_URL}/${objectKey}`;
 
   const client = getR2Client();
