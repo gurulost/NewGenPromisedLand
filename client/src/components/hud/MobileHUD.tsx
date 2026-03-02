@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Star, BookOpen, Hammer, ScrollText, Settings, Save, ShieldHalf, Menu as MenuIcon, Home } from 'lucide-react';
+import { Star, BookOpen, Hammer, ScrollText, Settings, Save, ShieldHalf, Menu as MenuIcon, Home, MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
@@ -17,6 +17,8 @@ interface MobileHUDProps {
   onOpenSaveLoad: () => void;
   onOpenSettings: () => void;
   onOpenGameLog: () => void;
+  onOpenChat: () => void;
+  showChat?: boolean;
   onOpenCities?: () => void;
   onOpenAdvancedSave?: () => void;
 }
@@ -31,6 +33,8 @@ export function MobileHUD({
   onOpenSaveLoad,
   onOpenSettings,
   onOpenGameLog,
+  onOpenChat,
+  showChat = true,
   onOpenCities,
   onOpenAdvancedSave,
 }: MobileHUDProps) {
@@ -164,6 +168,15 @@ export function MobileHUD({
               <ScrollText className="h-4 w-4" />
               Game Log
             </button>
+            {showChat && (
+              <button
+                onClick={() => handleMenuAction(onOpenChat)}
+                className="min-h-[52px] rounded-lg border border-amber-500/40 bg-amber-950/20 text-amber-100 flex items-center justify-center gap-2"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Chat
+              </button>
+            )}
             {onOpenAdvancedSave && (
               <button
                 onClick={() => handleMenuAction(onOpenAdvancedSave)}

@@ -1,15 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useAuth } from "../../lib/stores/useAuth";
 import { useLobby } from "../../lib/stores/useLobby";
 import { ContentShell } from "../primitives/ContentShell";
 import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
-import { ArrowLeft, Users, Copy, Check, UserPlus, Bot, RefreshCw, Loader2 } from "lucide-react";
+import { ArrowLeft, Users, Copy, Check, UserPlus, Bot, RefreshCw, Loader2, MessageSquare } from "lucide-react";
 import { FACTIONS } from "@shared/data/factions";
 import { coerceFactionId } from "@shared/types/factionId";
 import type { MapSize } from "@shared/utils/mapGenerator";
 import { getInitialActionVersionFromLobbyConfig } from "../../hooks/onlineSyncUtils";
+import { ChatPanel } from "../chat/ChatPanel";
+import { useMobileUI } from "../../hooks/useMobileUI";
 
 function SeatSlot({
   seat,
@@ -172,6 +174,7 @@ export default function LobbyRoom() {
   const { setGamePhase, setOnlineSession, clearOnlineSession, startLocalGame, loadGameState } = useLocalGame();
   const { user } = useAuth();
   const { currentLobby, leaveLobby, fetchLobby, startGame, error } = useLobby();
+  const { isMobileUI } = useMobileUI();
   const lobbyId = currentLobby?.id;
   const lobbyCode = currentLobby?.code;
   const lobbyStatus = currentLobby?.status;
@@ -180,6 +183,17 @@ export default function LobbyRoom() {
   const userId = user?.id;
   const [copied, setCopied] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [showMobileChat, setShowMobileChat] = useState(false);
+  const chatIdentity = useMemo(() => {
+    if (!currentLobby || !user) return null;
+    const mySeat = currentLobby.seats.find((seat) => seat.userId === user.id);
+    return {
+      lobbyCode: currentLobby.code,
+      userId: user.id,
+      userName: user.username,
+      senderFactionId: mySeat?.factionId ?? undefined,
+    };
+  }, [currentLobby, user]);
 
   useEffect(() => {
     if (!currentLobby) {
@@ -324,83 +338,121 @@ export default function LobbyRoom() {
 
   return (
     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 p-4">
-      <div className="w-full max-w-lg">
-        <ContentShell size="lg">
-          <div className="p-6 space-y-6">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleBack}
-                className="text-amber-400 hover:text-amber-300 transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <PanelHeader
-                icon={<Users />}
-                title={currentLobby.name}
-                description={`${currentLobby.mapSize} map · ${currentLobby.maxPlayers} players`}
-              />
-            </div>
-
-            <div className="flex items-center justify-between bg-slate-800/50 rounded p-3 border border-amber-500/20">
-              <div>
-                <span className="text-amber-100/60 text-sm">Room Code: </span>
-                <span className="text-amber-300 font-mono tracking-widest text-lg">{currentLobby.code}</span>
-              </div>
+      <div className={`w-full ${isMobileUI ? "max-w-lg" : "max-w-6xl grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-4 items-stretch"}`}>
+        <div className="min-w-0">
+          <ContentShell size="lg">
+            <div className="p-6 space-y-6">
               <div className="flex items-center gap-2">
                 <button
-                  onClick={copyCode}
-                  className="text-amber-400 hover:text-amber-300 transition-colors p-2"
-                  title="Copy code"
+                  onClick={handleBack}
+                  className="text-amber-400 hover:text-amber-300 transition-colors"
                 >
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <ArrowLeft className="w-5 h-5" />
                 </button>
-                <button
-                  onClick={() => fetchLobby(currentLobby.id)}
-                  className="text-amber-400 hover:text-amber-300 transition-colors p-2"
-                  title="Refresh"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="text-amber-200 font-medium text-sm">Players ({claimedSeats.length}/{currentLobby.maxPlayers})</h3>
-              {seatSlots.map(({ seatIndex, seat }) => (
-                <SeatSlot
-                  key={seatIndex}
-                  seat={seat}
-                  seatIndex={seatIndex}
-                  lobbyId={currentLobby.id}
-                  isHost={isHost}
-                  userId={user.id}
+                <PanelHeader
+                  icon={<Users />}
+                  title={currentLobby.name}
+                  description={`${currentLobby.mapSize} map · ${currentLobby.maxPlayers} players`}
                 />
-              ))}
+              </div>
+
+              <div className="flex items-center justify-between bg-slate-800/50 rounded p-3 border border-amber-500/20">
+                <div>
+                  <span className="text-amber-100/60 text-sm">Room Code: </span>
+                  <span className="text-amber-300 font-mono tracking-widest text-lg">{currentLobby.code}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isMobileUI && chatIdentity && (
+                    <button
+                      onClick={() => setShowMobileChat(true)}
+                      className="text-amber-400 hover:text-amber-300 transition-colors p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 rounded"
+                      title="Open chat"
+                      aria-label="Open chat"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={copyCode}
+                    className="text-amber-400 hover:text-amber-300 transition-colors p-2"
+                    title="Copy code"
+                  >
+                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => fetchLobby(currentLobby.id)}
+                    className="text-amber-400 hover:text-amber-300 transition-colors p-2"
+                    title="Refresh"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-amber-200 font-medium text-sm">Players ({claimedSeats.length}/{currentLobby.maxPlayers})</h3>
+                {seatSlots.map(({ seatIndex, seat }) => (
+                  <SeatSlot
+                    key={seatIndex}
+                    seat={seat}
+                    seatIndex={seatIndex}
+                    lobbyId={currentLobby.id}
+                    isHost={isHost}
+                    userId={user.id}
+                  />
+                ))}
+              </div>
+
+              {isHost && (
+                <GlowingButton
+                  className="w-full"
+                  disabled={!canStart || isStarting}
+                  onClick={handleStartGame}
+                >
+                  {isStarting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Starting...
+                    </span>
+                  ) : canStart ? "Start Game" : claimedSeats.length < 2 ? "Need at least 2 players" : "Waiting for players to ready up..."}
+                </GlowingButton>
+              )}
+
+              {!isHost && (
+                <p className="text-amber-100/60 text-sm text-center">
+                  Waiting for host to start the game...
+                </p>
+              )}
             </div>
+          </ContentShell>
+        </div>
 
-            {isHost && (
-              <GlowingButton
-                className="w-full"
-                disabled={!canStart || isStarting}
-                onClick={handleStartGame}
-              >
-                {isStarting ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Starting...
-                  </span>
-                ) : canStart ? "Start Game" : claimedSeats.length < 2 ? "Need at least 2 players" : "Waiting for players to ready up..."}
-              </GlowingButton>
-            )}
-
-            {!isHost && (
-              <p className="text-amber-100/60 text-sm text-center">
-                Waiting for host to start the game...
-              </p>
-            )}
+        {!isMobileUI && chatIdentity && (
+          <div className="min-w-0">
+            <ChatPanel
+              identity={chatIdentity}
+              isOpen={true}
+              participantCount={claimedSeats.length}
+              roomTitle={`Lobby • ${currentLobby.code}`}
+              variant="docked"
+            />
           </div>
-        </ContentShell>
+        )}
       </div>
+
+      {isMobileUI && chatIdentity && showMobileChat && (
+        <div className="fixed inset-0 z-[var(--z-modal-backdrop)] pointer-events-auto bg-black/65 backdrop-blur-sm flex items-end">
+          <ChatPanel
+            identity={chatIdentity}
+            isOpen={showMobileChat}
+            onClose={() => setShowMobileChat(false)}
+            participantCount={claimedSeats.length}
+            roomTitle={`Lobby • ${currentLobby.code}`}
+            variant="mobile"
+            className="mobile-safe-top mobile-safe-bottom h-[calc(100dvh-0.5rem)] rounded-t-2xl border border-amber-500/25"
+          />
+        </div>
+      )}
     </div>
   );
 }

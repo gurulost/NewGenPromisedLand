@@ -21,6 +21,21 @@ import {
   reconcilePendingActionsAfterCommit,
   validateMultiplayerAction,
 } from "./multiplayerPolicy";
+import {
+  appendMessage,
+  appendReadEvent,
+  appendTypingEvent,
+  normalizeLobbyChatState,
+  pruneTyping,
+  validateIncomingChatMessage,
+} from "./chatState";
+import type {
+  ChatMessageEventPayload,
+  ChatMessagesResponse,
+  ChatEventsResponse,
+  ChatReadUpdateEventPayload,
+  ChatTypingEventPayload,
+} from "@shared/types/chatEvents";
 
 const MemoryStoreSession = MemoryStore(session);
 const PgSessionStore = connectPgSimple(session);
@@ -251,6 +266,47 @@ function parseIntParam(value: string): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function isChatEnabledLobbyStatus(status: unknown): boolean {
+  return status === "waiting" || status === "playing";
+}
+
+function isLobbyParticipant(lobbyHostUserId: number, seats: Array<{ userId: number | null }>, userId: number): boolean {
+  return lobbyHostUserId === userId || seats.some((seat) => seat.userId === userId);
+}
+
+function resolveChatSenderName({
+  username,
+  seats,
+  userId,
+}: {
+  username: string | undefined;
+  seats: Array<{ userId: number | null; playerName: string | null }>;
+  userId: number;
+}): string {
+  const fromSeat = seats.find((seat) => seat.userId === userId && typeof seat.playerName === "string" && seat.playerName.trim());
+  const fallback = username?.trim();
+  return (fromSeat?.playerName?.trim() || fallback || `Player ${userId}`).slice(0, 64);
+}
+
+function resolveChatSenderFactionId({
+  lobbyState,
+  seats,
+  userId,
+}: {
+  lobbyState: any;
+  seats: Array<{ userId: number | null; factionId: string | null }>;
+  userId: number;
+}): string | undefined {
+  const fromLobbyPlayers = Array.isArray(lobbyState?.players)
+    ? lobbyState.players.find((entry: any) => entry?.userId === userId && typeof entry?.factionId === "string")
+    : null;
+  if (fromLobbyPlayers?.factionId) {
+    return String(fromLobbyPlayers.factionId).slice(0, 64);
+  }
+  const fromSeat = seats.find((seat) => seat.userId === userId && typeof seat.factionId === "string" && seat.factionId.trim());
+  return fromSeat?.factionId?.slice(0, 64);
+}
+
 type RateLimitOptions = {
   windowMs: number;
   maxHits: number;
@@ -325,6 +381,20 @@ const commitRateLimit = createRateLimitMiddleware({
   maxHits: 240,
   key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:commit`,
   label: "commit",
+});
+
+const chatWriteRateLimit = createRateLimitMiddleware({
+  windowMs: 60 * 1000,
+  maxHits: 180,
+  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:chat-write`,
+  label: "chat-write",
+});
+
+const chatTypingRateLimit = createRateLimitMiddleware({
+  windowMs: 60 * 1000,
+  maxHits: 300,
+  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:chat-typing`,
+  label: "chat-typing",
 });
 
 const multiplayerTelemetry = {
@@ -950,6 +1020,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "All players must select a faction" });
         }
       }
+
+      const existingLobbyState = (lobby.gameState as any) || {};
+      const existingChatState = normalizeLobbyChatState(existingLobbyState.chat);
+      const hostLastSeen = Date.now();
       
       // Build player data from seats
       const players = claimedSeats.map((seat, index) => ({
@@ -964,7 +1038,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
 
       const seed = Math.floor(Math.random() * 2 ** 32);
-      const hostLastSeen = Date.now();
 
       // Update lobby status to playing and store player config (game state will be initialized client-side)
       const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, { 
@@ -983,6 +1056,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           snapshotVersion: 0,
           snapshot: null,
           expectedActorId: players[0]?.playerId ?? null,
+          chat: existingChatState,
         } as any,
       });
       if (!updated) {
@@ -994,6 +1068,290 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to start game:", error);
       res.status(500).json({ error: "Failed to start game" });
+    }
+  });
+
+  // Fetch chat message history (lobby waiting + online match)
+  app.get("/api/lobbies/:code/chat/messages", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (!isChatEnabledLobbyStatus(lobby.status)) {
+        return res.status(409).json({ error: "Chat unavailable for this lobby state" });
+      }
+
+      const seats = await storage.getSeatsByLobbyId(lobby.id);
+      const userId = req.session.userId!;
+      if (!isLobbyParticipant(lobby.hostUserId, seats, userId)) {
+        return res.status(403).json({ error: "Not a participant" });
+      }
+
+      const sinceRaw = Number(req.query.since ?? 0);
+      const sinceVersion = Number.isFinite(sinceRaw) ? Math.max(0, Math.floor(sinceRaw)) : 0;
+      const lobbyState = (lobby.gameState as any) || {};
+      const chatState = normalizeLobbyChatState(lobbyState.chat);
+      const messages = sinceVersion > 0
+        ? chatState.messages.filter((entry) => entry.version > sinceVersion)
+        : chatState.messages;
+
+      const payload: ChatMessagesResponse = {
+        messageVersion: chatState.messageVersion,
+        eventVersion: chatState.eventVersion,
+        messages,
+      };
+      return res.json(payload);
+    } catch (error) {
+      console.error("Failed to fetch chat messages:", error);
+      return res.status(500).json({ error: "Failed to fetch chat messages" });
+    }
+  });
+
+  // Fetch chat realtime events
+  app.get("/api/lobbies/:code/chat/events", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (!isChatEnabledLobbyStatus(lobby.status)) {
+        return res.status(409).json({ error: "Chat unavailable for this lobby state" });
+      }
+
+      const seats = await storage.getSeatsByLobbyId(lobby.id);
+      const userId = req.session.userId!;
+      if (!isLobbyParticipant(lobby.hostUserId, seats, userId)) {
+        return res.status(403).json({ error: "Not a participant" });
+      }
+
+      const sinceRaw = Number(req.query.since ?? 0);
+      const sinceVersion = Number.isFinite(sinceRaw) ? Math.max(0, Math.floor(sinceRaw)) : 0;
+      const lobbyState = (lobby.gameState as any) || {};
+      const chatState = pruneTyping(normalizeLobbyChatState(lobbyState.chat), Date.now());
+      const oldestEventVersion = chatState.events[0]?.version ?? chatState.eventVersion;
+      const eventsTruncated =
+        sinceVersion > 0 &&
+        chatState.events.length > 0 &&
+        sinceVersion < oldestEventVersion - 1;
+      const events = eventsTruncated
+        ? []
+        : (sinceVersion > 0
+          ? chatState.events.filter((entry) => entry.version > sinceVersion)
+          : chatState.events);
+
+      const payload: ChatEventsResponse = {
+        eventVersion: chatState.eventVersion,
+        events,
+        eventsTruncated,
+      };
+      return res.json(payload);
+    } catch (error) {
+      console.error("Failed to fetch chat events:", error);
+      return res.status(500).json({ error: "Failed to fetch chat events" });
+    }
+  });
+
+  // Send text/voice chat message
+  app.post("/api/lobbies/:code/chat/messages", requireAuth, chatWriteRateLimit, async (req, res) => {
+    try {
+      const validated = validateIncomingChatMessage(req.body);
+      if (!validated.valid) {
+        return res.status(400).json({ error: validated.error });
+      }
+
+      for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
+        const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+        if (!lobby) {
+          return res.status(404).json({ error: "Lobby not found" });
+        }
+        if (!isChatEnabledLobbyStatus(lobby.status)) {
+          return res.status(409).json({ error: "Chat unavailable for this lobby state" });
+        }
+
+        const seats = await storage.getSeatsByLobbyId(lobby.id);
+        const userId = req.session.userId!;
+        if (!isLobbyParticipant(lobby.hostUserId, seats, userId)) {
+          return res.status(403).json({ error: "Not a participant" });
+        }
+
+        const lobbyState = (lobby.gameState as any) || {};
+        const chatState = pruneTyping(normalizeLobbyChatState(lobbyState.chat), Date.now());
+        const existing = chatState.messages.find((entry) => entry.id === validated.message.id);
+        if (existing) {
+          return res.json({
+            duplicate: true,
+            messageVersion: chatState.messageVersion,
+            eventVersion: chatState.eventVersion,
+            message: existing,
+          });
+        }
+
+        const senderName = resolveChatSenderName({
+          username: req.session.username,
+          seats,
+          userId,
+        });
+        const senderFactionId = resolveChatSenderFactionId({
+          lobbyState,
+          seats,
+          userId,
+        });
+        const payload: ChatMessageEventPayload = {
+          id: validated.message.id,
+          lobbyCode: lobby.code,
+          senderUserId: userId,
+          senderName,
+          senderFactionId,
+          type: validated.message.type,
+          text: validated.message.text,
+          audioUrl: validated.message.audioUrl,
+          audioDurationMs: validated.message.audioDurationMs,
+          waveformPeaks: validated.message.waveformPeaks,
+          createdAt: validated.message.createdAt,
+        };
+        const nextChat = appendMessage(chatState, payload);
+
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+          gameState: {
+            ...lobbyState,
+            chat: nextChat,
+          } as any,
+        });
+        if (updated) {
+          return res.json({
+            duplicate: false,
+            messageVersion: nextChat.messageVersion,
+            eventVersion: nextChat.eventVersion,
+            message: {
+              ...payload,
+              version: nextChat.messageVersion,
+            },
+          });
+        }
+      }
+
+      return res.status(409).json({ error: "Concurrent lobby update. Retry chat send." });
+    } catch (error) {
+      console.error("Failed to send chat message:", error);
+      return res.status(500).json({ error: "Failed to send chat message" });
+    }
+  });
+
+  // Broadcast typing start/stop
+  app.post("/api/lobbies/:code/chat/typing", requireAuth, chatTypingRateLimit, async (req, res) => {
+    try {
+      const isTyping = req.body?.isTyping;
+      if (typeof isTyping !== "boolean") {
+        return res.status(400).json({ error: "isTyping boolean required" });
+      }
+
+      for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
+        const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+        if (!lobby) {
+          return res.status(404).json({ error: "Lobby not found" });
+        }
+        if (!isChatEnabledLobbyStatus(lobby.status)) {
+          return res.status(409).json({ error: "Chat unavailable for this lobby state" });
+        }
+
+        const seats = await storage.getSeatsByLobbyId(lobby.id);
+        const userId = req.session.userId!;
+        if (!isLobbyParticipant(lobby.hostUserId, seats, userId)) {
+          return res.status(403).json({ error: "Not a participant" });
+        }
+
+        const lobbyState = (lobby.gameState as any) || {};
+        const chatState = pruneTyping(normalizeLobbyChatState(lobbyState.chat), Date.now());
+        const key = String(userId);
+        const existingTyping = chatState.typingByUserId[key];
+
+        if (!isTyping && !existingTyping) {
+          return res.json({ ok: true, eventVersion: chatState.eventVersion });
+        }
+        if (isTyping && existingTyping && Date.now() - existingTyping.startedAt < 1200) {
+          return res.json({ ok: true, eventVersion: chatState.eventVersion });
+        }
+
+        const payload: ChatTypingEventPayload = {
+          lobbyCode: lobby.code,
+          userId,
+          userName: resolveChatSenderName({
+            username: req.session.username,
+            seats,
+            userId,
+          }),
+          startedAt: Date.now(),
+        };
+
+        const nextChat = appendTypingEvent(chatState, payload, isTyping);
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+          gameState: {
+            ...lobbyState,
+            chat: nextChat,
+          } as any,
+        });
+        if (updated) {
+          return res.json({ ok: true, eventVersion: nextChat.eventVersion });
+        }
+      }
+
+      return res.status(409).json({ error: "Concurrent lobby update. Retry typing event." });
+    } catch (error) {
+      console.error("Failed to publish typing event:", error);
+      return res.status(500).json({ error: "Failed to publish typing event" });
+    }
+  });
+
+  // Broadcast read receipt updates
+  app.post("/api/lobbies/:code/chat/read", requireAuth, chatWriteRateLimit, async (req, res) => {
+    try {
+      const bodyReadAt = Number(req.body?.readAt);
+      const readAt = Number.isFinite(bodyReadAt) ? Math.max(0, Math.floor(bodyReadAt)) : Date.now();
+
+      for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
+        const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+        if (!lobby) {
+          return res.status(404).json({ error: "Lobby not found" });
+        }
+        if (!isChatEnabledLobbyStatus(lobby.status)) {
+          return res.status(409).json({ error: "Chat unavailable for this lobby state" });
+        }
+
+        const seats = await storage.getSeatsByLobbyId(lobby.id);
+        const userId = req.session.userId!;
+        if (!isLobbyParticipant(lobby.hostUserId, seats, userId)) {
+          return res.status(403).json({ error: "Not a participant" });
+        }
+
+        const lobbyState = (lobby.gameState as any) || {};
+        const chatState = pruneTyping(normalizeLobbyChatState(lobbyState.chat), Date.now());
+        const previousRead = Number(chatState.readByUserId[String(userId)] ?? 0);
+        if (readAt <= previousRead) {
+          return res.json({ ok: true, eventVersion: chatState.eventVersion, readAt: previousRead });
+        }
+
+        const payload: ChatReadUpdateEventPayload = {
+          lobbyCode: lobby.code,
+          userId,
+          readAt,
+        };
+        const nextChat = appendReadEvent(chatState, payload);
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+          gameState: {
+            ...lobbyState,
+            chat: nextChat,
+          } as any,
+        });
+        if (updated) {
+          return res.json({ ok: true, eventVersion: nextChat.eventVersion, readAt });
+        }
+      }
+
+      return res.status(409).json({ error: "Concurrent lobby update. Retry read update." });
+    } catch (error) {
+      console.error("Failed to publish read update:", error);
+      return res.status(500).json({ error: "Failed to publish read update" });
     }
   });
 

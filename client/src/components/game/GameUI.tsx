@@ -55,6 +55,10 @@ import type { Unit } from "@shared/types/unit";
 import type { GameState } from "@shared/types/game";
 import { MobileHUD } from "../hud/MobileHUD";
 import { MobileActionBar } from "../hud/MobileActionBar";
+import { ChatDock } from "../chat/ChatDock";
+import { ChatPanel } from "../chat/ChatPanel";
+import { useChatUIState } from "../../hooks/useChatUIState";
+import { useAuth } from "../../lib/stores/useAuth";
 
 interface ActiveNotification {
   id: string;
@@ -74,10 +78,15 @@ export default function GameUI() {
   const isDev = import.meta.env.DEV;
   const { gameState, endTurn, useAbility: triggerAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
   const gameMode = useLocalGame((state) => state.gameMode);
+  const authUser = useAuth((state) => state.user);
   const { isMobileUI, isPortrait } = useMobileUI();
   const actionError = useLocalGame((state) => state.actionError);
   const clearActionError = useLocalGame((state) => state.clearActionError);
   const onlineSession = useLocalGame((state) => state.onlineSession);
+  const onlineMyPlayerIds = useMemo(
+    () => (Array.isArray(onlineSession?.myPlayerIds) ? onlineSession.myPlayerIds : []),
+    [onlineSession?.myPlayerIds],
+  );
   const hostLeaseExpired = useLocalGame((state) => state.hostLeaseExpired);
   const setOnlineHost = useLocalGame((state) => state.setOnlineHost);
   const setHostLeaseStatus = useLocalGame((state) => state.setHostLeaseStatus);
@@ -107,6 +116,8 @@ export default function GameUI() {
   const playSfx = useSfxEngine();
   const openTutorialIfNeeded = useTutorialStore((state) => state.openIfNeeded);
   const setTutorialContext = useTutorialStore((state) => state.setActiveProfile);
+  const activeTutorialCardId = useTutorialStore((state) => state.activeCardId);
+  const isTutorialLibraryOpen = useTutorialStore((state) => state.isLibraryOpen);
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [showConstructionHall, setShowConstructionHall] = useState(false);
@@ -117,6 +128,7 @@ export default function GameUI() {
   const [isClaimingHost, setIsClaimingHost] = useState(false);
   const [isForcingTurnRecovery, setIsForcingTurnRecovery] = useState(false);
   const [turnRecoveryStatus, setTurnRecoveryStatus] = useState<TurnRecoveryStatus | null>(null);
+  const [showMobileChat, setShowMobileChat] = useState(false);
   const prevHostRef = useRef<number | null>(null);
   const ruinsOpenTimeoutRef = useRef<number | null>(null);
   const shimmerTimeoutRef = useRef<number | null>(null);
@@ -210,6 +222,16 @@ export default function GameUI() {
   }, [activeTechReveal, techRevealQueue]);
 
   useEffect(() => {
+    if (onlineSession) return;
+    setShowMobileChat(false);
+  }, [onlineSession]);
+
+  useEffect(() => {
+    if (isMobileUI) return;
+    setShowMobileChat(false);
+  }, [isMobileUI]);
+
+  useEffect(() => {
     activeTechRevealRef.current = activeTechReveal;
   }, [activeTechReveal]);
 
@@ -271,6 +293,14 @@ export default function GameUI() {
   const recoveryLobbyCode = onlineSession?.lobbyCode;
   const recoveryUserId = onlineSession?.userId;
   const recoveryHostUserId = onlineSession?.hostUserId;
+  const chatLobbyCode = onlineSession?.lobbyCode ?? null;
+  const isDesktopChatOpen = useChatUIState(
+    useMemo(
+      () => (state) => (chatLobbyCode ? (state.byLobby[chatLobbyCode]?.isOpen ?? false) : false),
+      [chatLobbyCode],
+    ),
+  );
+  const setChatLobbyOpen = useChatUIState((state) => state.setLobbyOpen);
 
   useEffect(() => {
     if (!recoveryLobbyCode || recoveryUserId !== recoveryHostUserId) {
@@ -506,7 +536,7 @@ export default function GameUI() {
     const isLocalPlayerAction = (playerId?: string) => {
       if (!playerId) return false;
       if (!onlineSession) return playerId === currentPlayerId;
-      return onlineSession.myPlayerIds.includes(playerId);
+      return onlineMyPlayerIds.includes(playerId);
     };
 
     const normalizeHex = (coordinate: { q: number; r: number; s?: number }) => ({
@@ -740,6 +770,7 @@ export default function GameUI() {
     playSfx,
     enqueueTechReveal,
     triggerConquestBanner,
+    onlineMyPlayerIds,
     onlineSession,
   ]);
 
@@ -749,7 +780,7 @@ export default function GameUI() {
     const isLocalOwner = (ownerId?: string) => {
       if (!ownerId) return false;
       if (!onlineSession) return ownerId === currentPlayerId;
-      return onlineSession.myPlayerIds.includes(ownerId);
+      return onlineMyPlayerIds.includes(ownerId);
     };
 
     const previousLevels = prevCityLevelsRef.current;
@@ -776,6 +807,7 @@ export default function GameUI() {
     gameState,
     gameState?.cities,
     gameState?.currentPlayerIndex,
+    onlineMyPlayerIds,
     onlineSession,
     addToast,
     addPulse,
@@ -800,7 +832,7 @@ export default function GameUI() {
         ? lastAction?.payload?.endingPlayerId
         : lastAction?.payload?.playerId;
     if (!completionPlayerId) return;
-    if (onlineSession && !onlineSession.myPlayerIds.includes(completionPlayerId)) return;
+    if (onlineSession && !onlineMyPlayerIds.includes(completionPlayerId)) return;
 
     const completionSignature = `${gameState.id}:${lastAction.type}:${completionPlayerId}:${gameState.turn}:${gameState.currentPlayerIndex}`;
     if (completionSignatureRef.current === completionSignature) return;
@@ -868,7 +900,7 @@ export default function GameUI() {
       addPulse('unit', anchorCoordinate);
       addToast(`${unitName} Ready`, 'unit', hexToWorldPos(anchorCoordinate.q, anchorCoordinate.r));
     });
-  }, [gameState, addToast, addPulse, playSfx, onlineSession]);
+  }, [gameState, addToast, addPulse, playSfx, onlineMyPlayerIds, onlineSession]);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
   const [showAdvancedSaveSystem, setShowAdvancedSaveSystem] = useState(false);
@@ -913,10 +945,25 @@ export default function GameUI() {
   const mobileBannerOverlayStyle = isMobileUI
     ? { top: 'calc(var(--mobile-hud-height, 0px) + 1rem)' }
     : undefined;
+  const hasTopRightModeIndicator = constructionMode.isActive || isRoadBuildMode || spawnSelectionMode.isActive;
+  const chatDockTopOffset = hasTopRightModeIndicator ? 116 : 0;
+  const suppressChatPeek = Boolean(
+    showSaveLoadMenu ||
+      showAdvancedSaveSystem ||
+      showSettings ||
+      conquestBanner ||
+      gameState?.winner ||
+      showTurnRecoveryBanner ||
+      hostLeaseExpired ||
+      activeTechReveal ||
+      activeTutorialCardId ||
+      isTutorialLibraryOpen ||
+      gameMode === "tutorialEpisode",
+  );
   const isLocalHumanTurn = Boolean(
     currentPlayer &&
     !currentPlayer.isAI &&
-    (!onlineSession || onlineSession.myPlayerIds?.includes(currentPlayer.id))
+    (!onlineSession || onlineMyPlayerIds.includes(currentPlayer.id))
   );
   const tutorialProfileKey = useMemo(() => {
     if (!currentPlayer) return null;
@@ -924,6 +971,23 @@ export default function GameUI() {
     const nameKey = currentPlayer.name?.trim() || currentPlayer.id;
     return `local:${nameKey}`;
   }, [currentPlayer, onlineSession?.userId]);
+  const myOnlinePlayer = useMemo(
+    () => {
+      if (!onlineSession) return null;
+      return gameState?.players.find((player) => onlineMyPlayerIds.includes(player.id)) ?? null;
+    },
+    [gameState?.players, onlineMyPlayerIds, onlineSession],
+  );
+  const chatIdentity = useMemo(() => {
+    if (!onlineSession) return null;
+    const fallbackName = myOnlinePlayer?.name ?? `Player ${onlineSession.userId}`;
+    return {
+      lobbyCode: onlineSession.lobbyCode,
+      userId: authUser?.id ?? onlineSession.userId,
+      userName: authUser?.username ?? fallbackName,
+      senderFactionId: myOnlinePlayer?.factionId ? String(myOnlinePlayer.factionId) : undefined,
+    };
+  }, [authUser?.id, authUser?.username, myOnlinePlayer?.factionId, myOnlinePlayer?.name, onlineSession]);
 
   useEffect(() => {
     setTutorialContext(tutorialProfileKey, gameState?.id ?? null, isLocalHumanTurn);
@@ -982,6 +1046,7 @@ export default function GameUI() {
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
   const { isAIProcessing, currentAIPlayer } = useAITurn();
+  const suppressChatPeekActive = suppressChatPeek || isTransitioning;
   const heapMb = heapBytes ? Math.round(heapBytes / (1024 * 1024)) : null;
 
   const shouldIgnoreGlobalHotkeys = useCallback(() => {
@@ -999,7 +1064,9 @@ export default function GameUI() {
       !!selectedVillage ||
       !!ruinsReward ||
       !!activeTechReveal ||
-      isTransitioning
+      isTransitioning ||
+      isDesktopChatOpen ||
+      showMobileChat
     ) {
       return true;
     }
@@ -1025,7 +1092,9 @@ export default function GameUI() {
     selectedVillage,
     ruinsReward,
     activeTechReveal,
-    isTransitioning
+    isTransitioning,
+    isDesktopChatOpen,
+    showMobileChat,
   ]);
 
   const triggerQuickUnitAction = useCallback((action: 'attack' | 'move' | 'ability') => {
@@ -1141,6 +1210,27 @@ export default function GameUI() {
     );
     return unsubscribe;
   }, [subscribeKeys, shouldIgnoreGlobalHotkeys]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeKeys(
+      (state) => state.chat,
+      (pressed) => {
+        if (!pressed || !onlineSession?.lobbyCode || isMobileUI) return;
+        if (!isDesktopChatOpen && shouldIgnoreGlobalHotkeys()) return;
+
+        const active = document.activeElement;
+        if (
+          active instanceof HTMLElement &&
+          (active.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName))
+        ) {
+          return;
+        }
+
+        setChatLobbyOpen(onlineSession.lobbyCode, !isDesktopChatOpen);
+      }
+    );
+    return unsubscribe;
+  }, [isDesktopChatOpen, isMobileUI, onlineSession?.lobbyCode, setChatLobbyOpen, shouldIgnoreGlobalHotkeys, subscribeKeys]);
   // Unit quick-action hotkeys (A/M/Q)
   useEffect(() => {
     const unsubscribe = subscribeKeys(
@@ -1666,6 +1756,15 @@ export default function GameUI() {
         aiName={currentAIPlayer?.name}
         factionId={currentAIPlayer?.factionId}
       />
+      {chatIdentity && !isMobileUI && (
+        <ChatDock
+          identity={chatIdentity}
+          participantCount={gameState.players.length}
+          roomTitle="Party Chat"
+          topOffsetPx={chatDockTopOffset}
+          suppressPeek={suppressChatPeekActive}
+        />
+      )}
 
       {onlineSession && hostLeaseExpired && onlineSession.userId !== onlineSession.hostUserId && (
         <div
@@ -1871,6 +1970,8 @@ export default function GameUI() {
           onOpenSaveLoad={() => setShowSaveLoadMenu(true)}
           onOpenSettings={() => setShowSettings(true)}
           onOpenGameLog={() => setShowGameLog(true)}
+          onOpenChat={() => setShowMobileChat(true)}
+          showChat={Boolean(chatIdentity)}
           onOpenCities={handleShowCityPanel}
           onOpenAdvancedSave={() => setShowAdvancedSaveSystem(true)}
         />
@@ -2216,6 +2317,20 @@ export default function GameUI() {
             <span className="text-lg">📁</span>
             <span className="text-sm font-medium">Advanced</span>
           </button>
+        </div>
+      )}
+
+      {chatIdentity && isMobileUI && showMobileChat && (
+        <div className="fixed inset-0 z-[var(--z-modal-backdrop)] pointer-events-auto bg-black/65 backdrop-blur-sm flex items-end">
+          <ChatPanel
+            identity={chatIdentity}
+            isOpen={showMobileChat}
+            onClose={() => setShowMobileChat(false)}
+            participantCount={gameState.players.length}
+            roomTitle="Party Chat"
+            variant="mobile"
+            className="mobile-safe-top mobile-safe-bottom h-[calc(100dvh-0.5rem)] rounded-t-2xl border border-amber-500/25"
+          />
         </div>
       )}
 
