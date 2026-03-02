@@ -72,6 +72,7 @@ app.use((req, res, next) => {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = dirname(__filename);
     const distPath = path.resolve(__dirname, "public");
+    const sourcePublicPath = path.resolve(__dirname, "..", "client", "public");
 
     if (!fs.existsSync(distPath)) {
       throw new Error(
@@ -80,6 +81,11 @@ app.use((req, res, next) => {
     }
 
     app.use(express.static(distPath));
+    // Large static media assets are served directly from source public assets
+    // when available so production runs from this repo remain fully functional.
+    if (fs.existsSync(sourcePublicPath)) {
+      app.use(express.static(sourcePublicPath));
+    }
     app.use("*", (_req, res) => {
       res.sendFile(path.resolve(distPath, "index.html"));
     });
