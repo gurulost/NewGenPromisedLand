@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, lazy } from "react";
 import { Canvas } from "@react-three/fiber";
 import { KeyboardControls } from "@react-three/drei";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,10 +10,6 @@ import HandoffScreen from "./components/ui/HandoffScreen";
 import TutorialEpisodeIntro from "./components/ui/TutorialEpisodeIntro";
 import LobbyList from "./components/ui/LobbyList";
 import LobbyRoom from "./components/ui/LobbyRoom";
-import GameCanvas from "./components/game/GameCanvas";
-import GameUI from "./components/game/GameUI";
-import { CombatEffectsDemo } from "./components/effects/CombatEffectsDemo";
-import { AnimationLab } from "./components/ui/AnimationLab";
 import { VisualFeedbackProvider } from "./components/ui/VisualFeedback";
 import { FloatingTextManager } from "./components/ui/FloatingText";
 import { AudioProvider } from "./components/ui/AudioProvider";
@@ -26,6 +22,14 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import "@fontsource/inter";
 
 const queryClient = new QueryClient();
+const GameCanvas = lazy(() => import("./components/game/GameCanvas"));
+const GameUI = lazy(() => import("./components/game/GameUI"));
+const CombatEffectsDemo = lazy(async () => ({
+  default: (await import("./components/effects/CombatEffectsDemo")).CombatEffectsDemo,
+}));
+const AnimationLab = lazy(async () => ({
+  default: (await import("./components/ui/AnimationLab")).AnimationLab,
+}));
 
 function TouchModeProvider({ children }: { children: React.ReactNode }) {
   const touchMode = useTouchModeProvider();
@@ -121,14 +125,18 @@ function App() {
   if (isDemoRoute) {
     return (
       <QueryClientProvider client={queryClient}>
-        <CombatEffectsDemo />
+        <Suspense fallback={null}>
+          <CombatEffectsDemo />
+        </Suspense>
       </QueryClientProvider>
     );
   }
   if (isAnimationsRoute) {
     return (
       <QueryClientProvider client={queryClient}>
-        <AnimationLab />
+        <Suspense fallback={null}>
+          <AnimationLab />
+        </Suspense>
       </QueryClientProvider>
     );
   }
@@ -155,7 +163,9 @@ function App() {
                 {(gamePhase === 'playing' || gamePhase === 'gameOver') && (
                   <ErrorBoundary>
                     <GameStage />
-                    <GameUI />
+                    <Suspense fallback={null}>
+                      <GameUI />
+                    </Suspense>
                     <WorldBuildLoader enabled />
                   </ErrorBoundary>
                 )}

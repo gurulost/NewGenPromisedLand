@@ -43,7 +43,12 @@ async function openPlayerSetup(page: Page) {
 test.describe('Viewport Sweep', () => {
   test.describe.configure({ timeout: 60_000 });
 
-  test('main menu controls stay visible on desktop viewports', async ({ page }) => {
+  test('main menu controls stay visible on desktop viewports', async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name === 'mobile-chrome' || testInfo.project.name === 'mobile-safari',
+      'Desktop viewport sweep is covered on desktop/tablet projects; mobile projects are covered by touch viewport checks.'
+    );
+
     for (const viewport of DESKTOP_VIEWPORTS) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto('/', { waitUntil: 'domcontentloaded' });
@@ -59,11 +64,13 @@ test.describe('Viewport Sweep', () => {
   });
 
   test('player setup remains usable on touch viewports', async ({ browser }) => {
+    const browserName = browser.browserType().name();
+
     for (const viewport of TOUCH_VIEWPORTS) {
       const context = await browser.newContext({
         viewport: { width: viewport.width, height: viewport.height },
-        isMobile: true,
         hasTouch: true,
+        ...(browserName === 'firefox' ? {} : { isMobile: true }),
       });
       const page = await context.newPage();
 

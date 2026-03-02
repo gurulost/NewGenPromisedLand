@@ -9,6 +9,7 @@ import { ArrowLeft, Users, Copy, Check, UserPlus, Bot, RefreshCw, Loader2 } from
 import { FACTIONS } from "@shared/data/factions";
 import { coerceFactionId } from "@shared/types/factionId";
 import type { MapSize } from "@shared/utils/mapGenerator";
+import { getInitialActionVersionFromLobbyConfig } from "../../hooks/onlineSyncUtils";
 
 function SeatSlot({
   seat,
@@ -251,9 +252,7 @@ export default function LobbyRoom() {
     const myPlayerIds = assignments
       .filter((assignment) => assignment.userId === userId)
       .map((assignment) => assignment.playerId);
-    const initialActionVersion = typeof gameConfig.actionVersion === "number"
-      ? gameConfig.actionVersion
-      : (gameConfig.snapshotVersion ?? 0);
+    const initialActionVersion = getInitialActionVersionFromLobbyConfig(gameConfig);
     const isHostSession = lobbyHostUserId === userId;
 
     setOnlineSession({

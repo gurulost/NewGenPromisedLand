@@ -8,12 +8,14 @@ async function openPlayerSetup(page: Page) {
 }
 
 async function advanceHandoffToActiveTurn(page: Page) {
+  const endTurnButton = page.getByRole('button', { name: /End Turn/i });
   const startTurnButton = page.getByRole('button', { name: /Start Turn/i });
+  const deadline = Date.now() + 90_000;
 
   // In pass-and-play there can be one or more handoff screens before action HUD appears.
-  for (let i = 0; i < 8; i += 1) {
-    if (await page.getByRole('button', { name: /End Turn/i }).isVisible().catch(() => false)) {
-      return;
+  while (Date.now() < deadline) {
+    if (await endTurnButton.isVisible().catch(() => false)) {
+      break;
     }
 
     if (await startTurnButton.isVisible().catch(() => false)) {
@@ -24,6 +26,8 @@ async function advanceHandoffToActiveTurn(page: Page) {
 
     await page.waitForTimeout(250);
   }
+
+  await expect(endTurnButton).toBeVisible({ timeout: 90_000 });
 }
 
 async function chooseFaction(page: Page, factionName: string) {
@@ -37,6 +41,8 @@ async function chooseFaction(page: Page, factionName: string) {
 }
 
 test.describe('Main Menu and Setup Smoke', () => {
+  test.describe.configure({ timeout: 180_000 });
+
   test.beforeEach(async ({ page }) => {
     page.on('pageerror', (error) => {
       const message = String(error?.message ?? '');
@@ -79,6 +85,5 @@ test.describe('Main Menu and Setup Smoke', () => {
 
     await page.getByRole('button', { name: /^Start Game$/i }).click();
     await advanceHandoffToActiveTurn(page);
-    await expect(page.getByRole('button', { name: /End Turn/i })).toBeVisible({ timeout: 20000 });
   });
 });

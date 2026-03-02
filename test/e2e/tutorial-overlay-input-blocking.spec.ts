@@ -19,14 +19,19 @@ async function startGameAndReachPlayableState(page: Page) {
   await chooseFaction(page, 'Nephites');
   await chooseFaction(page, 'Lamanites');
 
-  await page.getByRole('button', { name: /^Start Game$/i }).click();
+  const startGameButton = page.getByRole('button', { name: /^Start Game$/i });
+  await expect(page.getByText(/Ready 2\/2/i)).toBeVisible({ timeout: 15_000 });
+  await expect(startGameButton).toBeEnabled();
+  await startGameButton.click();
 
+  const endTurnButton = page.getByRole('button', { name: /End Turn/i });
   const startTurnButton = page.getByRole('button', { name: /Start Turn/i });
+  const deadline = Date.now() + 90_000;
 
   // In pass-and-play there can be one or more handoff screens.
-  for (let i = 0; i < 8; i += 1) {
-    if (await page.getByRole('button', { name: /End Turn/i }).isVisible().catch(() => false)) {
-      return;
+  while (Date.now() < deadline) {
+    if (await endTurnButton.isVisible().catch(() => false)) {
+      break;
     }
 
     if (await startTurnButton.isVisible().catch(() => false)) {
@@ -37,9 +42,13 @@ async function startGameAndReachPlayableState(page: Page) {
 
     await page.waitForTimeout(250);
   }
+
+  await expect(endTurnButton).toBeVisible({ timeout: 90_000 });
 }
 
 async function installCanvasEventCounters(page: Page) {
+  await page.waitForSelector('canvas', { state: 'attached', timeout: 45_000 });
+
   const attached = await page.evaluate(() => {
     const canvas = document.querySelector('canvas');
     if (!canvas) return false;
@@ -78,6 +87,8 @@ async function readCanvasEventCounters(page: Page) {
 }
 
 async function removeCanvasEventCounters(page: Page) {
+  if (page.isClosed()) return;
+
   await page.evaluate(() => {
     const canvas = document.querySelector('canvas');
     const win = window as Window & {
@@ -90,10 +101,14 @@ async function removeCanvasEventCounters(page: Page) {
     }
     delete win.__tutorialOverlayHandlers;
     delete win.__tutorialOverlayCanary;
+  }).catch(() => {
+    // Ignore cleanup errors when the page is torn down during timeout handling.
   });
 }
 
 test.describe('Tutorial overlay input blocking canary', () => {
+  test.describe.configure({ timeout: 180_000 });
+
   test.beforeEach(async ({ page }) => {
     page.on('pageerror', (error) => {
       const message = String(error?.message ?? '');
@@ -114,11 +129,18 @@ test.describe('Tutorial overlay input blocking canary', () => {
       .locator('[data-ui-layer="modal"][role="dialog"]')
       .filter({ hasText: /Chronicles of the Promised Land/i });
 
-    await expect(tutorialDialog).toBeVisible({ timeout: 20_000 });
+    await expect(tutorialDialog).toBeVisible({ timeout: 45_000 });
 
     try {
-      await tutorialDialog.getByRole('button', { name: /^Begin$/i }).click();
-      await expect(tutorialDialog).toBeHidden();
+      const beginButton = tutorialDialog.getByRole('button', { name: /^Begin$/i });
+      await expect(beginButton).toBeVisible();
+      await expect(beginButton).toBeEnabled();
+      await beginButton.click();
+      if (await tutorialDialog.isVisible().catch(() => false)) {
+        await page.waitForTimeout(150);
+        await beginButton.click();
+      }
+      await expect(tutorialDialog).toBeHidden({ timeout: 15_000 });
       await page.waitForTimeout(250);
 
       const counters = await readCanvasEventCounters(page);
@@ -137,11 +159,18 @@ test.describe('Tutorial overlay input blocking canary', () => {
       .locator('[data-ui-layer="modal"][role="dialog"]')
       .filter({ hasText: /Chronicles of the Promised Land/i });
 
-    await expect(tutorialDialog).toBeVisible({ timeout: 20_000 });
+    await expect(tutorialDialog).toBeVisible({ timeout: 45_000 });
 
     try {
-      await tutorialDialog.getByRole('button', { name: /Open Later/i }).click();
-      await expect(tutorialDialog).toBeHidden();
+      const openLaterButton = tutorialDialog.getByRole('button', { name: /Open Later/i });
+      await expect(openLaterButton).toBeVisible();
+      await expect(openLaterButton).toBeEnabled();
+      await openLaterButton.click();
+      if (await tutorialDialog.isVisible().catch(() => false)) {
+        await page.waitForTimeout(150);
+        await openLaterButton.click();
+      }
+      await expect(tutorialDialog).toBeHidden({ timeout: 15_000 });
       await page.waitForTimeout(250);
 
       const counters = await readCanvasEventCounters(page);

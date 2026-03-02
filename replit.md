@@ -32,6 +32,20 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
 - **Storage**: In-memory storage with an interface for future database integration.
 - **Database**: Drizzle ORM for PostgreSQL (via Replit's built-in database).
 
+### Multiplayer Operations
+- **Required in production**
+  - `DATABASE_URL`: PostgreSQL connection string (server fails startup if missing).
+  - `SESSION_SECRET`: session signing secret (required when `NODE_ENV=production`).
+- **Multiplayer runtime flags**
+  - `MULTIPLAYER_TURN_RECOVERY` (default: `true`): enable host timeout recovery flow for disconnected remote turns.
+  - `MULTIPLAYER_TURN_TIMEOUT_MS` (default: `90000`): inactivity threshold before host can force remote `END_TURN`.
+  - `MULTIPLAYER_MAX_ACTION_BYTES` (default: `32768`): max serialized action payload size accepted by queue/commit endpoints.
+  - `MULTIPLAYER_STRICT_RESYNC` (default: `true`): client strict sequential version checks + forced authoritative resync flow.
+  - `VITE_MULTIPLAYER_STRICT_RESYNC` (default: `true`): client-side build-time override for strict resync behavior.
+- **Cookie/session behavior**
+  - Production sessions use `connect-pg-simple` with `createTableIfMissing: true`.
+  - Session cookies use `secure: true` in production, so HTTPS + correct proxy forwarding are required.
+
 ### Core Game Mechanics
 - **Data-Driven**: All game rules, including abilities, costs, and terrain effects, are centrally configured.
 - **Game Logic**: Pure functions for movement, combat, pathfinding, and resource management within `/shared`.

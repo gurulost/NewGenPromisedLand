@@ -15,12 +15,25 @@ import {
   needsSnapshotCatchup,
   type MultiplayerPlayerMeta,
 } from "@shared/logic/multiplayerSync";
+import {
+  getTurnRecoveryStatus,
+  isForcedTimeoutEndTurnAllowed,
+  reconcilePendingActionsAfterCommit,
+  validateMultiplayerAction,
+} from "./multiplayerPolicy";
 
 const MemoryStoreSession = MemoryStore(session);
 const PgSessionStore = connectPgSimple(session);
 const VALID_MAP_SIZES = new Set(["tiny", "small", "normal", "large", "huge"]);
 const HOST_LEASE_MS = 30000;
 const MAX_MULTIPLAYER_UPDATE_RETRIES = 5;
+const parsedActionBytes = Number.parseInt(process.env.MULTIPLAYER_MAX_ACTION_BYTES ?? "32768", 10);
+const MAX_MULTIPLAYER_ACTION_BYTES =
+  Number.isFinite(parsedActionBytes) && parsedActionBytes > 0 ? parsedActionBytes : 32768;
+const parsedTurnTimeoutMs = Number.parseInt(process.env.MULTIPLAYER_TURN_TIMEOUT_MS ?? "90000", 10);
+const MULTIPLAYER_TURN_TIMEOUT_MS =
+  Number.isFinite(parsedTurnTimeoutMs) && parsedTurnTimeoutMs > 0 ? parsedTurnTimeoutMs : 90000;
+const MULTIPLAYER_TURN_RECOVERY_ENABLED = process.env.MULTIPLAYER_TURN_RECOVERY !== "false";
 const ANIMATION_OVERRIDES_PATH = path.resolve(process.cwd(), "server", "animation-overrides.json");
 const UNIT_ANIMATION_REGISTRY_PATH = path.resolve(process.cwd(), "client", "src", "utils", "unitAnimationRegistry.ts");
 const ANIMATION_STATES = ["idle", "move", "celebrate", "death", "attack", "hit", "ability"] as const;
@@ -238,6 +251,97 @@ function parseIntParam(value: string): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+type RateLimitOptions = {
+  windowMs: number;
+  maxHits: number;
+  key: (req: Request) => string;
+  label: string;
+};
+
+type RateLimitEntry = {
+  count: number;
+  resetAt: number;
+};
+
+function createRateLimitMiddleware({
+  windowMs,
+  maxHits,
+  key,
+  label,
+}: RateLimitOptions) {
+  const hits = new Map<string, RateLimitEntry>();
+  let lastSweep = Date.now();
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    const now = Date.now();
+    if (now - lastSweep > windowMs) {
+      hits.forEach((entry, entryKey) => {
+        if (entry.resetAt <= now) {
+          hits.delete(entryKey);
+        }
+      });
+      lastSweep = now;
+    }
+
+    const rateKey = key(req);
+    const current = hits.get(rateKey);
+    if (!current || current.resetAt <= now) {
+      hits.set(rateKey, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    if (current.count >= maxHits) {
+      const retryAfter = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+      res.setHeader("Retry-After", String(retryAfter));
+      console.warn("[multiplayer:rate-limit]", {
+        label,
+        rateKey,
+        maxHits,
+      });
+      return res.status(429).json({ error: "Too many requests. Please retry shortly." });
+    }
+
+    current.count += 1;
+    next();
+  };
+}
+
+const authRateLimit = createRateLimitMiddleware({
+  windowMs: 10 * 60 * 1000,
+  maxHits: 30,
+  key: (req) => req.ip || "unknown",
+  label: "auth",
+});
+
+const queueRateLimit = createRateLimitMiddleware({
+  windowMs: 60 * 1000,
+  maxHits: 240,
+  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:queue`,
+  label: "queue",
+});
+
+const commitRateLimit = createRateLimitMiddleware({
+  windowMs: 60 * 1000,
+  maxHits: 240,
+  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:commit`,
+  label: "commit",
+});
+
+const multiplayerTelemetry = {
+  needsSnapshot: 0,
+  forcedTimeoutEndTurn: 0,
+  hostTransfer: 0,
+};
+
+function logMultiplayerTelemetry(event: keyof typeof multiplayerTelemetry, payload: Record<string, unknown>) {
+  multiplayerTelemetry[event] += 1;
+  console.info("[multiplayer:telemetry]", {
+    event,
+    count: multiplayerTelemetry[event],
+    ...payload,
+  });
+}
+
 // Extend express-session types
 declare module "express-session" {
   interface SessionData {
@@ -339,7 +443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // === AUTH ROUTES ===
   
   // Sign up
-  app.post("/api/auth/signup", async (req, res) => {
+  app.post("/api/auth/signup", authRateLimit, async (req, res) => {
     try {
       const { username, password } = req.body;
       if (!username || !password) {
@@ -371,7 +475,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Log in
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", authRateLimit, async (req, res) => {
     try {
       const { username, password } = req.body;
       if (!username || !password) {
@@ -856,6 +960,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         factionId: seat.factionId!,
         isAI: seat.isAI,
         turnOrder: index,
+        lastSeenAt: hostLastSeen,
       }));
 
       const seed = Math.floor(Math.random() * 2 ** 32);
@@ -1020,6 +1125,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } as any,
         });
         if (updated) {
+          logMultiplayerTelemetry("hostTransfer", {
+            lobbyCode: lobby.code,
+            fromHostUserId: lobby.hostUserId,
+            toHostUserId: userId,
+            hostEpoch: nextEpoch,
+          });
           return res.json({ hostUserId: userId, hostEpoch: nextEpoch, hostLastSeen });
         }
       }
@@ -1028,6 +1139,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to claim host:", error);
       res.status(500).json({ error: "Failed to claim host" });
+    }
+  });
+
+  // Player heartbeat to support timeout-based turn recovery
+  app.post("/api/lobbies/:code/players/heartbeat", requireAuth, async (req, res) => {
+    try {
+      const { playerId } = req.body || {};
+      if (typeof playerId !== "string" || !playerId) {
+        return res.status(400).json({ error: "playerId required" });
+      }
+
+      for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
+        const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+        if (!lobby) {
+          return res.status(404).json({ error: "Lobby not found" });
+        }
+        if (lobby.status !== "playing") {
+          return res.status(409).json({ error: "Game not in progress" });
+        }
+
+        const seats = await storage.getSeatsByLobbyId(lobby.id);
+        const userId = req.session.userId!;
+        const isParticipant = lobby.hostUserId === userId || seats.some((seat) => seat.userId === userId);
+        if (!isParticipant) {
+          return res.status(403).json({ error: "Not a participant" });
+        }
+
+        const lobbyState = (lobby.gameState as any) || {};
+        const playersMeta = Array.isArray(lobbyState.players) ? [...lobbyState.players] : [];
+        const index = playersMeta.findIndex((entry: any) => entry?.playerId === playerId);
+        if (index === -1) {
+          return res.status(404).json({ error: "Unknown player" });
+        }
+
+        const playerMeta = playersMeta[index] as MultiplayerPlayerMeta;
+        if (playerMeta.userId !== userId || playerMeta.isAI) {
+          return res.status(403).json({ error: "Not your player" });
+        }
+
+        const lastSeenAt = Date.now();
+        playersMeta[index] = {
+          ...playerMeta,
+          lastSeenAt,
+        };
+
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+          gameState: {
+            ...lobbyState,
+            players: playersMeta,
+          } as any,
+        });
+        if (updated) {
+          return res.json({ ok: true, lastSeenAt });
+        }
+      }
+
+      return res.status(409).json({ error: "Concurrent lobby update. Retry player heartbeat." });
+    } catch (error) {
+      console.error("Failed to heartbeat player:", error);
+      res.status(500).json({ error: "Failed to heartbeat player" });
+    }
+  });
+
+  // Host can recover stalled turns after remote player heartbeat timeout
+  app.get("/api/lobbies/:code/turn-recovery", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+      if (lobby.status !== "playing") {
+        return res.status(409).json({ error: "Game not in progress" });
+      }
+
+      const seats = await storage.getSeatsByLobbyId(lobby.id);
+      const userId = req.session.userId!;
+      const isParticipant = lobby.hostUserId === userId || seats.some((seat) => seat.userId === userId);
+      if (!isParticipant) {
+        return res.status(403).json({ error: "Not a participant" });
+      }
+
+      const lobbyState = (lobby.gameState as any) || {};
+      const expectedActorId = getExpectedActorId(lobbyState);
+      const playersMeta = (Array.isArray(lobbyState.players) ? lobbyState.players : []) as MultiplayerPlayerMeta[];
+      const now = Date.now();
+      const turnRecovery = getTurnRecoveryStatus({
+        playersMeta,
+        expectedActorId,
+        requesterUserId: userId,
+        hostUserId: lobby.hostUserId,
+        now,
+        timeoutMs: MULTIPLAYER_TURN_TIMEOUT_MS,
+        recoveryEnabled: MULTIPLAYER_TURN_RECOVERY_ENABLED,
+      });
+
+      return res.json(turnRecovery);
+    } catch (error) {
+      console.error("Failed to get turn recovery status:", error);
+      res.status(500).json({ error: "Failed to get turn recovery status" });
     }
   });
 
@@ -1130,11 +1340,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Queue player action for host processing
-  app.post("/api/lobbies/:code/actions/queue", requireAuth, async (req, res) => {
+  app.post("/api/lobbies/:code/actions/queue", requireAuth, queueRateLimit, async (req, res) => {
     try {
       const { action, actorId, id } = req.body;
       if (!action || typeof actorId !== "string" || typeof id !== "string" || !actorId || !id) {
         return res.status(400).json({ error: "Action, actorId, and id required" });
+      }
+      const actionValidation = validateMultiplayerAction(action, MAX_MULTIPLAYER_ACTION_BYTES);
+      if (!actionValidation.valid) {
+        return res.status(400).json({ error: actionValidation.error });
       }
 
       for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
@@ -1176,9 +1390,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const pendingVersion = Number(lobbyState.pendingVersion ?? 0) + 1;
         pendingActions.push({ queueVersion: pendingVersion, id, actorId, action });
+        const playersMeta = Array.isArray(lobbyState.players) ? [...lobbyState.players] : [];
+        const playerIndex = playersMeta.findIndex((entry: any) => entry?.playerId === actorId);
+        if (playerIndex >= 0) {
+          playersMeta[playerIndex] = {
+            ...playersMeta[playerIndex],
+            lastSeenAt: Date.now(),
+          };
+        }
 
         const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
-          gameState: { ...lobbyState, pendingVersion, pendingActions } as any,
+          gameState: { ...lobbyState, pendingVersion, pendingActions, players: playersMeta } as any,
         });
         if (updated) {
           return res.json({ queueVersion: pendingVersion });
@@ -1227,7 +1449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Host commits an action to the log
-  app.post("/api/lobbies/:code/actions/commit", requireAuth, async (req, res) => {
+  app.post("/api/lobbies/:code/actions/commit", requireAuth, commitRateLimit, async (req, res) => {
     try {
       const { action, actorId, id, queueVersion, hostEpoch } = req.body;
       if (!action || typeof actorId !== "string" || typeof id !== "string" || !actorId || !id || typeof hostEpoch !== "number") {
@@ -1235,6 +1457,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (queueVersion !== undefined && typeof queueVersion !== "number") {
         return res.status(400).json({ error: "queueVersion must be a number when provided" });
+      }
+      const actionValidation = validateMultiplayerAction(action, MAX_MULTIPLAYER_ACTION_BYTES);
+      if (!actionValidation.valid) {
+        return res.status(400).json({ error: actionValidation.error });
       }
 
       for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
@@ -1261,7 +1487,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         const queueVersionProvided = queueVersion !== undefined;
         const requiresQueueProof = !playerMeta.isAI && playerMeta.userId !== req.session.userId;
-        if (requiresQueueProof && !queueVersionProvided) {
+        const forcedTimeoutEndTurnAllowed = isForcedTimeoutEndTurnAllowed({
+          action,
+          actorId,
+          queueVersionProvided,
+          playerMeta,
+          expectedActorId: getExpectedActorId(lobbyState),
+          requesterUserId: req.session.userId!,
+          hostUserId: lobby.hostUserId,
+          now: Date.now(),
+          timeoutMs: MULTIPLAYER_TURN_TIMEOUT_MS,
+          recoveryEnabled: MULTIPLAYER_TURN_RECOVERY_ENABLED,
+        });
+        if (requiresQueueProof && !queueVersionProvided && !forcedTimeoutEndTurnAllowed) {
           return res.status(409).json({ error: "Remote player actions must be queue-backed." });
         }
 
@@ -1287,16 +1525,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!queueMatch) {
             return res.status(409).json({ error: "Pending action mismatch. Refresh pending queue." });
           }
-          pendingActions = pendingActions.filter((entry: any) => entry.queueVersion !== queueVersion);
-        } else {
-          pendingActions = pendingActions.filter((entry: any) => entry.id !== id);
         }
-
-        const nextActionVersion = Number(lobbyState.actionVersion ?? 0) + 1;
-        actions.push({ version: nextActionVersion, id, actorId, action });
 
         const isTurnCompleteAction =
           action?.type === "END_TURN" || action?.type === "END_TURN_RESOLUTION";
+        pendingActions = reconcilePendingActionsAfterCommit({
+          pendingActions,
+          queueVersionProvided,
+          queueVersion,
+          id,
+          actorId,
+          isTurnCompleteAction,
+        });
+
+        const nextActionVersion = Number(lobbyState.actionVersion ?? 0) + 1;
+        actions.push({ version: nextActionVersion, id, actorId, action });
+        const playersMeta = Array.isArray(lobbyState.players) ? [...lobbyState.players] : [];
+        const playerIndex = playersMeta.findIndex((entry: any) => entry?.playerId === actorId);
+        if (playerIndex >= 0) {
+          playersMeta[playerIndex] = {
+            ...playersMeta[playerIndex],
+            lastSeenAt: Date.now(),
+          };
+        }
+
         const nextExpectedActorId = isTurnCompleteAction
           ? (getNextExpectedActorId(lobbyState, actorId) ?? expectedActorId)
           : expectedActorId;
@@ -1308,10 +1560,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             actions,
             pendingActions,
             expectedActorId: nextExpectedActorId,
+            players: playersMeta,
             hostLastSeen: Date.now(),
           } as any,
         });
         if (updated) {
+          if (forcedTimeoutEndTurnAllowed) {
+            logMultiplayerTelemetry("forcedTimeoutEndTurn", {
+              lobbyCode: lobby.code,
+              actorId,
+              hostUserId: lobby.hostUserId,
+            });
+          }
           return res.json({ actionVersion: nextActionVersion });
         }
       }
@@ -1352,6 +1612,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ actionVersion, actions: [] });
       }
       if (needsSnapshotCatchup(since, actionLogBaseVersion)) {
+        logMultiplayerTelemetry("needsSnapshot", {
+          lobbyCode: lobby.code,
+          since,
+          actionVersion,
+          actionLogBaseVersion,
+        });
         return res.json({
           actionVersion,
           actions: [],

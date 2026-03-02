@@ -305,7 +305,10 @@ function TwinklingStar({ x, y, size, delay, duration }: typeof STARS[0]) {
 export function WorldBuildLoader({ enabled }: { enabled: boolean }) {
   const { active, progress, item, loaded, total } = useProgress();
   const safeProgress = Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0;
-  const isLoading = safeProgress < 100 && (active || safeProgress > 0);
+  // Drei progress can plateau just below 100 due floating-point drift even when all assets are loaded.
+  // Treat near-100 or fully-loaded counts as complete so the loader can dismiss deterministically.
+  const isComplete = safeProgress >= 99.9 || (total > 0 && loaded >= total);
+  const isLoading = !isComplete && (active || safeProgress > 0);
   const itemLabel = useMemo(() => formatItemLabel(item), [item]);
   const stage = useMemo(() => {
     const sorted = [...STAGES].sort((a, b) => a.threshold - b.threshold);
@@ -314,6 +317,7 @@ export function WorldBuildLoader({ enabled }: { enabled: boolean }) {
 
   const [visible, setVisible] = useState(false);
   const [completedOnce, setCompletedOnce] = useState(false);
+  const [completionLatched, setCompletionLatched] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [prevStage, setPrevStage] = useState(stage.title);
   const [showSurge, setShowSurge] = useState(false);
@@ -330,7 +334,14 @@ export function WorldBuildLoader({ enabled }: { enabled: boolean }) {
   }, [stage.title, prevStage]);
 
   useEffect(() => {
+    if (isComplete && !completionLatched) {
+      setCompletionLatched(true);
+    }
+  }, [isComplete, completionLatched]);
+
+  useEffect(() => {
     if (!enabled || completedOnce) return;
+    if (completionLatched) return;
 
     if (isLoading) {
       if (!visible) {
@@ -341,24 +352,22 @@ export function WorldBuildLoader({ enabled }: { enabled: boolean }) {
       }
       return;
     }
+  }, [enabled, completedOnce, completionLatched, isLoading, visible, startedAt]);
 
-    if (visible) {
-      // Trigger consecration effect before fade
-      if (!isConsecrating && safeProgress >= 100) {
-        setIsConsecrating(true);
-      }
+  useEffect(() => {
+    if (!enabled || completedOnce || !visible || !completionLatched) return;
 
-      const elapsed = startedAt ? Date.now() - startedAt : 0;
-      const remaining = Math.max(0, MIN_VISIBLE_MS - elapsed);
-      // Add extra time for consecration effect
-      const consecrationDelay = isConsecrating ? 1200 : 0;
-      const timer = window.setTimeout(() => {
-        setVisible(false);
-        setCompletedOnce(true);
-      }, remaining + consecrationDelay);
-      return () => window.clearTimeout(timer);
-    }
-  }, [enabled, completedOnce, isLoading, safeProgress, visible, startedAt, isConsecrating]);
+    setIsConsecrating((value) => (value ? value : true));
+
+    const elapsed = startedAt ? Date.now() - startedAt : 0;
+    const remaining = Math.max(0, MIN_VISIBLE_MS - elapsed);
+    const timer = window.setTimeout(() => {
+      setVisible(false);
+      setCompletedOnce(true);
+    }, remaining + 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [enabled, completedOnce, visible, completionLatched, startedAt]);
 
   if (!enabled || (!visible && completedOnce)) {
     return null;

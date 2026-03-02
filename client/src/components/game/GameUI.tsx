@@ -63,6 +63,13 @@ interface ActiveNotification {
   timestamp: number;
 }
 
+interface TurnRecoveryStatus {
+  canForceEndTurn: boolean;
+  actorId: string | null;
+  msUntilEligible: number;
+  actorLastSeenAt: number | null;
+}
+
 export default function GameUI() {
   const isDev = import.meta.env.DEV;
   const { gameState, endTurn, useAbility: triggerAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
@@ -74,6 +81,9 @@ export default function GameUI() {
   const hostLeaseExpired = useLocalGame((state) => state.hostLeaseExpired);
   const setOnlineHost = useLocalGame((state) => state.setOnlineHost);
   const setHostLeaseStatus = useLocalGame((state) => state.setHostLeaseStatus);
+  const setOnlineActionVersion = useLocalGame((state) => state.setOnlineActionVersion);
+  const applyRemoteAction = useLocalGame((state) => state.applyRemoteAction);
+  const requestOnlineResync = useLocalGame((state) => state.requestOnlineResync);
   const { 
     selectedUnit, 
     setSelectedUnit, 
@@ -105,6 +115,8 @@ export default function GameUI() {
   const [activeTechReveal, setActiveTechReveal] = useState<string | null>(null);
   const [conquestBanner, setConquestBanner] = useState<{ type: 'capture' | 'conversion'; cityName: string } | null>(null);
   const [isClaimingHost, setIsClaimingHost] = useState(false);
+  const [isForcingTurnRecovery, setIsForcingTurnRecovery] = useState(false);
+  const [turnRecoveryStatus, setTurnRecoveryStatus] = useState<TurnRecoveryStatus | null>(null);
   const prevHostRef = useRef<number | null>(null);
   const ruinsOpenTimeoutRef = useRef<number | null>(null);
   const shimmerTimeoutRef = useRef<number | null>(null);
@@ -253,6 +265,125 @@ export default function GameUI() {
       showToast("Network error while claiming host.", "error");
     } finally {
       setIsClaimingHost(false);
+    }
+  };
+
+  const recoveryLobbyCode = onlineSession?.lobbyCode;
+  const recoveryUserId = onlineSession?.userId;
+  const recoveryHostUserId = onlineSession?.hostUserId;
+
+  useEffect(() => {
+    if (!recoveryLobbyCode || recoveryUserId !== recoveryHostUserId) {
+      setTurnRecoveryStatus(null);
+      return;
+    }
+
+    let isActive = true;
+    const pollTurnRecovery = async () => {
+      try {
+        const res = await fetch(`/api/lobbies/${recoveryLobbyCode}/turn-recovery`, {
+          credentials: "include",
+        });
+        if (!res.ok || !isActive) return;
+        const data = await res.json();
+        if (!isActive) return;
+        setTurnRecoveryStatus({
+          canForceEndTurn: Boolean(data?.canForceEndTurn),
+          actorId: typeof data?.actorId === "string" ? data.actorId : null,
+          msUntilEligible: Number.isFinite(Number(data?.msUntilEligible)) ? Number(data.msUntilEligible) : 0,
+          actorLastSeenAt: Number.isFinite(Number(data?.actorLastSeenAt))
+            ? Number(data.actorLastSeenAt)
+            : null,
+        });
+      } catch {
+        // Ignore polling errors; next poll retries.
+      }
+    };
+
+    pollTurnRecovery();
+    const interval = window.setInterval(pollTurnRecovery, 3000);
+    return () => {
+      isActive = false;
+      window.clearInterval(interval);
+    };
+  }, [recoveryLobbyCode, recoveryHostUserId, recoveryUserId]);
+
+  const handleForceTurnRecovery = async () => {
+    if (!onlineSession || isForcingTurnRecovery) return;
+    if (onlineSession.userId !== onlineSession.hostUserId) return;
+    const actorId = turnRecoveryStatus?.actorId;
+    if (!actorId) return;
+
+    setIsForcingTurnRecovery(true);
+    const action = {
+      type: "END_TURN" as const,
+      payload: { playerId: actorId },
+    };
+    const actionId = typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `force_end_turn_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    try {
+      const commitRes = await fetch(`/api/lobbies/${onlineSession.lobbyCode}/actions/commit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          actorId,
+          id: actionId,
+          hostEpoch: onlineSession.hostEpoch,
+        }),
+        credentials: "include",
+      });
+      if (!commitRes.ok) {
+        let errorMessage = "Failed to skip disconnected player";
+        try {
+          const data = await commitRes.json();
+          errorMessage = data?.error || errorMessage;
+        } catch {
+          // Ignore parsing errors.
+        }
+        showToast(errorMessage, "warning");
+        return;
+      }
+
+      const commitData = await commitRes.json();
+      const applied = applyRemoteAction(action);
+      if (!applied) {
+        showToast("Turn was committed but local state needs resync.", "warning");
+        requestOnlineResync("host_force_end_turn_apply_failed");
+        return;
+      }
+
+      if (typeof commitData.actionVersion === "number") {
+        setOnlineActionVersion(commitData.actionVersion);
+      }
+
+      const latestState = useLocalGame.getState().gameState;
+      if (latestState && typeof commitData.actionVersion === "number") {
+        const snapshotRes = await fetch(`/api/lobbies/${onlineSession.lobbyCode}/state`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            state: latestState,
+            version: commitData.actionVersion,
+            hostEpoch: onlineSession.hostEpoch,
+          }),
+          credentials: "include",
+        });
+        if (!snapshotRes.ok) {
+          showToast("Turn skip committed but snapshot sync failed. Re-syncing.", "warning");
+          requestOnlineResync("host_force_end_turn_snapshot_failed");
+          return;
+        }
+      }
+
+      showToast("Disconnected player turn skipped.", "success");
+    } catch {
+      showToast("Network error while skipping disconnected player.", "error");
+      requestOnlineResync("host_force_end_turn_network_failed");
+    } finally {
+      setIsForcingTurnRecovery(false);
     }
   };
 
@@ -764,6 +895,18 @@ export default function GameUI() {
   // Local screenFlash state removed in favor of VisualFeedbackProvider
 
   const currentPlayer = gameState?.players?.[gameState.currentPlayerIndex] ?? null;
+  const turnRecoveryActor = turnRecoveryStatus?.actorId
+    ? gameState?.players?.find((player) => player.id === turnRecoveryStatus.actorId) ?? null
+    : null;
+  const showTurnRecoveryBanner = Boolean(
+    onlineSession &&
+      onlineSession.userId === onlineSession.hostUserId &&
+      turnRecoveryStatus?.actorId &&
+      currentPlayer?.id === turnRecoveryStatus.actorId &&
+      turnRecoveryActor &&
+      !turnRecoveryActor.isAI,
+  );
+  const turnRecoverySeconds = Math.ceil(Math.max(0, (turnRecoveryStatus?.msUntilEligible ?? 0) / 1000));
   const mobileTopOverlayStyle = isMobileUI
     ? { top: 'calc(var(--mobile-hud-height, 0px) + 0.75rem)' }
     : undefined;
@@ -1537,6 +1680,28 @@ export default function GameUI() {
               disabled={isClaimingHost}
             >
               {isClaimingHost ? "Claiming..." : "Take Host"}
+            </button>
+          </div>
+        </div>
+      )}
+      {showTurnRecoveryBanner && turnRecoveryStatus && (
+        <div
+          className={`absolute ${isMobileUI ? '' : 'top-16'} left-1/2 z-[var(--z-floating)] -translate-x-1/2 pointer-events-auto`}
+          style={mobileTopOverlayStyle}
+        >
+          <div className="flex items-center gap-3 rounded-lg border border-amber-400/50 bg-black/80 px-4 py-2 text-amber-100 shadow-lg backdrop-blur-sm">
+            <span className="text-sm">
+              {turnRecoveryActor?.name || "Remote player"} is inactive.
+              {turnRecoveryStatus.canForceEndTurn
+                ? " You can skip this turn."
+                : ` Recovery available in ${turnRecoverySeconds}s.`}
+            </span>
+            <button
+              onClick={handleForceTurnRecovery}
+              className="rounded bg-amber-500 px-3 py-1 text-xs font-semibold text-black transition hover:bg-amber-400 disabled:opacity-60"
+              disabled={!turnRecoveryStatus.canForceEndTurn || isForcingTurnRecovery}
+            >
+              {isForcingTurnRecovery ? "Skipping..." : "Skip Disconnected Turn"}
             </button>
           </div>
         </div>

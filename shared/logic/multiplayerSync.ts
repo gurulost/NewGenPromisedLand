@@ -3,6 +3,7 @@ export type MultiplayerPlayerMeta = {
   userId?: number | null;
   isAI?: boolean;
   turnOrder?: number;
+  lastSeenAt?: number;
 };
 
 export function getPlayersInTurnOrder(lobbyState: any): MultiplayerPlayerMeta[] {

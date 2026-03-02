@@ -8,6 +8,7 @@ vite.config.ts.*
 # Large assets and generated files
 attached_assets/
 *.glb.bak
+test-results/
 test-results*.json
 full-test-results.json
 complete-test-output.txt

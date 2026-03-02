@@ -54,6 +54,7 @@ interface OnlineSession {
   userId: number;
   hostUserId: number;
   myPlayerIds: string[];
+  // Last committed action version that this client has successfully applied.
   actionVersion: number;
   queueVersion: number;
   hostEpoch: number;
@@ -84,6 +85,9 @@ interface LocalGameStore {
   actionError: ActionError | null;
   hostLeaseExpired: boolean;
   hostLastSeen: number | null;
+  onlineResyncRequestId: number;
+  onlineResyncReason: string | null;
+  lastOnlineResyncAt: number | null;
   isGeneratingMap: boolean;
 
   setGamePhase: (phase: GamePhase) => void;
@@ -95,6 +99,9 @@ interface LocalGameStore {
   setHostLeaseStatus: (lastSeen: number | null, leaseExpired: boolean) => void;
   setOnlineActionVersion: (version: number) => void;
   setOnlineQueueVersion: (version: number) => void;
+  requestOnlineResync: (reason: string) => void;
+  clearOnlineResyncRequest: () => void;
+  markOnlineResyncComplete: () => void;
   applyRemoteAction: (action: any) => boolean;
   startLocalGame: (playerSetup: Array<{
     id: string;
@@ -366,6 +373,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
           });
           if (!res.ok) {
             reportActionError(await getResponseError(res), "error");
+            get().requestOnlineResync("host_commit_failed");
             return;
           }
 
@@ -384,10 +392,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
             });
             if (!snapshotRes.ok) {
               reportActionError(await getResponseError(snapshotRes), "error");
+              get().requestOnlineResync("snapshot_upload_failed");
             }
           }
         } catch {
           reportActionError("Network error while sending action.", "error");
+          get().requestOnlineResync("host_commit_network_error");
         }
       });
       return;
@@ -419,6 +429,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     actionError: null,
     hostLeaseExpired: false,
     hostLastSeen: null,
+    onlineResyncRequestId: 0,
+    onlineResyncReason: null,
+    lastOnlineResyncAt: null,
     isGeneratingMap: false,
 
     setGamePhase: (phase) => {
@@ -437,7 +450,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     },
 
     clearOnlineSession: () => {
-      set({ onlineSession: null, hostLeaseExpired: false, hostLastSeen: null });
+      set({
+        onlineSession: null,
+        hostLeaseExpired: false,
+        hostLastSeen: null,
+        onlineResyncReason: null,
+      });
     },
 
     clearActionError: () => {
@@ -476,6 +494,21 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         ? { onlineSession: { ...state.onlineSession, queueVersion: version } }
         : {}
       );
+    },
+
+    requestOnlineResync: (reason) => {
+      set((state) => ({
+        onlineResyncRequestId: state.onlineResyncRequestId + 1,
+        onlineResyncReason: reason,
+      }));
+    },
+
+    clearOnlineResyncRequest: () => {
+      set({ onlineResyncReason: null });
+    },
+
+    markOnlineResyncComplete: () => {
+      set({ lastOnlineResyncAt: Date.now() });
     },
 
     applyRemoteAction: (action) => {
