@@ -5,12 +5,13 @@ import type {
   ChatTransportEvent,
   ChatTypingEventPayload,
 } from "@shared/types/chatEvents";
+import { VOICE_LIMITS } from "@shared/types/voiceLimits";
 
 export const CHAT_LIMITS = {
   maxMessages: 240,
   maxEvents: 1000,
   maxTextLength: 800,
-  maxAudioDurationMs: 180000,
+  maxAudioDurationMs: VOICE_LIMITS.maxDurationMs,
   maxAudioUrlChars: 2048,
   maxWaveformPeaks: 128,
   typingTtlMs: 5000,

@@ -46,6 +46,13 @@ const getSenderInitials = (name: string): string => {
   return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase();
 };
 
+const canRetryVoiceMessage = (message: ChatMessage): boolean =>
+  message.type === "voice" &&
+  typeof message.audioUrl === "string" &&
+  message.audioUrl.startsWith("https://") &&
+  Number.isFinite(message.audioDurationMs) &&
+  (message.audioDurationMs ?? 0) > 0;
+
 export function ChatFeed({ messages, currentUserId, onRetryMessage }: ChatFeedProps) {
   const [activeVoiceId, setActiveVoiceId] = useState<string | null>(null);
   const [progressById, setProgressById] = useState<Record<string, number>>({});
@@ -133,6 +140,8 @@ export function ChatFeed({ messages, currentUserId, onRetryMessage }: ChatFeedPr
         const isVoice = message.type === "voice";
         const progress = progressById[message.id] ?? 0;
         const initials = getSenderInitials(message.senderName);
+        const canRetry = message.status === "failed" && (!isVoice || canRetryVoiceMessage(message));
+        const requiresRerecord = message.status === "failed" && isVoice && !canRetryVoiceMessage(message);
 
         return (
           <div
@@ -217,14 +226,14 @@ export function ChatFeed({ messages, currentUserId, onRetryMessage }: ChatFeedPr
                 {message.status === "failed" && (
                   <span className="inline-flex items-center gap-1 text-red-200">
                     <AlertTriangle className="h-3 w-3" />
-                    {message.type === "voice" && !message.audioUrl
+                    {requiresRerecord
                       ? "Upload failed — re-record to send"
                       : "Failed to send"}
                   </span>
                 )}
                 {message.status === "sent" && <span className="text-slate-300/60">Sent</span>}
 
-                {message.status === "failed" && (message.type !== "voice" || Boolean(message.audioUrl)) && (
+                {canRetry && (
                   <button
                     type="button"
                     onClick={() => onRetryMessage(message)}

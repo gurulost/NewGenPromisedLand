@@ -40,12 +40,18 @@ interface PresignedUploadResponse {
   expiresInSeconds: number;
 }
 
+const isHttpsAudioUrl = (value: string | undefined): value is string =>
+  typeof value === "string" && value.startsWith("https://");
+
 const uploadVoiceBlob = async (
   blob: Blob,
   lobbyCode: string,
   messageId: string,
   durationMs: number
 ): Promise<string> => {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) {
+    throw new Error("Voice note duration is unavailable. Please re-record.");
+  }
   if (blob.size > VOICE_LIMITS.maxBytes) {
     throw new Error(`Voice note too large (max ${VOICE_LIMITS.maxBytes / 1024 / 1024} MB)`);
   }
@@ -73,7 +79,12 @@ const uploadVoiceBlob = async (
     throw new Error(body?.error ?? `Failed to get upload URL (${presignRes.status})`);
   }
 
-  const { uploadUrl, publicUrl } = (await presignRes.json()) as PresignedUploadResponse;
+  const presignPayload = (await presignRes.json()) as Partial<PresignedUploadResponse>;
+  const uploadUrl = typeof presignPayload.uploadUrl === "string" ? presignPayload.uploadUrl : "";
+  const publicUrl = typeof presignPayload.publicUrl === "string" ? presignPayload.publicUrl : "";
+  if (!uploadUrl || !publicUrl) {
+    throw new Error("Invalid upload response from server");
+  }
 
   const putRes = await fetch(uploadUrl, {
     method: "PUT",
@@ -519,9 +530,9 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
     if (!identity) return;
     const { id, audioUrl, audioDurationMs, waveformPeaks, createdAt } = message;
 
-    if (!audioUrl || (!audioUrl.startsWith("https://") && !audioUrl.startsWith("http://"))) {
-      // Upload never completed — nothing we can do without the original blob.
-      // Leave the message as "failed" so the user knows to re-record.
+    if (!isHttpsAudioUrl(audioUrl) || !Number.isFinite(audioDurationMs) || (audioDurationMs ?? 0) <= 0) {
+      // Missing/invalid uploaded URL or duration means this failed note cannot be
+      // retried safely without a new recording.
       return;
     }
 

@@ -69,27 +69,39 @@ const extractPeaks = (channelData: Float32Array, targetSamples = 72): number[] =
   return peaks;
 };
 
-async function createVoiceDraft(blob: Blob): Promise<VoiceDraft> {
+const createFallbackPeaks = (targetSamples = 72): number[] =>
+  Array.from({ length: targetSamples }, (_, index) => (index % 6 === 0 ? 0.24 : 0.12));
+
+async function createVoiceDraft(blob: Blob, fallbackDurationMs: number): Promise<VoiceDraft> {
+  const safeDurationMs = Math.max(1, Math.round(fallbackDurationMs));
+  const fallbackDraft: VoiceDraft = {
+    blob,
+    mimeType: blob.type,
+    durationMs: safeDurationMs,
+    waveformPeaks: createFallbackPeaks(),
+  };
+
   const context = getAudioContext();
   if (!context) {
-    return {
-      blob,
-      mimeType: blob.type,
-      durationMs: 0,
-      waveformPeaks: [],
-    };
+    return fallbackDraft;
   }
 
   try {
     const buffer = await blob.arrayBuffer();
     const audioBuffer = await context.decodeAudioData(buffer);
     const firstChannel = audioBuffer.getChannelData(0);
+    const decodedDurationMs = Math.max(1, Math.round(audioBuffer.duration * 1000));
+    const peaks = firstChannel.length > 0
+      ? extractPeaks(firstChannel)
+      : createFallbackPeaks();
     return {
       blob,
       mimeType: blob.type,
-      durationMs: Math.round(audioBuffer.duration * 1000),
-      waveformPeaks: extractPeaks(firstChannel),
+      durationMs: Number.isFinite(decodedDurationMs) ? decodedDurationMs : safeDurationMs,
+      waveformPeaks: peaks,
     };
+  } catch {
+    return fallbackDraft;
   } finally {
     void context.close();
   }
@@ -111,11 +123,13 @@ export function VoiceRecorderComposer({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const recordingStartedAtRef = useRef<number | null>(null);
   const discardOnStopRef = useRef(false);
 
   const cleanupMedia = useCallback(() => {
     mediaRecorderRef.current = null;
     chunksRef.current = [];
+    recordingStartedAtRef.current = null;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -155,6 +169,7 @@ export function VoiceRecorderComposer({
       streamRef.current = stream;
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
+      recordingStartedAtRef.current = Date.now();
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -164,9 +179,13 @@ export function VoiceRecorderComposer({
 
       recorder.onstop = async () => {
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        const fallbackDurationMs = recordingStartedAtRef.current
+          ? Math.max(1, Date.now() - recordingStartedAtRef.current)
+          : 1;
         const discardOnStop = discardOnStopRef.current;
         discardOnStopRef.current = false;
         chunksRef.current = [];
+        recordingStartedAtRef.current = null;
         onRecordingStateChange(false);
         cleanupMedia();
 
@@ -181,7 +200,7 @@ export function VoiceRecorderComposer({
         }
 
         try {
-          const draft = await createVoiceDraft(blob);
+          const draft = await createVoiceDraft(blob, fallbackDurationMs);
           onVoiceDraftChange(draft);
         } catch {
           setError("Could not prepare voice note.");
@@ -191,6 +210,7 @@ export function VoiceRecorderComposer({
       recorder.start();
       onRecordingStateChange(true);
     } catch {
+      recordingStartedAtRef.current = null;
       cleanupMedia();
       onRecordingStateChange(false);
       setError("Microphone permission denied or unavailable.");

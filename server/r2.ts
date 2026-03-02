@@ -20,6 +20,7 @@ export const R2_CONFIGURED =
   Boolean(R2_PUBLIC_URL);
 
 const PRESIGNED_EXPIRY_SECONDS = 300;
+const VOICE_OBJECT_PREFIX = "voice/";
 
 // Allowed base MIME types (without codec params). Browsers typically send
 // "audio/webm;codecs=opus" or "audio/mp4;codecs=mp4a.40.2" — the codec suffix
@@ -90,6 +91,12 @@ export function isAllowedVoiceMimeType(mimeType: string): boolean {
   return ALLOWED_AUDIO_BASE_TYPES.has(normalizeBaseMimeType(mimeType));
 }
 
+export function isVoiceStorageUrl(audioUrl: string): boolean {
+  if (!R2_PUBLIC_URL) return false;
+  const normalized = String(audioUrl ?? "");
+  return normalized.startsWith(`${R2_PUBLIC_URL}/${VOICE_OBJECT_PREFIX}`);
+}
+
 export interface PresignedVoiceUpload {
   uploadUrl: string;
   objectKey: string;
@@ -122,7 +129,7 @@ export async function createVoiceUploadUrl(params: {
   const safeCode = sanitizeObjectKeySegment(lobbyCode);
   const safeId = sanitizeObjectKeySegment(messageId);
   const ext = mimeTypeToExtension(mimeType);
-  const objectKey = `voice/${safeCode}/${safeId}.${ext}`;
+  const objectKey = `${VOICE_OBJECT_PREFIX}${safeCode}/${safeId}.${ext}`;
   const publicUrl = `${R2_PUBLIC_URL}/${objectKey}`;
 
   const client = getR2Client();

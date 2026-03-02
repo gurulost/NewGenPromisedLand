@@ -33,6 +33,7 @@ import {
   R2_CONFIGURED,
   VOICE_LIMITS,
   isAllowedVoiceMimeType,
+  isVoiceStorageUrl,
   createVoiceUploadUrl,
 } from "./r2";
 import type {
@@ -1183,7 +1184,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { messageId, mimeType, contentLength, durationMs } = req.body;
-      if (!messageId || typeof messageId !== "string" || messageId.length > 128) {
+      if (!messageId || typeof messageId !== "string") {
+        return res.status(400).json({ error: "messageId required (max 128 chars)" });
+      }
+      const normalizedMessageId = messageId.trim();
+      if (!normalizedMessageId || normalizedMessageId.length > 128) {
         return res.status(400).json({ error: "messageId required (max 128 chars)" });
       }
       if (!mimeType || typeof mimeType !== "string") {
@@ -1203,7 +1208,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       const parsedDuration = Number(durationMs);
-      if (Number.isFinite(parsedDuration) && parsedDuration > VOICE_LIMITS.maxDurationMs) {
+      if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+        return res.status(400).json({
+          error: "durationMs must be a positive number",
+          maxDurationMs: VOICE_LIMITS.maxDurationMs,
+        });
+      }
+      if (parsedDuration > VOICE_LIMITS.maxDurationMs) {
         return res.status(400).json({
           error: `Voice note too long (max ${VOICE_LIMITS.maxDurationMs / 1000}s)`,
           maxDurationMs: VOICE_LIMITS.maxDurationMs,
@@ -1212,7 +1223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const result = await createVoiceUploadUrl({
         lobbyCode: lobby.code,
-        messageId: messageId.trim(),
+        messageId: normalizedMessageId,
         mimeType,
         contentLength: parsedLength,
       });
@@ -1234,6 +1245,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validated = validateIncomingChatMessage(req.body);
       if (!validated.valid) {
         return res.status(400).json({ error: validated.error });
+      }
+      if (validated.message.type === "voice") {
+        if (!R2_CONFIGURED) {
+          return res.status(503).json({ error: "Voice storage not configured" });
+        }
+        if (!isVoiceStorageUrl(validated.message.audioUrl ?? "")) {
+          return res.status(400).json({ error: "Invalid voice storage URL" });
+        }
       }
 
       for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {

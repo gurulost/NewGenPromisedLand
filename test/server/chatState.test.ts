@@ -10,6 +10,7 @@ import {
   pruneTyping,
   validateIncomingChatMessage,
 } from "../../server/chatState";
+import { VOICE_LIMITS } from "../../shared/types/voiceLimits";
 
 describe("chatState helpers", () => {
   it("validates text messages", () => {
@@ -93,5 +94,9 @@ describe("chatState helpers", () => {
     expect(normalized.messages).toHaveLength(0);
     expect(normalized.events).toHaveLength(0);
     expect(Object.keys(normalized.typingByUserId)).toHaveLength(0);
+  });
+
+  it("uses shared voice duration limits", () => {
+    expect(CHAT_LIMITS.maxAudioDurationMs).toBe(VOICE_LIMITS.maxDurationMs);
   });
 });
