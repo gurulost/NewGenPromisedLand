@@ -197,7 +197,7 @@ export function ChatFeed({ messages, currentUserId, onRetryMessage }: ChatFeedPr
                     ref={(node) => {
                       audioRefs.current[message.id] = node;
                     }}
-                    src={message.audioUrl}
+                    src={message.audioUrl || undefined}
                     preload="metadata"
                     onTimeUpdate={(event) => {
                       const audio = event.currentTarget;

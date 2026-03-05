@@ -20,7 +20,7 @@ const POLL_INTERVAL_MS = 1200;
 export interface UseChatChannelResult {
   sendTextMessage: (text: string, options?: { messageId?: string; createdAt?: number }) => Promise<void>;
   sendVoiceMessage: (draft: VoiceDraft, options?: { messageId?: string; createdAt?: number }) => Promise<void>;
-  retryVoiceMessage: (message: { id: string; audioUrl?: string; audioDurationMs?: number; waveformPeaks?: number[]; createdAt: number }) => Promise<void>;
+  retryVoiceMessage: (message: { id: string; audioUrl?: string; audioDurationMs?: number; waveformPeaks?: number[]; createdAt: number; localBlob?: Blob }) => Promise<void>;
   sendTypingStart: () => void;
   sendTypingStop: () => void;
   markRead: () => void;

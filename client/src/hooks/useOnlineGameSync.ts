@@ -97,7 +97,11 @@ export function useOnlineGameSync() {
       const applyResult = applyCommittedEntriesSequentially(
         committedActions,
         snapshotVersion,
-        applyRemoteAction,
+        (action, entry) =>
+          applyRemoteAction(action, {
+            actionId: typeof entry?.id === "string" ? entry.id : undefined,
+            actionVersion: typeof entry?.version === "number" ? entry.version : undefined,
+          }),
       );
       if (applyResult.needsResync) {
         logTelemetry("forced_resync_apply_failed", {
@@ -225,7 +229,10 @@ export function useOnlineGameSync() {
 
               const processed = processedQueueRef.current.get(entry.id);
               if (!processed) {
-                const applied = applyRemoteAction(entry.action);
+                const applied = applyRemoteAction(entry.action, {
+                  actionId: typeof entry.id === "string" ? entry.id : undefined,
+                  queueVersion: typeof entry.queueVersion === "number" ? entry.queueVersion : undefined,
+                });
                 if (!applied) {
                   requestOnlineResync("queued_action_apply_failed");
                   logTelemetry("queue_apply_failed", { actionId: entry.id });
@@ -316,7 +323,10 @@ export function useOnlineGameSync() {
 
         if (!strictResyncEnabled) {
           for (const entry of actions) {
-            applyRemoteAction(entry.action);
+            applyRemoteAction(entry.action, {
+              actionId: typeof entry.id === "string" ? entry.id : undefined,
+              actionVersion: typeof entry.version === "number" ? entry.version : undefined,
+            });
           }
           if (
             typeof committedData.actionVersion === "number" &&
@@ -330,7 +340,11 @@ export function useOnlineGameSync() {
         const applyResult = applyCommittedEntriesSequentially(
           actions,
           freshSession.actionVersion,
-          applyRemoteAction,
+          (action, entry) =>
+            applyRemoteAction(action, {
+              actionId: typeof entry?.id === "string" ? entry.id : undefined,
+              actionVersion: typeof entry?.version === "number" ? entry.version : undefined,
+            }),
         );
         if (applyResult.needsResync) {
           requestOnlineResync(`committed_${applyResult.reason}`);

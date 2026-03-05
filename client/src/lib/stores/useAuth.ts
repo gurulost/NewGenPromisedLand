@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { identify, reset } from "../../utils/telemetry/posthog";
 
 interface User {
   id: number;
@@ -15,6 +16,19 @@ interface AuthStore {
   logout: () => Promise<void>;
 }
 
+const syncTelemetryIdentity = (user: User | null) => {
+  if (user) {
+    identify(String(user.id), {
+      user_id: user.id,
+      username: user.username,
+      is_authenticated: true,
+    });
+    return;
+  }
+
+  reset();
+};
+
 export const useAuth = create<AuthStore>((set) => ({
   user: null,
   loading: true,
@@ -24,11 +38,14 @@ export const useAuth = create<AuthStore>((set) => ({
       const res = await fetch("/api/auth/me", { credentials: "include" });
       if (res.ok) {
         const user = await res.json();
+        syncTelemetryIdentity(user);
         set({ user, loading: false });
       } else {
+        syncTelemetryIdentity(null);
         set({ user: null, loading: false });
       }
     } catch {
+      syncTelemetryIdentity(null);
       set({ user: null, loading: false });
     }
   },
@@ -43,6 +60,7 @@ export const useAuth = create<AuthStore>((set) => ({
       });
       if (res.ok) {
         const user = await res.json();
+        syncTelemetryIdentity(user);
         set({ user });
         return { success: true };
       } else {
@@ -64,6 +82,7 @@ export const useAuth = create<AuthStore>((set) => ({
       });
       if (res.ok) {
         const user = await res.json();
+        syncTelemetryIdentity(user);
         set({ user });
         return { success: true };
       } else {
@@ -79,6 +98,7 @@ export const useAuth = create<AuthStore>((set) => ({
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     } finally {
+      syncTelemetryIdentity(null);
       set({ user: null });
     }
   },

@@ -112,7 +112,10 @@ interface LocalGameStore {
   requestOnlineResync: (reason: string) => void;
   clearOnlineResyncRequest: () => void;
   markOnlineResyncComplete: () => void;
-  applyRemoteAction: (action: any) => boolean;
+  applyRemoteAction: (
+    action: any,
+    options?: { actionId?: string; actionVersion?: number; queueVersion?: number }
+  ) => boolean;
   startLocalGame: (playerSetup: Array<{
     id: string;
     name: string;
@@ -141,26 +144,58 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
   const pendingMotionTokens = new Map<string, string>();
   const createMotionToken = () => `motion_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   type TrackedAction = { type: string; payload?: any };
+  type ActionTelemetryMeta = {
+    actionId: string;
+    actionVersion?: number | null;
+    queueVersion?: number | null;
+    gameState?: GameState | null;
+  };
 
-  const buildActionContext = (actionSource: GameplayActionSource) => {
+  const createActionId = (): string => {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+    return `action_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  };
+
+  const buildActionContext = (
+    actionSource: GameplayActionSource,
+    meta: ActionTelemetryMeta,
+  ) => {
     const state = get();
+    const sourceState = meta.gameState ?? state.gameState;
+    const matchId = sourceState?.id ?? 'unknown_match';
+    const turnId = sourceState ? `${sourceState.id}:turn:${sourceState.turn}` : 'unknown_turn';
     return {
       actionSource,
       gameMode: state.gameMode,
       isOnline: Boolean(state.onlineSession),
+      correlation: {
+        actionId: meta.actionId,
+        turnId,
+        matchId,
+        actionVersion: meta.actionVersion ?? null,
+        queueVersion: meta.queueVersion ?? null,
+      },
     } as const;
   };
 
   const applyActionToState = (
     action: TrackedAction,
-    actionSource: GameplayActionSource
+    actionSource: GameplayActionSource,
+    telemetryMeta: ActionTelemetryMeta,
   ): { applied: boolean; state?: GameState } => {
     const { gameState } = get();
     if (!gameState) return { applied: false };
     const previousState = gameState;
     const newGameState = resolveActionState(previousState, action as any, { source: 'client' });
     if (newGameState === previousState) {
-      trackGameplayActionBlocked(action, 'rules_rejected', buildActionContext(actionSource), previousState);
+      trackGameplayActionBlocked(
+        action,
+        'rules_rejected',
+        buildActionContext(actionSource, { ...telemetryMeta, gameState: previousState }),
+        previousState
+      );
       return { applied: false };
     }
 
@@ -299,7 +334,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     }
 
     set({ gameState: newGameState });
-    trackGameplayActionApplied(action, previousState, newGameState, buildActionContext(actionSource));
+    trackGameplayActionApplied(
+      action,
+      previousState,
+      newGameState,
+      buildActionContext(actionSource, { ...telemetryMeta, gameState: previousState })
+    );
     if (!previousState.winner && newGameState.winner) {
       trackGameEnded({ gameState: newGameState, source: 'victory_condition' });
     }
@@ -316,13 +356,6 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     }
     markAutosaveDirty();
     return { applied: true, state: newGameState };
-  };
-
-  const createActionId = (): string => {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
-    return `action_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   };
 
   let onlineActionChain = Promise.resolve();
@@ -358,9 +391,13 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     const onlineActionSource: GameplayActionSource = onlineSession
       ? (onlineSession.userId === onlineSession.hostUserId ? 'online_host' : 'online_guest')
       : 'local_offline';
+    const actionId = createActionId();
 
     if (!onlineSession) {
-      const result = applyActionToState(action, 'local_offline');
+      const result = applyActionToState(action, 'local_offline', {
+        actionId,
+        gameState,
+      });
       if (result.applied && action.type === 'END_TURN') {
         useGameState.getState().setSelectedUnit(null);
         set({ gamePhase: gameMode === 'tutorialEpisode' ? 'playing' : 'handoff' });
@@ -372,7 +409,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     }
 
     if (!gameState) {
-      trackGameplayActionBlocked(action, 'game_state_not_ready', buildActionContext(onlineActionSource), null);
+      trackGameplayActionBlocked(
+        action,
+        'game_state_not_ready',
+        buildActionContext(onlineActionSource, { actionId, gameState: null }),
+        null
+      );
       reportActionError("Game state is not ready yet.", "warning");
       return;
     }
@@ -384,7 +426,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       trackGameplayActionBlocked(
         action,
         currentPlayer?.isAI ? 'ai_turn_in_progress' : 'not_player_turn',
-        buildActionContext(onlineActionSource),
+        buildActionContext(onlineActionSource, { actionId, gameState }),
         gameState
       );
       reportActionError(message, "warning");
@@ -393,14 +435,20 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     const actorId = gameState.players[gameState.currentPlayerIndex]?.id;
     if (!actorId) {
-      trackGameplayActionBlocked(action, 'missing_actor_id', buildActionContext(onlineActionSource), gameState);
+      trackGameplayActionBlocked(
+        action,
+        'missing_actor_id',
+        buildActionContext(onlineActionSource, { actionId, gameState }),
+        gameState
+      );
       return;
     }
 
-    const actionId = createActionId();
-
     if (onlineSession.userId === onlineSession.hostUserId) {
-      const result = applyActionToState(action, 'online_host');
+      const result = applyActionToState(action, 'online_host', {
+        actionId,
+        gameState,
+      });
       if (!result.applied) {
         reportActionError("Action rejected by game rules.", "warning");
         return;
@@ -462,11 +510,21 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
           credentials: "include",
         });
         if (!res.ok) {
-          trackGameplayActionBlocked(action, 'queue_rejected', buildActionContext(onlineActionSource), gameState);
+          trackGameplayActionBlocked(
+            action,
+            'queue_rejected',
+            buildActionContext(onlineActionSource, { actionId, gameState }),
+            gameState
+          );
           reportActionError(await getResponseError(res), "error");
         }
       } catch {
-        trackGameplayActionBlocked(action, 'queue_network_error', buildActionContext(onlineActionSource), gameState);
+        trackGameplayActionBlocked(
+          action,
+          'queue_network_error',
+          buildActionContext(onlineActionSource, { actionId, gameState }),
+          gameState
+        );
         reportActionError("Network error while sending action.", "error");
       }
     });
@@ -566,8 +624,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       set({ lastOnlineResyncAt: Date.now() });
     },
 
-    applyRemoteAction: (action) => {
-      const result = applyActionToState(action, 'online_remote');
+    applyRemoteAction: (action, options) => {
+      const result = applyActionToState(action, 'online_remote', {
+        actionId: options?.actionId ?? createActionId(),
+        actionVersion: options?.actionVersion ?? null,
+        queueVersion: options?.queueVersion ?? null,
+      });
       if (result.applied && (action.type === 'END_TURN' || action.type === 'END_TURN_RESOLUTION')) {
         useGameState.getState().setSelectedUnit(null);
       }

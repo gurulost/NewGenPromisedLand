@@ -160,12 +160,27 @@ describe('Gameplay analytics telemetry', () => {
       { type: 'END_TURN', payload: { playerId: 'p1' } },
       before,
       after,
-      { actionSource: 'local_offline', gameMode: 'standard', isOnline: false }
+      {
+        actionSource: 'local_offline',
+        gameMode: 'standard',
+        isOnline: false,
+        correlation: {
+          actionId: 'action-1',
+          turnId: 'game-1:turn:1',
+          matchId: 'game-1',
+        },
+      }
     );
 
     const eventNames = captureMock.mock.calls.map((call) => call[0]);
     expect(eventNames).toContain('gameplay_action');
     expect(eventNames).toContain('turn_ended');
+    const gameplayCall = captureMock.mock.calls.find((call) => call[0] === 'gameplay_action');
+    expect(gameplayCall?.[1]).toEqual(expect.objectContaining({
+      action_id: 'action-1',
+      turn_id: 'game-1:turn:1',
+      match_id: 'game-1',
+    }));
   });
 
   it('captures combat and removal events for ATTACK_UNIT', () => {
@@ -183,7 +198,16 @@ describe('Gameplay analytics telemetry', () => {
       { type: 'ATTACK_UNIT', payload: { attackerId: 'u1', targetId: 'u2' } },
       before,
       after,
-      { actionSource: 'local_offline', gameMode: 'standard', isOnline: false }
+      {
+        actionSource: 'local_offline',
+        gameMode: 'standard',
+        isOnline: false,
+        correlation: {
+          actionId: 'action-2',
+          turnId: 'game-1:turn:1',
+          matchId: 'game-1',
+        },
+      }
     );
 
     const eventNames = captureMock.mock.calls.map((call) => call[0]);
@@ -198,7 +222,16 @@ describe('Gameplay analytics telemetry', () => {
     trackGameplayActionBlocked(
       { type: 'MOVE_UNIT', payload: { unitId: 'u1' } },
       'not_player_turn',
-      { actionSource: 'online_guest', gameMode: 'standard', isOnline: true },
+      {
+        actionSource: 'online_guest',
+        gameMode: 'standard',
+        isOnline: true,
+        correlation: {
+          actionId: 'action-3',
+          turnId: 'game-1:turn:1',
+          matchId: 'game-1',
+        },
+      },
       state
     );
     trackPlayerSetupChoices(
@@ -212,5 +245,11 @@ describe('Gameplay analytics telemetry', () => {
     const eventNames = captureMock.mock.calls.map((call) => call[0]);
     expect(eventNames).toContain('gameplay_action_blocked');
     expect(eventNames).toContain('player_choice');
+    const blockedCall = captureMock.mock.calls.find((call) => call[0] === 'gameplay_action_blocked');
+    expect(blockedCall?.[1]).toEqual(expect.objectContaining({
+      action_id: 'action-3',
+      action_payload_summary: expect.objectContaining({ unitId: 'u1' }),
+      action_payload_keys: expect.arrayContaining(['unitId']),
+    }));
   });
 });
