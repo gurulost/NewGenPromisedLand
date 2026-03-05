@@ -17,19 +17,17 @@ import {
     calculateTradeRouteEstablishCostStars,
     calculateTradeRouteStarsPerTurn
 } from '@shared/logic/tradeRoutes';
+import { useLocalGame } from '../../lib/stores/useLocalGame';
 
 export interface DiplomacyPanelProps {
     gameState: GameState;
     currentPlayerId: string;
     onClose: () => void;
-    onDeclareWar: (targetPlayerId: string) => void;
-    onFormAlliance: (targetPlayerId: string) => void;
-    onEstablishTrade: (fromCityId: string, toCityId: string) => void;
 }
 
 type DiplomacyTab = 'war' | 'alliance' | 'trade';
 
-export function DiplomacyPanel({ gameState, currentPlayerId, onClose, onDeclareWar, onFormAlliance, onEstablishTrade }: DiplomacyPanelProps) {
+export function DiplomacyPanel({ gameState, currentPlayerId, onClose }: DiplomacyPanelProps) {
     const [activeTab, setActiveTab] = useState<DiplomacyTab>('war');
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [selectedFromCity, setSelectedFromCity] = useState<string | null>(null);
@@ -59,21 +57,21 @@ export function DiplomacyPanel({ gameState, currentPlayerId, onClose, onDeclareW
     };
 
     const handleDeclareWar = (targetPlayerId: string) => {
-        onDeclareWar(targetPlayerId);
+        useLocalGame.getState().declareWar(targetPlayerId);
         playSfx('cta-click');
         setConfirmWarTarget(null);
         onClose();
     };
 
     const handleFormAlliance = (targetPlayerId: string) => {
-        onFormAlliance(targetPlayerId);
+        useLocalGame.getState().formAlliance(targetPlayerId);
         playSfx('cta-click');
         onClose();
     };
 
     const handleEstablishTrade = () => {
         if (!selectedFromCity || !selectedToCity) return;
-        onEstablishTrade(selectedFromCity, selectedToCity);
+        useLocalGame.getState().establishTradeRoute(selectedFromCity, selectedToCity);
         playSfx('cta-click');
         onClose();
     };

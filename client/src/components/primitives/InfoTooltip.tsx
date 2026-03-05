@@ -9,15 +9,17 @@ interface InfoTooltipProps {
   children?: React.ReactNode;
   position?: 'top' | 'bottom' | 'left' | 'right';
   className?: string;
+  ariaLabel?: string;
 }
 
 type ResolvedPosition = 'top' | 'bottom' | 'left' | 'right';
 
-export function InfoTooltip({ 
-  content, 
-  children, 
+export function InfoTooltip({
+  content,
+  children,
   position = 'top',
-  className 
+  className,
+  ariaLabel = 'More information',
 }: InfoTooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [resolvedPosition, setResolvedPosition] = useState<ResolvedPosition>(position);
@@ -211,7 +213,7 @@ export function InfoTooltip({
             "hover:shadow-blue-400/40 transition-shadow duration-300",
             className
           )}
-          aria-label="Information"
+          aria-label={ariaLabel}
         >
           <span className="text-xs font-bold">?</span>
         </motion.div>

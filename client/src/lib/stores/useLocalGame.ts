@@ -120,6 +120,9 @@ interface LocalGameStore {
   resetGame: () => void;
   loadGameState: (state: GameState) => void;
   harvestResource: (unitId: string, resourceCoordinate: any, cityId: string) => void;
+  declareWar: (targetPlayerId: string) => void;
+  formAlliance: (targetPlayerId: string) => void;
+  establishTradeRoute: (fromCityId: string, toCityId: string) => void;
 }
 
 export const useLocalGame = create<LocalGameStore>((set, get) => {
@@ -1424,6 +1427,30 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         type: 'HARVEST_RESOURCE' as const,
         payload: { unitId, resourceCoordinate, cityId }
       });
+    },
+
+    declareWar: (targetPlayerId) => {
+      const { gameState } = get();
+      const playerId = gameState?.players[gameState.currentPlayerIndex]?.id;
+      if (!playerId) return;
+      if (import.meta.env.DEV) console.log('🤝 Diplomacy: DECLARE_WAR', { playerId, targetPlayerId });
+      void submitAction({ type: 'DECLARE_WAR', payload: { playerId, targetPlayerId } });
+    },
+
+    formAlliance: (targetPlayerId) => {
+      const { gameState } = get();
+      const playerId = gameState?.players[gameState.currentPlayerIndex]?.id;
+      if (!playerId) return;
+      if (import.meta.env.DEV) console.log('🤝 Diplomacy: FORM_ALLIANCE', { playerId, targetPlayerId });
+      void submitAction({ type: 'FORM_ALLIANCE', payload: { playerId, targetPlayerId } });
+    },
+
+    establishTradeRoute: (fromCityId, toCityId) => {
+      const { gameState } = get();
+      const playerId = gameState?.players[gameState.currentPlayerIndex]?.id;
+      if (!playerId) return;
+      if (import.meta.env.DEV) console.log('🤝 Diplomacy: ESTABLISH_TRADE_ROUTE', { playerId, fromCityId, toCityId });
+      void submitAction({ type: 'ESTABLISH_TRADE_ROUTE', payload: { playerId, fromCityId, toCityId } });
     },
   };
 });
