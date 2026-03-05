@@ -56,6 +56,13 @@ describe('Overlay pointer-event canary coverage', () => {
     expect(fullscreenRoot).toHaveAttribute('aria-modal', 'true');
   });
 
+  it('turn transition does not render fullscreen overlay when hidden', () => {
+    const { container } = render(
+      <TurnTransition isVisible={false} currentPlayer={mockPlayer} onComplete={vi.fn()} />,
+    );
+    expect(container.querySelector('div.fixed.inset-0')).not.toBeInTheDocument();
+  });
+
   it('desktop game log button stays interactive inside pointer-events-none parents', () => {
     render(
       <GameLogPanel

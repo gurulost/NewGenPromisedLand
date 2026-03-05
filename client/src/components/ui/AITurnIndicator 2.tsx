@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Compass, Eye, Scroll, Moon, Flame, Swords, Sparkles } from 'lucide-react';
+import { Compass, Eye, Scroll, Moon, Flame, Swords, Sparkles, type LucideIcon } from 'lucide-react';
 import { usePerformanceMode } from '../../hooks/usePerformanceMode';
 import { ModalLayer, ModalLayerContent } from '../primitives/ModalLayer';
 
@@ -10,15 +10,35 @@ interface AITurnIndicatorProps {
     factionId?: string;
 }
 
+type IndicatorVariant = {
+    id: string;
+    icon: LucideIcon;
+    title: string;
+    subtitle: string;
+    color: string;
+    glowShadowClass: string;
+    glowCssColor: string;
+    bgGradient: string;
+};
+
+export function buildGlowBoxShadowFrames(glowCssColor: string): [string, string, string] {
+    return [
+        `0 0 40px rgba(0,0,0,0.3), 0 0 60px ${glowCssColor}`,
+        `0 0 50px rgba(0,0,0,0.3), 0 0 80px ${glowCssColor}`,
+        `0 0 40px rgba(0,0,0,0.3), 0 0 60px ${glowCssColor}`,
+    ];
+}
+
 // Animation variants - randomly selected each time
-const INDICATOR_VARIANTS = [
+export const INDICATOR_VARIANTS: readonly IndicatorVariant[] = [
     {
         id: 'liahona',
         icon: Compass,
         title: 'Consulting the Liahona...',
         subtitle: 'The needle points the way',
         color: 'from-amber-400 via-yellow-500 to-amber-600',
-        glowColor: 'shadow-amber-500/60',
+        glowShadowClass: 'shadow-amber-500/60',
+        glowCssColor: 'rgba(245, 158, 11, 0.58)',
         bgGradient: 'from-amber-900/40 via-yellow-900/20 to-amber-900/40',
     },
     {
@@ -27,7 +47,8 @@ const INDICATOR_VARIANTS = [
         title: 'The war council deliberates...',
         subtitle: 'Strategy unfolds in silence',
         color: 'from-red-400 via-rose-500 to-red-600',
-        glowColor: 'shadow-red-500/60',
+        glowShadowClass: 'shadow-red-500/60',
+        glowCssColor: 'rgba(239, 68, 68, 0.58)',
         bgGradient: 'from-red-900/40 via-rose-900/20 to-red-900/40',
     },
     {
@@ -36,7 +57,8 @@ const INDICATOR_VARIANTS = [
         title: 'Gazing beyond the veil...',
         subtitle: 'Visions of things to come',
         color: 'from-purple-400 via-violet-500 to-indigo-600',
-        glowColor: 'shadow-purple-500/60',
+        glowShadowClass: 'shadow-purple-500/60',
+        glowCssColor: 'rgba(168, 85, 247, 0.58)',
         bgGradient: 'from-purple-900/40 via-indigo-900/20 to-purple-900/40',
     },
     {
@@ -45,7 +67,8 @@ const INDICATOR_VARIANTS = [
         title: 'Searching the records...',
         subtitle: 'Ancient wisdom guides the path',
         color: 'from-emerald-400 via-green-500 to-teal-600',
-        glowColor: 'shadow-emerald-500/60',
+        glowShadowClass: 'shadow-emerald-500/60',
+        glowCssColor: 'rgba(16, 185, 129, 0.58)',
         bgGradient: 'from-emerald-900/40 via-teal-900/20 to-emerald-900/40',
     },
     {
@@ -54,7 +77,8 @@ const INDICATOR_VARIANTS = [
         title: 'Reading the seer stones...',
         subtitle: 'Light pierces the darkness',
         color: 'from-sky-400 via-cyan-500 to-blue-600',
-        glowColor: 'shadow-sky-500/60',
+        glowShadowClass: 'shadow-sky-500/60',
+        glowCssColor: 'rgba(14, 165, 233, 0.58)',
         bgGradient: 'from-sky-900/40 via-blue-900/20 to-sky-900/40',
     },
     {
@@ -63,7 +87,8 @@ const INDICATOR_VARIANTS = [
         title: 'Seeking divine favor...',
         subtitle: 'The smoke rises heavenward',
         color: 'from-orange-400 via-amber-500 to-red-600',
-        glowColor: 'shadow-orange-500/60',
+        glowShadowClass: 'shadow-orange-500/60',
+        glowCssColor: 'rgba(249, 115, 22, 0.58)',
         bgGradient: 'from-orange-900/40 via-red-900/20 to-orange-900/40',
     },
 ];
@@ -437,6 +462,10 @@ export function AITurnIndicator({ isVisible, aiName }: AITurnIndicatorProps) {
     }, [isVisible]);
 
     const AnimationComponent = ANIMATION_COMPONENTS[variant.id];
+    const glowBoxShadowFrames = useMemo(
+        () => buildGlowBoxShadowFrames(variant.glowCssColor),
+        [variant.glowCssColor],
+    );
 
     return (
         <AnimatePresence>
@@ -474,15 +503,9 @@ export function AITurnIndicator({ isVisible, aiName }: AITurnIndicatorProps) {
                             >
                                 {/* Animation container with enhanced glow */}
                                 <motion.div
-                                    className={`relative p-10 rounded-full bg-gradient-to-br from-slate-800/90 via-slate-900/95 to-slate-800/90 border border-white/10 shadow-2xl ${variant.glowColor}`}
-                                    animate={highPerf ? {
-                                        boxShadow: [
-                                            `0 0 40px rgba(0,0,0,0.3), 0 0 60px ${variant.glowColor.replace('shadow-', '').replace('/60', '')}`,
-                                            `0 0 50px rgba(0,0,0,0.3), 0 0 80px ${variant.glowColor.replace('shadow-', '').replace('/60', '')}`,
-                                            `0 0 40px rgba(0,0,0,0.3), 0 0 60px ${variant.glowColor.replace('shadow-', '').replace('/60', '')}`,
-                                        ]
-                                    } : {}}
-                                    transition={{ duration: 2, repeat: Infinity }}
+                                    className={`relative p-10 rounded-full bg-gradient-to-br from-slate-800/90 via-slate-900/95 to-slate-800/90 border border-white/10 shadow-2xl ${variant.glowShadowClass}`}
+                                    animate={highPerf ? { boxShadow: glowBoxShadowFrames } : undefined}
+                                    transition={highPerf ? { duration: 2, repeat: Infinity } : undefined}
                                 >
                                     <AnimationComponent highPerf={highPerf} />
                                 </motion.div>
