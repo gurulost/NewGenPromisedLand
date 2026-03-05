@@ -135,6 +135,7 @@ npm run dev
   - `traffic_type` (`direct`, `campaign`, `organic_search`, `social`, `referral`)
   - `referrer_domain`, `referrer_path`
   - `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`
+  - Geo enrichment from PostHog (`$geoip_country_name`, `$geoip_subdivision_1_name`, `$geoip_city_name`, `$geoip_country_code`, `$geoip_time_zone`)
   - `visit_number`, `is_returning_visitor`, `days_since_last_seen`
   - `session_id`, `page_path`, `page_url`
 

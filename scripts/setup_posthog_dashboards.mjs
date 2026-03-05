@@ -207,6 +207,64 @@ const DASHBOARD_SPECS = [
         }),
       },
       {
+        name: prefixed('Sessions by Country'),
+        query: trendsQuery({
+          series: [eventNode('usage_session_started')],
+          breakdown: '$geoip_country_name',
+          display: 'ActionsBarValue',
+        }),
+      },
+      {
+        name: prefixed('Sessions by Region/State'),
+        query: trendsQuery({
+          series: [eventNode('usage_session_started')],
+          breakdown: '$geoip_subdivision_1_name',
+          display: 'ActionsBarValue',
+        }),
+      },
+      {
+        name: prefixed('Sessions by City'),
+        query: trendsQuery({
+          series: [eventNode('usage_session_started')],
+          breakdown: '$geoip_city_name',
+          display: 'ActionsBarValue',
+        }),
+      },
+      {
+        name: prefixed('Session -> Game Start Rate by Country (SQL)'),
+        query: sqlTableQuery(`
+WITH sessions AS (
+    SELECT
+        properties.session_id AS session_id,
+        coalesce(nullIf(toString(properties.$geoip_country_name), ''), 'unknown') AS country
+    FROM events
+    WHERE event = 'usage_session_started'
+      AND timestamp >= now() - INTERVAL 30 DAY
+),
+game_starts AS (
+    SELECT DISTINCT properties.session_id AS session_id
+    FROM events
+    WHERE event = 'game_started'
+      AND timestamp >= now() - INTERVAL 30 DAY
+)
+SELECT
+    sessions.country AS country,
+    uniqExact(sessions.session_id) AS sessions,
+    uniqExactIf(sessions.session_id, game_starts.session_id IS NOT NULL) AS sessions_with_game_start,
+    round(
+        uniqExactIf(sessions.session_id, game_starts.session_id IS NOT NULL) /
+        nullIf(uniqExact(sessions.session_id), 0),
+        4
+    ) AS start_rate
+FROM sessions
+LEFT JOIN game_starts
+    ON game_starts.session_id = sessions.session_id
+GROUP BY country
+HAVING sessions >= 10
+ORDER BY sessions DESC
+`),
+      },
+      {
         name: prefixed('Top Referrers'),
         query: trendsQuery({
           series: [eventNode('usage_session_started')],
