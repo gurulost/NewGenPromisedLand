@@ -13,6 +13,7 @@ import { TutorialHelpIcon } from '../ui/TutorialHelpIcon';
 
 import { PlayerState, GameState } from '@shared/types/game';
 import { getFaction } from '@shared/data/factions';
+import { coerceFactionId } from '@shared/types/factionId';
 import { GameRuleHelpers, GAME_RULES } from '@shared/data/gameRules';
 import { TECHNOLOGIES } from '@shared/data/technologies';
 import { getPlayerStats, PlayerStats } from '../../selectors/player';
@@ -40,7 +41,7 @@ interface PlayerHUDProps {
 }
 
 export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructionHall, onShowDiplomacy, onEndTurn }: PlayerHUDProps) {
-  const faction = getFaction(player.factionId as any);
+  const faction = getFaction(coerceFactionId(player.factionId)!);
   const handleEndTurn = onEndTurn ?? (() => { });
   const autosaveStatus = useAutosaveStatus();
   const [victoryOpen, setVictoryOpen] = useState(false);
@@ -85,67 +86,49 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
     setVictoryOpen(open);
   };
 
-  const testimonyPressureLastTurn = useMemo(() => {
-    if (!gameState) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+  // Typed shape for TESTIMONY_PRESSURE / INTIMIDATION_AURA payloads
+  type AuraPayload = {
+    attackPenalty: number;
+    durationTurns: number;
+    affected: Array<{ playerId: string; unitIds: string[] }>;
+  };
 
-    const action: any = gameState.lastAction;
-    if (!action) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+  const extractAuraEffect = (
+    action: GameState['lastAction'],
+    eventType: 'TESTIMONY_PRESSURE' | 'INTIMIDATION_AURA',
+    playerId: string,
+  ) => {
+    const empty = { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+    if (!action) return empty;
 
-    if (action.type === 'END_TURN_RESOLUTION') {
-      const events = action.payload?.events || [];
-      const pressureEvent = events.find((e: any) => e?.type === 'TESTIMONY_PRESSURE');
-      const affected: Array<{ playerId: string; unitIds: string[] }> = pressureEvent?.payload?.affected || [];
-      const mine = affected.find(a => a.playerId === player.id);
-      return {
-        unitsAffected: mine?.unitIds?.length || 0,
-        attackPenalty: pressureEvent?.payload?.attackPenalty || 0,
-        durationTurns: pressureEvent?.payload?.durationTurns || 0,
-      };
-    }
-
-    if (action.type === 'TESTIMONY_PRESSURE') {
-      const affected: Array<{ playerId: string; unitIds: string[] }> = action.payload?.affected || [];
-      const mine = affected.find(a => a.playerId === player.id);
-      return {
-        unitsAffected: mine?.unitIds?.length || 0,
-        attackPenalty: action.payload?.attackPenalty || 0,
-        durationTurns: action.payload?.durationTurns || 0,
-      };
-    }
-
-    return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
-  }, [gameState, player.id]);
-
-  const intimidationAuraLastTurn = useMemo(() => {
-    if (!gameState) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
-
-    const action: any = gameState.lastAction;
-    if (!action) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+    let payload: AuraPayload | undefined;
 
     if (action.type === 'END_TURN_RESOLUTION') {
-      const events = action.payload?.events || [];
-      const intimidationEvent = events.find((e: any) => e?.type === 'INTIMIDATION_AURA');
-      const affected: Array<{ playerId: string; unitIds: string[] }> = intimidationEvent?.payload?.affected || [];
-      const mine = affected.find(a => a.playerId === player.id);
-      return {
-        unitsAffected: mine?.unitIds?.length || 0,
-        attackPenalty: intimidationEvent?.payload?.attackPenalty || 0,
-        durationTurns: intimidationEvent?.payload?.durationTurns || 0,
-      };
+      const endTurnPayload = action.payload as { events: Array<{ type: string; payload: unknown }> };
+      const hit = endTurnPayload.events.find(e => e.type === eventType);
+      payload = hit?.payload as AuraPayload | undefined;
+    } else if (action.type === eventType) {
+      payload = action.payload as AuraPayload;
     }
 
-    if (action.type === 'INTIMIDATION_AURA') {
-      const affected: Array<{ playerId: string; unitIds: string[] }> = action.payload?.affected || [];
-      const mine = affected.find(a => a.playerId === player.id);
-      return {
-        unitsAffected: mine?.unitIds?.length || 0,
-        attackPenalty: action.payload?.attackPenalty || 0,
-        durationTurns: action.payload?.durationTurns || 0,
-      };
-    }
+    if (!payload) return empty;
+    const mine = payload.affected?.find(a => a.playerId === playerId);
+    return {
+      unitsAffected: mine?.unitIds?.length ?? 0,
+      attackPenalty: payload.attackPenalty ?? 0,
+      durationTurns: payload.durationTurns ?? 0,
+    };
+  };
 
-    return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
-  }, [gameState, player.id]);
+  const testimonyPressureLastTurn = useMemo(
+    () => extractAuraEffect(gameState?.lastAction, 'TESTIMONY_PRESSURE', player.id),
+    [gameState, player.id],
+  );
+
+  const intimidationAuraLastTurn = useMemo(
+    () => extractAuraEffect(gameState?.lastAction, 'INTIMIDATION_AURA', player.id),
+    [gameState, player.id],
+  );
 
   if (!gameState) return null;
 
@@ -233,7 +216,7 @@ const StarResourcesSection = React.memo(({ stars, starProduction, breakdown }: {
       <div className="flex items-center gap-2">
         <Star className="w-4 h-4 text-amber-400" />
         <span className="font-semibold text-amber-200">{stars}</span>
-        <InfoTooltip content={<StarProductionTooltip totalIncome={starProduction} breakdown={breakdown} />}>
+        <InfoTooltip content={<StarProductionTooltip totalIncome={starProduction} breakdown={breakdown} />} ariaLabel="Star production breakdown">
           <Info className="w-3 h-3 text-amber-400/60 hover:text-amber-400 cursor-help transition-colors" />
         </InfoTooltip>
       </div>
@@ -277,7 +260,7 @@ const ResourceProgressSection = React.memo(({ playerStats, testimonyPressureLast
       <div className="flex justify-between text-sm mb-1">
         <span className="text-blue-300 font-cinzel font-medium flex items-center gap-1">
           Faith
-          <InfoTooltip content={<FaithSystemTooltip />}>
+          <InfoTooltip content={<FaithSystemTooltip />} ariaLabel="How faith works">
             <Info className="w-3 h-3 text-blue-400/60 hover:text-blue-400 cursor-help transition-colors" />
           </InfoTooltip>
         </span>
@@ -296,7 +279,7 @@ const ResourceProgressSection = React.memo(({ playerStats, testimonyPressureLast
       <div className="flex justify-between text-sm mb-1">
         <span className="text-purple-300 font-cinzel font-medium flex items-center gap-1">
           Pride
-          <InfoTooltip content={<PrideSystemTooltip />}>
+          <InfoTooltip content={<PrideSystemTooltip />} ariaLabel="How pride works">
             <Info className="w-3 h-3 text-purple-400/60 hover:text-purple-400 cursor-help transition-colors" />
           </InfoTooltip>
         </span>
@@ -310,7 +293,7 @@ const ResourceProgressSection = React.memo(({ playerStats, testimonyPressureLast
       <div className="flex justify-between text-sm mb-1">
         <span className="text-red-300 font-cinzel font-medium flex items-center gap-1">
           Dissent
-          <InfoTooltip content={<DissentSystemTooltip />}>
+          <InfoTooltip content={<DissentSystemTooltip />} ariaLabel="How dissent works">
             <Info className="w-3 h-3 text-red-400/60 hover:text-red-400 cursor-help transition-colors" />
           </InfoTooltip>
         </span>
@@ -381,7 +364,7 @@ const VictoryProgressSection = React.memo(({ player, gameState, playerStats, isO
               <div className="flex items-center gap-2 text-sm text-amber-100 font-cinzel font-semibold">
                 <Trophy className="w-4 h-4 text-amber-400" />
                 <span>Victory</span>
-                <InfoTooltip content={
+                <InfoTooltip ariaLabel="Victory conditions" content={
                   <div className="space-y-1 text-xs">
                     <div>Faith: reach threshold with low dissent.</div>
                     <div>Economic: income + treasury + tech percent.</div>

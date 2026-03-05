@@ -746,6 +746,71 @@ export default function GameUI() {
           triggerFlash('red');
           showToast(`Enemy taskmasters intimidated ${myAffected.unitIds.length} unit(s) (-${penalty} Attack, ${duration} turn)`, 'warning');
         }
+      } else if (action.type === 'DECLARE_WAR') {
+        const actorId = action.payload?.playerId;
+        if (isLocalPlayerAction(actorId)) {
+          triggerFlash('red');
+          showToast('War Declared!', 'combat');
+          const actor = gameState.players.find(p => p.id === actorId);
+          const target = gameState.players.find(p => p.id === action.payload?.targetPlayerId);
+          if (actor) {
+            setGameLogEntries(prev => pushCapped(prev, {
+              id: `log_${Date.now()}`,
+              turn: gameState.turn,
+              playerId: actor.id,
+              playerName: actor.name,
+              type: 'diplomacy',
+              message: `Declared war on ${target?.name || 'Unknown'}`,
+              timestamp: Date.now(),
+            }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
+          }
+        }
+      } else if (action.type === 'FORM_ALLIANCE') {
+        const actorId = action.payload?.playerId;
+        if (isLocalPlayerAction(actorId)) {
+          triggerFlash('blue');
+          showToast('Alliance Formed!', 'info');
+          const actor = gameState.players.find(p => p.id === actorId);
+          const target = gameState.players.find(p => p.id === action.payload?.targetPlayerId);
+          if (actor) {
+            setGameLogEntries(prev => pushCapped(prev, {
+              id: `log_${Date.now()}`,
+              turn: gameState.turn,
+              playerId: actor.id,
+              playerName: actor.name,
+              type: 'diplomacy',
+              message: `Formed alliance with ${target?.name || 'Unknown'}`,
+              timestamp: Date.now(),
+            }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
+          }
+        }
+      } else if (action.type === 'ESTABLISH_TRADE_ROUTE') {
+        const actorId = action.payload?.playerId;
+        if (isLocalPlayerAction(actorId)) {
+          const player = gameState.players.find(p => p.id === actorId);
+          const fromCityId = action.payload?.fromCityId;
+          const toCityId = action.payload?.toCityId;
+          const newRoute = player?.tradeRoutes?.find((r: any) =>
+            (r.fromCityId === fromCityId && r.toCityId === toCityId) ||
+            (r.fromCityId === toCityId && r.toCityId === fromCityId)
+          );
+          triggerFlash('gold');
+          showToast(
+            newRoute ? `Trade Route Established (+${newRoute.starsPerTurn}★/turn)` : 'Trade Route Established',
+            'reward'
+          );
+          if (player) {
+            setGameLogEntries(prev => pushCapped(prev, {
+              id: `log_${Date.now()}`,
+              turn: gameState.turn,
+              playerId: player.id,
+              playerName: player.name,
+              type: 'diplomacy',
+              message: 'Established a new trade route',
+              timestamp: Date.now(),
+            }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
+          }
+        }
       }
     };
 
@@ -1408,89 +1473,6 @@ export default function GameUI() {
 
     return () => {
       window.removeEventListener('villageEncounter', handleVillageEncounter as EventListener);
-    };
-  }, [isDev]);
-
-  // Handle diplomacy actions
-  useEffect(() => {
-    const handleDiplomacyAction = (event: CustomEvent) => {
-      if (event.detail?.type && event.detail?.payload) {
-        const { type, payload } = event.detail;
-
-        if (isDev) console.log('🤝 Diplomacy action:', type, payload);
-
-        const beforeState = useLocalGame.getState().gameState;
-        // Dispatch the diplomacy action through the game reducer
-        useLocalGame.getState().dispatch({ type, payload } as any);
-        const afterState = useLocalGame.getState().gameState;
-        const { triggerFlash: flash, showToast: toast } = visualRef.current;
-
-        // Visual feedback based on action type
-        if (type === 'DECLARE_WAR') {
-          flash('red');
-          toast(`War Declared!`, 'combat');
-        } else if (type === 'FORM_ALLIANCE') {
-          flash('blue');
-          toast(`Alliance Formed!`, 'info');
-        } else if (type === 'ESTABLISH_TRADE_ROUTE') {
-          const beforePlayer = beforeState?.players?.find(p => p.id === payload.playerId);
-          const afterPlayer = afterState?.players?.find(p => p.id === payload.playerId);
-          const beforeRoutes = beforePlayer?.tradeRoutes || [];
-          const afterRoutes = afterPlayer?.tradeRoutes || [];
-          const established = afterRoutes.length > beforeRoutes.length;
-
-          if (established) {
-            const newRoute = afterRoutes.find(r => !beforeRoutes.some(br =>
-              (br.fromCityId === r.fromCityId && br.toCityId === r.toCityId) ||
-              (br.fromCityId === r.toCityId && br.toCityId === r.fromCityId)
-            ));
-            flash('gold');
-            toast(
-              newRoute ? `Trade Route Established (+${newRoute.starsPerTurn}★/turn)` : `Trade Route Established`,
-              'reward'
-            );
-          } else {
-            flash('red');
-            toast(`Trade Route Failed`, 'error');
-          }
-        }
-
-        // Add to game log
-        const gs = useLocalGame.getState().gameState;
-        const current = gs?.players?.[gs?.currentPlayerIndex ?? 0];
-        if (current && gs) {
-          const targetPlayer = gs.players.find(p => p.id === payload.targetPlayerId);
-          let message = '';
-          if (type === 'DECLARE_WAR') {
-            message = `Declared war on ${targetPlayer?.name || 'Unknown'}`;
-          } else if (type === 'FORM_ALLIANCE') {
-            message = `Formed alliance with ${targetPlayer?.name || 'Unknown'}`;
-          } else if (type === 'ESTABLISH_TRADE_ROUTE') {
-            const beforePlayer = beforeState?.players?.find(p => p.id === payload.playerId);
-            const afterPlayer = afterState?.players?.find(p => p.id === payload.playerId);
-            const established = (afterPlayer?.tradeRoutes?.length || 0) > (beforePlayer?.tradeRoutes?.length || 0);
-            if (!established) return;
-            message = 'Established a new trade route';
-          }
-
-          const newEntry = {
-            id: `log_${Date.now()}`,
-            turn: gs.turn,
-            playerId: current.id,
-            playerName: current.name,
-            type: 'diplomacy',
-            message,
-            timestamp: Date.now(),
-          };
-          setGameLogEntries(prev => pushCapped(prev, newEntry, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
-        }
-      }
-    };
-
-    window.addEventListener('diplomacyAction', handleDiplomacyAction as EventListener);
-
-    return () => {
-      window.removeEventListener('diplomacyAction', handleDiplomacyAction as EventListener);
     };
   }, [isDev]);
 

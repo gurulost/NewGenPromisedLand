@@ -7,11 +7,14 @@ import glsl from "vite-plugin-glsl";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const disableRuntimeOverlay =
+  process.env.DISABLE_VITE_RUNTIME_ERROR_OVERLAY === "true" ||
+  process.env.NODE_ENV === "test";
 
 export default defineConfig({
   plugins: [
     react(),
-    runtimeErrorOverlay(),
+    ...(disableRuntimeOverlay ? [] : [runtimeErrorOverlay()]),
     glsl(), // Add GLSL shader support
   ],
   resolve: {
@@ -23,6 +26,9 @@ export default defineConfig({
   root: path.resolve(__dirname, "client"),
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
+    // Public assets are served from a fallback static mount in production
+    // to avoid unreliable filesystem copy stalls during large-media builds.
+    copyPublicDir: false,
     emptyOutDir: true,
     rollupOptions: {
       output: {

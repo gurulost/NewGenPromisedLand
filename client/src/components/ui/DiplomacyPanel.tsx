@@ -17,6 +17,7 @@ import {
     calculateTradeRouteEstablishCostStars,
     calculateTradeRouteStarsPerTurn
 } from '@shared/logic/tradeRoutes';
+import { useLocalGame } from '../../lib/stores/useLocalGame';
 
 export interface DiplomacyPanelProps {
     gameState: GameState;
@@ -56,47 +57,21 @@ export function DiplomacyPanel({ gameState, currentPlayerId, onClose }: Diplomac
     };
 
     const handleDeclareWar = (targetPlayerId: string) => {
-        // Dispatch war declaration
-        const event = new CustomEvent('diplomacyAction', {
-            detail: {
-                type: 'DECLARE_WAR',
-                payload: { playerId: currentPlayerId, targetPlayerId }
-            }
-        });
-        window.dispatchEvent(event);
+        useLocalGame.getState().declareWar(targetPlayerId);
         playSfx('cta-click');
         setConfirmWarTarget(null);
         onClose();
     };
 
     const handleFormAlliance = (targetPlayerId: string) => {
-        // Dispatch alliance formation
-        const event = new CustomEvent('diplomacyAction', {
-            detail: {
-                type: 'FORM_ALLIANCE',
-                payload: { playerId: currentPlayerId, targetPlayerId }
-            }
-        });
-        window.dispatchEvent(event);
+        useLocalGame.getState().formAlliance(targetPlayerId);
         playSfx('cta-click');
         onClose();
     };
 
     const handleEstablishTrade = () => {
         if (!selectedFromCity || !selectedToCity) return;
-
-        // Dispatch trade route establishment
-        const event = new CustomEvent('diplomacyAction', {
-            detail: {
-                type: 'ESTABLISH_TRADE_ROUTE',
-                payload: {
-                    playerId: currentPlayerId,
-                    fromCityId: selectedFromCity,
-                    toCityId: selectedToCity
-                }
-            }
-        });
-        window.dispatchEvent(event);
+        useLocalGame.getState().establishTradeRoute(selectedFromCity, selectedToCity);
         playSfx('cta-click');
         onClose();
     };

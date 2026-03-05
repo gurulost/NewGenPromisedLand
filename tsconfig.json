@@ -8,7 +8,9 @@
     "**/*.test.tsx",
     "**/*.spec.ts",
     "**/*.spec.tsx",
-    "client/src/legacy/**/*"
+    "client/src/legacy/**/*",
+    "**/* 2.tsx",
+    "**/* 2.ts"
   ],
   "compilerOptions": {
     "incremental": true,

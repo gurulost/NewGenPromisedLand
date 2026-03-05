@@ -35,6 +35,7 @@ export default {
         },
       },
       backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'panel': 'linear-gradient(135deg, rgb(15 23 42 / 0.95), rgb(30 41 59 / 0.9), rgb(15 23 42 / 0.95))',
       },
       borderRadius: {
@@ -114,4 +115,3 @@ export default {
   },
   plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
 } satisfies Config;
-

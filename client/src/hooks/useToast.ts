@@ -66,6 +66,22 @@ export function useToast() {
     return addToast({ type: 'info', title, message, duration });
   }, [addToast]);
 
+  const combat = useCallback((title: string, message?: string, duration?: number) => {
+    return addToast({ type: 'combat', title, message, duration });
+  }, [addToast]);
+
+  const discovery = useCallback((title: string, message?: string, duration?: number) => {
+    return addToast({ type: 'discovery', title, message, duration });
+  }, [addToast]);
+
+  const faith = useCallback((title: string, message?: string, duration?: number) => {
+    return addToast({ type: 'faith', title, message, duration });
+  }, [addToast]);
+
+  const pride = useCallback((title: string, message?: string, duration?: number) => {
+    return addToast({ type: 'pride', title, message, duration });
+  }, [addToast]);
+
   return {
     toasts,
     addToast,
@@ -74,5 +90,9 @@ export function useToast() {
     error,
     warning,
     info,
+    combat,
+    discovery,
+    faith,
+    pride,
   };
 }
