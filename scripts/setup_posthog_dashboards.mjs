@@ -172,7 +172,7 @@ function sqlTableQuery(query) {
 }
 
 function prefixed(name) {
-  return `[NGPL] ${name}`;
+  return `[ACTIVE NGPL] ${name}`;
 }
 
 const autoTags = ['ngpl', 'gameplay-analytics', 'autocreated'];
