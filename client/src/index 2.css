@@ -1,0 +1,398 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --z-game-base: 10;
+    --z-hud: 120;
+    --z-floating: 140;
+    --z-toast: 160;
+    --z-feedback: 180;
+    --z-modal-backdrop: 280;
+    --z-modal-content: 290;
+    --z-tutorial: 320;
+    --z-critical: 9999;
+    --mobile-hud-height: 0px;
+    --selected-unit-panel-height: 0px;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+  }
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  position: fixed;
+}
+
+/* Guardrail: modal layers must remain interactive even when nested in pointer-events:none HUD wrappers. */
+[data-ui-layer="modal"],
+[data-ui-layer="modal-content"] {
+  pointer-events: auto;
+}
+
+canvas {
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: none;
+}
+
+/* Custom animations for enhanced info icons */
+@keyframes bounce-subtle {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 2s ease-in-out infinite;
+}
+
+/* Enhanced animations for modal transitions */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes zoom-in {
+  from {
+    transform: scale(0.95);
+  }
+
+  to {
+    transform: scale(1);
+  }
+}
+
+.animate-in {
+  animation-fill-mode: both;
+}
+
+.fade-in-0 {
+  animation-name: fade-in;
+}
+
+.zoom-in-95 {
+  animation-name: zoom-in;
+}
+
+.duration-200 {
+  animation-duration: 200ms;
+}
+
+@layer utilities {
+  @keyframes sparkle-slow {
+
+    0%,
+    100% {
+      background-position: 0 0
+    }
+
+    50% {
+      background-position: 400px 200px
+    }
+  }
+
+  .animate-sparkle-slow {
+    background-image: radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
+      radial-gradient(circle at 40% 40%, rgba(120, 119, 198, 0.15) 0%, transparent 50%);
+    background-size: 600px 600px;
+    animation: sparkle-slow 12s linear infinite;
+  }
+
+  /* Mesoamerican-themed animations */
+  @keyframes gold-shimmer {
+    0% {
+      background-position: -200% center;
+    }
+
+    100% {
+      background-position: 200% center;
+    }
+  }
+
+  @keyframes stone-glow {
+
+    0%,
+    100% {
+      text-shadow: 0 2px 8px rgba(251, 191, 36, 0.3), 0 0 0 transparent;
+    }
+
+    50% {
+      text-shadow: 0 2px 12px rgba(251, 191, 36, 0.5), 0 0 20px rgba(251, 191, 36, 0.2);
+    }
+  }
+
+  @keyframes subtle-pulse {
+
+    0%,
+    100% {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+
+    50% {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+  }
+
+  .animate-gold-shimmer {
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(251, 191, 36, 0.3) 25%,
+        rgba(253, 230, 138, 0.5) 50%,
+        rgba(251, 191, 36, 0.3) 75%,
+        transparent 100%);
+    background-size: 200% 100%;
+    animation: gold-shimmer 8s ease-in-out infinite;
+  }
+
+  .animate-stone-glow {
+    animation: stone-glow 4s ease-in-out infinite;
+  }
+
+  .animate-subtle-pulse {
+    animation: subtle-pulse 2s ease-in-out infinite;
+  }
+
+  /* Jade green accent for AI players */
+  .jade-accent {
+    --accent-color: rgb(34, 197, 94);
+    --accent-glow: rgba(34, 197, 94, 0.4);
+    background: linear-gradient(135deg, rgba(20, 83, 45, 0.5), rgba(22, 101, 52, 0.7));
+    border-color: rgba(34, 197, 94, 0.6);
+  }
+
+  /* Obsidian dark accent for human players */
+  .obsidian-accent {
+    --accent-color: rgb(71, 85, 105);
+    --accent-glow: rgba(251, 191, 36, 0.3);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(51, 65, 85, 0.5));
+    border-color: rgba(100, 116, 139, 0.5);
+  }
+
+  /* Step-fret corner ornament base */
+  .step-fret-corner {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    opacity: 0.6;
+  }
+
+  .step-fret-corner::before,
+  .step-fret-corner::after {
+    content: '';
+    position: absolute;
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.6), rgba(217, 119, 6, 0.4));
+  }
+
+  .step-fret-corner::before {
+    width: 100%;
+    height: 3px;
+  }
+
+  .step-fret-corner::after {
+    width: 3px;
+    height: 100%;
+  }
+
+  /* Glassmorphism panel */
+  .glass-panel {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.85));
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      inset 0 0 20px rgba(251, 191, 36, 0.05);
+  }
+
+  /* Tech tree connection line flow animation */
+  @keyframes flow-pulse {
+
+    0%,
+    100% {
+      stroke-dashoffset: 0;
+      opacity: 0.6;
+    }
+
+    50% {
+      stroke-dashoffset: -20;
+      opacity: 1;
+    }
+  }
+
+  .tech-connection-available {
+    stroke-dasharray: 8 4;
+    animation: flow-pulse 4s ease-in-out infinite;
+  }
+
+  /* Tech node glow ring for available techs */
+  @keyframes available-pulse {
+
+    0%,
+    100% {
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.4), 0 0 30px rgba(59, 130, 246, 0.2);
+    }
+
+    50% {
+      box-shadow: 0 0 25px rgba(59, 130, 246, 0.6), 0 0 50px rgba(59, 130, 246, 0.3);
+    }
+  }
+
+  .tech-node-available {
+    animation: available-pulse 2s ease-in-out infinite;
+  }
+
+  /* Path highlight for prerequisite chain */
+  .tech-path-highlight {
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.5), 0 0 40px rgba(251, 191, 36, 0.3) !important;
+    border-color: rgba(251, 191, 36, 0.8) !important;
+  }
+
+  /* Researched tech sparkle overlay */
+  @keyframes tech-sparkle {
+
+    0%,
+    100% {
+      opacity: 0.3;
+    }
+
+    50% {
+      opacity: 0.6;
+    }
+  }
+
+  .tech-node-researched::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 30% 30%, rgba(34, 197, 94, 0.3), transparent 60%);
+    animation: tech-sparkle 3s ease-in-out infinite;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+}
+
+/* Touch Mode Styles */
+.touch-mode {
+  /* Increase tap targets to 48px minimum (WCAG/Material strict) */
+  --touch-min-size: 48px;
+
+  /* Larger scrollbars */
+  --scrollbar-size: 12px;
+}
+
+/* Touch-friendly button sizing */
+.touch-mode button,
+.touch-mode [role="button"] {
+  min-height: var(--touch-min-size);
+  min-width: var(--touch-min-size);
+}
+
+/* Prevent accidental taps on disabled elements */
+.touch-mode button:disabled,
+.touch-mode [role="button"][aria-disabled="true"] {
+  pointer-events: none;
+}
+
+/* Momentum scrolling for touch */
+.touch-mode .scroll-container,
+.touch-mode [data-radix-scroll-area-viewport] {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Larger scrollbars in touch mode */
+.touch-mode ::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+.touch-mode ::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
+.touch-mode ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.touch-mode ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Touch-friendly spacing */
+.touch-mode .touch-spacing {
+  padding: 12px 16px;
+  gap: 12px;
+}
+
+/* Disable hover-only states on touch */
+@media (hover: none) {
+  .hover-only {
+    display: none !important;
+  }
+}
+
+/* Touch selection highlight */
+.touch-selected {
+  outline: 3px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 2px;
+}
+
+/* Mobile safe-area helpers */
+.mobile-safe-top {
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.mobile-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Touch-friendly scroll areas */
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+/* Orientation-specific mobile layouts */
+[data-mobile-ui="true"][data-orientation="portrait"] .mobile-action-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+[data-mobile-ui="true"][data-orientation="landscape"] .mobile-action-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}

@@ -71,8 +71,8 @@ export function ContentShell({
     <motion.div
       {...motionProps}
       className={clsx(
-        "relative w-full text-amber-100",
-        "max-h-[90vh] overflow-y-auto rounded-2xl",
+        "relative w-full text-amber-100 flex flex-col",
+        "max-h-[90vh] rounded-2xl",
         // Glassmorphism effect (disabled in low-power mode)
         enableEffects ? "glass-panel" : "bg-slate-900/95",
         "border border-amber-600/40",
@@ -114,7 +114,7 @@ export function ContentShell({
 
       {/* Content with proper staggered animations */}
       <motion.div
-        className="relative z-10"
+        className="relative z-10 overflow-y-auto w-full h-full flex-1"
         initial="hidden"
         animate="visible"
         variants={{

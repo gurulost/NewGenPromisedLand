@@ -424,17 +424,25 @@ const ANIMATION_COMPONENTS: Record<string, React.FC<{ highPerf: boolean }>> = {
     altar: AltarAnimation,
 };
 
-export function AITurnIndicator({ isVisible, aiName }: AITurnIndicatorProps) {
+export function AITurnIndicator({ isVisible, aiName, factionId }: AITurnIndicatorProps) {
     const perfMode = usePerformanceMode();
     const highPerf = perfMode === 'high';
 
-    // Select random variant when component becomes visible
+    // Select variant consistently based on faction or name
     const variant = useMemo(() => {
         if (!isVisible) {
             return INDICATOR_VARIANTS[0];
         }
-        return INDICATOR_VARIANTS[Math.floor(Math.random() * INDICATOR_VARIANTS.length)];
-    }, [isVisible]);
+
+        const seedStr = factionId || aiName || 'default';
+        let hash = 0;
+        for (let i = 0; i < seedStr.length; i++) {
+            hash = seedStr.charCodeAt(i) + ((hash << 5) - hash);
+        }
+
+        const index = Math.abs(hash) % INDICATOR_VARIANTS.length;
+        return INDICATOR_VARIANTS[index];
+    }, [isVisible, aiName, factionId]);
 
     const AnimationComponent = ANIMATION_COMPONENTS[variant.id];
 
