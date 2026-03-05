@@ -10,6 +10,7 @@ import { listSaves, type ServerSave } from "../../lib/saveApi";
 import SaveLoadMenu from "./SaveLoadMenu";
 import { loadAutosave } from "../../lib/autosaveStorage";
 import { HeroBackground } from "./HeroBackground";
+import { trackMenuSelection } from "../../utils/telemetry/gameplayAnalytics";
 
 export default function MainMenu() {
   const { setGamePhase, loadGameState } = useLocalGame();
@@ -58,7 +59,8 @@ export default function MainMenu() {
   const resumeAutosave = async () => {
     const autosave = await loadAutosave();
     if (!autosave?.gameState) return;
-    loadGameState(autosave.gameState);
+    trackMenuSelection({ selection: 'resume_autosave', location: 'main_menu' });
+    loadGameState(autosave.gameState, { source: 'main_menu_autosave' });
   };
 
   return (
@@ -104,6 +106,7 @@ export default function MainMenu() {
 
               <GlowingButton
                 onClick={() => {
+                  trackMenuSelection({ selection: 'single_player_vs_ai', location: 'main_menu' });
                   setGamePhase('playerSetup');
                 }}
                 data-testid="start-game"
@@ -118,7 +121,10 @@ export default function MainMenu() {
               </GlowingButton>
 
               <GlowingButton
-                onClick={() => setGamePhase('playerSetup')}
+                onClick={() => {
+                  trackMenuSelection({ selection: 'local_multiplayer', location: 'main_menu' });
+                  setGamePhase('playerSetup');
+                }}
                 variant="secondary"
                 className="w-full"
                 size="lg"
@@ -130,7 +136,10 @@ export default function MainMenu() {
               </GlowingButton>
 
               <GlowingButton
-                onClick={() => setGamePhase('lobbies')}
+                onClick={() => {
+                  trackMenuSelection({ selection: 'online_multiplayer', location: 'main_menu' });
+                  setGamePhase('lobbies');
+                }}
                 variant="secondary"
                 className="w-full"
                 size="lg"
@@ -144,7 +153,10 @@ export default function MainMenu() {
               <StepFretDivider />
 
               <GlowingButton
-                onClick={() => setShowLoadMenu(true)}
+                onClick={() => {
+                  trackMenuSelection({ selection: 'open_load_menu', location: 'main_menu' });
+                  setShowLoadMenu(true);
+                }}
                 variant="secondary"
                 className="w-full"
                 size="lg"
@@ -156,7 +168,10 @@ export default function MainMenu() {
               </GlowingButton>
 
               <GlowingButton
-                onClick={() => setGamePhase('tutorialEpisodeIntro')}
+                onClick={() => {
+                  trackMenuSelection({ selection: 'tutorial_episode', location: 'main_menu' });
+                  setGamePhase('tutorialEpisodeIntro');
+                }}
                 data-testid="menu-tutorial-episode"
                 variant="secondary"
                 className="w-full"

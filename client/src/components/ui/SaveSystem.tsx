@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Save, Trash2, Download, Upload, Calendar, Clock, Users } from 'lucide-react';
 import { GameState } from '@shared/types/game';
 import { compress, decompress } from 'lz-string';
+import { trackGameSaved } from '../../utils/telemetry/gameplayAnalytics';
 
 interface SaveSlot {
   id: string;
@@ -156,6 +157,12 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
       
       loadSaveSlots();
       setSaveName('');
+      trackGameSaved({
+        gameState: currentGameState,
+        source: isAutoSave ? 'advanced_save_system_auto' : 'advanced_save_system_manual',
+        saveId,
+        saveName: displayName,
+      });
     } catch (error) {
       console.error('Failed to save game:', error);
       alert('Failed to save game. Storage might be full.');

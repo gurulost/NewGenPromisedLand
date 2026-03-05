@@ -434,11 +434,11 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
       const responseMessage = result?.message;
       updateMessage(identity.lobbyCode, id, "sent", responseMessage
         ? {
-            senderName: responseMessage.senderName,
-            senderFactionId: responseMessage.senderFactionId,
-            createdAt: responseMessage.createdAt,
-            text: responseMessage.text,
-          }
+          senderName: responseMessage.senderName,
+          senderFactionId: responseMessage.senderFactionId,
+          createdAt: responseMessage.createdAt,
+          text: responseMessage.text,
+        }
         : undefined);
 
       const eventVersion = asFiniteInt(result?.eventVersion);
@@ -467,6 +467,7 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
       waveformPeaks: draft.waveformPeaks,
       createdAt,
       status: "pending",
+      localBlob: draft.blob,
     };
 
     receiveMessage(identity.lobbyCode, pendingMessage, {
@@ -511,7 +512,10 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
         lastEventVersionRef.current = Math.max(lastEventVersionRef.current, eventVersion);
       }
     } catch (err) {
-      updateMessage(identity.lobbyCode, id, "failed", uploadedUrl ? { audioUrl: uploadedUrl } : undefined);
+      updateMessage(identity.lobbyCode, id, "failed", {
+        audioUrl: uploadedUrl,
+        localBlob: draft.blob,
+      });
       console.warn("[chat] Voice send failed:", err instanceof Error ? err.message : String(err));
     }
   }, [identity, receiveMessage, updateMessage]);
@@ -526,26 +530,38 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
     audioDurationMs?: number;
     waveformPeaks?: number[];
     createdAt: number;
+    localBlob?: Blob;
   }) => {
     if (!identity) return;
-    const { id, audioUrl, audioDurationMs, waveformPeaks, createdAt } = message;
+    const { id, audioUrl, audioDurationMs, waveformPeaks, createdAt, localBlob } = message;
 
-    if (!isHttpsAudioUrl(audioUrl) || !Number.isFinite(audioDurationMs) || (audioDurationMs ?? 0) <= 0) {
+    if (!localBlob && (!isHttpsAudioUrl(audioUrl) || !Number.isFinite(audioDurationMs) || (audioDurationMs ?? 0) <= 0)) {
       // Missing/invalid uploaded URL or duration means this failed note cannot be
-      // retried safely without a new recording.
+      // retried safely without a new recording if we also lack the local blob.
       return;
     }
 
     updateMessage(identity.lobbyCode, id, "pending");
 
+    let finalAudioUrl = audioUrl;
+
     try {
+      if (localBlob && !isHttpsAudioUrl(audioUrl)) {
+        finalAudioUrl = await uploadVoiceBlob(
+          localBlob,
+          identity.lobbyCode,
+          id,
+          audioDurationMs ?? 0
+        );
+      }
+
       const result = await postJson<{
         eventVersion?: number;
         message?: ChatMessageEventPayload & { version?: number };
       }>(`/api/lobbies/${encodeURIComponent(identity.lobbyCode)}/chat/messages`, {
         id,
         type: "voice",
-        audioUrl,
+        audioUrl: finalAudioUrl,
         audioDurationMs,
         waveformPeaks,
         createdAt,
@@ -553,7 +569,7 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
 
       const responseMessage = result?.message;
       updateMessage(identity.lobbyCode, id, "sent", {
-        audioUrl: responseMessage?.audioUrl ?? audioUrl,
+        audioUrl: responseMessage?.audioUrl ?? finalAudioUrl,
         audioDurationMs: responseMessage?.audioDurationMs ?? audioDurationMs,
         waveformPeaks: responseMessage?.waveformPeaks ?? waveformPeaks,
         senderName: responseMessage?.senderName ?? identity.userName,

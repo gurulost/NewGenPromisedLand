@@ -48,8 +48,7 @@ const getSenderInitials = (name: string): string => {
 
 const canRetryVoiceMessage = (message: ChatMessage): boolean =>
   message.type === "voice" &&
-  typeof message.audioUrl === "string" &&
-  message.audioUrl.startsWith("https://") &&
+  ((typeof message.audioUrl === "string" && message.audioUrl.startsWith("https://")) || message.localBlob instanceof Blob) &&
   Number.isFinite(message.audioDurationMs) &&
   (message.audioDurationMs ?? 0) > 0;
 

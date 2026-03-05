@@ -72,7 +72,7 @@ export function useOnlineGameSync() {
       const snapshotData = await snapshotRes.json();
       const snapshotVersion = getCursorFromSnapshotVersion(snapshotData?.snapshotVersion);
       if (snapshotData?.state) {
-        loadGameState(snapshotData.state);
+        loadGameState(snapshotData.state, { source: 'online_forced_resync', saveId: `snapshot:${snapshotVersion}` });
       }
       setOnlineActionVersion(snapshotVersion);
 

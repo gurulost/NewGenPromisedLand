@@ -19,6 +19,10 @@ import {
   type ServerSave, type SaveMetadata 
 } from "../../lib/saveApi";
 import { loadAutosave, type AutosavePayload } from "../../lib/autosaveStorage";
+import {
+  trackGameSaved,
+  trackMenuSelection,
+} from "../../utils/telemetry/gameplayAnalytics";
 
 interface SaveLoadMenuProps {
   onClose: () => void;
@@ -26,7 +30,7 @@ interface SaveLoadMenuProps {
 }
 
 export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuProps) {
-  const { gameState, setGameState, setGamePhase } = useLocalGame();
+  const { gameState, loadGameState } = useLocalGame();
   const { isMobileUI } = useMobileUI();
   const initialSaves = getLocalSavesSnapshot();
   const [savedGames, setSavedGames] = useState<ServerSave[]>(initialSaves);
@@ -84,7 +88,13 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
         factions: gameState.players.map(p => p.factionId)
       };
 
-      await createSave(saveName.trim(), gameState, metadata);
+      const saved = await createSave(saveName.trim(), gameState, metadata);
+      trackGameSaved({
+        gameState,
+        source: 'manual_save_menu',
+        saveId: saved.id,
+        saveName: saved.name,
+      });
       setSaveName("");
       await loadSavedGamesList();
       console.log('Game saved successfully:', saveName);
@@ -100,10 +110,8 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
     // Handle autosave
     if (saveId === 'autosave' && autosaveData?.gameState) {
       try {
-        setGameState(autosaveData.gameState);
-        if (onLoadFromMenu) {
-          setGamePhase('playing');
-        }
+        trackMenuSelection({ selection: 'load_autosave', location: onLoadFromMenu ? 'main_menu_load_menu' : 'in_game_load_menu' });
+        loadGameState(autosaveData.gameState, { source: 'save_load_menu_autosave', saveId: 'autosave' });
         onClose();
         console.log('Autosave loaded successfully');
       } catch (err) {
@@ -118,10 +126,8 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
     if (!save) return;
 
     try {
-      setGameState(save.gameState);
-      if (onLoadFromMenu) {
-        setGamePhase('playing');
-      }
+      trackMenuSelection({ selection: 'load_saved_game', location: onLoadFromMenu ? 'main_menu_load_menu' : 'in_game_load_menu' });
+      loadGameState(save.gameState, { source: 'save_load_menu', saveId: save.id });
       onClose();
       console.log('Game loaded successfully:', save.name);
     } catch (err) {

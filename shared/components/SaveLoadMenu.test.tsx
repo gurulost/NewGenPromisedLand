@@ -77,7 +77,7 @@ describe('SaveLoadMenu', () => {
     
     mockUseLocalGame.mockReturnValue({
       gameState: mockGameState,
-      setGameState: vi.fn()
+      loadGameState: vi.fn()
     });
   });
 
@@ -103,7 +103,7 @@ describe('SaveLoadMenu', () => {
   it('does not display save section when gameState is null', async () => {
     mockUseLocalGame.mockReturnValue({
       gameState: null,
-      setGameState: vi.fn()
+      loadGameState: vi.fn()
     });
     
     await renderMenu();
@@ -175,10 +175,10 @@ describe('SaveLoadMenu', () => {
   });
 
   it('loads selected game when load button is clicked', async () => {
-    const mockSetGameState = vi.fn();
+    const mockLoadGameState = vi.fn();
     mockUseLocalGame.mockReturnValue({
       gameState: mockGameState,
-      setGameState: mockSetGameState
+      loadGameState: mockLoadGameState
     });
 
     const mockSaveData = {
@@ -210,7 +210,7 @@ describe('SaveLoadMenu', () => {
     fireEvent.click(loadButton);
     
     await waitFor(() => {
-      expect(mockSetGameState).toHaveBeenCalledWith(mockGameState);
+      expect(mockLoadGameState).toHaveBeenCalledWith(mockGameState, { source: 'save_load_menu', saveId: 123 });
       expect(mockProps.onClose).toHaveBeenCalled();
     });
   });

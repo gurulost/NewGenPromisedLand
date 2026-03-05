@@ -17,6 +17,16 @@ import { clearAutosave } from "../autosaveStorage";
 import { markAutosaveDirty, requestAutosave } from "../autosaveManager";
 import { getUnitAnimationMoveSpeed, hasUnitAnimationState } from "../../utils/unitAnimationRegistry";
 import { useUnitAnimationEventStore } from "./useUnitAnimationEventStore";
+import {
+  trackGameEnded,
+  trackGameLoaded,
+  trackGamePhaseChanged,
+  trackGameStarted,
+  trackGameplayActionApplied,
+  trackGameplayActionBlocked,
+  trackPlayerSetupChoices,
+  type GameplayActionSource,
+} from "../../utils/telemetry/gameplayAnalytics";
 
 const applyPlayerDefaults = (player: PlayerState): PlayerState => {
   const normalized: PlayerState = { ...player };
@@ -118,7 +128,7 @@ interface LocalGameStore {
   useAbility: (playerId: string, abilityId: string) => void;
   dispatch: (action: any) => void;
   resetGame: () => void;
-  loadGameState: (state: GameState) => void;
+  loadGameState: (state: GameState, options?: { source?: string; saveId?: string | number }) => void;
   harvestResource: (unitId: string, resourceCoordinate: any, cityId: string) => void;
   declareWar: (targetPlayerId: string) => void;
   formAlliance: (targetPlayerId: string) => void;
@@ -130,20 +140,37 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
   let mapRequestId = 0;
   const pendingMotionTokens = new Map<string, string>();
   const createMotionToken = () => `motion_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  type TrackedAction = { type: string; payload?: any };
 
-  const applyActionToState = (action: any): { applied: boolean; state?: GameState } => {
+  const buildActionContext = (actionSource: GameplayActionSource) => {
+    const state = get();
+    return {
+      actionSource,
+      gameMode: state.gameMode,
+      isOnline: Boolean(state.onlineSession),
+    } as const;
+  };
+
+  const applyActionToState = (
+    action: TrackedAction,
+    actionSource: GameplayActionSource
+  ): { applied: boolean; state?: GameState } => {
     const { gameState } = get();
     if (!gameState) return { applied: false };
-    const newGameState = resolveActionState(gameState, action, { source: 'client' });
-    if (newGameState === gameState) return { applied: false };
+    const previousState = gameState;
+    const newGameState = resolveActionState(previousState, action as any, { source: 'client' });
+    if (newGameState === previousState) {
+      trackGameplayActionBlocked(action, 'rules_rejected', buildActionContext(actionSource), previousState);
+      return { applied: false };
+    }
 
     if (action.type === 'MOVE_UNIT') {
-      const movingUnit = gameState.units.find(unit => unit.id === action.payload?.unitId);
+      const movingUnit = previousState.units.find(unit => unit.id === action.payload?.unitId);
       if (movingUnit && action.payload?.targetCoordinate) {
         const motionToken = createMotionToken();
         pendingMotionTokens.set(movingUnit.id, motionToken);
         useUnitMotionStore.getState().holdMotion(movingUnit.id, movingUnit.coordinate);
-        const { passableTiles, tileCosts } = buildPathfindingInputs(gameState, movingUnit);
+        const { passableTiles, tileCosts } = buildPathfindingInputs(previousState, movingUnit);
         void findPathAsync({
           start: movingUnit.coordinate,
           goal: action.payload.targetCoordinate,
@@ -190,9 +217,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     if (action.type === 'ATTACK_UNIT') {
       const attackerId = action.payload?.attackerId;
       const targetId = action.payload?.targetId;
-      let attacker: typeof gameState.units[number] | undefined;
+      let attacker: typeof previousState.units[number] | undefined;
       if (attackerId) {
-        attacker = gameState.units.find(unit => unit.id === attackerId);
+        attacker = previousState.units.find(unit => unit.id === attackerId);
         useUnitAnimationEventStore.getState().emitEvent({
           unitId: attackerId,
           unitType: attacker?.type,
@@ -200,7 +227,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         });
       }
       if (targetId) {
-        const targetBefore = gameState.units.find(unit => unit.id === targetId);
+        const targetBefore = previousState.units.find(unit => unit.id === targetId);
         const targetAfter = newGameState.units.find(unit => unit.id === targetId);
         if (!targetAfter && targetBefore) {
           useUnitAnimationEventStore.getState().emitEvent({
@@ -224,7 +251,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     if (action.type === 'CONQUER_VILLAGE' || action.type === 'CONVERT_VILLAGE') {
       const unitId = action.payload?.unitId;
-      const unit = unitId ? gameState.units.find(u => u.id === unitId) : undefined;
+      const unit = unitId ? previousState.units.find(u => u.id === unitId) : undefined;
       if (unit) {
         emitCelebrate(unit.id, unit.type, 3);
       }
@@ -234,9 +261,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       const playerId = action.payload?.playerId;
       const cityId = action.payload?.cityId;
       if (playerId && cityId) {
-        const city = gameState.cities?.find(c => c.id === cityId);
+        const city = previousState.cities?.find(c => c.id === cityId);
         if (city) {
-          const celebratingUnit = gameState.units.find(u =>
+          const celebratingUnit = previousState.units.find(u =>
             u.playerId === playerId &&
             hasUnitAnimationState(u.type, 'celebrate') &&
             Math.max(
@@ -261,7 +288,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     if (celebrationActions.has(action.type)) {
       const unitId = action.payload?.unitId;
-      const unit = unitId ? gameState.units.find(u => u.id === unitId) : undefined;
+      const unit = unitId ? previousState.units.find(u => u.id === unitId) : undefined;
       if (unit && hasUnitAnimationState(unit.type, 'celebrate')) {
         useUnitAnimationEventStore.getState().emitEvent({
           unitId: unit.id,
@@ -272,6 +299,11 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     }
 
     set({ gameState: newGameState });
+    trackGameplayActionApplied(action, previousState, newGameState, buildActionContext(actionSource));
+    if (!previousState.winner && newGameState.winner) {
+      trackGameEnded({ gameState: newGameState, source: 'victory_condition' });
+    }
+
     const selectionStore = useGameState.getState();
     const selected = selectionStore.selectedUnit;
     if (selected) {
@@ -323,8 +355,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
   const submitAction = async (action: any): Promise<void> => {
     const { onlineSession, gameState, gameMode } = get();
+    const onlineActionSource: GameplayActionSource = onlineSession
+      ? (onlineSession.userId === onlineSession.hostUserId ? 'online_host' : 'online_guest')
+      : 'local_offline';
+
     if (!onlineSession) {
-      const result = applyActionToState(action);
+      const result = applyActionToState(action, 'local_offline');
       if (result.applied && action.type === 'END_TURN') {
         useGameState.getState().setSelectedUnit(null);
         set({ gamePhase: gameMode === 'tutorialEpisode' ? 'playing' : 'handoff' });
@@ -336,6 +372,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     }
 
     if (!gameState) {
+      trackGameplayActionBlocked(action, 'game_state_not_ready', buildActionContext(onlineActionSource), null);
       reportActionError("Game state is not ready yet.", "warning");
       return;
     }
@@ -344,17 +381,26 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       const message = currentPlayer?.isAI
         ? "AI turn in progress. Please wait for the host to finish."
         : "It is not your turn yet.";
+      trackGameplayActionBlocked(
+        action,
+        currentPlayer?.isAI ? 'ai_turn_in_progress' : 'not_player_turn',
+        buildActionContext(onlineActionSource),
+        gameState
+      );
       reportActionError(message, "warning");
       return;
     }
 
     const actorId = gameState.players[gameState.currentPlayerIndex]?.id;
-    if (!actorId) return;
+    if (!actorId) {
+      trackGameplayActionBlocked(action, 'missing_actor_id', buildActionContext(onlineActionSource), gameState);
+      return;
+    }
 
     const actionId = createActionId();
 
     if (onlineSession.userId === onlineSession.hostUserId) {
-      const result = applyActionToState(action);
+      const result = applyActionToState(action, 'online_host');
       if (!result.applied) {
         reportActionError("Action rejected by game rules.", "warning");
         return;
@@ -416,9 +462,11 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
           credentials: "include",
         });
         if (!res.ok) {
+          trackGameplayActionBlocked(action, 'queue_rejected', buildActionContext(onlineActionSource), gameState);
           reportActionError(await getResponseError(res), "error");
         }
       } catch {
+        trackGameplayActionBlocked(action, 'queue_network_error', buildActionContext(onlineActionSource), gameState);
         reportActionError("Network error while sending action.", "error");
       }
     });
@@ -438,9 +486,13 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     isGeneratingMap: false,
 
     setGamePhase: (phase) => {
+      const previousPhase = get().gamePhase;
       gameDebugger.trackGamePhase(phase);
       gameDebugger.logUIInteraction(`Game phase changed to: ${phase}`, { phase });
       set({ gamePhase: phase });
+      if (previousPhase !== phase) {
+        trackGamePhaseChanged(previousPhase, phase);
+      }
     },
 
     setGameState: (state) => {
@@ -515,7 +567,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     },
 
     applyRemoteAction: (action) => {
-      const result = applyActionToState(action);
+      const result = applyActionToState(action, 'online_remote');
       if (result.applied && (action.type === 'END_TURN' || action.type === 'END_TURN_RESOLUTION')) {
         useGameState.getState().setSelectedUnit(null);
       }
@@ -575,6 +627,15 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       // Get map configuration based on selected size
       const resolvedMapSize = MAP_SIZE_CONFIGS[mapSize] ? mapSize : "normal";
       const mapConfig = MAP_SIZE_CONFIGS[resolvedMapSize];
+      trackPlayerSetupChoices(
+        players.map((player) => ({
+          id: player.id,
+          factionId: player.factionId,
+          isAI: Boolean(player.isAI),
+          aiDifficulty: player.aiDifficulty,
+        })),
+        resolvedMapSize
+      );
 
       const finalizeGame = (map: any, capitalPositions: HexCoordinate[]) => {
         // Find city tiles from the generated map for player starting positions
@@ -749,6 +810,13 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
         markAutosaveDirty();
         requestAutosave(gameState, 'startLocalGame');
+        trackGameStarted({
+          gameState,
+          gameMode: 'standard',
+          mapSize: resolvedMapSize,
+          isOnline,
+          seed: resolvedSeed,
+        });
       };
 
       set({ isGeneratingMap: true });
@@ -895,6 +963,15 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
       const playerFactions = playerSetup.map((p) => p.factionId);
       const mapConfig = MAP_SIZE_CONFIGS[mapSize];
+      trackPlayerSetupChoices(
+        playerSetup.map((player) => ({
+          id: player.id,
+          factionId: player.factionId,
+          isAI: Boolean(player.isAI),
+          aiDifficulty: player.aiDifficulty,
+        })),
+        mapSize
+      );
 
       const mapGenerator = new MapGenerator({
         width: mapConfig.dimensions,
@@ -1350,6 +1427,13 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
       markAutosaveDirty();
       requestAutosave(gameState, 'startTutorialEpisode');
+      trackGameStarted({
+        gameState,
+        gameMode: 'tutorialEpisode',
+        mapSize,
+        isOnline: false,
+        seed: resolvedSeed,
+      });
     },
 
     endTurn: (playerId) => {
@@ -1387,6 +1471,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     },
 
     resetGame: () => {
+      const existingState = get().gameState;
+      if (existingState && !existingState.winner) {
+        trackGameEnded({ gameState: existingState, source: 'reset_to_menu' });
+      }
       set({
         gamePhase: 'menu',
         gameMode: 'standard',
@@ -1403,7 +1491,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       void clearAutosave().catch(() => undefined);
     },
 
-    loadGameState: (state: GameState) => {
+    loadGameState: (state: GameState, options) => {
       const normalizedPlayers = state.players.map(applyPlayerDefaults);
       const normalizedState = { ...state, players: normalizedPlayers };
       const nextMode: GameMode = normalizedState.id?.startsWith('tutorial-episode-')
@@ -1420,6 +1508,11 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       useUnitAnimationEventStore.getState().clearAll();
       markAutosaveDirty();
       requestAutosave(normalizedState, 'loadGameState');
+      trackGameLoaded({
+        gameState: normalizedState,
+        source: options?.source ?? 'unknown',
+        saveId: options?.saveId,
+      });
     },
 
     harvestResource: (unitId, resourceCoordinate, cityId) => {

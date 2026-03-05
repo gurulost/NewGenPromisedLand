@@ -2216,7 +2216,7 @@ export default function GameUI() {
         <SaveSystem
           currentGameState={gameState}
           onLoadGame={(loadedState) => {
-            loadGameState(loadedState);
+            loadGameState(loadedState, { source: 'advanced_save_system' });
             setShowAdvancedSaveSystem(false);
           }}
           onClose={() => setShowAdvancedSaveSystem(false)}

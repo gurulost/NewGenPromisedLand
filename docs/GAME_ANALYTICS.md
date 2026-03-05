@@ -27,63 +27,27 @@ The analytics system tracks:
 cp .env.example .env
 
 # Add your PostHog API key to .env
-VITE_PUBLIC_POSTHOG_KEY=phc_your-api-key-here
+VITE_POSTHOG_KEY=phc_your-api-key-here
 
 # (Optional) Set PostHog host if using EU or self-hosted
-VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+VITE_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
 ### 3. Integration Method
 
-The game uses PostHog's recommended React integration pattern:
+The game initializes analytics in `client/src/utils/telemetry/index.ts` and starts it from `client/src/main.tsx`:
 
 ```typescript
-// In client/src/main.tsx
-import posthog from 'posthog-js';
-import { PostHogProvider } from '@posthog/react';
+import { initTelemetry } from "./utils/telemetry";
 
-const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
-
-// Initialize PostHog before rendering
-if (posthogKey) {
-  posthog.init(posthogKey, {
-    api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
-    person_profiles: 'identified_only',
-    capture_pageview: false,
-    capture_pageleave: true,
-    autocapture: false,
-    session_recording: {
-      recordCrossOriginIframes: false,
-    },
-    loaded: (posthog) => {
-      if (import.meta.env.DEV) {
-        console.log('[PostHog] Initialized successfully');
-      }
-    },
-  });
-} else if (import.meta.env.DEV) {
-  console.log('[PostHog] Not initialized - VITE_PUBLIC_POSTHOG_KEY not set');
-}
-
-// Only wrap with PostHogProvider if PostHog was initialized
-createRoot(document.getElementById("root")!).render(
-  posthogKey ? (
-    <PostHogProvider client={posthog}>
-      <App />
-    </PostHogProvider>
-  ) : (
-    <App />
-  )
-);
+initTelemetry();
 ```
 
 This approach:
-- Uses the official `@posthog/react` package for React integration
-- Initializes PostHog before rendering with `posthog.init()`
-- Only renders `PostHogProvider` when PostHog is initialized (prevents errors with uninitialized client)
-- Passes the initialized client to `PostHogProvider` via the `client` prop
-- Provides PostHog instance via React context throughout the app
-- Allows components to use the `usePostHog()` hook
+- Initializes PostHog once with env gating (`VITE_POSTHOG_*` with support for legacy `VITE_PUBLIC_POSTHOG_*`)
+- Captures default pageview/pageleave plus custom usage events
+- Tracks acquisition metadata (`utm_*`, referrer domain/path), session duration, and return visits
+- Captures gameplay lifecycle, actions, outcomes, and shared simulation telemetry for tuning
 - Gracefully handles missing API key (app runs normally without analytics)
 
 ### 4. Restart Development Server
@@ -159,6 +123,64 @@ npm run dev
   - `FCP` - First Contentful Paint
   - `TTFB` - Time to First Byte
 - Properties: metric_name, metric_value, metric_rating, game_phase
+
+### Usage Analytics Events
+
+**usage_session_started**
+- Triggered once per app session
+- Properties include:
+  - `traffic_type` (`direct`, `campaign`, `organic_search`, `social`, `referral`)
+  - `referrer_domain`, `referrer_path`
+  - `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`
+  - `visit_number`, `is_returning_visitor`, `days_since_last_seen`
+  - `session_id`, `page_path`, `page_url`
+
+**usage_page_view**
+- Triggered on initial load and route/hash changes
+- Properties: `session_id`, `page_path`, `page_title`, `page_url`, `trigger`
+
+**usage_return_visit**
+- Triggered when a visitor comes back after at least one previous visit
+- Properties: `session_id`, `visit_number`, `days_since_last_seen`, acquisition fields
+
+**usage_session_ended**
+- Triggered when the page is hidden/unloaded
+- Properties: `session_duration_seconds`, `active_duration_seconds`, `active_ratio`, `end_reason`
+
+### Gameplay Tuning Events
+
+The game now emits gameplay tuning events from real state transitions in `useLocalGame` and save/load flows:
+
+- `game_phase_changed`
+- `menu_selection`
+- `game_started`
+- `game_loaded`
+- `game_saved`
+- `game_ended`
+- `gameplay_action`
+- `gameplay_action_blocked`
+- `turn_ended`
+- `combat_event`
+- `unit_created`
+- `units_removed`
+- `building_constructed`
+- `city_captured`
+- `village_captured`
+- `tech_researched`
+
+It also bridges shared simulation telemetry (`emitTelemetry`) into PostHog:
+
+- `logic_telemetry_event` (generic)
+- `logic_ability_event`
+- `logic_combat_event`
+- `logic_technology_event`
+- `logic_system_event`
+
+These events make it possible to tune:
+- Action success vs blocked rates by action type and reason
+- Combat outcomes by unit matchup and terrain
+- Research/build/capture pacing by turn and mode
+- Session abandonment vs win/loss completion
 
 ## Player Identification
 
@@ -306,7 +328,7 @@ Group by: game_phase, metric_name
 ### Development Mode
 
 - PostHog initializes but may have reduced sampling
-- Console logs show `[PostHog] Not initialized - VITE_PUBLIC_POSTHOG_KEY not set` if not configured
+- If the API key is missing, analytics initialization is skipped
 - All events are tracked if API key is provided
 
 ### Production Mode
@@ -321,7 +343,7 @@ Group by: game_phase, metric_name
 
 1. **Check API Key**
    ```bash
-   echo $VITE_PUBLIC_POSTHOG_KEY
+   echo $VITE_POSTHOG_KEY
    ```
 
 2. **Verify Initialization**

@@ -11,6 +11,7 @@ export type ChatMessageStatus = "pending" | "sent" | "failed";
 
 export interface ChatMessage extends ChatMessageEventPayload {
   status: ChatMessageStatus;
+  localBlob?: Blob;
 }
 
 export interface VoiceDraft {
@@ -32,7 +33,7 @@ export interface TypingIndicator extends ChatTypingEventPayload {
   isTyping: boolean;
 }
 
-export interface ChatReadReceipt extends ChatReadUpdateEventPayload {}
+export interface ChatReadReceipt extends ChatReadUpdateEventPayload { }
 
 export interface ChatIdentity {
   lobbyCode: string;

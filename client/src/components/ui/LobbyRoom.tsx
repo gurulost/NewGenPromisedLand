@@ -280,7 +280,7 @@ export default function LobbyRoom() {
     });
 
     if (gameConfig.snapshot) {
-      loadGameState(gameConfig.snapshot as any);
+      loadGameState(gameConfig.snapshot as any, { source: 'online_lobby_snapshot' });
     } else {
       startLocalGame(playerSetup, mapSize, gameConfig.seed);
     }
