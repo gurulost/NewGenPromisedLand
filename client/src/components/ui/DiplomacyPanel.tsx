@@ -22,11 +22,14 @@ export interface DiplomacyPanelProps {
     gameState: GameState;
     currentPlayerId: string;
     onClose: () => void;
+    onDeclareWar: (targetPlayerId: string) => void;
+    onFormAlliance: (targetPlayerId: string) => void;
+    onEstablishTrade: (fromCityId: string, toCityId: string) => void;
 }
 
 type DiplomacyTab = 'war' | 'alliance' | 'trade';
 
-export function DiplomacyPanel({ gameState, currentPlayerId, onClose }: DiplomacyPanelProps) {
+export function DiplomacyPanel({ gameState, currentPlayerId, onClose, onDeclareWar, onFormAlliance, onEstablishTrade }: DiplomacyPanelProps) {
     const [activeTab, setActiveTab] = useState<DiplomacyTab>('war');
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [selectedFromCity, setSelectedFromCity] = useState<string | null>(null);
@@ -56,47 +59,21 @@ export function DiplomacyPanel({ gameState, currentPlayerId, onClose }: Diplomac
     };
 
     const handleDeclareWar = (targetPlayerId: string) => {
-        // Dispatch war declaration
-        const event = new CustomEvent('diplomacyAction', {
-            detail: {
-                type: 'DECLARE_WAR',
-                payload: { playerId: currentPlayerId, targetPlayerId }
-            }
-        });
-        window.dispatchEvent(event);
+        onDeclareWar(targetPlayerId);
         playSfx('cta-click');
         setConfirmWarTarget(null);
         onClose();
     };
 
     const handleFormAlliance = (targetPlayerId: string) => {
-        // Dispatch alliance formation
-        const event = new CustomEvent('diplomacyAction', {
-            detail: {
-                type: 'FORM_ALLIANCE',
-                payload: { playerId: currentPlayerId, targetPlayerId }
-            }
-        });
-        window.dispatchEvent(event);
+        onFormAlliance(targetPlayerId);
         playSfx('cta-click');
         onClose();
     };
 
     const handleEstablishTrade = () => {
         if (!selectedFromCity || !selectedToCity) return;
-
-        // Dispatch trade route establishment
-        const event = new CustomEvent('diplomacyAction', {
-            detail: {
-                type: 'ESTABLISH_TRADE_ROUTE',
-                payload: {
-                    playerId: currentPlayerId,
-                    fromCityId: selectedFromCity,
-                    toCityId: selectedToCity
-                }
-            }
-        });
-        window.dispatchEvent(event);
+        onEstablishTrade(selectedFromCity, selectedToCity);
         playSfx('cta-click');
         onClose();
     };

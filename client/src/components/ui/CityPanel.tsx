@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 import { Badge } from "./badge";
@@ -29,6 +29,7 @@ import { HexCoordinate } from "@shared/types/coordinates";
 import { Progress } from "./progress";
 import { TutorialHelpIcon } from "./TutorialHelpIcon";
 import { useMobileUI } from "../../hooks/useMobileUI";
+import { useToastContext } from "./ToastProvider";
 
 interface CityPanelProps {
   open: boolean;
@@ -47,6 +48,22 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
   // Renaming state
   const [isRenaming, setIsRenaming] = useState(false);
   const [tempName, setTempName] = useState('');
+  const { warning } = useToastContext();
+
+  // Reset rename state when panel closes so the next open starts clean
+  useEffect(() => {
+    if (!open) {
+      setIsRenaming(false);
+    }
+  }, [open]);
+
+  // Sync tempName if the city name changes externally while the rename input is open
+  const cityName = gameState?.cities?.find(c => c.id === cityId)?.name ?? '';
+  useEffect(() => {
+    if (isRenaming) {
+      setTempName(cityName);
+    }
+  }, [cityName, isRenaming]);
 
   if (!open || !gameState) return null;
 
@@ -80,9 +97,10 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
     const validTiles = getValidSpawnTiles(gameState, city.coordinate, unitType, currentPlayer.id);
     
     if (validTiles.length === 0) {
-      console.log('No valid spawn tiles available for', unitType);
-      // Show user feedback
-      alert(`Cannot recruit ${unitType}: No valid spawn locations available. All nearby tiles are blocked or at capacity.`);
+      warning(
+        'No Spawn Location',
+        `Cannot recruit ${unitType}: all nearby tiles are blocked or at capacity.`
+      );
       return;
     }
 
@@ -241,7 +259,8 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                           payload: { playerId: currentPlayer.id, cityId, newName: tempName }
                         });
                         setIsRenaming(false);
-                      } else if (e.key === 'Escape') {
+                      } else if (e.key === 'Escape' || e.key === 'Tab') {
+                        e.preventDefault();
                         setIsRenaming(false);
                       }
                     }}

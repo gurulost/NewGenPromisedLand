@@ -13,6 +13,7 @@ import { TutorialHelpIcon } from '../ui/TutorialHelpIcon';
 
 import { PlayerState, GameState } from '@shared/types/game';
 import { getFaction } from '@shared/data/factions';
+import { coerceFactionId } from '@shared/types/factionId';
 import { GameRuleHelpers, GAME_RULES } from '@shared/data/gameRules';
 import { TECHNOLOGIES } from '@shared/data/technologies';
 import { getPlayerStats, PlayerStats } from '../../selectors/player';
@@ -40,7 +41,7 @@ interface PlayerHUDProps {
 }
 
 export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructionHall, onShowDiplomacy, onEndTurn }: PlayerHUDProps) {
-  const faction = getFaction(player.factionId as any);
+  const faction = getFaction(coerceFactionId(player.factionId)!);
   const handleEndTurn = onEndTurn ?? (() => { });
   const autosaveStatus = useAutosaveStatus();
   const [victoryOpen, setVictoryOpen] = useState(false);
@@ -85,67 +86,49 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
     setVictoryOpen(open);
   };
 
-  const testimonyPressureLastTurn = useMemo(() => {
-    if (!gameState) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+  // Typed shape for TESTIMONY_PRESSURE / INTIMIDATION_AURA payloads
+  type AuraPayload = {
+    attackPenalty: number;
+    durationTurns: number;
+    affected: Array<{ playerId: string; unitIds: string[] }>;
+  };
 
-    const action: any = gameState.lastAction;
-    if (!action) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+  const extractAuraEffect = (
+    action: GameState['lastAction'],
+    eventType: 'TESTIMONY_PRESSURE' | 'INTIMIDATION_AURA',
+    playerId: string,
+  ) => {
+    const empty = { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+    if (!action) return empty;
 
-    if (action.type === 'END_TURN_RESOLUTION') {
-      const events = action.payload?.events || [];
-      const pressureEvent = events.find((e: any) => e?.type === 'TESTIMONY_PRESSURE');
-      const affected: Array<{ playerId: string; unitIds: string[] }> = pressureEvent?.payload?.affected || [];
-      const mine = affected.find(a => a.playerId === player.id);
-      return {
-        unitsAffected: mine?.unitIds?.length || 0,
-        attackPenalty: pressureEvent?.payload?.attackPenalty || 0,
-        durationTurns: pressureEvent?.payload?.durationTurns || 0,
-      };
-    }
-
-    if (action.type === 'TESTIMONY_PRESSURE') {
-      const affected: Array<{ playerId: string; unitIds: string[] }> = action.payload?.affected || [];
-      const mine = affected.find(a => a.playerId === player.id);
-      return {
-        unitsAffected: mine?.unitIds?.length || 0,
-        attackPenalty: action.payload?.attackPenalty || 0,
-        durationTurns: action.payload?.durationTurns || 0,
-      };
-    }
-
-    return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
-  }, [gameState, player.id]);
-
-  const intimidationAuraLastTurn = useMemo(() => {
-    if (!gameState) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
-
-    const action: any = gameState.lastAction;
-    if (!action) return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+    let payload: AuraPayload | undefined;
 
     if (action.type === 'END_TURN_RESOLUTION') {
-      const events = action.payload?.events || [];
-      const intimidationEvent = events.find((e: any) => e?.type === 'INTIMIDATION_AURA');
-      const affected: Array<{ playerId: string; unitIds: string[] }> = intimidationEvent?.payload?.affected || [];
-      const mine = affected.find(a => a.playerId === player.id);
-      return {
-        unitsAffected: mine?.unitIds?.length || 0,
-        attackPenalty: intimidationEvent?.payload?.attackPenalty || 0,
-        durationTurns: intimidationEvent?.payload?.durationTurns || 0,
-      };
+      const endTurnPayload = action.payload as { events: Array<{ type: string; payload: unknown }> };
+      const hit = endTurnPayload.events.find(e => e.type === eventType);
+      payload = hit?.payload as AuraPayload | undefined;
+    } else if (action.type === eventType) {
+      payload = action.payload as AuraPayload;
     }
 
-    if (action.type === 'INTIMIDATION_AURA') {
-      const affected: Array<{ playerId: string; unitIds: string[] }> = action.payload?.affected || [];
-      const mine = affected.find(a => a.playerId === player.id);
-      return {
-        unitsAffected: mine?.unitIds?.length || 0,
-        attackPenalty: action.payload?.attackPenalty || 0,
-        durationTurns: action.payload?.durationTurns || 0,
-      };
-    }
+    if (!payload) return empty;
+    const mine = payload.affected?.find(a => a.playerId === playerId);
+    return {
+      unitsAffected: mine?.unitIds?.length ?? 0,
+      attackPenalty: payload.attackPenalty ?? 0,
+      durationTurns: payload.durationTurns ?? 0,
+    };
+  };
 
-    return { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
-  }, [gameState, player.id]);
+  const testimonyPressureLastTurn = useMemo(
+    () => extractAuraEffect(gameState?.lastAction, 'TESTIMONY_PRESSURE', player.id),
+    [gameState, player.id],
+  );
+
+  const intimidationAuraLastTurn = useMemo(
+    () => extractAuraEffect(gameState?.lastAction, 'INTIMIDATION_AURA', player.id),
+    [gameState, player.id],
+  );
 
   if (!gameState) return null;
 

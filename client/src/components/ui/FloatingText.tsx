@@ -69,7 +69,7 @@ function FloatingTextItem({ data, onComplete }: FloatingTextProps) {
     return (
         <motion.div
             className={cn(
-                'absolute pointer-events-none font-bold text-lg select-none z-50',
+                'absolute pointer-events-none font-bold text-lg select-none z-[var(--z-floating)]',
                 style.color,
                 style.glow
             )}

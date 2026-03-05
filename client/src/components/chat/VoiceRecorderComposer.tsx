@@ -142,9 +142,11 @@ export function VoiceRecorderComposer({
       if (recorder && recorder.state !== "inactive") {
         discardOnStopRef.current = true;
         recorder.stop();
-      } else {
-        cleanupMedia();
       }
+      // Always release the mic stream on unmount. If recorder.onstop also
+      // calls cleanupMedia later, the second call is a harmless no-op
+      // (tracks are already stopped and refs are null).
+      cleanupMedia();
       onRecordingStateChange(false);
     };
   }, [cleanupMedia, onRecordingStateChange]);
