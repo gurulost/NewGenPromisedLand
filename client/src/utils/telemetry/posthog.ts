@@ -5,6 +5,8 @@ type PostHogClient = typeof posthog | null;
 type CaptureOptions = Record<string, unknown> | undefined;
 
 let client: PostHogClient = null;
+let pendingIdentify: { distinctId: string; properties?: Record<string, unknown> } | null = null;
+let pendingReset = false;
 
 export async function initPosthog(apiKey?: string, host?: string) {
   if (!apiKey) return null;
@@ -19,6 +21,14 @@ export async function initPosthog(apiKey?: string, host?: string) {
       person_profiles: 'identified_only',
     });
     client = ph;
+    if (pendingIdentify) {
+      ph.identify(pendingIdentify.distinctId, pendingIdentify.properties);
+      pendingIdentify = null;
+      pendingReset = false;
+    } else if (pendingReset) {
+      ph.reset();
+      pendingReset = false;
+    }
     return ph;
   } catch (error) {
     console.warn('PostHog init failed (falling back to no-op):', error);
@@ -48,6 +58,28 @@ export function registerOnce(properties: Record<string, unknown>) {
 export function unregister(property: string) {
   const activeClient = client as unknown as { unregister?: (name: string) => void } | null;
   activeClient?.unregister?.(property);
+}
+
+export function identify(distinctId: string, properties?: Record<string, unknown>) {
+  const activeClient = client as unknown as {
+    identify?: (id: string, props?: Record<string, unknown>) => void;
+  } | null;
+  if (activeClient?.identify) {
+    activeClient.identify(distinctId, properties);
+    return;
+  }
+  pendingIdentify = { distinctId, properties };
+  pendingReset = false;
+}
+
+export function reset() {
+  const activeClient = client as unknown as { reset?: () => void } | null;
+  if (activeClient?.reset) {
+    activeClient.reset();
+    return;
+  }
+  pendingIdentify = null;
+  pendingReset = true;
 }
 
 export function getPosthog() {

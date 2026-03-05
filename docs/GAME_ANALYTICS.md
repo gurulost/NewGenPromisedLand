@@ -12,6 +12,9 @@ The analytics system tracks:
 - **Performance Metrics** - Core Web Vitals (CLS, INP, LCP, FCP, TTFB)
 - **User Context** - Session tracking, game state correlation
 
+For production dashboard setup, use:
+- [`docs/POSTHOG_DASHBOARD_SPEC.md`](./POSTHOG_DASHBOARD_SPEC.md) - exact dashboard cards, filters, formulas, and SQL insights for gameplay tuning.
+
 ## Setup
 
 ### 1. Create PostHog Account
@@ -147,6 +150,13 @@ npm run dev
 - Triggered when the page is hidden/unloaded
 - Properties: `session_duration_seconds`, `active_duration_seconds`, `active_ratio`, `end_reason`
 
+Usage analytics also registers stable build/runtime context on all events:
+- `app_version`
+- `git_sha`
+- `environment`
+- `platform`
+- `is_dev_build`
+
 ### Gameplay Tuning Events
 
 The game now emits gameplay tuning events from real state transitions in `useLocalGame` and save/load flows:
@@ -181,6 +191,15 @@ These events make it possible to tune:
 - Combat outcomes by unit matchup and terrain
 - Research/build/capture pacing by turn and mode
 - Session abandonment vs win/loss completion
+
+Gameplay action telemetry now includes correlation IDs for joins:
+- `action_id`
+- `turn_id`
+- `match_id`
+
+And action payload telemetry is intentionally curated to avoid high-cardinality noise:
+- `action_payload_summary` (selected key fields only)
+- `action_payload_keys`
 
 ## Player Identification
 

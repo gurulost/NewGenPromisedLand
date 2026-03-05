@@ -48,6 +48,14 @@ interface VisitContext {
   daysSinceFirstSeen: number;
 }
 
+interface BuildContext {
+  app_version: string;
+  git_sha: string;
+  environment: string;
+  platform: string;
+  is_dev_build: boolean;
+}
+
 declare global {
   interface Window {
     __ngplUsageAnalyticsRuntime?: RuntimeState;
@@ -185,6 +193,42 @@ const getPageProperties = () => {
   };
 };
 
+const getBuildContext = (): BuildContext => {
+  const env = (import.meta as unknown as { env?: Record<string, unknown> }).env ?? {};
+  const appVersion = String(
+    env.VITE_APP_VERSION ??
+    env.VITE_RELEASE ??
+    env.VITE_PUBLIC_APP_VERSION ??
+    'unknown'
+  );
+  const gitSha = String(
+    env.VITE_GIT_SHA ??
+    env.VITE_COMMIT_SHA ??
+    env.VITE_PUBLIC_GIT_SHA ??
+    env.VERCEL_GIT_COMMIT_SHA ??
+    'unknown'
+  );
+  const environment = String(
+    env.MODE ??
+    env.VITE_ENVIRONMENT ??
+    env.VITE_SENTRY_ENV ??
+    'unknown'
+  );
+  const platform = String(
+    (navigator as any).userAgentData?.platform ??
+    navigator.platform ??
+    'unknown'
+  );
+
+  return {
+    app_version: appVersion.slice(0, 80),
+    git_sha: gitSha.slice(0, 80),
+    environment: environment.slice(0, 80),
+    platform: platform.slice(0, 80),
+    is_dev_build: Boolean(env.DEV),
+  };
+};
+
 const trackPageView = (runtime: RuntimeState, trigger: PageViewTrigger): void => {
   const path = getCurrentPath();
   if (trigger === 'route_change' && path === runtime.lastTrackedPath) {
@@ -315,6 +359,7 @@ export function initUsageAnalytics(): void {
   register({
     session_id: runtime.sessionId,
     visit_number: visit.visitCount,
+    ...getBuildContext(),
   });
   registerOnce({
     first_seen_at: toIso(visit.firstSeenAt),
