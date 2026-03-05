@@ -27,9 +27,30 @@
       "name": "[NGPL] Online Reliability + Logic Telemetry"
     }
   ],
-  "insights_created_count": 0,
+  "insights_created_count": 4,
   "insights_updated_count": 42,
-  "insights_created": [],
+  "insights_created": [
+    {
+      "id": 7201322,
+      "name": "[NGPL] Sessions by Country",
+      "dashboard": "[NGPL] Acquisition + Session Quality"
+    },
+    {
+      "id": 7201323,
+      "name": "[NGPL] Sessions by Region/State",
+      "dashboard": "[NGPL] Acquisition + Session Quality"
+    },
+    {
+      "id": 7201324,
+      "name": "[NGPL] Sessions by City",
+      "dashboard": "[NGPL] Acquisition + Session Quality"
+    },
+    {
+      "id": 7201325,
+      "name": "[NGPL] Session -> Game Start Rate by Country (SQL)",
+      "dashboard": "[NGPL] Acquisition + Session Quality"
+    }
+  ],
   "insights_updated": [
     {
       "id": 7200758,
@@ -284,5 +305,5 @@
       "attached": false
     }
   ],
-  "generated_at": "2026-03-05T16:09:04.493Z"
+  "generated_at": "2026-03-05T16:38:13.482Z"
 }

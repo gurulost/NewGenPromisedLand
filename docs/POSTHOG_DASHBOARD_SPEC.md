@@ -24,6 +24,7 @@ Use these exact values for filters and breakdowns:
 - `selection` (`menu_selection`): `resume_autosave`, `single_player_vs_ai`, `local_multiplayer`, `online_multiplayer`, `open_load_menu`, `tutorial_episode`, `load_autosave`, `load_saved_game`
 - `blocked_reason` (`gameplay_action_blocked`): `rules_rejected`, `game_state_not_ready`, `ai_turn_in_progress`, `not_player_turn`, `missing_actor_id`, `queue_rejected`, `queue_network_error`
 - `traffic_type`: `direct`, `campaign`, `organic_search`, `social`, `referral`
+- PostHog geo enrichment properties (on events): `$geoip_country_name`, `$geoip_subdivision_1_name`, `$geoip_city_name`, `$geoip_country_code`, `$geoip_time_zone`
 
 ## Dashboard 1: Acquisition + Session Quality
 
@@ -45,28 +46,81 @@ Use these exact values for filters and breakdowns:
 - Breakdown: `traffic_type`
 - Metric: `count`
 
-4. `Top Referrers`
+4. `Sessions by Country`
+- Type: Bar
+- Event: `usage_session_started`
+- Breakdown: `$geoip_country_name`
+- Metric: `count`
+
+5. `Sessions by Region/State`
+- Type: Bar
+- Event: `usage_session_started`
+- Breakdown: `$geoip_subdivision_1_name`
+- Metric: `count`
+
+6. `Sessions by City`
+- Type: Bar
+- Event: `usage_session_started`
+- Breakdown: `$geoip_city_name`
+- Metric: `count`
+
+7. `Session -> Game Start Rate by Country (SQL)`
+- Type: SQL insight
+- Query:
+```sql
+WITH sessions AS (
+  SELECT
+    properties.session_id AS session_id,
+    coalesce(nullIf(toString(properties.$geoip_country_name), ''), 'unknown') AS country
+  FROM events
+  WHERE event = 'usage_session_started'
+    AND timestamp >= now() - INTERVAL 30 DAY
+),
+game_starts AS (
+  SELECT DISTINCT properties.session_id AS session_id
+  FROM events
+  WHERE event = 'game_started'
+    AND timestamp >= now() - INTERVAL 30 DAY
+)
+SELECT
+  sessions.country AS country,
+  uniqExact(sessions.session_id) AS sessions,
+  uniqExactIf(sessions.session_id, game_starts.session_id IS NOT NULL) AS sessions_with_game_start,
+  round(
+    uniqExactIf(sessions.session_id, game_starts.session_id IS NOT NULL) /
+    nullIf(uniqExact(sessions.session_id), 0),
+    4
+  ) AS start_rate
+FROM sessions
+LEFT JOIN game_starts
+  ON game_starts.session_id = sessions.session_id
+GROUP BY country
+HAVING sessions >= 10
+ORDER BY sessions DESC;
+```
+
+8. `Top Referrers`
 - Type: Bar
 - Event: `usage_session_started`
 - Breakdown: `referrer_domain`
 - Filter: `referrer_domain != direct`
 
-5. `Median Session Duration`
+9. `Median Session Duration`
 - Type: Trend (daily)
 - Event: `usage_session_ended`
 - Metric: `median(session_duration_seconds)`
 
-6. `Median Active Ratio`
+10. `Median Active Ratio`
 - Type: Trend (daily)
 - Event: `usage_session_ended`
 - Metric: `median(active_ratio)`
 
-7. `Return Interval`
+11. `Return Interval`
 - Type: Trend (daily)
 - Event: `usage_return_visit`
 - Metric: `avg(days_since_last_seen)`
 
-8. `Pages per Session (SQL)`
+12. `Pages per Session (SQL)`
 - Type: SQL insight
 - Query:
 ```sql
