@@ -216,7 +216,7 @@ const StarResourcesSection = React.memo(({ stars, starProduction, breakdown }: {
       <div className="flex items-center gap-2">
         <Star className="w-4 h-4 text-amber-400" />
         <span className="font-semibold text-amber-200">{stars}</span>
-        <InfoTooltip content={<StarProductionTooltip totalIncome={starProduction} breakdown={breakdown} />}>
+        <InfoTooltip content={<StarProductionTooltip totalIncome={starProduction} breakdown={breakdown} />} ariaLabel="Star production breakdown">
           <Info className="w-3 h-3 text-amber-400/60 hover:text-amber-400 cursor-help transition-colors" />
         </InfoTooltip>
       </div>
@@ -260,7 +260,7 @@ const ResourceProgressSection = React.memo(({ playerStats, testimonyPressureLast
       <div className="flex justify-between text-sm mb-1">
         <span className="text-blue-300 font-cinzel font-medium flex items-center gap-1">
           Faith
-          <InfoTooltip content={<FaithSystemTooltip />}>
+          <InfoTooltip content={<FaithSystemTooltip />} ariaLabel="How faith works">
             <Info className="w-3 h-3 text-blue-400/60 hover:text-blue-400 cursor-help transition-colors" />
           </InfoTooltip>
         </span>
@@ -279,7 +279,7 @@ const ResourceProgressSection = React.memo(({ playerStats, testimonyPressureLast
       <div className="flex justify-between text-sm mb-1">
         <span className="text-purple-300 font-cinzel font-medium flex items-center gap-1">
           Pride
-          <InfoTooltip content={<PrideSystemTooltip />}>
+          <InfoTooltip content={<PrideSystemTooltip />} ariaLabel="How pride works">
             <Info className="w-3 h-3 text-purple-400/60 hover:text-purple-400 cursor-help transition-colors" />
           </InfoTooltip>
         </span>
@@ -293,7 +293,7 @@ const ResourceProgressSection = React.memo(({ playerStats, testimonyPressureLast
       <div className="flex justify-between text-sm mb-1">
         <span className="text-red-300 font-cinzel font-medium flex items-center gap-1">
           Dissent
-          <InfoTooltip content={<DissentSystemTooltip />}>
+          <InfoTooltip content={<DissentSystemTooltip />} ariaLabel="How dissent works">
             <Info className="w-3 h-3 text-red-400/60 hover:text-red-400 cursor-help transition-colors" />
           </InfoTooltip>
         </span>
@@ -364,7 +364,7 @@ const VictoryProgressSection = React.memo(({ player, gameState, playerStats, isO
               <div className="flex items-center gap-2 text-sm text-amber-100 font-cinzel font-semibold">
                 <Trophy className="w-4 h-4 text-amber-400" />
                 <span>Victory</span>
-                <InfoTooltip content={
+                <InfoTooltip ariaLabel="Victory conditions" content={
                   <div className="space-y-1 text-xs">
                     <div>Faith: reach threshold with low dissent.</div>
                     <div>Economic: income + treasury + tech percent.</div>

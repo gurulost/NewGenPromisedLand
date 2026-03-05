@@ -746,6 +746,71 @@ export default function GameUI() {
           triggerFlash('red');
           showToast(`Enemy taskmasters intimidated ${myAffected.unitIds.length} unit(s) (-${penalty} Attack, ${duration} turn)`, 'warning');
         }
+      } else if (action.type === 'DECLARE_WAR') {
+        const actorId = action.payload?.playerId;
+        if (isLocalPlayerAction(actorId)) {
+          triggerFlash('red');
+          showToast('War Declared!', 'combat');
+          const actor = gameState.players.find(p => p.id === actorId);
+          const target = gameState.players.find(p => p.id === action.payload?.targetPlayerId);
+          if (actor) {
+            setGameLogEntries(prev => pushCapped(prev, {
+              id: `log_${Date.now()}`,
+              turn: gameState.turn,
+              playerId: actor.id,
+              playerName: actor.name,
+              type: 'diplomacy',
+              message: `Declared war on ${target?.name || 'Unknown'}`,
+              timestamp: Date.now(),
+            }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
+          }
+        }
+      } else if (action.type === 'FORM_ALLIANCE') {
+        const actorId = action.payload?.playerId;
+        if (isLocalPlayerAction(actorId)) {
+          triggerFlash('blue');
+          showToast('Alliance Formed!', 'info');
+          const actor = gameState.players.find(p => p.id === actorId);
+          const target = gameState.players.find(p => p.id === action.payload?.targetPlayerId);
+          if (actor) {
+            setGameLogEntries(prev => pushCapped(prev, {
+              id: `log_${Date.now()}`,
+              turn: gameState.turn,
+              playerId: actor.id,
+              playerName: actor.name,
+              type: 'diplomacy',
+              message: `Formed alliance with ${target?.name || 'Unknown'}`,
+              timestamp: Date.now(),
+            }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
+          }
+        }
+      } else if (action.type === 'ESTABLISH_TRADE_ROUTE') {
+        const actorId = action.payload?.playerId;
+        if (isLocalPlayerAction(actorId)) {
+          const player = gameState.players.find(p => p.id === actorId);
+          const fromCityId = action.payload?.fromCityId;
+          const toCityId = action.payload?.toCityId;
+          const newRoute = player?.tradeRoutes?.find((r: any) =>
+            (r.fromCityId === fromCityId && r.toCityId === toCityId) ||
+            (r.fromCityId === toCityId && r.toCityId === fromCityId)
+          );
+          triggerFlash('gold');
+          showToast(
+            newRoute ? `Trade Route Established (+${newRoute.starsPerTurn}★/turn)` : 'Trade Route Established',
+            'reward'
+          );
+          if (player) {
+            setGameLogEntries(prev => pushCapped(prev, {
+              id: `log_${Date.now()}`,
+              turn: gameState.turn,
+              playerId: player.id,
+              playerName: player.name,
+              type: 'diplomacy',
+              message: 'Established a new trade route',
+              timestamp: Date.now(),
+            }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
+          }
+        }
       }
     };
 
@@ -1410,102 +1475,6 @@ export default function GameUI() {
       window.removeEventListener('villageEncounter', handleVillageEncounter as EventListener);
     };
   }, [isDev]);
-
-  // Diplomacy action callbacks — called directly from DiplomacyPanel props,
-  // no window event bus needed.
-  const handleDeclareWar = useCallback((targetPlayerId: string) => {
-    const playerId = useLocalGame.getState().gameState?.players[
-      useLocalGame.getState().gameState?.currentPlayerIndex ?? 0
-    ]?.id;
-    if (!playerId) return;
-    if (isDev) console.log('🤝 Diplomacy action: DECLARE_WAR', { playerId, targetPlayerId });
-    useLocalGame.getState().dispatch({ type: 'DECLARE_WAR', payload: { playerId, targetPlayerId } } as any);
-    const { triggerFlash: flash, showToast: toast } = visualRef.current;
-    flash('red');
-    toast('War Declared!', 'combat');
-    const gs = useLocalGame.getState().gameState;
-    const current = gs?.players?.[gs?.currentPlayerIndex ?? 0];
-    if (current && gs) {
-      const targetPlayer = gs.players.find(p => p.id === targetPlayerId);
-      setGameLogEntries(prev => pushCapped(prev, {
-        id: `log_${Date.now()}`,
-        turn: gs.turn,
-        playerId: current.id,
-        playerName: current.name,
-        type: 'diplomacy',
-        message: `Declared war on ${targetPlayer?.name || 'Unknown'}`,
-        timestamp: Date.now(),
-      }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
-    }
-  }, [isDev, setGameLogEntries]);
-
-  const handleFormAlliance = useCallback((targetPlayerId: string) => {
-    const playerId = useLocalGame.getState().gameState?.players[
-      useLocalGame.getState().gameState?.currentPlayerIndex ?? 0
-    ]?.id;
-    if (!playerId) return;
-    if (isDev) console.log('🤝 Diplomacy action: FORM_ALLIANCE', { playerId, targetPlayerId });
-    useLocalGame.getState().dispatch({ type: 'FORM_ALLIANCE', payload: { playerId, targetPlayerId } } as any);
-    const { triggerFlash: flash, showToast: toast } = visualRef.current;
-    flash('blue');
-    toast('Alliance Formed!', 'info');
-    const gs = useLocalGame.getState().gameState;
-    const current = gs?.players?.[gs?.currentPlayerIndex ?? 0];
-    if (current && gs) {
-      const targetPlayer = gs.players.find(p => p.id === targetPlayerId);
-      setGameLogEntries(prev => pushCapped(prev, {
-        id: `log_${Date.now()}`,
-        turn: gs.turn,
-        playerId: current.id,
-        playerName: current.name,
-        type: 'diplomacy',
-        message: `Formed alliance with ${targetPlayer?.name || 'Unknown'}`,
-        timestamp: Date.now(),
-      }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
-    }
-  }, [isDev, setGameLogEntries]);
-
-  const handleEstablishTrade = useCallback((fromCityId: string, toCityId: string) => {
-    const store = useLocalGame.getState();
-    const playerId = store.gameState?.players[store.gameState?.currentPlayerIndex ?? 0]?.id;
-    if (!playerId) return;
-    if (isDev) console.log('🤝 Diplomacy action: ESTABLISH_TRADE_ROUTE', { playerId, fromCityId, toCityId });
-    const beforePlayer = store.gameState?.players.find(p => p.id === playerId);
-    const beforeRoutes = beforePlayer?.tradeRoutes ?? [];
-    store.dispatch({ type: 'ESTABLISH_TRADE_ROUTE', payload: { playerId, fromCityId, toCityId } } as any);
-    const afterState = useLocalGame.getState().gameState;
-    const afterPlayer = afterState?.players.find(p => p.id === playerId);
-    const afterRoutes = afterPlayer?.tradeRoutes ?? [];
-    const established = afterRoutes.length > beforeRoutes.length;
-    const { triggerFlash: flash, showToast: toast } = visualRef.current;
-    if (established) {
-      const newRoute = afterRoutes.find(r => !beforeRoutes.some(br =>
-        (br.fromCityId === r.fromCityId && br.toCityId === r.toCityId) ||
-        (br.fromCityId === r.toCityId && br.toCityId === r.fromCityId)
-      ));
-      flash('gold');
-      toast(
-        newRoute ? `Trade Route Established (+${newRoute.starsPerTurn}★/turn)` : 'Trade Route Established',
-        'reward'
-      );
-      const gs = useLocalGame.getState().gameState;
-      const current = gs?.players?.[gs?.currentPlayerIndex ?? 0];
-      if (current && gs) {
-        setGameLogEntries(prev => pushCapped(prev, {
-          id: `log_${Date.now()}`,
-          turn: gs.turn,
-          playerId: current.id,
-          playerName: current.name,
-          type: 'diplomacy',
-          message: 'Established a new trade route',
-          timestamp: Date.now(),
-        }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
-      }
-    } else {
-      flash('red');
-      toast('Trade Route Failed', 'error');
-    }
-  }, [isDev, setGameLogEntries]);
 
   const triggerLegendaryShimmer = useCallback(() => {
     if (shimmerTimeoutRef.current) {
@@ -2199,9 +2168,6 @@ export default function GameUI() {
           gameState={gameState}
           currentPlayerId={currentPlayer.id}
           onClose={() => setShowDiplomacy(false)}
-          onDeclareWar={handleDeclareWar}
-          onFormAlliance={handleFormAlliance}
-          onEstablishTrade={handleEstablishTrade}
         />
       )}
 
