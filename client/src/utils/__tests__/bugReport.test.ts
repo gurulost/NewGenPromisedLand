@@ -43,6 +43,12 @@ const debugReport = {
   summary: { totalErrors: 18 },
 };
 
+const resetDebugFixtures = () => {
+  debugSummary.recentLogs = Array.from({ length: 40 }, (_, index) => ({ id: index, type: "ui" }));
+  debugReport.errors = Array.from({ length: 18 }, (_, index) => ({ id: index, message: `error-${index}` }));
+  debugReport.recentActions = Array.from({ length: 30 }, (_, index) => ({ id: index, type: `action-${index}` }));
+};
+
 vi.mock("@/lib/deviceId", () => ({
   getDeviceId: () => "device-1",
 }));
@@ -92,6 +98,7 @@ vi.mock("@/utils/telemetry/usageAnalytics", () => ({
 
 import {
   collectBugReportDiagnostics,
+  compactPayloadForQueue,
   flushQueuedBugReports,
   submitBugReport,
 } from "@/utils/bugReport";
@@ -101,6 +108,7 @@ describe("bugReport utilities", () => {
     localStorage.clear();
     captureMock.mockReset();
     vi.restoreAllMocks();
+    resetDebugFixtures();
   });
 
   it("caps diagnostic history sizes", () => {
@@ -165,6 +173,87 @@ describe("bugReport utilities", () => {
 
     expect(flushResult.sentCount).toBe(1);
     expect(localStorage.getItem("ngpl_bug_report_queue_v1")).toBeNull();
+  });
+
+  it("ignores invalid queued payloads left behind by stale clients", async () => {
+    localStorage.setItem("ngpl_bug_report_queue_v1", JSON.stringify([
+      {
+        submissionId: "bad_payload_1",
+        source: "desktop_corner",
+      },
+      {
+        submissionId: "valid_payload_1",
+        source: "desktop_corner",
+        category: "ui",
+        playerMessage: "The city panel stopped responding after I clicked it twice in a row.",
+        reproFrequency: "sometimes",
+        includeDiagnostics: false,
+        includeScreenshot: false,
+        clientTimestampMs: Date.now(),
+      },
+    ]));
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        reportId: "BR-000002",
+        duplicateCount24h: 1,
+        fingerprint: "def456",
+        receivedAt: new Date().toISOString(),
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const flushResult = await flushQueuedBugReports();
+
+    expect(flushResult.sentCount).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem("ngpl_bug_report_queue_v1")).toBeNull();
+  });
+
+  it("compacts oversized queued diagnostics while keeping the newest actions and errors", () => {
+    const hugeValue = "x".repeat(300);
+    const compacted = compactPayloadForQueue({
+      submissionId: "bug_compaction_1",
+      source: "desktop_corner",
+      category: "gameplay",
+      playerMessage: "The board locked after ending my turn and I could not keep playing.",
+      expectedBehavior: "The game should keep accepting input.",
+      reproFrequency: "sometimes",
+      contact: undefined,
+      includeDiagnostics: true,
+      includeScreenshot: false,
+      screenshotUrl: undefined,
+      diagnostics: {
+        gameSnapshot: { turn: 7, phase: "playing" },
+        recentActions: Array.from({ length: 20 }, (_, index) => ({
+          id: index,
+          type: `action-${index}`,
+          details: `${index}-${hugeValue}`,
+        })),
+        recentErrors: Array.from({ length: 10 }, (_, index) => ({
+          id: index,
+          message: `error-${index}-${hugeValue}`,
+        })),
+        largeNoise: Array.from({ length: 25 }, (_, index) => ({
+          id: index,
+          payload: Array.from({ length: 25 }, (_unused, keyIndex) => `${index}-${keyIndex}-${hugeValue}`),
+          metadata: Object.fromEntries(
+            Array.from({ length: 25 }, (_unused, keyIndex) => [`k${keyIndex}`, `${index}-${keyIndex}-${hugeValue}`]),
+          ),
+        })),
+      },
+      clientTimestampMs: Date.now(),
+    });
+
+    expect(compacted.includeDiagnostics).toBe(true);
+    expect((compacted.diagnostics as Record<string, unknown>).queueCompacted).toBe(true);
+    expect(((compacted.diagnostics as Record<string, unknown>).recentActions as unknown[])).toHaveLength(8);
+    expect(((compacted.diagnostics as Record<string, unknown>).recentErrors as unknown[])).toHaveLength(4);
+    expect((((compacted.diagnostics as Record<string, unknown>).recentActions as Array<Record<string, unknown>>)[0]).type).toBe("action-12");
+    expect((((compacted.diagnostics as Record<string, unknown>).recentActions as Array<Record<string, unknown>>)[7]).type).toBe("action-19");
+    expect(String((((compacted.diagnostics as Record<string, unknown>).recentErrors as Array<Record<string, unknown>>)[0]).message)).toContain("error-6");
+    expect(String((((compacted.diagnostics as Record<string, unknown>).recentErrors as Array<Record<string, unknown>>)[3]).message)).toContain("error-9");
   });
 
   it("cleans up an uploaded screenshot when a queued report is rejected permanently", async () => {

@@ -4,6 +4,7 @@ import {
   type BugReportCategory,
   type BugReportReproFrequency,
   type BugReportSource,
+  SubmitBugReportSchema,
   type SubmitBugReportRequest,
   type SubmitBugReportResponse,
 } from "@shared/types/bugReport";
@@ -75,7 +76,7 @@ const sanitizeDiagnosticValue = (value: unknown, depth = 0): unknown => {
   return sanitized;
 };
 
-const compactPayloadForQueue = (payload: SubmitBugReportRequest): SubmitBugReportRequest => {
+export const compactPayloadForQueue = (payload: SubmitBugReportRequest): SubmitBugReportRequest => {
   let next = payload;
   let serialized = JSON.stringify(next);
   if (serialized.length <= MAX_QUEUE_BYTES) return next;
@@ -87,10 +88,10 @@ const compactPayloadForQueue = (payload: SubmitBugReportRequest): SubmitBugRepor
       queueCompacted: true,
       gameSnapshot: (next.diagnostics as Record<string, unknown> | undefined)?.gameSnapshot ?? null,
       recentActions: Array.isArray((next.diagnostics as Record<string, unknown> | undefined)?.recentActions)
-        ? ((next.diagnostics as Record<string, unknown>).recentActions as unknown[]).slice(0, 8)
+        ? ((next.diagnostics as Record<string, unknown>).recentActions as unknown[]).slice(-8)
         : [],
       recentErrors: Array.isArray((next.diagnostics as Record<string, unknown> | undefined)?.recentErrors)
-        ? ((next.diagnostics as Record<string, unknown>).recentErrors as unknown[]).slice(0, 4)
+        ? ((next.diagnostics as Record<string, unknown>).recentErrors as unknown[]).slice(-4)
         : [],
     },
   };
@@ -110,7 +111,11 @@ const readQueue = (): QueuedBugReport[] => {
     const raw = localStorage.getItem(BUG_REPORT_QUEUE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((entry) => SubmitBugReportSchema.safeParse(entry))
+      .filter((result): result is { success: true; data: SubmitBugReportRequest } => result.success)
+      .map((result) => result.data);
   } catch {
     return [];
   }

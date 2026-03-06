@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildBugReportAiTriagePack,
+  buildBugReportDetailPayload,
   buildBugReportLinks,
   buildBugReportFingerprint,
   buildBugReportWebhookPayload,
@@ -39,7 +40,15 @@ const baseReport = {
       mapHeight: 8,
       lastActionType: "END_TURN",
     },
-    usageAnalytics: { sessionId: "usage-1" },
+    usageAnalytics: {
+      sessionId: "usage-1",
+      build: {
+        app_version: "1.2.3",
+        git_sha: "abcdef1234567890",
+        environment: "production",
+        platform: "MacIntel",
+      },
+    },
     recentErrors: [{ message: "Unhandled Promise Rejection" }],
     recentActions: [{ type: "OPEN_CITY" }],
   },
@@ -89,7 +98,6 @@ describe("bugReports helpers", () => {
 
     expect(payload.text).toContain("BR-000042");
     expect(payload.text).toContain("duplicates(24h): 2");
-    expect(payload.text).toContain("contact: tester@example.com");
     expect((payload.bugReport as Record<string, unknown>).category).toBe("ui");
     expect((payload.links as Record<string, unknown>).databaseLookup).toBe("bug_reports.id=42");
     expect((payload.bugReport as Record<string, unknown>).playerMessage).toBe("City panel stopped responding");
@@ -106,7 +114,7 @@ describe("bugReports helpers", () => {
     });
 
     const blocks = payload.blocks as Array<Record<string, unknown>>;
-    expect(payload.text).toContain("details:");
+    expect(payload.text).toContain("Bug report BR-000042");
     expect(blocks.some((block) => block.type === "image")).toBe(true);
     expect(JSON.stringify(blocks)).toContain("Full Report");
     expect(JSON.stringify(blocks)).toContain("DB/Admin Link");
@@ -160,8 +168,25 @@ describe("bugReports helpers", () => {
     expect(pack).toContain("City panel stopped responding");
     expect(pack).toContain("Expected behavior:");
     expect(pack).toContain("recent_action: OPEN_CITY");
+    expect(pack).toContain("app_version:");
     expect(pack).toContain("database_lookup: bug_reports.id=42");
     expect(pack).toContain("full_report_url: https://game.example.com/api/bug-reports/BR-000042?token=view-secret");
+  });
+
+  it("builds a sanitized detail payload for the full report endpoint", () => {
+    const payload = buildBugReportDetailPayload({
+      report: baseReport,
+      reportId: formatBugReportId(42),
+      publicBaseUrl: "https://game.example.com",
+      viewToken: "view-secret",
+      dbUrlTemplate: "https://db.example.com/bug_reports?id={id}",
+    });
+
+    expect(payload.reportId).toBe("BR-000042");
+    expect((payload.report as Record<string, unknown>).deviceId).toBeUndefined();
+    expect((payload.report as Record<string, unknown>).userId).toBeUndefined();
+    expect((payload.links as Record<string, unknown>).detailUrl).toBe("https://game.example.com/api/bug-reports/BR-000042?token=view-secret");
+    expect(typeof payload.aiTriagePack).toBe("string");
   });
 
   it("summarizes bug report diagnostics for notifications", () => {

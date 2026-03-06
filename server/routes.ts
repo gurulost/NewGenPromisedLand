@@ -41,7 +41,7 @@ import {
   deleteBugReportObject,
 } from "./r2";
 import {
-  buildBugReportAiTriagePack,
+  buildBugReportDetailPayload,
   buildBugReportFingerprint,
   formatBugReportId,
   parseBugReportId,
@@ -440,6 +440,13 @@ const bugReportUploadRateLimit = createRateLimitMiddleware({
   maxHits: 8,
   key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:bug-report-upload`,
   label: "bug-report-upload",
+});
+
+const bugReportReadRateLimit = createRateLimitMiddleware({
+  windowMs: 60 * 1000,
+  maxHits: 30,
+  key: (req) => `${req.ip || "unknown"}:bug-report-read`,
+  label: "bug-report-read",
 });
 
 const multiplayerTelemetry = {
@@ -2279,7 +2286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return typeof fromHeader === "string" ? fromHeader.trim() : "";
   };
 
-  app.get("/api/bug-reports/:reportId", async (req, res) => {
+  app.get("/api/bug-reports/:reportId", bugReportReadRateLimit, async (req, res) => {
     const expectedToken = process.env.BUG_REPORT_VIEW_TOKEN?.trim();
     if (!expectedToken) {
       return res.status(404).json({ error: "Bug report viewer is not configured" });
@@ -2300,14 +2307,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Bug report not found" });
       }
 
-      return res.json({
-        reportId: formatBugReportId(report.id),
+      res.setHeader("Cache-Control", "private, no-store, max-age=0");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("X-Robots-Tag", "noindex, nofollow");
+
+      return res.json(buildBugReportDetailPayload({
         report,
-        aiTriagePack: buildBugReportAiTriagePack({
-          report,
-          reportId: formatBugReportId(report.id),
-        }),
-      });
+        reportId: formatBugReportId(report.id),
+        publicBaseUrl: process.env.BUG_REPORT_PUBLIC_URL,
+        viewToken: process.env.BUG_REPORT_VIEW_TOKEN,
+        dbUrlTemplate: process.env.BUG_REPORT_DB_URL_TEMPLATE,
+      }));
     } catch (error) {
       console.error("Failed to fetch bug report:", error);
       return res.status(500).json({ error: "Failed to load bug report" });

@@ -143,6 +143,12 @@ const normalizeForCodeBlock = (value: string | null | undefined): string =>
     .replace(/\r\n/g, "\n")
     .trim();
 
+const compactGitSha = (value: string | null | undefined): string | null => {
+  const next = clampString(value, 80);
+  if (!next) return null;
+  return next.length > 12 ? next.slice(0, 12) : next;
+};
+
 const getLastArrayRecord = (value: unknown): Record<string, unknown> | null => {
   if (!Array.isArray(value) || value.length === 0) return null;
   return asRecord(value[value.length - 1]);
@@ -163,8 +169,12 @@ export function summarizeBugReportDiagnostics(diagnostics: unknown): Record<stri
   const gameSnapshot = getNestedRecord(sanitized, "gameSnapshot");
   const auth = getNestedRecord(sanitized, "auth");
   const onlineSession = getNestedRecord(sanitized, "onlineSession");
+  const usageAnalytics = getNestedRecord(sanitized, "usageAnalytics");
+  const build = getNestedRecord(usageAnalytics, "build");
+  const environment = getNestedRecord(sanitized, "environment");
   const recentAction = getLastArrayRecord(sanitized.recentActions);
   const recentError = getLastArrayRecord(sanitized.recentErrors);
+  const viewport = getNestedRecord(environment, "viewport");
 
   return {
     turn: typeof gameSnapshot?.turn === "number" ? gameSnapshot.turn : null,
@@ -181,6 +191,16 @@ export function summarizeBugReportDiagnostics(diagnostics: unknown): Record<stri
     sessionId: getSessionId(sanitized),
     username: extractFirstString(auth?.username) || null,
     lobbyCode: extractFirstString(onlineSession?.lobbyCode) || null,
+    appVersion: extractFirstString(build?.app_version) || null,
+    gitSha: compactGitSha(extractFirstString(build?.git_sha)),
+    buildEnvironment: extractFirstString(build?.environment) || null,
+    platform: extractFirstString(build?.platform) || null,
+    browser: truncateForWebhook(environment?.userAgent, 120),
+    pageUrl: truncateForWebhook(environment?.href, 160),
+    viewport:
+      typeof viewport?.width === "number" && typeof viewport?.height === "number"
+        ? `${viewport.width}x${viewport.height}`
+        : null,
   };
 }
 
@@ -208,6 +228,7 @@ function buildBugReportDetailUrl(params: {
     const basePath = detailUrl.pathname.replace(/\/$/, "");
     detailUrl.pathname = `${basePath}/api/bug-reports/${encodeURIComponent(params.reportId)}`.replace(/\/{2,}/g, "/");
     detailUrl.search = "";
+    detailUrl.hash = "";
     detailUrl.searchParams.set("token", viewToken);
     return detailUrl.toString();
   } catch {
@@ -292,16 +313,30 @@ export function buildBugReportAiTriagePack(params: {
     screenshotUrl: string | null;
     databaseLookup: string;
   };
+}, options?: {
+  mode?: "compact" | "full";
 }): string {
+  const mode = options?.mode ?? "full";
+  const playerMessageLimit = mode === "compact" ? 700 : 1500;
+  const expectedLimit = mode === "compact" ? 320 : 800;
+  const contactLimit = mode === "compact" ? 180 : 320;
+  const recentItemsLimit = mode === "compact" ? 2 : 3;
+  const recentItemLength = mode === "compact" ? 90 : 140;
+  const linkLength = mode === "compact" ? 180 : 260;
+  const browserLength = mode === "compact" ? 100 : 160;
   const diagnostics = asRecord(params.report.diagnostics);
   const diagnosticsSummary = summarizeBugReportDiagnostics(diagnostics);
   const recentActionsTail = summarizeRecentItems(
     diagnostics?.recentActions,
     (entry) => extractFirstString(entry.type, entry.details),
+    recentItemsLimit,
+    recentItemLength,
   );
   const recentErrorsTail = summarizeRecentItems(
     diagnostics?.recentErrors,
     (entry) => extractFirstString(entry.message, entry.type),
+    recentItemsLimit,
+    recentItemLength,
   );
 
   const sections: string[] = [];
@@ -320,15 +355,15 @@ export function buildBugReportAiTriagePack(params: {
   sections.push("");
   sections.push("PLAYER REPORT");
   sections.push("What happened:");
-  sections.push(normalizeForCodeBlock(params.report.playerMessage));
+  sections.push(normalizeForCodeBlock(truncateForWebhook(params.report.playerMessage, playerMessageLimit)));
   if (params.report.expectedBehavior) {
     sections.push("");
     sections.push("Expected behavior:");
-    sections.push(normalizeForCodeBlock(params.report.expectedBehavior));
+    sections.push(normalizeForCodeBlock(truncateForWebhook(params.report.expectedBehavior, expectedLimit)));
   }
   if (params.report.contact) {
     sections.push("");
-    sections.push(`Contact: ${normalizeForCodeBlock(params.report.contact)}`);
+    sections.push(`Contact: ${normalizeForCodeBlock(truncateForWebhook(params.report.contact, contactLimit))}`);
   }
   sections.push("");
   sections.push("GAME CONTEXT");
@@ -342,6 +377,15 @@ export function buildBugReportAiTriagePack(params: {
   sections.push(`- last_action: ${diagnosticsSummary.lastAction ?? "n/a"}`);
   sections.push(`- recent_action: ${diagnosticsSummary.recentAction ?? "n/a"}`);
   sections.push(`- recent_error: ${diagnosticsSummary.recentError ?? "n/a"}`);
+  sections.push("");
+  sections.push("BUILD CONTEXT");
+  sections.push(`- app_version: ${diagnosticsSummary.appVersion ?? "n/a"}`);
+  sections.push(`- git_sha: ${diagnosticsSummary.gitSha ?? "n/a"}`);
+  sections.push(`- build_environment: ${diagnosticsSummary.buildEnvironment ?? "n/a"}`);
+  sections.push(`- platform: ${diagnosticsSummary.platform ?? "n/a"}`);
+  sections.push(`- viewport: ${diagnosticsSummary.viewport ?? "n/a"}`);
+  sections.push(`- browser: ${truncateForWebhook(diagnosticsSummary.browser, browserLength) ?? "n/a"}`);
+  sections.push(`- page_url: ${truncateForWebhook(diagnosticsSummary.pageUrl, linkLength) ?? "n/a"}`);
 
   if (recentActionsTail.length || recentErrorsTail.length) {
     sections.push("");
@@ -363,13 +407,54 @@ export function buildBugReportAiTriagePack(params: {
   if (params.links) {
     sections.push("");
     sections.push("LINKS");
-    sections.push(`- screenshot_url: ${params.links.screenshotUrl ?? "n/a"}`);
-    sections.push(`- full_report_url: ${params.links.detailUrl ?? "n/a"}`);
+    sections.push(`- screenshot_url: ${truncateForWebhook(params.links.screenshotUrl, linkLength) ?? "n/a"}`);
+    sections.push(`- full_report_url: ${truncateForWebhook(params.links.detailUrl, linkLength) ?? "n/a"}`);
     sections.push(`- database_lookup: ${params.links.databaseLookup}`);
-    sections.push(`- database_url: ${params.links.databaseUrl ?? "n/a"}`);
+    sections.push(`- database_url: ${truncateForWebhook(params.links.databaseUrl, linkLength) ?? "n/a"}`);
   }
 
-  return sections.join("\n").trim();
+  const pack = sections.join("\n").trim();
+  const maxLength = mode === "compact" ? 2200 : 10_000;
+  if (pack.length <= maxLength) return pack;
+  return `${pack.slice(0, Math.max(0, maxLength - 13)).trimEnd()}\n[truncated]`;
+}
+
+export function buildBugReportDetailPayload(params: {
+  report: BugReport;
+  reportId: string;
+  publicBaseUrl?: string;
+  viewToken?: string;
+  dbUrlTemplate?: string;
+}): Record<string, unknown> {
+  const links = buildBugReportLinks(params);
+  return {
+    reportId: params.reportId,
+    report: {
+      id: params.report.id,
+      submissionId: params.report.submissionId,
+      source: params.report.source,
+      category: params.report.category,
+      status: params.report.status,
+      playerMessage: params.report.playerMessage,
+      expectedBehavior: params.report.expectedBehavior ?? null,
+      reproFrequency: params.report.reproFrequency,
+      contact: params.report.contact ?? null,
+      includeDiagnostics: params.report.includeDiagnostics,
+      includeScreenshot: params.report.includeScreenshot,
+      screenshotUrl: params.report.screenshotUrl ?? null,
+      fingerprint: params.report.fingerprint,
+      duplicateCount24h: params.report.duplicateCount24h,
+      diagnostics: asRecord(params.report.diagnostics) ?? null,
+      diagnosticsSummary: summarizeBugReportDiagnostics(params.report.diagnostics),
+      createdAt: params.report.createdAt,
+    },
+    links,
+    aiTriagePack: buildBugReportAiTriagePack({
+      report: params.report,
+      reportId: params.reportId,
+      links,
+    }),
+  };
 }
 
 export function buildBugReportWebhookPayload(params: {
@@ -395,6 +480,11 @@ export function buildBugReportWebhookPayload(params: {
     reportId: params.reportId,
     links,
   });
+  const compactAiTriagePack = buildBugReportAiTriagePack({
+    report: params.report,
+    reportId: params.reportId,
+    links,
+  }, { mode: "compact" });
   const detailsText = [
     links.detailUrl ? `details: ${links.detailUrl}` : null,
     links.databaseUrl ? `db link: ${links.databaseUrl}` : null,
@@ -408,10 +498,7 @@ export function buildBugReportWebhookPayload(params: {
     diagnosticsSummary.turn != null || diagnosticsSummary.phase
       ? `game: turn ${diagnosticsSummary.turn ?? "?"}, phase ${diagnosticsSummary.phase ?? "?"}`
       : null,
-    params.report.contact ? `contact: ${params.report.contact}` : null,
     `message: ${truncateForWebhook(params.report.playerMessage, 240) ?? ""}`,
-    params.report.expectedBehavior ? `expected: ${truncateForWebhook(params.report.expectedBehavior, 240)}` : null,
-    detailsText,
   ].filter(Boolean);
 
   const text = summaryLines.join("\n");
@@ -427,6 +514,8 @@ export function buildBugReportWebhookPayload(params: {
       diagnosticsSummary.currentPlayer ? `*Player*\n${diagnosticsSummary.currentPlayer}` : null,
       diagnosticsSummary.faction ? `*Faction*\n${diagnosticsSummary.faction}` : null,
       diagnosticsSummary.lastAction ? `*Last Action*\n${diagnosticsSummary.lastAction}` : null,
+      diagnosticsSummary.appVersion ? `*Build*\n${diagnosticsSummary.appVersion}` : null,
+      diagnosticsSummary.gitSha ? `*Git SHA*\n${diagnosticsSummary.gitSha}` : null,
       diagnosticsSummary.sessionId ? `*Session*\n${truncateForWebhook(diagnosticsSummary.sessionId, 80)}` : null,
     ].filter((value): value is string => Boolean(value));
 
@@ -492,17 +581,17 @@ export function buildBugReportWebhookPayload(params: {
       });
     }
 
-    blocks.push({
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: [
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: [
           "*AI triage pack*",
           "Copy the code block below and paste it directly into Codex/ChatGPT.",
-          `\`\`\`${truncateForWebhook(aiTriagePack, 2600) ?? "AI triage pack unavailable"}\`\`\``,
+          `\`\`\`${compactAiTriagePack}\`\`\``,
         ].join("\n"),
-      },
-    });
+        },
+      });
 
     if (links.screenshotUrl) {
       blocks.push({
@@ -613,7 +702,7 @@ export function buildBugReportWebhookPayload(params: {
   }
 
   return {
-    text,
+    text: `${text}${detailsText ? `\n${detailsText}` : ""}`,
     content: text,
     bugReport: {
       id: params.report.id,
