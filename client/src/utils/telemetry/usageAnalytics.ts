@@ -383,3 +383,16 @@ export function initUsageAnalytics(): void {
   window.addEventListener('pagehide', handlePageHide);
   window.addEventListener('beforeunload', handleBeforeUnload);
 }
+
+export function getUsageAnalyticsContext(): Record<string, unknown> {
+  if (typeof window === 'undefined') {
+    return { sessionId: null, visitNumber: null, build: getBuildContext() };
+  }
+
+  const runtime = getOrCreateRuntime();
+  return {
+    sessionId: runtime.started && !runtime.ended ? runtime.sessionId : null,
+    visitNumber: typeof localStorage !== 'undefined' ? parseStoredNumber(localStorage, VISIT_COUNT_KEY) : null,
+    build: getBuildContext(),
+  };
+}

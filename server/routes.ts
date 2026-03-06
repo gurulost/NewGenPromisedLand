@@ -35,8 +35,15 @@ import {
   isAllowedVoiceMimeType,
   isVoiceStorageUrl,
   isVoiceStorageUrlForLobby,
+  createBugReportUploadUrl,
   createVoiceUploadUrl,
 } from "./r2";
+import {
+  buildBugReportFingerprint,
+  formatBugReportId,
+  sanitizeBugReportDiagnostics,
+  sendBugReportWebhook,
+} from "./bugReports";
 import type {
   ChatMessageEventPayload,
   ChatMessagesResponse,
@@ -44,6 +51,10 @@ import type {
   ChatReadUpdateEventPayload,
   ChatTypingEventPayload,
 } from "@shared/types/chatEvents";
+import {
+  BugReportScreenshotUploadRequestSchema,
+  SubmitBugReportSchema,
+} from "@shared/types/bugReport";
 
 const MemoryStoreSession = MemoryStore(session);
 const PgSessionStore = connectPgSimple(session);
@@ -410,6 +421,20 @@ const chatVoiceUploadRateLimit = createRateLimitMiddleware({
   maxHits: 20,
   key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:voice-upload`,
   label: "voice-upload",
+});
+
+const bugReportRateLimit = createRateLimitMiddleware({
+  windowMs: 60 * 1000,
+  maxHits: 8,
+  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:bug-report`,
+  label: "bug-report",
+});
+
+const bugReportUploadRateLimit = createRateLimitMiddleware({
+  windowMs: 60 * 1000,
+  maxHits: 8,
+  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:bug-report-upload`,
+  label: "bug-report-upload",
 });
 
 const multiplayerTelemetry = {
@@ -2106,6 +2131,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to fetch actions:", error);
       res.status(500).json({ error: "Failed to fetch actions" });
+    }
+  });
+
+  // === BUG REPORT ROUTES ===
+  app.post("/api/bug-reports/screenshot-upload", bugReportUploadRateLimit, async (req, res) => {
+    if (!R2_CONFIGURED) {
+      return res.status(503).json({ error: "Screenshot storage not configured" });
+    }
+
+    const parsed = BugReportScreenshotUploadRequestSchema.safeParse({
+      submissionId: req.body?.submissionId,
+      mimeType: req.body?.mimeType,
+      contentLength: Number(req.body?.contentLength),
+    });
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid screenshot upload payload" });
+    }
+
+    try {
+      const upload = await createBugReportUploadUrl(parsed.data);
+      return res.json(upload);
+    } catch (error: any) {
+      if (error?.status) {
+        return res.status(error.status).json({ error: error.message });
+      }
+      console.error("Failed to create bug report upload URL:", error);
+      return res.status(500).json({ error: "Failed to create screenshot upload URL" });
+    }
+  });
+
+  app.post("/api/bug-reports", bugReportRateLimit, async (req, res) => {
+    const parsed = SubmitBugReportSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid bug report payload" });
+    }
+
+    try {
+      const payload = parsed.data;
+      const existing = await storage.getBugReportBySubmissionId(payload.submissionId);
+      if (existing) {
+        return res.json({
+          reportId: formatBugReportId(existing.id),
+          duplicateCount24h: existing.duplicateCount24h,
+          fingerprint: existing.fingerprint,
+          receivedAt: existing.createdAt.toISOString(),
+        });
+      }
+
+      const deviceIdHeader = req.headers["x-device-id"];
+      const deviceId = typeof deviceIdHeader === "string" && deviceIdHeader.trim()
+        ? deviceIdHeader.trim().slice(0, 128)
+        : null;
+      const diagnostics = payload.includeDiagnostics
+        ? sanitizeBugReportDiagnostics(payload.diagnostics)
+        : undefined;
+      const fingerprint = buildBugReportFingerprint(payload, diagnostics);
+      const duplicateCount24h = await storage.countBugReportsByFingerprintSince(
+        fingerprint,
+        new Date(Date.now() - 24 * 60 * 60 * 1000),
+      ) + 1;
+
+      const created = await storage.createBugReport({
+        submissionId: payload.submissionId,
+        userId: req.session.userId ?? null,
+        deviceId,
+        source: payload.source,
+        category: payload.category,
+        status: "open",
+        playerMessage: payload.playerMessage,
+        expectedBehavior: payload.expectedBehavior ?? null,
+        reproFrequency: payload.reproFrequency,
+        contact: payload.contact ?? null,
+        includeDiagnostics: payload.includeDiagnostics,
+        includeScreenshot: payload.includeScreenshot,
+        screenshotUrl: payload.screenshotUrl ?? null,
+        fingerprint,
+        duplicateCount24h,
+        diagnostics: diagnostics ?? null,
+      });
+      const reportId = formatBugReportId(created.id);
+
+      void sendBugReportWebhook({
+        webhookUrl: process.env.BUG_REPORT_WEBHOOK_URL,
+        report: created,
+        reportId,
+      });
+
+      return res.status(201).json({
+        reportId,
+        duplicateCount24h,
+        fingerprint,
+        receivedAt: created.createdAt.toISOString(),
+      });
+    } catch (error) {
+      console.error("Failed to create bug report:", error);
+      return res.status(500).json({ error: "Failed to create bug report" });
     }
   });
 

@@ -2,6 +2,7 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { VOICE_LIMITS } from "@shared/types/voiceLimits";
+import { BUG_REPORT_SCREENSHOT_LIMITS } from "@shared/types/bugReport";
 
 export { VOICE_LIMITS };
 
@@ -21,6 +22,7 @@ export const R2_CONFIGURED =
 
 const PRESIGNED_EXPIRY_SECONDS = 300;
 const VOICE_OBJECT_PREFIX = "voice/";
+const BUG_REPORT_OBJECT_PREFIX = "bug-reports/";
 
 // Allowed base MIME types (without codec params). Browsers typically send
 // "audio/webm;codecs=opus" or "audio/mp4;codecs=mp4a.40.2" — the codec suffix
@@ -33,6 +35,12 @@ const ALLOWED_AUDIO_BASE_TYPES = new Set<string>([
   "audio/wav",
   "audio/x-m4a",
   "audio/aac",
+]);
+
+const ALLOWED_BUG_REPORT_IMAGE_TYPES = new Set<string>([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
 ]);
 
 // NOTE: R2 bucket CORS must be configured in the Cloudflare dashboard to allow
@@ -76,6 +84,10 @@ function voiceObjectPrefixForLobby(lobbyCode: string): string {
   return `${VOICE_OBJECT_PREFIX}${sanitizeObjectKeySegment(lobbyCode)}/`;
 }
 
+function bugReportObjectPrefix(): string {
+  return BUG_REPORT_OBJECT_PREFIX;
+}
+
 function mimeTypeToExtension(mimeType: string): string {
   const base = normalizeBaseMimeType(mimeType);
   const sub = base.split("/")[1] ?? "webm";
@@ -114,6 +126,13 @@ export interface PresignedVoiceUpload {
   expiresInSeconds: number;
 }
 
+export interface PresignedBugReportUpload {
+  uploadUrl: string;
+  objectKey: string;
+  publicUrl: string;
+  expiresInSeconds: number;
+}
+
 export async function createVoiceUploadUrl(params: {
   lobbyCode: string;
   messageId: string;
@@ -144,6 +163,50 @@ export async function createVoiceUploadUrl(params: {
   const client = getR2Client();
   // The ContentType in the presigned command must exactly match the
   // Content-Type header the client will send in the PUT request.
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: objectKey,
+    ContentType: mimeType,
+    ContentLength: contentLength,
+  });
+
+  const uploadUrl = await getSignedUrl(client, command, {
+    expiresIn: PRESIGNED_EXPIRY_SECONDS,
+  });
+
+  return { uploadUrl, objectKey, publicUrl, expiresInSeconds: PRESIGNED_EXPIRY_SECONDS };
+}
+
+export function isAllowedBugReportImageType(mimeType: string): boolean {
+  return ALLOWED_BUG_REPORT_IMAGE_TYPES.has(normalizeBaseMimeType(mimeType));
+}
+
+export async function createBugReportUploadUrl(params: {
+  submissionId: string;
+  mimeType: string;
+  contentLength: number;
+}): Promise<PresignedBugReportUpload> {
+  const { submissionId, mimeType, contentLength } = params;
+
+  if (!isAllowedBugReportImageType(mimeType)) {
+    throw Object.assign(new Error(`Unsupported image type: ${normalizeBaseMimeType(mimeType)}`), { status: 415 });
+  }
+  if (contentLength <= 0) {
+    throw Object.assign(new Error("contentLength must be > 0"), { status: 400 });
+  }
+  if (contentLength > BUG_REPORT_SCREENSHOT_LIMITS.maxBytes) {
+    throw Object.assign(
+      new Error(`Screenshot too large: max ${Math.round(BUG_REPORT_SCREENSHOT_LIMITS.maxBytes / 1024 / 1024)} MB`),
+      { status: 413 }
+    );
+  }
+
+  const safeId = sanitizeObjectKeySegment(submissionId);
+  const ext = mimeTypeToExtension(mimeType);
+  const objectKey = `${bugReportObjectPrefix()}${safeId}.${ext}`;
+  const publicUrl = `${R2_PUBLIC_URL}/${objectKey}`;
+
+  const client = getR2Client();
   const command = new PutObjectCommand({
     Bucket: R2_BUCKET_NAME,
     Key: objectKey,

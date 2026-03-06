@@ -36,6 +36,37 @@ export const insertGameSaveSchema = createInsertSchema(gameSaves).omit({
 export type InsertGameSave = z.infer<typeof insertGameSaveSchema>;
 export type GameSave = typeof gameSaves.$inferSelect;
 
+export const bugReports = pgTable("bug_reports", {
+  id: serial("id").primaryKey(),
+  submissionId: varchar("submission_id", { length: 128 }).notNull(),
+  userId: integer("user_id").references(() => users.id),
+  deviceId: text("device_id"),
+  source: text("source").notNull(),
+  category: text("category").notNull(),
+  status: text("status").notNull().default("open"),
+  playerMessage: text("player_message").notNull(),
+  expectedBehavior: text("expected_behavior"),
+  reproFrequency: text("repro_frequency").notNull(),
+  contact: text("contact"),
+  includeDiagnostics: boolean("include_diagnostics").notNull().default(true),
+  includeScreenshot: boolean("include_screenshot").notNull().default(false),
+  screenshotUrl: text("screenshot_url"),
+  fingerprint: varchar("fingerprint", { length: 64 }).notNull(),
+  duplicateCount24h: integer("duplicate_count_24h").notNull().default(1),
+  diagnostics: jsonb("diagnostics"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  submissionIdUnique: uniqueIndex("bug_reports_submission_id_idx").on(table.submissionId),
+}));
+
+export const insertBugReportSchema = createInsertSchema(bugReports).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertBugReport = z.infer<typeof insertBugReportSchema>;
+export type BugReport = typeof bugReports.$inferSelect;
+
 // Multiplayer game lobbies
 export const gameLobbies = pgTable("game_lobbies", {
   id: serial("id").primaryKey(),

@@ -59,6 +59,7 @@ import { ChatDock } from "../chat/ChatDock";
 import { ChatPanel } from "../chat/ChatPanel";
 import { useChatUIState } from "../../hooks/useChatUIState";
 import { useAuth } from "../../lib/stores/useAuth";
+import { isBugReportingEnabled, openBugReportDialog } from "../../utils/bugReport";
 
 interface ActiveNotification {
   id: string;
@@ -1951,6 +1952,7 @@ export default function GameUI() {
           onOpenDiplomacy={() => setShowDiplomacy(true)}
           onOpenSaveLoad={() => setShowSaveLoadMenu(true)}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenBugReport={() => openBugReportDialog({ source: "mobile_menu" })}
           onOpenGameLog={() => setShowGameLog(true)}
           onOpenChat={() => setShowMobileChat(true)}
           showChat={Boolean(chatIdentity)}
@@ -2260,6 +2262,16 @@ export default function GameUI() {
             <span className="text-lg">🎞️</span>
             <span className="text-sm font-medium">Animation Lab</span>
           </a>
+          {isBugReportingEnabled() && (
+            <button
+              data-testid="utility-bug-report-button"
+              className="min-h-[40px] rounded-full border border-amber-500/25 bg-black/55 px-4 py-2 text-xs font-medium text-amber-100/80 transition hover:border-amber-400/40 hover:bg-black/70 hover:text-amber-50"
+              onClick={() => openBugReportDialog({ source: "desktop_corner" })}
+              title="Report a bug or broken interaction"
+            >
+              Something not working?
+            </button>
+          )}
           <button
             data-testid="utility-settings-button"
             className="p-3 min-w-[48px] min-h-[48px] bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all shadow-lg flex items-center justify-center gap-2"

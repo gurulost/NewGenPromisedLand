@@ -1,10 +1,11 @@
 import { db } from "./db";
-import { eq, desc, and, isNull, sql } from "drizzle-orm";
+import { eq, desc, and, isNull, sql, gte, count } from "drizzle-orm";
 import { 
   users, type User, type InsertUser,
   gameSaves, type GameSave, type InsertGameSave,
   gameLobbies, type GameLobby, type InsertGameLobby,
-  playerSeats, type PlayerSeat, type InsertPlayerSeat
+  playerSeats, type PlayerSeat, type InsertPlayerSeat,
+  bugReports, type BugReport, type InsertBugReport
 } from "@shared/schema";
 
 export interface IStorage {
@@ -44,6 +45,11 @@ export interface IStorage {
   updateSeat(id: number, seat: Partial<InsertPlayerSeat>): Promise<PlayerSeat | undefined>;
   deleteSeat(id: number): Promise<boolean>;
   deleteSeatsByUserId(lobbyId: number, userId: number): Promise<boolean>;
+
+  // Bug report methods
+  getBugReportBySubmissionId(submissionId: string): Promise<BugReport | undefined>;
+  createBugReport(report: InsertBugReport): Promise<BugReport>;
+  countBugReportsByFingerprintSince(fingerprint: string, since: Date): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -211,6 +217,24 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(playerSeats.lobbyId, lobbyId), eq(playerSeats.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  async getBugReportBySubmissionId(submissionId: string): Promise<BugReport | undefined> {
+    const [report] = await db.select().from(bugReports).where(eq(bugReports.submissionId, submissionId));
+    return report;
+  }
+
+  async createBugReport(report: InsertBugReport): Promise<BugReport> {
+    const [created] = await db.insert(bugReports).values(report).returning();
+    return created;
+  }
+
+  async countBugReportsByFingerprintSince(fingerprint: string, since: Date): Promise<number> {
+    const [result] = await db
+      .select({ value: count() })
+      .from(bugReports)
+      .where(and(eq(bugReports.fingerprint, fingerprint), gte(bugReports.createdAt, since)));
+    return Number(result?.value ?? 0);
   }
 }
 

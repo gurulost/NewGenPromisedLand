@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 import { getPlayerStats } from '../../selectors/player';
 import { useMobileUI } from '../../hooks/useMobileUI';
+import { isBugReportingEnabled } from '../../utils/bugReport';
 import type { GameState, PlayerState } from '@shared/types/game';
 
 interface MobileHUDProps {
@@ -16,6 +17,7 @@ interface MobileHUDProps {
   onOpenDiplomacy: () => void;
   onOpenSaveLoad: () => void;
   onOpenSettings: () => void;
+  onOpenBugReport: () => void;
   onOpenGameLog: () => void;
   onOpenChat: () => void;
   showChat?: boolean;
@@ -32,6 +34,7 @@ export function MobileHUD({
   onOpenDiplomacy,
   onOpenSaveLoad,
   onOpenSettings,
+  onOpenBugReport,
   onOpenGameLog,
   onOpenChat,
   showChat = true,
@@ -98,12 +101,14 @@ export function MobileHUD({
             <div className="flex items-center gap-2">
               <button
                 onClick={onEndTurn}
+                data-testid="hud-end-turn-button"
                 className="min-h-[44px] rounded-lg bg-green-600 px-3 text-sm font-semibold text-white shadow-lg active:bg-green-700"
               >
                 End Turn
               </button>
               <button
                 onClick={() => setMenuOpen(true)}
+                data-testid="mobile-hud-menu-button"
                 className="min-h-[44px] min-w-[44px] rounded-lg border border-slate-600 bg-slate-800 text-slate-100 shadow-lg active:bg-slate-700"
                 aria-label="Open menu"
               >
@@ -156,6 +161,7 @@ export function MobileHUD({
             </button>
             <button
               onClick={() => handleMenuAction(onOpenSaveLoad)}
+              data-testid="mobile-hud-save-load-button"
               className="min-h-[52px] rounded-lg border border-amber-600/40 bg-amber-950/30 text-amber-100 flex items-center justify-center gap-2"
             >
               <Save className="h-4 w-4" />
@@ -184,6 +190,15 @@ export function MobileHUD({
               >
                 <Save className="h-4 w-4" />
                 Advanced
+              </button>
+            )}
+            {isBugReportingEnabled() && (
+              <button
+                onClick={() => handleMenuAction(onOpenBugReport)}
+                className="min-h-[52px] rounded-lg border border-rose-500/40 bg-rose-950/30 text-rose-100 flex items-center justify-center gap-2"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Report Issue
               </button>
             )}
             <button

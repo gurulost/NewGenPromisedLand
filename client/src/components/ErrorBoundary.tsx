@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { captureSentryException } from '../utils/sentry';
+import { openBugReportDialog } from '../utils/bugReport';
+import { captureException } from '../utils/telemetry/sentry';
 
 interface Props {
   children: ReactNode;
@@ -28,7 +29,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
     // Report to Sentry with component stack for debugging
     try {
-      captureSentryException(error, {
+      captureException(error, {
         componentStack: errorInfo.componentStack,
         errorBoundary: true,
         // Tag React Error #310 specifically for easy filtering
@@ -56,12 +57,24 @@ export class ErrorBoundary extends Component<Props, State> {
             <pre className="text-left text-sm bg-slate-800 p-4 rounded overflow-auto max-h-48 text-red-300">
               {this.state.error?.message || 'Unknown error'}
             </pre>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-amber-500 text-slate-900 rounded hover:bg-amber-400 transition"
-            >
-              Refresh Page
-            </button>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                onClick={() => openBugReportDialog({
+                  source: 'error_prompt',
+                  category: 'crash',
+                  playerMessage: this.state.error?.message || 'Game crash from error boundary',
+                })}
+                className="px-4 py-2 bg-slate-800 text-amber-100 rounded hover:bg-slate-700 transition"
+              >
+                Report issue
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-amber-500 text-slate-900 rounded hover:bg-amber-400 transition"
+              >
+                Refresh Page
+              </button>
+            </div>
           </div>
         </div>
       );
@@ -70,4 +83,3 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
-
