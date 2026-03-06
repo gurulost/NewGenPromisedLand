@@ -55,6 +55,7 @@ Chronicles of the Promised Land has a comprehensive error logging and monitoring
 - Validates/sanitizes incoming reports
 - Computes a dedupe fingerprint and counts matching reports over the last 24 hours
 - Persists the report to Postgres and optionally sends a webhook summary
+- Exposes a token-protected detail endpoint at `/api/bug-reports/:reportId` when `BUG_REPORT_VIEW_TOKEN` is configured
 
 ## Setup Instructions
 
@@ -115,6 +116,14 @@ If you want player screenshots and new-report alerts in production:
 # Optional webhook for report notifications
 BUG_REPORT_WEBHOOK_URL=https://hooks.example.com/services/...
 
+# Optional base URL + shared token for direct "Full Report" links in webhook alerts
+BUG_REPORT_PUBLIC_URL=https://your-app.example.com
+BUG_REPORT_VIEW_TOKEN=replace-with-a-long-random-secret
+
+# Optional DB/admin deep-link template used in webhook alerts
+# Supported placeholders: {id} {reportId} {submissionId} {fingerprint} {category} {source} {createdAt}
+BUG_REPORT_DB_URL_TEMPLATE=https://db.example.com/bug_reports?id={id}
+
 # Optional object storage used by voice notes and bug-report screenshots
 R2_ACCOUNT_ID=your-account-id
 R2_ACCESS_KEY_ID=your-access-key-id
@@ -124,6 +133,15 @@ R2_PUBLIC_URL=https://cdn.example.com/assets
 ```
 
 Without the `R2_*` variables, bug reports still submit successfully, but screenshot uploads are skipped.
+
+If `BUG_REPORT_WEBHOOK_URL` points to Slack or Discord, the server now formats richer alert payloads:
+- full player message
+- expected behavior
+- contact info
+- screenshot link and preview when present
+- diagnostics summary
+- `bug_reports.id=<id>` DB lookup hint
+- optional direct links to the full report JSON and to your DB/admin console if configured
 
 ## Usage
 

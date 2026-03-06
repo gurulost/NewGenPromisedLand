@@ -43,6 +43,7 @@ import {
 import {
   buildBugReportFingerprint,
   formatBugReportId,
+  parseBugReportId,
   sanitizeBugReportDiagnostics,
   sendBugReportWebhook,
 } from "./bugReports";
@@ -2270,6 +2271,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // === BUG REPORT ROUTES ===
+  const readBugReportViewToken = (req: Request): string => {
+    const fromQuery = typeof req.query.token === "string" ? req.query.token : "";
+    if (fromQuery.trim()) return fromQuery.trim();
+    const fromHeader = req.headers["x-bug-report-view-token"];
+    return typeof fromHeader === "string" ? fromHeader.trim() : "";
+  };
+
+  app.get("/api/bug-reports/:reportId", async (req, res) => {
+    const expectedToken = process.env.BUG_REPORT_VIEW_TOKEN?.trim();
+    if (!expectedToken) {
+      return res.status(404).json({ error: "Bug report viewer is not configured" });
+    }
+
+    if (readBugReportViewToken(req) !== expectedToken) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const numericReportId = parseBugReportId(String(req.params.reportId ?? ""));
+    if (!numericReportId) {
+      return res.status(400).json({ error: "Invalid bug report id" });
+    }
+
+    try {
+      const report = await storage.getBugReportById(numericReportId);
+      if (!report) {
+        return res.status(404).json({ error: "Bug report not found" });
+      }
+
+      return res.json({
+        reportId: formatBugReportId(report.id),
+        report,
+      });
+    } catch (error) {
+      console.error("Failed to fetch bug report:", error);
+      return res.status(500).json({ error: "Failed to load bug report" });
+    }
+  });
+
   app.post("/api/bug-reports/screenshot-upload", bugReportUploadRateLimit, async (req, res) => {
     if (!R2_CONFIGURED) {
       return res.status(503).json({ error: "Screenshot storage not configured" });
@@ -2389,6 +2428,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         webhookUrl: process.env.BUG_REPORT_WEBHOOK_URL,
         report: created,
         reportId,
+        publicBaseUrl: process.env.BUG_REPORT_PUBLIC_URL,
+        viewToken: process.env.BUG_REPORT_VIEW_TOKEN,
+        dbUrlTemplate: process.env.BUG_REPORT_DB_URL_TEMPLATE,
       });
 
       return res.status(201).json({

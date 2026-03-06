@@ -47,6 +47,7 @@ export interface IStorage {
   deleteSeatsByUserId(lobbyId: number, userId: number): Promise<boolean>;
 
   // Bug report methods
+  getBugReportById(id: number): Promise<BugReport | undefined>;
   getBugReportBySubmissionId(submissionId: string): Promise<BugReport | undefined>;
   createBugReport(report: InsertBugReport): Promise<BugReport>;
   countBugReportsByFingerprintSince(fingerprint: string, since: Date): Promise<number>;
@@ -221,6 +222,11 @@ export class DatabaseStorage implements IStorage {
 
   async getBugReportBySubmissionId(submissionId: string): Promise<BugReport | undefined> {
     const [report] = await db.select().from(bugReports).where(eq(bugReports.submissionId, submissionId));
+    return report;
+  }
+
+  async getBugReportById(id: number): Promise<BugReport | undefined> {
+    const [report] = await db.select().from(bugReports).where(eq(bugReports.id, id));
     return report;
   }
 

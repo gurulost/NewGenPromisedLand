@@ -209,6 +209,54 @@ What happens if this is skipped:
 - reports are still stored in the database
 - no realtime alert is sent
 
+### Optional: Direct "Full Report" Links In Alerts
+
+Set:
+
+```bash
+BUG_REPORT_PUBLIC_URL=https://your-app.example.com
+BUG_REPORT_VIEW_TOKEN=replace-with-a-long-random-secret
+```
+
+Why:
+
+- lets Slack/Discord alerts include a direct link to the full stored bug report payload
+- the link resolves to `/api/bug-reports/:reportId?token=...`
+- this is the easiest generic way to get from an alert to the full diagnostics JSON without building an admin UI first
+
+What happens if this is skipped:
+
+- alerts still work
+- no direct full-report link is included
+
+### Optional: Direct DB/Admin Links In Alerts
+
+Set:
+
+```bash
+BUG_REPORT_DB_URL_TEMPLATE=https://db.example.com/bug_reports?id={id}
+```
+
+Supported placeholders:
+
+- `{id}`
+- `{reportId}`
+- `{submissionId}`
+- `{fingerprint}`
+- `{category}`
+- `{source}`
+- `{createdAt}`
+
+Why:
+
+- direct links into a database/admin console are vendor-specific
+- this template lets the operator wire in the correct deep-link pattern for their DB tool if one exists
+
+What happens if this is skipped:
+
+- alerts still include a non-clickable DB lookup hint like `bug_reports.id=42`
+- no direct DB/admin hyperlink is included
+
 ### Optional: Hide The Launcher
 
 Set:
