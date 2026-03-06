@@ -7,6 +7,7 @@ import { StepFretDivider } from "../primitives/StepFretDivider";
 import { GlowingButton } from "../primitives/GlowingButton";
 import { TempleIcon } from "../primitives/ThematicIcons";
 import { HeroBackground } from "./HeroBackground";
+import BugReportSupportCallout from "./BugReportSupportCallout";
 
 export default function TutorialEpisodeIntro() {
   const setGamePhase = useLocalGame((state) => state.setGamePhase);
@@ -49,6 +50,8 @@ export default function TutorialEpisodeIntro() {
                 <li>Face a small patrol, then decide how to bring a village into your fold.</li>
               </ul>
             </div>
+
+            <BugReportSupportCallout />
 
             <StepFretDivider />
 

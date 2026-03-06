@@ -144,6 +144,12 @@ If `BUG_REPORT_WEBHOOK_URL` points to Slack or Discord, the server now formats r
 - `bug_reports.id=<id>` DB lookup hint
 - optional direct links to the full report JSON and to your DB/admin console if configured
 
+Players are now also reminded how to report issues in the start flow:
+- local setup screen
+- online lobby
+- tutorial episode intro
+- a once-per-match in-game hint on turn 1 that points to the real report control for the current device
+
 ## Usage
 
 ### Client-Side Error Reporting

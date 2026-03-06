@@ -31,6 +31,7 @@ import { TutorialOverlay } from "../ui/TutorialOverlay";
 import { TutorialLibrary } from "../ui/TutorialLibrary";
 import TutorialEpisodeCoach from "../ui/TutorialEpisodeCoach";
 import { AITurnIndicator } from "../ui/AITurnIndicator";
+import BugReportStartHint from "../ui/BugReportStartHint";
 import { SpawnDebugPanel } from "../debug/SpawnDebugPanel";
 import MovementControls from "../game/MovementControls";
 import { useSfxEngine } from "../../hooks/useSfx";
@@ -1943,22 +1944,31 @@ export default function GameUI() {
       )}
 
       {isMobileUI && (
-        <MobileHUD
-          player={currentPlayer}
-          gameState={gameState}
-          onEndTurn={handleEndTurn}
-          onOpenTech={() => setShowTechPanel(true)}
-          onOpenConstruction={handleShowConstructionHall}
-          onOpenDiplomacy={() => setShowDiplomacy(true)}
-          onOpenSaveLoad={() => setShowSaveLoadMenu(true)}
-          onOpenSettings={() => setShowSettings(true)}
-          onOpenBugReport={() => openBugReportDialog({ source: "mobile_menu" })}
-          onOpenGameLog={() => setShowGameLog(true)}
-          onOpenChat={() => setShowMobileChat(true)}
-          showChat={Boolean(chatIdentity)}
-          onOpenCities={handleShowCityPanel}
-          onOpenAdvancedSave={() => setShowAdvancedSaveSystem(true)}
-        />
+        <>
+          <MobileHUD
+            player={currentPlayer}
+            gameState={gameState}
+            onEndTurn={handleEndTurn}
+            onOpenTech={() => setShowTechPanel(true)}
+            onOpenConstruction={handleShowConstructionHall}
+            onOpenDiplomacy={() => setShowDiplomacy(true)}
+            onOpenSaveLoad={() => setShowSaveLoadMenu(true)}
+            onOpenSettings={() => setShowSettings(true)}
+            onOpenBugReport={() => openBugReportDialog({ source: "mobile_menu" })}
+            onOpenGameLog={() => setShowGameLog(true)}
+            onOpenChat={() => setShowMobileChat(true)}
+            showChat={Boolean(chatIdentity)}
+            onOpenCities={handleShowCityPanel}
+            onOpenAdvancedSave={() => setShowAdvancedSaveSystem(true)}
+          />
+          {gameState && (
+            <BugReportStartHint
+              gameId={gameState.id}
+              turn={gameState.turn}
+              isMobile={true}
+            />
+          )}
+        </>
       )}
 
       {/* Selected Unit Panel - Unified interface with all unit actions */}
@@ -2253,6 +2263,13 @@ export default function GameUI() {
           data-testid="utility-dock"
           className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] right-[calc(env(safe-area-inset-right)+1.5rem)] z-[var(--z-floating)] flex flex-col gap-2"
         >
+          {isBugReportingEnabled() && gameState && (
+            <BugReportStartHint
+              gameId={gameState.id}
+              turn={gameState.turn}
+              isMobile={false}
+            />
+          )}
           <a
             href="/animations"
             data-testid="utility-animation-lab-link"

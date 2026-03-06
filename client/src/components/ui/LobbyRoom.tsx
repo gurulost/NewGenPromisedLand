@@ -12,6 +12,7 @@ import type { MapSize } from "@shared/utils/mapGenerator";
 import { getInitialActionVersionFromLobbyConfig } from "../../hooks/onlineSyncUtils";
 import { ChatPanel } from "../chat/ChatPanel";
 import { useMobileUI } from "../../hooks/useMobileUI";
+import BugReportSupportCallout from "./BugReportSupportCallout";
 
 function SeatSlot({
   seat,
@@ -402,6 +403,8 @@ export default function LobbyRoom() {
                   />
                 ))}
               </div>
+
+              <BugReportSupportCallout />
 
               {isHost && (
                 <GlowingButton

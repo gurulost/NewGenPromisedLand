@@ -36,6 +36,8 @@ export const BugReportSourceSchema = z.enum([
   "desktop_corner",
   "mobile_menu",
   "error_prompt",
+  "start_flow_hint",
+  "in_game_hint",
 ]);
 
 export const BugReportCategorySchema = z.enum([

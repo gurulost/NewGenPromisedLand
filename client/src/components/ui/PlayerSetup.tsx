@@ -14,6 +14,7 @@ import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
 import { StepFretDivider } from "../primitives/StepFretDivider";
 import { getFactionIcon, TempleIcon } from "../primitives/ThematicIcons";
+import BugReportSupportCallout from "./BugReportSupportCallout";
 import { useHotkeys } from "../../hooks/useHotkeys";
 import { usePerformanceMode } from "../../hooks/usePerformanceMode";
 
@@ -553,6 +554,8 @@ export default function PlayerSetup() {
                   </div>
 
                   <div className="space-y-3">
+                    <BugReportSupportCallout />
+
                     <GlowingButton
                       data-testid="player-setup-start-game"
                       onClick={handleStartGame}

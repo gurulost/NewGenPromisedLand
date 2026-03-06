@@ -146,6 +146,18 @@ npm run dev
 - Triggered when a retryable submission failure is stored locally for replay
 - Properties: `source`, `category`, `include_diagnostics`, `include_screenshot`
 
+**bug_report_guidance_shown**
+- Triggered when the once-per-match in-game reporting hint is shown
+- Properties: `surface`, `entry`
+
+**bug_report_guidance_dismissed**
+- Triggered when the player dismisses the once-per-match in-game reporting hint
+- Properties: `surface`, `entry`
+
+**bug_report_guidance_cta_clicked**
+- Triggered when the player opens the report form from onboarding/help guidance instead of the regular HUD entry point
+- Properties: `surface`, `entry`
+
 Bug report telemetry intentionally excludes raw player prose and attached diagnostics to keep analytics low-risk and low-cardinality.
 
 ### Usage Analytics Events
