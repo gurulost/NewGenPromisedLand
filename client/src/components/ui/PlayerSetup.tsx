@@ -150,6 +150,7 @@ export default function PlayerSetup() {
 
   return (
     <div
+      data-testid="player-setup-screen"
       className="w-full h-full p-4 overflow-y-auto relative"
       style={{
         backgroundImage: 'url(/images/mesoamerican_background.png)',
@@ -197,7 +198,9 @@ export default function PlayerSetup() {
                     canStart
                       ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
                       : "border-rose-400/40 bg-rose-500/10 text-rose-200"
-                  )}>
+                  )}
+                  data-testid="player-setup-ready-count"
+                  >
                     Ready {readyCount}/{players.length}
                   </span>
                 </div>
@@ -238,6 +241,7 @@ export default function PlayerSetup() {
                           initial={{ x: -20, opacity: 0 }}
                           animate={{ x: 0, opacity: 1 }}
                           transition={{ delay: index * 0.1 }}
+                          data-testid={`player-setup-card-${player.id}`}
                           className={clsx(
                             "group relative overflow-hidden rounded-2xl border bg-gradient-to-br p-4 md:p-5 transition-all duration-300",
                             cardTone,
@@ -316,6 +320,7 @@ export default function PlayerSetup() {
                             <div className="flex flex-wrap items-center gap-3">
                               <button
                                 onClick={() => togglePlayerType(player.id)}
+                                data-testid={`player-setup-player-type-${player.id}`}
                                 className={clsx(
                                   "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.25em] transition-all",
                                   player.isAI
@@ -344,6 +349,7 @@ export default function PlayerSetup() {
                                 <Label htmlFor={`name-${player.id}`} className={toneLabel}>Player Name</Label>
                                 <Input
                                   id={`name-${player.id}`}
+                                  data-testid={`player-setup-name-${player.id}`}
                                   value={player.name}
                                   onChange={(e) => updatePlayer(player.id, 'name', e.target.value)}
                                   className={clsx("border text-white", fieldTone)}
@@ -370,7 +376,10 @@ export default function PlayerSetup() {
                                     value={player.factionId || ""}
                                     onValueChange={(value) => updatePlayer(player.id, 'factionId', value)}
                                   >
-                                    <SelectTrigger className={clsx("flex-1 border", triggerTone)}>
+                                    <SelectTrigger
+                                      data-testid={`player-setup-faction-${player.id}`}
+                                      className={clsx("flex-1 border", triggerTone)}
+                                    >
                                       <SelectValue placeholder="Choose faction" />
                                     </SelectTrigger>
                                     <SelectContent className={clsx(
@@ -383,6 +392,7 @@ export default function PlayerSetup() {
                                           <SelectItem
                                             key={faction.id}
                                             value={faction.id}
+                                            data-testid={`player-setup-faction-option-${faction.id}`}
                                             disabled={usedFactions.includes(faction.id) && player.factionId !== faction.id}
                                             className="text-white hover:bg-slate-700"
                                           >
@@ -412,7 +422,10 @@ export default function PlayerSetup() {
                                     value={player.aiDifficulty}
                                     onValueChange={(value) => updatePlayer(player.id, 'aiDifficulty', value as AIDifficulty)}
                                   >
-                                    <SelectTrigger className="bg-jade-950/60 border-jade-500 text-white">
+                                    <SelectTrigger
+                                      data-testid={`player-setup-ai-difficulty-${player.id}`}
+                                      className="bg-jade-950/60 border-jade-500 text-white"
+                                    >
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="bg-jade-950 border-jade-500">
@@ -432,6 +445,7 @@ export default function PlayerSetup() {
 
                   {players.length < 8 && (
                     <GlowingButton
+                      data-testid="player-setup-add-player"
                       variant="ghost"
                       glowColor="amber"
                       onClick={addPlayer}
@@ -458,7 +472,10 @@ export default function PlayerSetup() {
                         <span className="text-xs uppercase tracking-[0.3em] font-cinzel">Map Size</span>
                       </div>
                       <Select value={selectedMapSize} onValueChange={(value: MapSize) => setSelectedMapSize(value)}>
-                        <SelectTrigger className="bg-slate-900/70 border-slate-600 text-white">
+                        <SelectTrigger
+                          data-testid="player-setup-map-size"
+                          className="bg-slate-900/70 border-slate-600 text-white"
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-900 border-slate-600">
@@ -497,6 +514,7 @@ export default function PlayerSetup() {
                   <StepFretDivider size="sm" className="hidden lg:block" />
 
                   <div
+                    data-testid="player-setup-roster-status"
                     className={clsx(
                       "relative overflow-hidden rounded-2xl border p-4",
                       canStart
@@ -536,6 +554,7 @@ export default function PlayerSetup() {
 
                   <div className="space-y-3">
                     <GlowingButton
+                      data-testid="player-setup-start-game"
                       onClick={handleStartGame}
                       disabled={!canStart}
                       className="w-full"
@@ -548,6 +567,7 @@ export default function PlayerSetup() {
                     </GlowingButton>
 
                     <GlowingButton
+                      data-testid="player-setup-back-to-menu"
                       variant="secondary"
                       onClick={() => setGamePhase('menu')}
                       className="w-full"

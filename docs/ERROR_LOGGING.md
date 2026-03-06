@@ -39,6 +39,23 @@ Chronicles of the Promised Land has a comprehensive error logging and monitoring
 - Pretty-printed logs for development
 - Error stack trace capture
 
+### Player Bug Reports
+
+**BugReportHost / BugReportDialog** - In-game issue intake
+- Adds a low-friction `Something not working?` launcher in the desktop utility dock and mobile game menu
+- Supports one-click report entry from critical error dialogs and the React error boundary
+- Queues retryable submissions offline and automatically replays them when connectivity returns
+
+**bugReport.ts** - Client diagnostics + submission orchestration
+- Captures current game snapshot, UI mode state, recent actions, recent errors, and runtime/session context
+- Uses a client-generated `submissionId` so retries and queue replays stay idempotent
+- Uploads screenshots through a presigned R2 URL when object storage is configured
+
+**/api/bug-reports** - Server intake
+- Validates/sanitizes incoming reports
+- Computes a dedupe fingerprint and counts matching reports over the last 24 hours
+- Persists the report to Postgres and optionally sends a webhook summary
+
 ## Setup Instructions
 
 ### 1. Basic Setup (No External Services)
@@ -89,6 +106,24 @@ If you prefer LogRocket or Bugsnag instead of Sentry:
 1. Replace the Sentry integration in `client/src/utils/sentry.ts`
 2. Update `client/src/utils/errorReporting.ts` to use the new service
 3. Update `client/src/main.tsx` to initialize the new service
+
+### 4. Optional Setup for Bug Report Screenshots and Alerts
+
+If you want player screenshots and new-report alerts in production:
+
+```bash
+# Optional webhook for report notifications
+BUG_REPORT_WEBHOOK_URL=https://hooks.example.com/services/...
+
+# Optional object storage used by voice notes and bug-report screenshots
+R2_ACCOUNT_ID=your-account-id
+R2_ACCESS_KEY_ID=your-access-key-id
+R2_SECRET_ACCESS_KEY=your-secret-access-key
+R2_BUCKET_NAME=your-bucket-name
+R2_PUBLIC_URL=https://cdn.example.com/assets
+```
+
+Without the `R2_*` variables, bug reports still submit successfully, but screenshot uploads are skipped.
 
 ## Usage
 

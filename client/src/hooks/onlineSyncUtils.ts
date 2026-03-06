@@ -4,6 +4,7 @@ export type LobbyGameConfigLike = {
 };
 
 export type CommittedActionLike = {
+  id?: string;
   version?: number;
   action?: unknown;
 };
@@ -31,7 +32,7 @@ export function getCursorFromSnapshotVersion(snapshotVersion: unknown): number {
 export function applyCommittedEntriesSequentially(
   entries: CommittedActionLike[],
   currentVersion: number,
-  applyAction: (action: unknown) => boolean,
+  applyAction: (action: unknown, entry: CommittedActionLike) => boolean,
 ): ApplyCommittedEntriesResult {
   if (!entries.length) {
     return { nextVersion: currentVersion, appliedCount: 0, needsResync: false, reason: "none" };
@@ -59,7 +60,7 @@ export function applyCommittedEntriesSequentially(
         reason: "version_gap",
       };
     }
-    if (!applyAction(entry.action)) {
+    if (!applyAction(entry.action, entry)) {
       return {
         nextVersion: currentVersion,
         appliedCount,

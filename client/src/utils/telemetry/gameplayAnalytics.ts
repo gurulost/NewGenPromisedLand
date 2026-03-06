@@ -23,6 +23,15 @@ interface ActionContext {
   actionSource: GameplayActionSource;
   gameMode: GameplayMode;
   isOnline: boolean;
+  correlation: ActionCorrelationIds;
+}
+
+interface ActionCorrelationIds {
+  actionId: string;
+  turnId: string;
+  matchId: string;
+  actionVersion?: number | null;
+  queueVersion?: number | null;
 }
 
 interface GameStartPlayer {
@@ -250,6 +259,79 @@ const getActionActorId = (action: ActionLike): string | null => {
   return null;
 };
 
+const ACTION_PAYLOAD_STRING_KEYS = [
+  'playerId',
+  'unitId',
+  'attackerId',
+  'targetId',
+  'cityId',
+  'abilityId',
+  'techId',
+  'fromCityId',
+  'toCityId',
+  'targetPlayerId',
+  'villageId',
+  'improvementType',
+  'structureType',
+  'reason',
+] as const;
+
+const ACTION_PAYLOAD_NUMBER_KEYS = [
+  'amount',
+  'cost',
+  'turn',
+  'version',
+] as const;
+
+const ACTION_PAYLOAD_BOOLEAN_KEYS = [
+  'force',
+  'autoResolve',
+] as const;
+
+const ACTION_PAYLOAD_COORD_KEYS = [
+  'coordinate',
+  'targetCoordinate',
+  'resourceCoordinate',
+  'cityCoordinate',
+] as const;
+
+const getActionPayloadSummary = (payload: unknown): Record<string, AnalyticsValue> => {
+  if (!isRecord(payload)) return {};
+
+  const summary: Record<string, AnalyticsValue> = {};
+
+  for (const key of ACTION_PAYLOAD_STRING_KEYS) {
+    const value = payload[key];
+    if (typeof value === 'string') {
+      summary[key] = value.slice(0, 120);
+    }
+  }
+
+  for (const key of ACTION_PAYLOAD_NUMBER_KEYS) {
+    const value = payload[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      summary[key] = value;
+    }
+  }
+
+  for (const key of ACTION_PAYLOAD_BOOLEAN_KEYS) {
+    const value = payload[key];
+    if (typeof value === 'boolean') {
+      summary[key] = value;
+    }
+  }
+
+  for (const key of ACTION_PAYLOAD_COORD_KEYS) {
+    const value = payload[key];
+    const coordinate = coordinateToString(value);
+    if (coordinate) {
+      summary[key] = coordinate;
+    }
+  }
+
+  return summary;
+};
+
 const getCombatEventProperties = (
   action: ActionLike,
   before: GameState,
@@ -292,6 +374,11 @@ const getCombatEventProperties = (
     action_source: context.actionSource,
     game_mode: context.gameMode,
     is_online: context.isOnline,
+    action_id: context.correlation.actionId,
+    turn_id: context.correlation.turnId,
+    match_id: context.correlation.matchId,
+    action_version: context.correlation.actionVersion ?? null,
+    queue_version: context.correlation.queueVersion ?? null,
     turn: before.turn,
     game_id: before.id,
   };
@@ -307,6 +394,11 @@ const captureActionDerivedEvents = (
     action_source: context.actionSource,
     game_mode: context.gameMode,
     is_online: context.isOnline,
+    action_id: context.correlation.actionId,
+    turn_id: context.correlation.turnId,
+    match_id: context.correlation.matchId,
+    action_version: context.correlation.actionVersion ?? null,
+    queue_version: context.correlation.queueVersion ?? null,
     turn_before: before.turn,
     turn_after: after.turn,
     game_id: after.id,
@@ -521,6 +613,7 @@ export function trackGameplayActionApplied(
   after: GameState,
   context: ActionContext,
 ): void {
+  const payloadSummary = getActionPayloadSummary(action.payload ?? {});
   capture('gameplay_action', {
     action_type: toActionName(action.type),
     action_name: action.type,
@@ -530,10 +623,16 @@ export function trackGameplayActionApplied(
     is_online: context.isOnline,
     actor_id: getActionActorId(action),
     applied: true,
+    action_id: context.correlation.actionId,
+    turn_id: context.correlation.turnId,
+    match_id: context.correlation.matchId,
+    action_version: context.correlation.actionVersion ?? null,
+    queue_version: context.correlation.queueVersion ?? null,
     turn_before: before.turn,
     turn_after: after.turn,
     ...getGameSnapshot(after),
-    action_payload: sanitizeValue(action.payload ?? {}),
+    action_payload_summary: payloadSummary,
+    action_payload_keys: Object.keys(payloadSummary),
   });
 
   captureActionDerivedEvents(action, before, after, context);
@@ -546,6 +645,7 @@ export function trackGameplayActionBlocked(
   gameState: GameState | null,
 ): void {
   const snapshot = gameState ? getGameSnapshot(gameState) : {};
+  const payloadSummary = getActionPayloadSummary(action.payload ?? {});
   capture('gameplay_action_blocked', {
     action_type: toActionName(action.type),
     action_name: action.type,
@@ -556,8 +656,14 @@ export function trackGameplayActionBlocked(
     actor_id: getActionActorId(action),
     blocked_reason: reason,
     applied: false,
+    action_id: context.correlation.actionId,
+    turn_id: context.correlation.turnId,
+    match_id: context.correlation.matchId,
+    action_version: context.correlation.actionVersion ?? null,
+    queue_version: context.correlation.queueVersion ?? null,
     ...snapshot,
-    action_payload: sanitizeValue(action.payload ?? {}),
+    action_payload_summary: payloadSummary,
+    action_payload_keys: Object.keys(payloadSummary),
   });
 }
 

@@ -1,5 +1,6 @@
 import type { GameState } from "@shared/types/game";
 import { compress, decompress } from "lz-string";
+import { getDeviceId } from "./deviceId";
 
 export interface SaveMetadata {
   currentPlayer: string;
@@ -19,17 +20,7 @@ export interface ServerSave {
   updatedAt: string;
 }
 
-const DEVICE_ID_KEY = "chronicles_device_id";
 const LOCAL_SAVE_PREFIX = "chronicles_save_";
-
-function getDeviceId(): string {
-  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
-  if (!deviceId) {
-    deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-    localStorage.setItem(DEVICE_ID_KEY, deviceId);
-  }
-  return deviceId;
-}
 
 function parseLocalSaveId(storageKey: string): number | null {
   if (!storageKey.startsWith(LOCAL_SAVE_PREFIX)) return null;

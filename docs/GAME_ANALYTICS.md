@@ -9,8 +9,12 @@ The analytics system tracks:
 - **Game Lifecycle** - Game starts, saves, loads
 - **Gameplay Actions** - Unit creation, movement, combat, city management, technology research
 - **Combat Events** - Detailed combat statistics with damage calculations
+- **Bug Report Funnel** - Report opens, successful submissions, failures, and offline queueing
 - **Performance Metrics** - Core Web Vitals (CLS, INP, LCP, FCP, TTFB)
 - **User Context** - Session tracking, game state correlation
+
+For production dashboard setup, use:
+- [`docs/POSTHOG_DASHBOARD_SPEC.md`](./POSTHOG_DASHBOARD_SPEC.md) - exact dashboard cards, filters, formulas, and SQL insights for gameplay tuning.
 
 ## Setup
 
@@ -124,6 +128,26 @@ npm run dev
   - `TTFB` - Time to First Byte
 - Properties: metric_name, metric_value, metric_rating, game_phase
 
+### Bug Report Events
+
+**bug_report_opened**
+- Triggered when the player opens the in-game bug report dialog
+- Properties: `source`, `category`
+
+**bug_report_submitted**
+- Triggered after a bug report is accepted by the server
+- Properties: `source`, `category`, `repro_frequency`, `include_diagnostics`, `include_screenshot`, `message_length`, `fingerprint`
+
+**bug_report_submit_failed**
+- Triggered when a submission attempt fails before it can be queued or retried
+- Properties: `source`, `category`, `retryable`, `status`
+
+**bug_report_queued_offline**
+- Triggered when a retryable submission failure is stored locally for replay
+- Properties: `source`, `category`, `include_diagnostics`, `include_screenshot`
+
+Bug report telemetry intentionally excludes raw player prose and attached diagnostics to keep analytics low-risk and low-cardinality.
+
 ### Usage Analytics Events
 
 **usage_session_started**
@@ -132,6 +156,7 @@ npm run dev
   - `traffic_type` (`direct`, `campaign`, `organic_search`, `social`, `referral`)
   - `referrer_domain`, `referrer_path`
   - `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`
+  - Geo enrichment from PostHog (`$geoip_country_name`, `$geoip_subdivision_1_name`, `$geoip_city_name`, `$geoip_country_code`, `$geoip_time_zone`)
   - `visit_number`, `is_returning_visitor`, `days_since_last_seen`
   - `session_id`, `page_path`, `page_url`
 
@@ -146,6 +171,13 @@ npm run dev
 **usage_session_ended**
 - Triggered when the page is hidden/unloaded
 - Properties: `session_duration_seconds`, `active_duration_seconds`, `active_ratio`, `end_reason`
+
+Usage analytics also registers stable build/runtime context on all events:
+- `app_version`
+- `git_sha`
+- `environment`
+- `platform`
+- `is_dev_build`
 
 ### Gameplay Tuning Events
 
@@ -181,6 +213,15 @@ These events make it possible to tune:
 - Combat outcomes by unit matchup and terrain
 - Research/build/capture pacing by turn and mode
 - Session abandonment vs win/loss completion
+
+Gameplay action telemetry now includes correlation IDs for joins:
+- `action_id`
+- `turn_id`
+- `match_id`
+
+And action payload telemetry is intentionally curated to avoid high-cardinality noise:
+- `action_payload_summary` (selected key fields only)
+- `action_payload_keys`
 
 ## Player Identification
 
