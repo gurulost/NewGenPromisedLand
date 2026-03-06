@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import { openSinglePlayerSetup } from './helpers/gameSession';
+
 type Viewport = { name: string; width: number; height: number };
 
 const DESKTOP_VIEWPORTS: Viewport[] = [
@@ -34,10 +36,7 @@ async function assertInViewport(
 }
 
 async function openPlayerSetup(page: Page) {
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('button', { name: /Single Player vs AI/i })).toBeVisible();
-  await page.getByRole('button', { name: /Single Player vs AI/i }).click();
-  await expect(page.getByRole('heading', { name: /Local Game Setup/i })).toBeVisible();
+  await openSinglePlayerSetup(page);
 }
 
 test.describe('Viewport Sweep', () => {
@@ -53,8 +52,8 @@ test.describe('Viewport Sweep', () => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-      const startButton = page.getByRole('button', { name: /Single Player vs AI/i });
-      const onlineButton = page.getByRole('button', { name: /Online Multiplayer/i });
+      const startButton = page.getByTestId('main-menu-single-player');
+      const onlineButton = page.getByTestId('main-menu-online-multiplayer');
 
       await expect(startButton, `${viewport.name}: missing start button`).toBeVisible();
       await expect(onlineButton, `${viewport.name}: missing online button`).toBeVisible();
@@ -77,8 +76,8 @@ test.describe('Viewport Sweep', () => {
       try {
         await openPlayerSetup(page);
 
-        const addPlayerButton = page.getByRole('button', { name: /Add Player/i });
-        const startGameButton = page.getByRole('button', { name: /^Start Game$/i });
+        const addPlayerButton = page.getByTestId('player-setup-add-player');
+        const startGameButton = page.getByTestId('player-setup-start-game');
 
         await expect(addPlayerButton, `${viewport.name}: missing add player button`).toBeVisible();
         await expect(startGameButton, `${viewport.name}: missing start game button`).toBeVisible();

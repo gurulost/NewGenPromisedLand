@@ -499,6 +499,7 @@ const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHa
         size="sm"
         glowColor="green"
         intensity="high"
+        data-testid="hud-end-turn-button"
         className="flex-1 text-sm font-semibold bg-gradient-to-r from-green-600 to-green-700 
                    text-white border border-green-400/60 hover:from-green-500 hover:to-green-600"
         onClick={onEndTurn}

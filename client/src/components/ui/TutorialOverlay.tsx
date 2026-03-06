@@ -46,6 +46,7 @@ export function TutorialOverlay() {
 
   return (
     <ModalLayer
+      data-testid="tutorial-overlay-dialog"
       className="fixed inset-0 z-[var(--z-tutorial)] pointer-events-auto flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
       onClick={handleClose}
     >
@@ -56,6 +57,7 @@ export function TutorialOverlay() {
         <button
           type="button"
           aria-label="Close tutorial"
+          data-testid="tutorial-overlay-close"
           className="absolute right-4 top-4 rounded-full border border-amber-500/30 bg-amber-500/10 p-2 text-amber-200 transition hover:bg-amber-500/20 hover:text-amber-100"
           onClick={handleClose}
         >
@@ -131,12 +133,14 @@ export function TutorialOverlay() {
               </div>
               <Button
                 variant="outline"
+                data-testid="tutorial-overlay-open-later"
                 className="border-amber-500/40 text-amber-100 hover:bg-amber-500/20"
                 onClick={handleClose}
               >
                 Open Later
               </Button>
               <Button
+                data-testid="tutorial-overlay-primary-action"
                 className="bg-amber-600 text-amber-50 hover:bg-amber-500"
                 onClick={handleGotIt}
               >
