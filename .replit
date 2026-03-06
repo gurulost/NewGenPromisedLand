@@ -34,3 +34,9 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[userenv]
+
+[userenv.shared]
+ANIMATION_LAB_ACCESS_QUESTION = "Who was the queen of all cats, born in a garage?"
+ANIMATION_LAB_ACCESS_TTL_HOURS = "12"
