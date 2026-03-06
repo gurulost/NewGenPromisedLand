@@ -17,20 +17,25 @@ interface BugReportStartHintProps {
   gameId: string;
   turn: number;
   isMobile: boolean;
+  blocked?: boolean;
 }
 
-export function BugReportStartHint({ gameId, turn, isMobile }: BugReportStartHintProps) {
+export function BugReportStartHint({ gameId, turn, isMobile, blocked = false }: BugReportStartHintProps) {
   const enabled = isBugReportingEnabled();
   const [visible, setVisible] = useState(() =>
-    shouldShowBugReportMatchHint({ enabled, gameId, turn }),
+    !blocked && shouldShowBugReportMatchHint({ enabled, gameId, turn }),
   );
   const announcedGameIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const nextVisible = shouldShowBugReportMatchHint({ enabled, gameId, turn });
-    setVisible(nextVisible);
+    if (!nextVisible || blocked) {
+      setVisible(false);
+      return;
+    }
 
-    if (!nextVisible) return;
+    setVisible(true);
+
     markBugReportMatchHintSeen(gameId);
     if (announcedGameIdRef.current === gameId) return;
     announcedGameIdRef.current = gameId;
@@ -38,7 +43,7 @@ export function BugReportStartHint({ gameId, turn, isMobile }: BugReportStartHin
       surface: "in_game",
       entry: isMobile ? "mobile" : "desktop",
     });
-  }, [enabled, gameId, isMobile, turn]);
+  }, [blocked, enabled, gameId, isMobile, turn]);
 
   if (!enabled || !visible) return null;
 
@@ -77,7 +82,7 @@ export function BugReportStartHint({ gameId, turn, isMobile }: BugReportStartHin
             ? "fixed left-3 right-3 z-[var(--z-floating)]"
             : "w-[min(22rem,calc(100vw-5rem))] self-end",
         )}
-        style={isMobile ? { top: "calc(env(safe-area-inset-top) + var(--mobile-hud-height, 0px) + 0.75rem)" } : undefined}
+        style={isMobile ? { top: "calc(var(--mobile-hud-height, 0px) + 0.75rem)" } : undefined}
       >
         <div className="flex items-start gap-3">
           <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-400/25 bg-amber-500/10 text-amber-200">

@@ -1114,6 +1114,11 @@ export default function GameUI() {
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
   const { isAIProcessing, currentAIPlayer } = useAITurn();
   const suppressChatPeekActive = suppressChatPeek || isTransitioning;
+  const shouldBlockBugReportHint = Boolean(
+    gameMode === "tutorialEpisode" ||
+    activeTutorialCardId ||
+    isTutorialLibraryOpen,
+  );
   const heapMb = heapBytes ? Math.round(heapBytes / (1024 * 1024)) : null;
 
   const shouldIgnoreGlobalHotkeys = useCallback(() => {
@@ -1966,6 +1971,7 @@ export default function GameUI() {
               gameId={gameState.id}
               turn={gameState.turn}
               isMobile={true}
+              blocked={shouldBlockBugReportHint}
             />
           )}
         </>
@@ -2268,6 +2274,7 @@ export default function GameUI() {
               gameId={gameState.id}
               turn={gameState.turn}
               isMobile={false}
+              blocked={shouldBlockBugReportHint}
             />
           )}
           <a

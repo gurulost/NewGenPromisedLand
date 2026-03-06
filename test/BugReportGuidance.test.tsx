@@ -97,4 +97,26 @@ describe("bug report guidance surfaces", () => {
     rerender(<BugReportStartHint gameId="game-3" turn={2} isMobile={true} />);
     expect(screen.queryByTestId("bug-report-start-hint")).not.toBeInTheDocument();
   });
+
+  it("waits until blocking overlays clear before marking the match hint as seen", () => {
+    const { rerender } = render(
+      <BugReportStartHint gameId="game-4" turn={1} isMobile={false} blocked={true} />,
+    );
+
+    expect(screen.queryByTestId("bug-report-start-hint")).not.toBeInTheDocument();
+    expect(localStorage.getItem("ngpl_bug_report_match_hint_seen_v1:game-4")).toBeNull();
+
+    rerender(<BugReportStartHint gameId="game-4" turn={1} isMobile={false} blocked={false} />);
+
+    expect(screen.getByTestId("bug-report-start-hint")).toBeInTheDocument();
+    expect(localStorage.getItem("ngpl_bug_report_match_hint_seen_v1:game-4")).toBe("1");
+  });
+
+  it("uses the shared mobile HUD offset instead of adding safe-area twice", () => {
+    render(<BugReportStartHint gameId="game-5" turn={1} isMobile={true} />);
+
+    expect(screen.getByTestId("bug-report-start-hint")).toHaveStyle({
+      top: "calc(var(--mobile-hud-height, 0px) + 0.75rem)",
+    });
+  });
 });
