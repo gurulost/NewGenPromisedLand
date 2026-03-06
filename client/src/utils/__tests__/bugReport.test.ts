@@ -166,4 +166,44 @@ describe("bugReport utilities", () => {
     expect(flushResult.sentCount).toBe(1);
     expect(localStorage.getItem("ngpl_bug_report_queue_v1")).toBeNull();
   });
+
+  it("cleans up an uploaded screenshot when a queued report is rejected permanently", async () => {
+    localStorage.setItem("ngpl_bug_report_queue_v1", JSON.stringify([{
+      submissionId: "bug_cleanup_1",
+      source: "desktop_corner",
+      category: "ui",
+      playerMessage: "The city panel never responded after I opened it.",
+      reproFrequency: "once",
+      includeDiagnostics: false,
+      includeScreenshot: true,
+      screenshotUrl: "https://cdn.example.com/assets/bug-reports/bug_cleanup_1.jpeg",
+      clientTimestampMs: Date.now(),
+    }]));
+
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: "invalid screenshot url" }),
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const flushResult = await flushQueuedBugReports();
+
+    expect(flushResult.sentCount).toBe(0);
+    expect(flushResult.remainingCount).toBe(0);
+    expect(localStorage.getItem("ngpl_bug_report_queue_v1")).toBeNull();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/bug-reports/screenshot-cleanup",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+  });
 });

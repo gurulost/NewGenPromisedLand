@@ -33,10 +33,12 @@ import {
   R2_CONFIGURED,
   VOICE_LIMITS,
   isAllowedVoiceMimeType,
+  isBugReportStorageUrlForSubmission,
   isVoiceStorageUrl,
   isVoiceStorageUrlForLobby,
   createBugReportUploadUrl,
   createVoiceUploadUrl,
+  deleteBugReportObject,
 } from "./r2";
 import {
   buildBugReportFingerprint,
@@ -52,6 +54,7 @@ import type {
   ChatTypingEventPayload,
 } from "@shared/types/chatEvents";
 import {
+  BugReportScreenshotCleanupRequestSchema,
   BugReportScreenshotUploadRequestSchema,
   SubmitBugReportSchema,
 } from "@shared/types/bugReport";
@@ -2161,6 +2164,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/bug-reports/screenshot-cleanup", bugReportUploadRateLimit, async (req, res) => {
+    if (!R2_CONFIGURED) {
+      return res.status(503).json({ error: "Screenshot storage not configured" });
+    }
+
+    const parsed = BugReportScreenshotCleanupRequestSchema.safeParse({
+      submissionId: req.body?.submissionId,
+      screenshotUrl: req.body?.screenshotUrl,
+    });
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid screenshot cleanup payload" });
+    }
+
+    if (!isBugReportStorageUrlForSubmission(parsed.data.screenshotUrl, parsed.data.submissionId)) {
+      return res.status(400).json({ error: "Screenshot URL does not match the uploaded report asset" });
+    }
+
+    try {
+      await deleteBugReportObject(parsed.data.screenshotUrl);
+      return res.status(204).end();
+    } catch (error) {
+      console.error("Failed to clean up bug report screenshot:", error);
+      return res.status(500).json({ error: "Failed to clean up screenshot upload" });
+    }
+  });
+
   app.post("/api/bug-reports", bugReportRateLimit, async (req, res) => {
     const parsed = SubmitBugReportSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -2177,6 +2206,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fingerprint: existing.fingerprint,
           receivedAt: existing.createdAt.toISOString(),
         });
+      }
+
+      if (payload.screenshotUrl) {
+        if (!payload.includeScreenshot) {
+          return res.status(400).json({ error: "Screenshot URL provided while screenshot attachment is disabled" });
+        }
+        if (!R2_CONFIGURED) {
+          return res.status(400).json({ error: "Screenshot uploads are not configured on this server" });
+        }
+        if (!isBugReportStorageUrlForSubmission(payload.screenshotUrl, payload.submissionId)) {
+          return res.status(400).json({ error: "Screenshot URL does not match the uploaded report asset" });
+        }
       }
 
       const deviceIdHeader = req.headers["x-device-id"];

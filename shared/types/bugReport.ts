@@ -14,6 +14,12 @@ const optionalTrimmedUrl = (max: number) =>
     return trimmed.length > 0 ? trimmed : undefined;
   }, z.string().url().max(max).optional());
 
+const requiredTrimmedUrl = (max: number) =>
+  z.preprocess((value) => {
+    if (typeof value !== "string") return value;
+    return value.trim();
+  }, z.string().url().max(max));
+
 export const BUG_REPORT_SCREENSHOT_LIMITS = {
   maxBytes: 1024 * 1024,
   maxWidth: 960,
@@ -96,6 +102,11 @@ export const BugReportScreenshotUploadRequestSchema = z.object({
     .max(BUG_REPORT_SCREENSHOT_LIMITS.maxBytes),
 });
 
+export const BugReportScreenshotCleanupRequestSchema = z.object({
+  submissionId: BugReportSubmissionIdSchema,
+  screenshotUrl: requiredTrimmedUrl(500),
+});
+
 export const BugReportScreenshotUploadResponseSchema = z.object({
   uploadUrl: z.string().url(),
   objectKey: z.string(),
@@ -109,4 +120,5 @@ export type BugReportReproFrequency = z.infer<typeof BugReportReproFrequencySche
 export type SubmitBugReportRequest = z.infer<typeof SubmitBugReportSchema>;
 export type SubmitBugReportResponse = z.infer<typeof SubmitBugReportResponseSchema>;
 export type BugReportScreenshotUploadRequest = z.infer<typeof BugReportScreenshotUploadRequestSchema>;
+export type BugReportScreenshotCleanupRequest = z.infer<typeof BugReportScreenshotCleanupRequestSchema>;
 export type BugReportScreenshotUploadResponse = z.infer<typeof BugReportScreenshotUploadResponseSchema>;

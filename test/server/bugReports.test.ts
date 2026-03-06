@@ -6,6 +6,7 @@ import {
   formatBugReportId,
   sanitizeBugReportDiagnostics,
 } from "../../server/bugReports";
+import { isBugReportStorageUrlForSubmission } from "../../server/r2";
 
 describe("bugReports helpers", () => {
   it("builds a stable fingerprint from normalized content", () => {
@@ -70,5 +71,31 @@ describe("bugReports helpers", () => {
     expect(payload.text).toContain("BR-000042");
     expect(payload.text).toContain("duplicates(24h): 2");
     expect((payload.bugReport as Record<string, unknown>).category).toBe("ui");
+  });
+
+  it("only accepts screenshot URLs that match the bug-report storage prefix for the submission", () => {
+    expect(
+      isBugReportStorageUrlForSubmission(
+        "https://cdn.example.com/assets/bug-reports/bug_cleanup_1.jpeg",
+        "bug_cleanup_1",
+        "https://cdn.example.com/assets",
+      ),
+    ).toBe(true);
+
+    expect(
+      isBugReportStorageUrlForSubmission(
+        "https://example.com/other/path.jpeg",
+        "bug_cleanup_1",
+        "https://cdn.example.com/assets",
+      ),
+    ).toBe(false);
+
+    expect(
+      isBugReportStorageUrlForSubmission(
+        "https://cdn.example.com/assets/bug-reports/someone_else.jpeg",
+        "bug_cleanup_1",
+        "https://cdn.example.com/assets",
+      ),
+    ).toBe(false);
   });
 });

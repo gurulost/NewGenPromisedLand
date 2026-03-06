@@ -88,6 +88,22 @@ function bugReportObjectPrefix(): string {
   return BUG_REPORT_OBJECT_PREFIX;
 }
 
+function bugReportObjectKeyForSubmission(submissionId: string, mimeType: string): string {
+  const safeId = sanitizeObjectKeySegment(submissionId);
+  const ext = mimeTypeToExtension(mimeType);
+  return `${bugReportObjectPrefix()}${safeId}.${ext}`;
+}
+
+function extractObjectKeyFromPublicUrl(storageUrl: string, publicUrlBase = R2_PUBLIC_URL): string | null {
+  if (!publicUrlBase) return null;
+  const normalizedUrl = String(storageUrl ?? "").trim();
+  const normalizedBase = publicUrlBase.replace(/\/$/, "");
+  const prefix = `${normalizedBase}/`;
+  if (!normalizedUrl.startsWith(prefix)) return null;
+  const objectKey = normalizedUrl.slice(prefix.length);
+  return objectKey || null;
+}
+
 function mimeTypeToExtension(mimeType: string): string {
   const base = normalizeBaseMimeType(mimeType);
   const sub = base.split("/")[1] ?? "webm";
@@ -117,6 +133,17 @@ export function isVoiceStorageUrlForLobby(audioUrl: string, lobbyCode: string): 
   if (!R2_PUBLIC_URL) return false;
   const normalized = String(audioUrl ?? "");
   return normalized.startsWith(`${R2_PUBLIC_URL}/${voiceObjectPrefixForLobby(lobbyCode)}`);
+}
+
+export function isBugReportStorageUrlForSubmission(
+  screenshotUrl: string,
+  submissionId: string,
+  publicUrlBase = R2_PUBLIC_URL,
+): boolean {
+  const objectKey = extractObjectKeyFromPublicUrl(screenshotUrl, publicUrlBase);
+  if (!objectKey) return false;
+  const safeId = sanitizeObjectKeySegment(submissionId);
+  return objectKey.startsWith(`${bugReportObjectPrefix()}${safeId}.`);
 }
 
 export interface PresignedVoiceUpload {
@@ -201,9 +228,7 @@ export async function createBugReportUploadUrl(params: {
     );
   }
 
-  const safeId = sanitizeObjectKeySegment(submissionId);
-  const ext = mimeTypeToExtension(mimeType);
-  const objectKey = `${bugReportObjectPrefix()}${safeId}.${ext}`;
+  const objectKey = bugReportObjectKeyForSubmission(submissionId, mimeType);
   const publicUrl = `${R2_PUBLIC_URL}/${objectKey}`;
 
   const client = getR2Client();
@@ -219,6 +244,18 @@ export async function createBugReportUploadUrl(params: {
   });
 
   return { uploadUrl, objectKey, publicUrl, expiresInSeconds: PRESIGNED_EXPIRY_SECONDS };
+}
+
+export async function deleteBugReportObject(publicUrl: string): Promise<void> {
+  const objectKey = extractObjectKeyFromPublicUrl(publicUrl);
+  if (!objectKey || !objectKey.startsWith(BUG_REPORT_OBJECT_PREFIX)) {
+    throw new Error("Invalid bug report storage URL");
+  }
+
+  const client = getR2Client();
+  await client.send(
+    new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: objectKey })
+  );
 }
 
 export async function deleteVoiceObject(objectKey: string): Promise<void> {

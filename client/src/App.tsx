@@ -163,18 +163,16 @@ function App() {
                 {gamePhase === 'lobbyRoom' && <LobbyRoom />}
 
                 {(gamePhase === 'playing' || gamePhase === 'gameOver') && (
-                  <>
-                    <ErrorBoundary>
-                      <GameStage />
-                      <Suspense fallback={null}>
-                        <GameUI />
-                      </Suspense>
-                      <WorldBuildLoader enabled />
-                    </ErrorBoundary>
-                    <BugReportHost />
-                  </>
+                  <ErrorBoundary>
+                    <GameStage />
+                    <Suspense fallback={null}>
+                      <GameUI />
+                    </Suspense>
+                    <WorldBuildLoader enabled />
+                  </ErrorBoundary>
                 )}
               </KeyboardControls>
+              <BugReportHost />
               <MapGenerationOverlay />
             </div>
           </VisualFeedbackProvider>

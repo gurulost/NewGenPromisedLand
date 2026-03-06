@@ -201,6 +201,22 @@ const uploadScreenshotBlob = async (submissionId: string, blob: Blob): Promise<s
   return presign.publicUrl;
 };
 
+const cleanupUploadedScreenshot = async (submissionId: string, screenshotUrl: string): Promise<void> => {
+  try {
+    await fetch("/api/bug-reports/screenshot-cleanup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Device-Id": getDeviceId(),
+      },
+      body: JSON.stringify({ submissionId, screenshotUrl }),
+      credentials: "include",
+    });
+  } catch {
+    // Cleanup is best-effort only.
+  }
+};
+
 const captureScreenshotBlob = async (): Promise<Blob | null> => {
   if (typeof document === "undefined") return null;
   const sourceCanvas = document.querySelector("canvas");
@@ -370,14 +386,18 @@ export async function submitBugReport(input: BugReportDraftInput): Promise<BugRe
     });
     return { queued: false, response, submissionId };
   } catch (error) {
+    const retryable = isRetryableError(error);
     capture("bug_report_submit_failed", {
       source: payload.source,
       category: payload.category,
-      retryable: isRetryableError(error),
+      retryable,
       status: error instanceof ApiError ? error.status ?? null : null,
     });
 
-    if (!isRetryableError(error)) {
+    if (!retryable) {
+      if (payload.screenshotUrl) {
+        void cleanupUploadedScreenshot(payload.submissionId, payload.screenshotUrl);
+      }
       throw error;
     }
 
@@ -413,6 +433,10 @@ export async function flushQueuedBugReports(): Promise<{ sentCount: number; rema
         if (isRetryableError(error)) {
           remaining.push(payload, ...queue.slice(index + 1));
           break;
+        }
+
+        if (payload.screenshotUrl) {
+          await cleanupUploadedScreenshot(payload.submissionId, payload.screenshotUrl);
         }
       }
     }
