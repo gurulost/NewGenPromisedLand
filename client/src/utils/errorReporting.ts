@@ -1,4 +1,5 @@
 import React from 'react';
+import { openBugReportDialog } from './bugReport';
 
 /**
  * Comprehensive Error Reporting and Debugging System
@@ -190,6 +191,7 @@ class GameErrorReporter {
    */
   private showCriticalErrorDialog(error: GameError) {
     const dialog = document.createElement('div');
+    const errorMessage = error.message.replace(/</g, "&lt;").replace(/>/g, "&gt;");
     dialog.style.cssText = `
       position: fixed;
       top: 50%;
@@ -210,14 +212,31 @@ class GameErrorReporter {
       <p style="margin: 0 0 15px 0;">An error occurred that may affect gameplay. The error has been logged for debugging.</p>
       <details style="margin: 10px 0;">
         <summary style="cursor: pointer;">Technical Details</summary>
-        <pre style="background: #374151; padding: 10px; border-radius: 4px; overflow: auto; margin: 10px 0; font-size: 12px;">${error.message}</pre>
+        <pre style="background: #374151; padding: 10px; border-radius: 4px; overflow: auto; margin: 10px 0; font-size: 12px;">${errorMessage}</pre>
       </details>
-      <button onclick="this.parentElement.remove()" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
-        Continue Playing
-      </button>
+      <div style="display: flex; gap: 8px;">
+        <button data-role="report-issue" style="background: #f59e0b; color: black; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: 600;">
+          Report This
+        </button>
+        <button data-role="continue-playing" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+          Continue Playing
+        </button>
+      </div>
     `;
     
     document.body.appendChild(dialog);
+    const reportButton = dialog.querySelector('[data-role="report-issue"]');
+    reportButton?.addEventListener('click', () => {
+      openBugReportDialog({
+        source: 'error_prompt',
+        category: error.type === 'critical' ? 'crash' : 'ui',
+        playerMessage: error.message,
+      });
+    });
+    const continueButton = dialog.querySelector('[data-role="continue-playing"]');
+    continueButton?.addEventListener('click', () => {
+      dialog.remove();
+    });
     
     // Auto-remove after 10 seconds
     setTimeout(() => {

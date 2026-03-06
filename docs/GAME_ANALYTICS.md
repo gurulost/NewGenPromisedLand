@@ -9,6 +9,7 @@ The analytics system tracks:
 - **Game Lifecycle** - Game starts, saves, loads
 - **Gameplay Actions** - Unit creation, movement, combat, city management, technology research
 - **Combat Events** - Detailed combat statistics with damage calculations
+- **Bug Report Funnel** - Report opens, successful submissions, failures, and offline queueing
 - **Performance Metrics** - Core Web Vitals (CLS, INP, LCP, FCP, TTFB)
 - **User Context** - Session tracking, game state correlation
 
@@ -126,6 +127,26 @@ npm run dev
   - `FCP` - First Contentful Paint
   - `TTFB` - Time to First Byte
 - Properties: metric_name, metric_value, metric_rating, game_phase
+
+### Bug Report Events
+
+**bug_report_opened**
+- Triggered when the player opens the in-game bug report dialog
+- Properties: `source`, `category`
+
+**bug_report_submitted**
+- Triggered after a bug report is accepted by the server
+- Properties: `source`, `category`, `repro_frequency`, `include_diagnostics`, `include_screenshot`, `message_length`, `fingerprint`
+
+**bug_report_submit_failed**
+- Triggered when a submission attempt fails before it can be queued or retried
+- Properties: `source`, `category`, `retryable`, `status`
+
+**bug_report_queued_offline**
+- Triggered when a retryable submission failure is stored locally for replay
+- Properties: `source`, `category`, `include_diagnostics`, `include_screenshot`
+
+Bug report telemetry intentionally excludes raw player prose and attached diagnostics to keep analytics low-risk and low-cardinality.
 
 ### Usage Analytics Events
 
