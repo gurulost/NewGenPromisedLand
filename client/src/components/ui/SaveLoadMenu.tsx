@@ -232,6 +232,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
               <h3 className="text-lg font-semibold text-amber-100 mb-3 font-cinzel">Save Current Game</h3>
               <div className={`${isMobileUI ? 'flex flex-col gap-2' : 'flex gap-2'}`}>
                 <Input
+                  data-testid="save-load-save-name-input"
                   placeholder="Enter save name..."
                   value={saveName}
                   onChange={(e) => setSaveName(e.target.value)}
@@ -240,6 +241,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                   disabled={isSaving}
                 />
                 <GlowingButton
+                  data-testid="save-load-save-button"
                   onClick={saveGame}
                   disabled={!saveName.trim() || isSaving}
                   aria-label="Save"
@@ -313,6 +315,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                   <motion.div
                     initial={{ x: -20, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
+                    data-testid="save-entry-autosave"
                     className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                       selectedSave === 'autosave'
                         ? 'bg-blue-600/20 border-blue-500/50'
@@ -356,6 +359,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                         <GlowingButton
                           variant="secondary"
                           size="sm"
+                          data-testid="save-entry-load-autosave"
                           aria-label="Load"
                           onClick={(e) => {
                             e?.stopPropagation();
@@ -376,6 +380,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                     initial={{ x: -20, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ delay: index * 0.05 }}
+                    data-testid={`save-entry-${save.id}`}
                     className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                       selectedSave === save.id
                         ? 'bg-blue-600/20 border-blue-500/50'
@@ -416,6 +421,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                         <GlowingButton
                           variant="secondary"
                           size="sm"
+                          data-testid={`save-entry-load-${save.id}`}
                           aria-label="Load"
                           onClick={(e) => {
                             e?.stopPropagation();

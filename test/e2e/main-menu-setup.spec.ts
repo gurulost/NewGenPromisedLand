@@ -1,89 +1,43 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-async function openPlayerSetup(page: Page) {
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: /Chronicles of the Promised Land/i })).toBeVisible();
-  await page.getByRole('button', { name: /Single Player vs AI/i }).click();
-  await expect(page.getByRole('heading', { name: /Local Game Setup/i })).toBeVisible();
-}
-
-async function advanceHandoffToActiveTurn(page: Page) {
-  const endTurnButton = page.getByRole('button', { name: /End Turn/i });
-  const startTurnButton = page.getByRole('button', { name: /Start Turn/i });
-  const deadline = Date.now() + 90_000;
-
-  // In pass-and-play there can be one or more handoff screens before action HUD appears.
-  while (Date.now() < deadline) {
-    if (await endTurnButton.isVisible().catch(() => false)) {
-      break;
-    }
-
-    if (await startTurnButton.isVisible().catch(() => false)) {
-      await startTurnButton.click();
-      await page.waitForTimeout(250);
-      continue;
-    }
-
-    await page.waitForTimeout(250);
-  }
-
-  await expect(endTurnButton).toBeVisible({ timeout: 90_000 });
-}
-
-async function chooseFaction(page: Page, factionName: string) {
-  const trigger = page.locator('button:has-text("Choose faction")').first();
-  await expect(trigger).toBeVisible();
-  await trigger.click();
-
-  const option = page.getByRole('option', { name: factionName });
-  await expect(option).toBeVisible();
-  await option.click();
-}
+import {
+  attachExpectedPageErrorFilter,
+  chooseFaction,
+  gotoMainMenu,
+  openSinglePlayerSetup,
+  startSinglePlayerGame,
+} from './helpers/gameSession';
 
 test.describe('Main Menu and Setup Smoke', () => {
   test.describe.configure({ timeout: 180_000 });
 
   test.beforeEach(async ({ page }) => {
-    page.on('pageerror', (error) => {
-      const message = String(error?.message ?? '');
-      // `/api/saves` can fail in test environments without a configured DB role;
-      // the app falls back to local storage saves, so we ignore this expected noise.
-      if (message.includes('Failed to list saves')) {
-        return;
-      }
-      throw error;
-    });
+    attachExpectedPageErrorFilter(page);
   });
 
   test('renders key main menu actions', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Chronicles of the Promised Land/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Single Player vs AI/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Local Multiplayer/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Online Multiplayer/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Load Saved Game/i })).toBeVisible();
+    await gotoMainMenu(page);
+    await expect(page.getByTestId('main-menu-single-player')).toBeVisible();
+    await expect(page.getByTestId('main-menu-local-multiplayer')).toBeVisible();
+    await expect(page.getByTestId('main-menu-online-multiplayer')).toBeVisible();
+    await expect(page.getByTestId('main-menu-load-saved')).toBeVisible();
   });
 
   test('requires faction selection before start and enables start once valid', async ({ page }) => {
-    await openPlayerSetup(page);
+    await openSinglePlayerSetup(page);
 
-    const startGameButton = page.getByRole('button', { name: /^Start Game$/i });
+    const startGameButton = page.getByTestId('player-setup-start-game');
     await expect(startGameButton).toBeDisabled();
-    await expect(page.getByText(/Select factions for/i)).toBeVisible();
+    await expect(page.getByTestId('player-setup-roster-status')).toContainText(/Select factions for/i);
 
-    await chooseFaction(page, 'Nephites');
-    await chooseFaction(page, 'Lamanites');
+    await chooseFaction(page, 1, 'Nephites');
+    await chooseFaction(page, 2, 'Lamanites');
 
     await expect(startGameButton).toBeEnabled();
-    await expect(page.getByText(/Ready 2\/2/i)).toBeVisible();
+    await expect(page.getByTestId('player-setup-ready-count')).toContainText('Ready 2/2');
   });
 
   test('starts a local game after valid setup', async ({ page }) => {
-    await openPlayerSetup(page);
-    await chooseFaction(page, 'Nephites');
-    await chooseFaction(page, 'Lamanites');
-
-    await page.getByRole('button', { name: /^Start Game$/i }).click();
-    await advanceHandoffToActiveTurn(page);
+    await startSinglePlayerGame(page);
   });
 });

@@ -109,7 +109,7 @@ export default function MainMenu() {
                   trackMenuSelection({ selection: 'single_player_vs_ai', location: 'main_menu' });
                   setGamePhase('playerSetup');
                 }}
-                data-testid="start-game"
+                data-testid="main-menu-single-player"
                 className="w-full"
                 size="lg"
                 variant={savedGames.length > 0 ? "secondary" : "default"}
@@ -125,6 +125,7 @@ export default function MainMenu() {
                   trackMenuSelection({ selection: 'local_multiplayer', location: 'main_menu' });
                   setGamePhase('playerSetup');
                 }}
+                data-testid="main-menu-local-multiplayer"
                 variant="secondary"
                 className="w-full"
                 size="lg"
@@ -140,6 +141,7 @@ export default function MainMenu() {
                   trackMenuSelection({ selection: 'online_multiplayer', location: 'main_menu' });
                   setGamePhase('lobbies');
                 }}
+                data-testid="main-menu-online-multiplayer"
                 variant="secondary"
                 className="w-full"
                 size="lg"
@@ -157,6 +159,7 @@ export default function MainMenu() {
                   trackMenuSelection({ selection: 'open_load_menu', location: 'main_menu' });
                   setShowLoadMenu(true);
                 }}
+                data-testid="main-menu-load-saved"
                 variant="secondary"
                 className="w-full"
                 size="lg"

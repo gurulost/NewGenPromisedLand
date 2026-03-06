@@ -219,6 +219,7 @@ export default function HandoffScreen() {
             >
               <GlowingButton
                 onClick={handleStartTurn}
+                data-testid="handoff-start-turn-button"
                 className="w-full flex items-center gap-2 justify-center"
                 size="lg"
               >
