@@ -59,6 +59,7 @@ export default defineConfig({
       DATABASE_URL: process.env.DATABASE_URL ?? 'postgresql://codex:codex@127.0.0.1:5432/codex',
       DISABLE_SAVE_API: 'true',
       DISABLE_VITE_RUNTIME_ERROR_OVERLAY: 'true',
+      VITE_E2E_MINIMAL_GAME_STAGE: process.env.CI ? 'true' : 'false',
     },
     reuseExistingServer: false,
     timeout: 120 * 1000,

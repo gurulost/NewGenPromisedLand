@@ -31,6 +31,8 @@ const CombatEffectsDemo = lazy(async () => ({
 const AnimationLab = lazy(async () => ({
   default: (await import("./components/ui/AnimationLab")).AnimationLab,
 }));
+const minimalGameStageEnabled =
+  (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_E2E_MINIMAL_GAME_STAGE === "true";
 
 function TouchModeProvider({ children }: { children: React.ReactNode }) {
   const touchMode = useTouchModeProvider();
@@ -85,32 +87,39 @@ function GameStage() {
     >
       <color attach="background" args={["#0f172a"]} />
 
-      {/* Lighting - Much brighter for better tile visibility */}
-      <ambientLight intensity={1.15} color="#ffffff" />
-      <hemisphereLight
-        color="#ffffff"
-        groundColor="#6b7280"
-        intensity={0.65}
-      />
-      <directionalLight
-        position={[10, 10, 5]}
-        intensity={3.0}
-        color="#fff3d6"
-        castShadow={allowShadows}
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-      />
-      {/* Additional light for better coverage */}
-      <directionalLight
-        position={[-10, 10, -5]}
-        intensity={1.8}
-        color="#e0f2fe"
-        castShadow={allowShadows}
-      />
+      {minimalGameStageEnabled ? (
+        // Playwright only needs a live canvas surface; skip GLTF-heavy scene loading in CI.
+        <ambientLight intensity={0.35} color="#ffffff" />
+      ) : (
+        <>
+          {/* Lighting - Much brighter for better tile visibility */}
+          <ambientLight intensity={1.15} color="#ffffff" />
+          <hemisphereLight
+            color="#ffffff"
+            groundColor="#6b7280"
+            intensity={0.65}
+          />
+          <directionalLight
+            position={[10, 10, 5]}
+            intensity={3.0}
+            color="#fff3d6"
+            castShadow={allowShadows}
+            shadow-mapSize-width={2048}
+            shadow-mapSize-height={2048}
+          />
+          {/* Additional light for better coverage */}
+          <directionalLight
+            position={[-10, 10, -5]}
+            intensity={1.8}
+            color="#e0f2fe"
+            castShadow={allowShadows}
+          />
 
-      <Suspense fallback={null}>
-        <GameCanvas />
-      </Suspense>
+          <Suspense fallback={null}>
+            <GameCanvas />
+          </Suspense>
+        </>
+      )}
     </Canvas>
   );
 }
