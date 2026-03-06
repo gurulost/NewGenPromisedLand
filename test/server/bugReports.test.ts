@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildBugReportAiTriagePack,
   buildBugReportLinks,
   buildBugReportFingerprint,
   buildBugReportWebhookPayload,
@@ -109,6 +110,8 @@ describe("bugReports helpers", () => {
     expect(blocks.some((block) => block.type === "image")).toBe(true);
     expect(JSON.stringify(blocks)).toContain("Full Report");
     expect(JSON.stringify(blocks)).toContain("DB/Admin Link");
+    expect(JSON.stringify(blocks)).toContain("AI triage pack");
+    expect(JSON.stringify(blocks)).toContain("AI BUG TRIAGE PACK");
     expect(JSON.stringify(blocks)).toContain("https://game.example.com/api/bug-reports/BR-000042?token=view-secret");
   });
 
@@ -138,6 +141,27 @@ describe("bugReports helpers", () => {
     expect(links.detailUrl).toBe("https://game.example.com/root/api/bug-reports/BR-000042?token=view-secret");
     expect(links.databaseUrl).toBe("https://db.example.com/bug_reports?id=42&report=BR-000042&fingerprint=abc123");
     expect(links.databaseLookup).toBe("bug_reports.id=42");
+  });
+
+  it("builds a paste-ready AI triage pack", () => {
+    const pack = buildBugReportAiTriagePack({
+      report: baseReport,
+      reportId: formatBugReportId(42),
+      links: {
+        detailUrl: "https://game.example.com/api/bug-reports/BR-000042?token=view-secret",
+        databaseUrl: "https://db.example.com/bug_reports?id=42",
+        screenshotUrl: baseReport.screenshotUrl,
+        databaseLookup: "bug_reports.id=42",
+      },
+    });
+
+    expect(pack).toContain("AI BUG TRIAGE PACK");
+    expect(pack).toContain("What happened:");
+    expect(pack).toContain("City panel stopped responding");
+    expect(pack).toContain("Expected behavior:");
+    expect(pack).toContain("recent_action: OPEN_CITY");
+    expect(pack).toContain("database_lookup: bug_reports.id=42");
+    expect(pack).toContain("full_report_url: https://game.example.com/api/bug-reports/BR-000042?token=view-secret");
   });
 
   it("summarizes bug report diagnostics for notifications", () => {

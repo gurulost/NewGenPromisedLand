@@ -203,6 +203,8 @@ Sources:
 Why:
 
 - sends immediate notifications for newly submitted player bug reports
+- Slack alerts include an AI triage pack block designed to be copied directly into Codex/ChatGPT
+- Discord/generic payloads also carry the same `aiTriagePack` string in the webhook body
 
 What happens if this is skipped:
 

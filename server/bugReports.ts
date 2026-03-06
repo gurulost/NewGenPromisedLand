@@ -137,6 +137,12 @@ const truncateForWebhook = (value: unknown, max: number): string | null => {
   return `${next.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
 };
 
+const normalizeForCodeBlock = (value: string | null | undefined): string =>
+  String(value ?? "")
+    .replace(/```/g, "'''")
+    .replace(/\r\n/g, "\n")
+    .trim();
+
 const getLastArrayRecord = (value: unknown): Record<string, unknown> | null => {
   if (!Array.isArray(value) || value.length === 0) return null;
   return asRecord(value[value.length - 1]);
@@ -262,6 +268,110 @@ export function buildBugReportLinks(params: {
   };
 }
 
+function summarizeRecentItems(
+  value: unknown,
+  extractor: (entry: Record<string, unknown>) => string,
+  maxItems = 3,
+  maxLength = 120,
+): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(-maxItems)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+    .map((entry) => truncateForWebhook(extractor(entry), maxLength))
+    .filter((entry): entry is string => Boolean(entry));
+}
+
+export function buildBugReportAiTriagePack(params: {
+  report: BugReport;
+  reportId: string;
+  links?: {
+    detailUrl: string | null;
+    databaseUrl: string | null;
+    screenshotUrl: string | null;
+    databaseLookup: string;
+  };
+}): string {
+  const diagnostics = asRecord(params.report.diagnostics);
+  const diagnosticsSummary = summarizeBugReportDiagnostics(diagnostics);
+  const recentActionsTail = summarizeRecentItems(
+    diagnostics?.recentActions,
+    (entry) => extractFirstString(entry.type, entry.details),
+  );
+  const recentErrorsTail = summarizeRecentItems(
+    diagnostics?.recentErrors,
+    (entry) => extractFirstString(entry.message, entry.type),
+  );
+
+  const sections: string[] = [];
+  sections.push("AI BUG TRIAGE PACK");
+  sections.push("Paste this entire block into Codex/ChatGPT and ask for likely root cause, files to inspect, and a fix plan.");
+  sections.push("");
+  sections.push("REPORT");
+  sections.push(`- report_id: ${params.reportId}`);
+  sections.push(`- category: ${params.report.category}`);
+  sections.push(`- source: ${params.report.source}`);
+  sections.push(`- repro_frequency: ${params.report.reproFrequency}`);
+  sections.push(`- duplicate_count_24h: ${params.report.duplicateCount24h}`);
+  sections.push(`- fingerprint: ${params.report.fingerprint}`);
+  sections.push(`- submission_id: ${params.report.submissionId}`);
+  sections.push(`- created_at: ${params.report.createdAt.toISOString()}`);
+  sections.push("");
+  sections.push("PLAYER REPORT");
+  sections.push("What happened:");
+  sections.push(normalizeForCodeBlock(params.report.playerMessage));
+  if (params.report.expectedBehavior) {
+    sections.push("");
+    sections.push("Expected behavior:");
+    sections.push(normalizeForCodeBlock(params.report.expectedBehavior));
+  }
+  if (params.report.contact) {
+    sections.push("");
+    sections.push(`Contact: ${normalizeForCodeBlock(params.report.contact)}`);
+  }
+  sections.push("");
+  sections.push("GAME CONTEXT");
+  sections.push(`- turn: ${diagnosticsSummary.turn ?? "n/a"}`);
+  sections.push(`- phase: ${diagnosticsSummary.phase ?? "n/a"}`);
+  sections.push(`- player: ${diagnosticsSummary.currentPlayer ?? "n/a"}`);
+  sections.push(`- faction: ${diagnosticsSummary.faction ?? "n/a"}`);
+  sections.push(`- map_size: ${diagnosticsSummary.mapSize ?? "n/a"}`);
+  sections.push(`- lobby_code: ${diagnosticsSummary.lobbyCode ?? "n/a"}`);
+  sections.push(`- session_id: ${diagnosticsSummary.sessionId ?? "n/a"}`);
+  sections.push(`- last_action: ${diagnosticsSummary.lastAction ?? "n/a"}`);
+  sections.push(`- recent_action: ${diagnosticsSummary.recentAction ?? "n/a"}`);
+  sections.push(`- recent_error: ${diagnosticsSummary.recentError ?? "n/a"}`);
+
+  if (recentActionsTail.length || recentErrorsTail.length) {
+    sections.push("");
+    sections.push("RECENT SIGNALS");
+    if (recentActionsTail.length) {
+      sections.push("Recent actions tail:");
+      for (const action of recentActionsTail) {
+        sections.push(`- ${normalizeForCodeBlock(action)}`);
+      }
+    }
+    if (recentErrorsTail.length) {
+      sections.push("Recent errors tail:");
+      for (const error of recentErrorsTail) {
+        sections.push(`- ${normalizeForCodeBlock(error)}`);
+      }
+    }
+  }
+
+  if (params.links) {
+    sections.push("");
+    sections.push("LINKS");
+    sections.push(`- screenshot_url: ${params.links.screenshotUrl ?? "n/a"}`);
+    sections.push(`- full_report_url: ${params.links.detailUrl ?? "n/a"}`);
+    sections.push(`- database_lookup: ${params.links.databaseLookup}`);
+    sections.push(`- database_url: ${params.links.databaseUrl ?? "n/a"}`);
+  }
+
+  return sections.join("\n").trim();
+}
+
 export function buildBugReportWebhookPayload(params: {
   report: BugReport;
   reportId: string;
@@ -279,6 +389,11 @@ export function buildBugReportWebhookPayload(params: {
     publicBaseUrl: params.publicBaseUrl,
     viewToken: params.viewToken,
     dbUrlTemplate: params.dbUrlTemplate,
+  });
+  const aiTriagePack = buildBugReportAiTriagePack({
+    report: params.report,
+    reportId: params.reportId,
+    links,
   });
   const detailsText = [
     links.detailUrl ? `details: ${links.detailUrl}` : null,
@@ -377,6 +492,18 @@ export function buildBugReportWebhookPayload(params: {
       });
     }
 
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: [
+          "*AI triage pack*",
+          "Copy the code block below and paste it directly into Codex/ChatGPT.",
+          `\`\`\`${truncateForWebhook(aiTriagePack, 2600) ?? "AI triage pack unavailable"}\`\`\``,
+        ].join("\n"),
+      },
+    });
+
     if (links.screenshotUrl) {
       blocks.push({
         type: "section",
@@ -467,6 +594,7 @@ export function buildBugReportWebhookPayload(params: {
 
     return {
       content: `Bug report ${params.reportId}`,
+      aiTriagePack,
       embeds: [
         {
           title: `Bug report ${params.reportId}`,
@@ -505,6 +633,7 @@ export function buildBugReportWebhookPayload(params: {
       diagnostics: diagnostics ?? null,
     },
     links,
+    aiTriagePack,
   };
 }
 

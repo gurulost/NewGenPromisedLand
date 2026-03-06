@@ -140,6 +140,7 @@ If `BUG_REPORT_WEBHOOK_URL` points to Slack or Discord, the server now formats r
 - contact info
 - screenshot link and preview when present
 - diagnostics summary
+- an AI triage pack block optimized for copy/pasting directly into Codex/ChatGPT
 - `bug_reports.id=<id>` DB lookup hint
 - optional direct links to the full report JSON and to your DB/admin console if configured
 

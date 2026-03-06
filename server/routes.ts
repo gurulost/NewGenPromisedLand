@@ -41,6 +41,7 @@ import {
   deleteBugReportObject,
 } from "./r2";
 import {
+  buildBugReportAiTriagePack,
   buildBugReportFingerprint,
   formatBugReportId,
   parseBugReportId,
@@ -2302,6 +2303,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({
         reportId: formatBugReportId(report.id),
         report,
+        aiTriagePack: buildBugReportAiTriagePack({
+          report,
+          reportId: formatBugReportId(report.id),
+        }),
       });
     } catch (error) {
       console.error("Failed to fetch bug report:", error);
