@@ -59,6 +59,7 @@ import { ChatDock } from "../chat/ChatDock";
 import { ChatPanel } from "../chat/ChatPanel";
 import { useChatUIState } from "../../hooks/useChatUIState";
 import { useAuth } from "../../lib/stores/useAuth";
+import { isBugReportingEnabled, openBugReportDialog } from "../../utils/bugReport";
 
 interface ActiveNotification {
   id: string;
@@ -1951,6 +1952,7 @@ export default function GameUI() {
           onOpenDiplomacy={() => setShowDiplomacy(true)}
           onOpenSaveLoad={() => setShowSaveLoadMenu(true)}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenBugReport={() => openBugReportDialog({ source: "mobile_menu" })}
           onOpenGameLog={() => setShowGameLog(true)}
           onOpenChat={() => setShowMobileChat(true)}
           showChat={Boolean(chatIdentity)}
@@ -2299,6 +2301,21 @@ export default function GameUI() {
             <span className="text-lg">📁</span>
             <span className="text-sm font-medium">Advanced</span>
           </button>
+          {isBugReportingEnabled() && (
+            <button
+              data-testid="utility-bug-report-button"
+              className="p-3 min-w-[48px] min-h-[48px] bg-rose-950/60 hover:bg-rose-900/60 active:bg-rose-800/60 text-rose-100 rounded-lg border border-rose-500/40 transition-all shadow-lg flex items-center justify-center gap-2"
+              onClick={() => openBugReportDialog({ source: "desktop_corner" })}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                openBugReportDialog({ source: "desktop_corner" });
+              }}
+              title="Report a bug or broken interaction"
+            >
+              <span className="text-lg">🐛</span>
+              <span className="text-sm font-medium">Something not working?</span>
+            </button>
+          )}
         </div>
       )}
 

@@ -2,6 +2,7 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { VOICE_LIMITS } from "@shared/types/voiceLimits";
+import { BUG_REPORT_SCREENSHOT_LIMITS } from "@shared/types/bugReport";
 
 export { VOICE_LIMITS };
 
@@ -21,10 +22,17 @@ export const R2_CONFIGURED =
 
 const PRESIGNED_EXPIRY_SECONDS = 300;
 const VOICE_OBJECT_PREFIX = "voice/";
+const BUG_REPORT_OBJECT_PREFIX = "bug-reports/";
 
 // Allowed base MIME types (without codec params). Browsers typically send
 // "audio/webm;codecs=opus" or "audio/mp4;codecs=mp4a.40.2" — the codec suffix
 // is stripped before checking so any valid base type is accepted.
+const ALLOWED_BUG_REPORT_IMAGE_TYPES = new Set<string>([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
 const ALLOWED_AUDIO_BASE_TYPES = new Set<string>([
   "audio/webm",
   "audio/ogg",
@@ -76,6 +84,26 @@ function voiceObjectPrefixForLobby(lobbyCode: string): string {
   return `${VOICE_OBJECT_PREFIX}${sanitizeObjectKeySegment(lobbyCode)}/`;
 }
 
+function bugReportObjectPrefix(): string {
+  return BUG_REPORT_OBJECT_PREFIX;
+}
+
+function bugReportObjectKeyForSubmission(submissionId: string, mimeType: string): string {
+  const safeId = sanitizeObjectKeySegment(submissionId);
+  const ext = mimeTypeToExtension(mimeType);
+  return `${bugReportObjectPrefix()}${safeId}.${ext}`;
+}
+
+function extractObjectKeyFromPublicUrl(storageUrl: string, publicUrlBase = R2_PUBLIC_URL): string | null {
+  if (!publicUrlBase) return null;
+  const normalizedUrl = String(storageUrl ?? "").trim();
+  const normalizedBase = publicUrlBase.replace(/\/$/, "");
+  const prefix = `${normalizedBase}/`;
+  if (!normalizedUrl.startsWith(prefix)) return null;
+  const objectKey = normalizedUrl.slice(prefix.length);
+  return objectKey || null;
+}
+
 function mimeTypeToExtension(mimeType: string): string {
   const base = normalizeBaseMimeType(mimeType);
   const sub = base.split("/")[1] ?? "webm";
@@ -105,6 +133,78 @@ export function isVoiceStorageUrlForLobby(audioUrl: string, lobbyCode: string): 
   if (!R2_PUBLIC_URL) return false;
   const normalized = String(audioUrl ?? "");
   return normalized.startsWith(`${R2_PUBLIC_URL}/${voiceObjectPrefixForLobby(lobbyCode)}`);
+}
+
+export function isBugReportStorageUrlForSubmission(
+  screenshotUrl: string,
+  submissionId: string,
+  publicUrlBase = R2_PUBLIC_URL,
+): boolean {
+  const objectKey = extractObjectKeyFromPublicUrl(screenshotUrl, publicUrlBase);
+  if (!objectKey) return false;
+  const safeId = sanitizeObjectKeySegment(submissionId);
+  return objectKey.startsWith(`${bugReportObjectPrefix()}${safeId}.`);
+}
+
+export function isAllowedBugReportImageType(mimeType: string): boolean {
+  return ALLOWED_BUG_REPORT_IMAGE_TYPES.has(normalizeBaseMimeType(mimeType));
+}
+
+export interface PresignedBugReportUpload {
+  uploadUrl: string;
+  objectKey: string;
+  publicUrl: string;
+  expiresInSeconds: number;
+}
+
+export async function createBugReportUploadUrl(params: {
+  submissionId: string;
+  mimeType: string;
+  contentLength: number;
+}): Promise<PresignedBugReportUpload> {
+  const { submissionId, mimeType, contentLength } = params;
+
+  if (!isAllowedBugReportImageType(mimeType)) {
+    throw Object.assign(new Error(`Unsupported image type: ${normalizeBaseMimeType(mimeType)}`), { status: 415 });
+  }
+  if (contentLength <= 0) {
+    throw Object.assign(new Error("contentLength must be > 0"), { status: 400 });
+  }
+  if (contentLength > BUG_REPORT_SCREENSHOT_LIMITS.maxBytes) {
+    throw Object.assign(
+      new Error(`Screenshot too large: max ${Math.round(BUG_REPORT_SCREENSHOT_LIMITS.maxBytes / 1024 / 1024)} MB`),
+      { status: 413 }
+    );
+  }
+
+  const objectKey = bugReportObjectKeyForSubmission(submissionId, mimeType);
+  const publicUrl = `${R2_PUBLIC_URL}/${objectKey}`;
+
+  const client = getR2Client();
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: objectKey,
+    ContentType: mimeType,
+    ContentLength: contentLength,
+  });
+
+  const uploadUrl = await getSignedUrl(client, command, {
+    expiresIn: PRESIGNED_EXPIRY_SECONDS,
+  });
+
+  return { uploadUrl, objectKey, publicUrl, expiresInSeconds: PRESIGNED_EXPIRY_SECONDS };
+}
+
+export async function deleteBugReportObject(publicUrl: string): Promise<void> {
+  const objectKey = extractObjectKeyFromPublicUrl(publicUrl);
+  if (!objectKey || !objectKey.startsWith(BUG_REPORT_OBJECT_PREFIX)) {
+    throw new Error("Invalid bug report storage URL");
+  }
+
+  const client = getR2Client();
+  await client.send(
+    new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: objectKey })
+  );
 }
 
 export interface PresignedVoiceUpload {

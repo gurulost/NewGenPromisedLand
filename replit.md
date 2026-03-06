@@ -31,6 +31,11 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
 - **Runtime**: Node.js with Express
 - **Storage**: In-memory storage with an interface for future database integration.
 - **Database**: Drizzle ORM for PostgreSQL (via Replit's built-in database).
+- **Bug Reporting**: In-game bug report system with optional R2 screenshot upload, diagnostic payload collection, fingerprinting, 24h duplicate detection, offline queue with auto-retry, and optional webhook notification.
+  - Client entry points: desktop utility dock ("Something not working?"), mobile HUD menu ("Report Issue"), and ErrorBoundary ("Report issue" button).
+  - Shared types: `shared/types/bugReport.ts`; server logic: `server/bugReports.ts`; client util: `client/src/utils/bugReport.ts`.
+  - Optional env: `BUG_REPORT_WEBHOOK_URL` for Slack/Discord webhook notifications.
+  - Screenshot upload uses R2 storage (same secrets as voice notes).
 
 ### Multiplayer Operations
 - **Required in production**

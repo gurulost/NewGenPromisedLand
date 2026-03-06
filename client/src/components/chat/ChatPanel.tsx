@@ -187,6 +187,7 @@ export function ChatPanel({
         audioDurationMs: message.audioDurationMs,
         waveformPeaks: message.waveformPeaks,
         createdAt: message.createdAt,
+        localBlob: message.localBlob,
       });
     }
   }, [sendTextMessage, retryVoiceMessage]);

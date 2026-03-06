@@ -19,6 +19,7 @@ import { useTouchModeProvider } from "./hooks/useTouchMode";
 import { useMobileUI } from "./hooks/useMobileUI";
 import { usePerformanceMode } from "./hooks/usePerformanceMode";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import BugReportHost from "./components/ui/BugReportHost";
 import "@fontsource/inter";
 
 const queryClient = new QueryClient();
@@ -171,6 +172,7 @@ function App() {
                   </ErrorBoundary>
                 )}
               </KeyboardControls>
+              <BugReportHost />
               <MapGenerationOverlay />
             </div>
           </VisualFeedbackProvider>

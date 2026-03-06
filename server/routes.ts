@@ -36,7 +36,21 @@ import {
   isVoiceStorageUrl,
   isVoiceStorageUrlForLobby,
   createVoiceUploadUrl,
+  isBugReportStorageUrlForSubmission,
+  createBugReportUploadUrl,
+  deleteBugReportObject,
 } from "./r2";
+import {
+  buildBugReportFingerprint,
+  formatBugReportId,
+  sanitizeBugReportDiagnostics,
+  sendBugReportWebhook,
+} from "./bugReports";
+import {
+  BugReportScreenshotCleanupRequestSchema,
+  BugReportScreenshotUploadRequestSchema,
+  SubmitBugReportSchema,
+} from "@shared/types/bugReport";
 import type {
   ChatMessageEventPayload,
   ChatMessagesResponse,
@@ -410,6 +424,20 @@ const chatVoiceUploadRateLimit = createRateLimitMiddleware({
   maxHits: 20,
   key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:voice-upload`,
   label: "voice-upload",
+});
+
+const bugReportRateLimit = createRateLimitMiddleware({
+  windowMs: 60 * 1000,
+  maxHits: 8,
+  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:bug-report`,
+  label: "bug-report",
+});
+
+const bugReportUploadRateLimit = createRateLimitMiddleware({
+  windowMs: 60 * 1000,
+  maxHits: 8,
+  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:bug-report-upload`,
+  label: "bug-report-upload",
 });
 
 const multiplayerTelemetry = {
@@ -2238,6 +2266,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to delete save:", error);
       res.status(500).json({ error: "Failed to delete save" });
+    }
+  });
+
+  // === BUG REPORT ROUTES ===
+  app.post("/api/bug-reports/screenshot-upload", bugReportUploadRateLimit, async (req, res) => {
+    if (!R2_CONFIGURED) {
+      return res.status(503).json({ error: "Screenshot storage not configured" });
+    }
+
+    const parsed = BugReportScreenshotUploadRequestSchema.safeParse({
+      submissionId: req.body?.submissionId,
+      mimeType: req.body?.mimeType,
+      contentLength: Number(req.body?.contentLength),
+    });
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid screenshot upload payload" });
+    }
+
+    try {
+      const upload = await createBugReportUploadUrl(parsed.data);
+      return res.json(upload);
+    } catch (error: any) {
+      if (error?.status) {
+        return res.status(error.status).json({ error: error.message });
+      }
+      console.error("Failed to create bug report upload URL:", error);
+      return res.status(500).json({ error: "Failed to create screenshot upload URL" });
+    }
+  });
+
+  app.post("/api/bug-reports/screenshot-cleanup", bugReportUploadRateLimit, async (req, res) => {
+    if (!R2_CONFIGURED) {
+      return res.status(503).json({ error: "Screenshot storage not configured" });
+    }
+
+    const parsed = BugReportScreenshotCleanupRequestSchema.safeParse({
+      submissionId: req.body?.submissionId,
+      screenshotUrl: req.body?.screenshotUrl,
+    });
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid screenshot cleanup payload" });
+    }
+
+    if (!isBugReportStorageUrlForSubmission(parsed.data.screenshotUrl, parsed.data.submissionId)) {
+      return res.status(400).json({ error: "Screenshot URL does not match the uploaded report asset" });
+    }
+
+    try {
+      await deleteBugReportObject(parsed.data.screenshotUrl);
+      return res.status(204).end();
+    } catch (error) {
+      console.error("Failed to clean up bug report screenshot:", error);
+      return res.status(500).json({ error: "Failed to clean up screenshot upload" });
+    }
+  });
+
+  app.post("/api/bug-reports", bugReportRateLimit, async (req, res) => {
+    const parsed = SubmitBugReportSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid bug report payload" });
+    }
+
+    try {
+      const payload = parsed.data;
+      const existing = await storage.getBugReportBySubmissionId(payload.submissionId);
+      if (existing) {
+        return res.json({
+          reportId: formatBugReportId(existing.id),
+          duplicateCount24h: existing.duplicateCount24h,
+          fingerprint: existing.fingerprint,
+          receivedAt: existing.createdAt.toISOString(),
+        });
+      }
+
+      if (payload.screenshotUrl) {
+        if (!payload.includeScreenshot) {
+          return res.status(400).json({ error: "Screenshot URL provided while screenshot attachment is disabled" });
+        }
+        if (!R2_CONFIGURED) {
+          return res.status(400).json({ error: "Screenshot uploads are not configured on this server" });
+        }
+        if (!isBugReportStorageUrlForSubmission(payload.screenshotUrl, payload.submissionId)) {
+          return res.status(400).json({ error: "Screenshot URL does not match the uploaded report asset" });
+        }
+      }
+
+      const deviceIdHeader = req.headers["x-device-id"];
+      const deviceId = typeof deviceIdHeader === "string" && deviceIdHeader.trim()
+        ? deviceIdHeader.trim().slice(0, 128)
+        : null;
+      const diagnostics = payload.includeDiagnostics
+        ? sanitizeBugReportDiagnostics(payload.diagnostics)
+        : undefined;
+      const fingerprint = buildBugReportFingerprint(payload, diagnostics);
+      const duplicateCount24h = await storage.countBugReportsByFingerprintSince(
+        fingerprint,
+        new Date(Date.now() - 24 * 60 * 60 * 1000),
+      ) + 1;
+
+      const created = await storage.createBugReport({
+        submissionId: payload.submissionId,
+        userId: req.session.userId ?? null,
+        deviceId,
+        source: payload.source,
+        category: payload.category,
+        status: "open",
+        playerMessage: payload.playerMessage,
+        expectedBehavior: payload.expectedBehavior ?? null,
+        reproFrequency: payload.reproFrequency,
+        contact: payload.contact ?? null,
+        includeDiagnostics: payload.includeDiagnostics,
+        includeScreenshot: payload.includeScreenshot,
+        screenshotUrl: payload.screenshotUrl ?? null,
+        fingerprint,
+        duplicateCount24h,
+        diagnostics: diagnostics ?? null,
+      });
+      const reportId = formatBugReportId(created.id);
+
+      void sendBugReportWebhook({
+        webhookUrl: process.env.BUG_REPORT_WEBHOOK_URL,
+        report: created,
+        reportId,
+      });
+
+      return res.status(201).json({
+        reportId,
+        duplicateCount24h,
+        fingerprint,
+        receivedAt: created.createdAt.toISOString(),
+      });
+    } catch (error) {
+      console.error("Failed to create bug report:", error);
+      return res.status(500).json({ error: "Failed to create bug report" });
     }
   });
 

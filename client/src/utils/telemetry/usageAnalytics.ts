@@ -277,6 +277,22 @@ const toIso = (timestamp: number | null): string | null => {
   return new Date(timestamp).toISOString();
 };
 
+export function getUsageAnalyticsContext(): Record<string, unknown> {
+  if (typeof window === 'undefined') return {};
+  const runtime = window.__ngplUsageAnalyticsRuntime;
+  if (!runtime?.started) return {};
+  const visit = readVisitContext();
+  return {
+    sessionId: runtime.sessionId,
+    sessionStartedAt: toIso(runtime.sessionStartedAt),
+    visibleDurationMs: runtime.visibleDurationMs,
+    visitCount: visit.visitCount,
+    isReturningVisitor: visit.isReturningVisitor,
+    daysSinceFirstSeen: visit.daysSinceFirstSeen,
+    daysSinceLastSeen: visit.daysSinceLastSeen,
+  };
+}
+
 export function initUsageAnalytics(): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (!getPosthog()) return;
