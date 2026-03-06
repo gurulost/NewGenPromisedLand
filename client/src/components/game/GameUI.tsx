@@ -48,6 +48,7 @@ import { useMemoryCleanup, useTurnEndCleanup } from "../../hooks/useMemoryCleanu
 import { requestAutosaveIfDirty } from "../../lib/autosaveManager";
 import { useAutosaveStatus } from "../../lib/stores/useAutosaveStatus";
 import { useTutorialStore } from "../../lib/stores/useTutorial";
+import { useAnimationLabAccess } from "../../lib/stores/useAnimationLabAccess";
 import { isUnitVisibleToPlayer } from "@shared/logic/unitLogic";
 import { hexDistance } from "@shared/utils/hex";
 import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
@@ -81,6 +82,7 @@ export default function GameUI() {
   const { gameState, endTurn, useAbility: triggerAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
   const gameMode = useLocalGame((state) => state.gameMode);
   const authUser = useAuth((state) => state.user);
+  const animationLabAllowed = useAnimationLabAccess((state) => state.allowed);
   const { isMobileUI, isPortrait } = useMobileUI();
   const actionError = useLocalGame((state) => state.actionError);
   const clearActionError = useLocalGame((state) => state.clearActionError);
@@ -2277,15 +2279,17 @@ export default function GameUI() {
               blocked={shouldBlockBugReportHint}
             />
           )}
-          <a
-            href="/animations"
-            data-testid="utility-animation-lab-link"
-            className="p-3 min-w-[48px] min-h-[48px] bg-black/60 hover:bg-black/70 active:bg-black/80 text-white rounded-lg border border-white/20 transition-all shadow-lg flex items-center justify-center gap-2 backdrop-blur-sm"
-            aria-label="Open Animation Lab"
-          >
-            <span className="text-lg">🎞️</span>
-            <span className="text-sm font-medium">Animation Lab</span>
-          </a>
+          {animationLabAllowed && (
+            <a
+              href="/animations"
+              data-testid="utility-animation-lab-link"
+              className="p-3 min-w-[48px] min-h-[48px] bg-black/60 hover:bg-black/70 active:bg-black/80 text-white rounded-lg border border-white/20 transition-all shadow-lg flex items-center justify-center gap-2 backdrop-blur-sm"
+              aria-label="Open Animation Lab"
+            >
+              <span className="text-lg">🎞️</span>
+              <span className="text-sm font-medium">Animation Lab</span>
+            </a>
+          )}
           {isBugReportingEnabled() && (
             <button
               data-testid="utility-bug-report-button"

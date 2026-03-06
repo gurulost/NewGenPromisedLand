@@ -49,6 +49,14 @@ import {
   sendBugReportWebhook,
 } from "./bugReports";
 import {
+  buildAnimationLabAccessStatus,
+  clearAnimationLabSession,
+  getAnimationLabAccessConfig,
+  isAnimationLabAccessConfigured,
+  unlockAnimationLabSession,
+  verifyAnimationLabAnswer,
+} from "./animationLabAccess";
+import {
   BugReportScreenshotCleanupRequestSchema,
   BugReportScreenshotUploadRequestSchema,
   SubmitBugReportSchema,
@@ -386,6 +394,20 @@ function createRateLimitMiddleware({
   };
 }
 
+function setPrivateNoStoreHeaders(res: Response): void {
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("Pragma", "no-cache");
+}
+
+async function persistSession(req: Request): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    req.session.save((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
 const authRateLimit = createRateLimitMiddleware({
   windowMs: 10 * 60 * 1000,
   maxHits: 30,
@@ -449,6 +471,13 @@ const bugReportReadRateLimit = createRateLimitMiddleware({
   label: "bug-report-read",
 });
 
+const animationLabUnlockRateLimit = createRateLimitMiddleware({
+  windowMs: 10 * 60 * 1000,
+  maxHits: 10,
+  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:animation-lab-unlock`,
+  label: "animation-lab-unlock",
+});
+
 const multiplayerTelemetry = {
   needsSnapshot: 0,
   forcedTimeoutEndTurn: 0,
@@ -469,6 +498,7 @@ declare module "express-session" {
   interface SessionData {
     userId?: number;
     username?: string;
+    animationLabUnlockedAt?: number;
   }
 }
 
@@ -488,6 +518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
   
   const isProduction = process.env.NODE_ENV === "production";
+  const animationLabAccessConfig = getAnimationLabAccessConfig(process.env);
   
   // Trust the reverse proxy (required for secure cookies behind HTTPS proxy)
   if (isProduction) {
@@ -521,6 +552,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // === ANIMATION LAB OVERRIDES (DEV TOOLING) ===
+  app.get("/api/animation-lab/access", (req, res) => {
+    setPrivateNoStoreHeaders(res);
+    return res.json(buildAnimationLabAccessStatus(req.session, animationLabAccessConfig));
+  });
+
+  app.post("/api/animation-lab/unlock", animationLabUnlockRateLimit, async (req, res) => {
+    setPrivateNoStoreHeaders(res);
+    if (!animationLabAccessConfig.isProduction) {
+      unlockAnimationLabSession(req.session);
+      await persistSession(req);
+      return res.json(buildAnimationLabAccessStatus(req.session, animationLabAccessConfig));
+    }
+
+    if (!isAnimationLabAccessConfigured(animationLabAccessConfig)) {
+      return res.status(503).json({ error: "Animation Lab access is not configured on this deployment." });
+    }
+
+    const answer = typeof req.body?.answer === "string" ? req.body.answer : "";
+    if (!verifyAnimationLabAnswer(answer, animationLabAccessConfig)) {
+      clearAnimationLabSession(req.session);
+      await persistSession(req);
+      return res.status(401).json({ error: "Access denied." });
+    }
+
+    unlockAnimationLabSession(req.session);
+    await persistSession(req);
+
+    return res.json(buildAnimationLabAccessStatus(req.session, animationLabAccessConfig));
+  });
+
+  app.post("/api/animation-lab/lock", async (req, res) => {
+    setPrivateNoStoreHeaders(res);
+    clearAnimationLabSession(req.session);
+    await persistSession(req);
+    return res.json(buildAnimationLabAccessStatus(req.session, animationLabAccessConfig));
+  });
+
   app.get("/api/animation-overrides", async (_req, res) => {
     if (isProduction) {
       return res.status(403).json({ error: "Animation overrides are disabled in production" });

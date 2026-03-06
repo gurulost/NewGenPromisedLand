@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { KeyboardControls } from "@react-three/drei";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -20,6 +20,8 @@ import { useMobileUI } from "./hooks/useMobileUI";
 import { usePerformanceMode } from "./hooks/usePerformanceMode";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import BugReportHost from "./components/ui/BugReportHost";
+import AnimationLabGate from "./components/ui/AnimationLabGate";
+import { useAnimationLabAccess } from "./lib/stores/useAnimationLabAccess";
 import "@fontsource/inter";
 
 const queryClient = new QueryClient();
@@ -126,6 +128,11 @@ function GameStage() {
 
 function App() {
   const { gamePhase } = useLocalGame();
+  const refreshAnimationLabAccess = useAnimationLabAccess((state) => state.refresh);
+
+  useEffect(() => {
+    void refreshAnimationLabAccess();
+  }, [refreshAnimationLabAccess]);
 
   // Check for demo routes
   const isDemoRoute = window.location.hash === '#combat-demo';
@@ -145,9 +152,11 @@ function App() {
   if (isAnimationsRoute) {
     return (
       <QueryClientProvider client={queryClient}>
-        <Suspense fallback={null}>
-          <AnimationLab />
-        </Suspense>
+        <AnimationLabGate>
+          <Suspense fallback={null}>
+            <AnimationLab />
+          </Suspense>
+        </AnimationLabGate>
       </QueryClientProvider>
     );
   }

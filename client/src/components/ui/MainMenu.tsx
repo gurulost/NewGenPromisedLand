@@ -11,9 +11,11 @@ import SaveLoadMenu from "./SaveLoadMenu";
 import { loadAutosave } from "../../lib/autosaveStorage";
 import { HeroBackground } from "./HeroBackground";
 import { trackMenuSelection } from "../../utils/telemetry/gameplayAnalytics";
+import { useAnimationLabAccess } from "../../lib/stores/useAnimationLabAccess";
 
 export default function MainMenu() {
   const { setGamePhase, loadGameState } = useLocalGame();
+  const animationLabAllowed = useAnimationLabAccess((state) => state.allowed);
   const [savedGames, setSavedGames] = useState<ServerSave[]>([]);
   const [showLoadMenu, setShowLoadMenu] = useState(false);
   const [autosaveInfo, setAutosaveInfo] = useState<{ timestamp: number; turn: number; playerCount: number } | null>(null);
@@ -66,15 +68,17 @@ export default function MainMenu() {
   return (
     <div className="w-full h-full flex items-center justify-center relative">
       <HeroBackground />
-      <div className="absolute top-4 right-4 z-20 pointer-events-auto">
-        <a
-          href="/animations"
-          className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/50 px-3 py-1 text-[11px] text-white/80 backdrop-blur transition hover:border-amber-300 hover:text-white"
-          aria-label="Open Animation Lab"
-        >
-          Animation Lab
-        </a>
-      </div>
+      {animationLabAllowed && (
+        <div className="absolute top-4 right-4 z-20 pointer-events-auto">
+          <a
+            href="/animations"
+            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/50 px-3 py-1 text-[11px] text-white/80 backdrop-blur transition hover:border-amber-300 hover:text-white"
+            aria-label="Open Animation Lab"
+          >
+            Animation Lab
+          </a>
+        </div>
+      )}
 
       <div className="relative z-10 w-full max-w-md">
         <ContentShell size="md" shimmerBorder showCornerOrnaments>
