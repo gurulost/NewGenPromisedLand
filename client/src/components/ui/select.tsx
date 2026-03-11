@@ -75,7 +75,7 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-xl border border-border/80 bg-popover text-popover-foreground shadow-[0_24px_70px_rgba(2,6,23,0.55)] outline-none backdrop-blur-xl supports-[backdrop-filter]:bg-popover/92",
+        "relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] overflow-hidden rounded-xl border border-border/80 bg-popover text-popover-foreground shadow-[0_24px_70px_rgba(2,6,23,0.55)] outline-none backdrop-blur-xl supports-[backdrop-filter]:bg-popover/92",
         // Enhanced animation classes
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
@@ -95,7 +95,7 @@ const SelectContent = React.forwardRef<
       <SelectScrollUpButton />
       <SelectPrimitive.Viewport
         className={cn(
-          "p-1.5",
+          "max-h-[min(24rem,var(--radix-select-content-available-height))] p-1.5",
           position === "popper" &&
           "w-full min-w-[var(--radix-select-trigger-width)]"
         )}

@@ -405,7 +405,7 @@ export default function PlayerSetup() {
                                       <SelectValue placeholder="Choose faction" />
                                     </SelectTrigger>
                                     <SelectContent className={clsx(
-                                      "border max-h-[32rem]",
+                                      "border max-h-[min(32rem,var(--radix-select-content-available-height))]",
                                       player.isAI ? aiSelectContentTone : humanSelectContentTone
                                     )}>
                                       {factions.map(faction => {

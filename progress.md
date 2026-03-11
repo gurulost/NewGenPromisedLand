@@ -1,0 +1,24 @@
+Original prompt: a bug/error. When I tried to press "build" it crashed and gave me this
+
+- Investigated the crash screenshot and traced the thrown error to `useToastContext must be used within a ToastProvider`.
+- Confirmed `client/src/components/ui/CityPanel.tsx` calls `useToastContext()` and the app entrypoint was rendering `<App />` without a `ToastProvider`.
+- Planned fix: mount `ToastProvider` at `client/src/main.tsx` so every route and game phase is covered, then add a regression test around the entrypoint wiring.
+- Browser repro against the live mobile `Cities -> CityPanel -> Construction Hall` path still crashed after the entrypoint fix, which indicates the runtime can see a null toast context even with the provider mounted.
+- Hardening follow-up: keep the root provider in `main.tsx`, and make `useToastContext()` fall back to a window-backed toast API instead of crashing the entire game.
+- Verification:
+- `npx vitest run test/MainEntrypoint.test.tsx test/CityPanelIntegration.test.tsx test/ToastProviderFallback.test.tsx` passed.
+- The repo Playwright client completed successfully against the menu -> single-player setup flow and wrote artifacts to `output/web-game-toast-fix/`.
+- Full in-game smoke verification is currently blocked by an unrelated local deletion: `client/src/components/hud/PlayerHUD.tsx` is missing from the worktree, which breaks `GameUI` loading and `npm run build`.
+- Follow-up audit work:
+- Unified `App` route handling so `#combat-demo` and `/animations` now stay inside the same shared provider shell as the main game.
+- Added `test/AppProviders.test.tsx` to keep that route-provider coverage from regressing.
+- Cleaned the remaining shell lint warnings in `ToastProvider` and `PlayerHUD`.
+- Repo-wide browser audit found a real mobile setup blocker: the faction dropdown could exceed the available viewport height and leave options untappable on `mobile-chrome`.
+- Fixed the shared select popup height in `client/src/components/ui/select.tsx` and the player-setup faction override in `client/src/components/ui/PlayerSetup.tsx`.
+- Final verification:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run build` passed.
+- `npx vitest run test/AppProviders.test.tsx test/MainEntrypoint.test.tsx test/ToastProviderFallback.test.tsx test/CityPanelIntegration.test.tsx` passed.
+- `npx playwright test test/e2e/main-menu-setup.spec.ts --project=chromium --project=mobile-chrome` surfaced the mobile dropdown issue.
+- `npx playwright test test/e2e/main-menu-setup.spec.ts --project=mobile-chrome` passed after the select-height fix.

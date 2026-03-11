@@ -122,12 +122,12 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
 
   const testimonyPressureLastTurn = useMemo(
     () => extractAuraEffect(gameState?.lastAction, 'TESTIMONY_PRESSURE', player.id),
-    [gameState, player.id],
+    [gameState?.lastAction, player.id],
   );
 
   const intimidationAuraLastTurn = useMemo(
     () => extractAuraEffect(gameState?.lastAction, 'INTIMIDATION_AURA', player.id),
-    [gameState, player.id],
+    [gameState?.lastAction, player.id],
   );
 
   if (!gameState) return null;

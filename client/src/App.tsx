@@ -138,26 +138,52 @@ function App() {
   const isDemoRoute = window.location.hash === '#combat-demo';
   const isAnimationsRoute = typeof window !== 'undefined' &&
     (window.location.pathname === '/animations' || window.location.pathname === '/animations/');
+  const isMainGameRoute = !isDemoRoute && !isAnimationsRoute;
 
-  // If demo route, show the demo component
+  let routeContent: React.ReactNode;
   if (isDemoRoute) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <Suspense fallback={null}>
-          <CombatEffectsDemo />
-        </Suspense>
-      </QueryClientProvider>
+    routeContent = (
+      <Suspense fallback={null}>
+        <CombatEffectsDemo />
+      </Suspense>
     );
-  }
-  if (isAnimationsRoute) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <AnimationLabGate>
-          <Suspense fallback={null}>
-            <AnimationLab />
-          </Suspense>
-        </AnimationLabGate>
-      </QueryClientProvider>
+  } else if (isAnimationsRoute) {
+    routeContent = (
+      <AnimationLabGate>
+        <Suspense fallback={null}>
+          <AnimationLab />
+        </Suspense>
+      </AnimationLabGate>
+    );
+  } else {
+    routeContent = (
+      <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
+        <KeyboardControls map={controls}>
+          {gamePhase === 'menu' && <MainMenu />}
+
+          {gamePhase === 'tutorialEpisodeIntro' && <TutorialEpisodeIntro />}
+
+          {gamePhase === 'playerSetup' && <PlayerSetup />}
+
+          {gamePhase === 'handoff' && <HandoffScreen />}
+
+          {gamePhase === 'lobbies' && <LobbyList />}
+
+          {gamePhase === 'lobbyRoom' && <LobbyRoom />}
+
+          {(gamePhase === 'playing' || gamePhase === 'gameOver') && (
+            <ErrorBoundary>
+              <GameStage />
+              <Suspense fallback={null}>
+                <GameUI />
+              </Suspense>
+              <WorldBuildLoader enabled />
+            </ErrorBoundary>
+          )}
+        </KeyboardControls>
+        <BugReportHost />
+        <MapGenerationOverlay />
+      </div>
     );
   }
 
@@ -166,35 +192,9 @@ function App() {
       <TouchModeProvider>
         <AudioProvider>
           <VisualFeedbackProvider>
-              <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
-                <KeyboardControls map={controls}>
-                {gamePhase === 'menu' && <MainMenu />}
-
-                {gamePhase === 'tutorialEpisodeIntro' && <TutorialEpisodeIntro />}
-
-                {gamePhase === 'playerSetup' && <PlayerSetup />}
-
-                {gamePhase === 'handoff' && <HandoffScreen />}
-
-                {gamePhase === 'lobbies' && <LobbyList />}
-
-                {gamePhase === 'lobbyRoom' && <LobbyRoom />}
-
-                {(gamePhase === 'playing' || gamePhase === 'gameOver') && (
-                  <ErrorBoundary>
-                    <GameStage />
-                    <Suspense fallback={null}>
-                      <GameUI />
-                    </Suspense>
-                    <WorldBuildLoader enabled />
-                  </ErrorBoundary>
-                )}
-              </KeyboardControls>
-              <BugReportHost />
-              <MapGenerationOverlay />
-            </div>
+            {routeContent}
           </VisualFeedbackProvider>
-          <FloatingTextManager />
+          {(isMainGameRoute || isDemoRoute || isAnimationsRoute) && <FloatingTextManager />}
         </AudioProvider>
       </TouchModeProvider>
     </QueryClientProvider>
