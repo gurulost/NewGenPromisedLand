@@ -14,6 +14,9 @@ const mockUseGameState = vi.fn();
 vi.mock('../client/src/lib/stores/useGameState', () => ({
   useGameState: () => mockUseGameState(),
 }));
+vi.mock('../client/src/hooks/useMobileUI', () => ({
+  useMobileUI: () => ({ isSmallViewport: false }),
+}));
 
 vi.mock('../client/src/lib/helpers/actionAvailabilityHelpers', () => ({
   getActionAvailability: () => ({

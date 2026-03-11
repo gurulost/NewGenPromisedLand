@@ -9,6 +9,7 @@ import { useGameState } from "../../lib/stores/useGameState";
 import { getUnitDefinition } from "@shared/data/units";
 import { getActionAvailability, getDetailedActionFeedback } from "../../lib/helpers/actionAvailabilityHelpers";
 import type { Unit } from "@shared/types/unit";
+import { useMobileUI } from "../../hooks/useMobileUI";
 import {
   Sparkles, Move, Settings, Swords
 } from "lucide-react";
@@ -21,8 +22,10 @@ interface SelectedUnitPanelProps {
 
 export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
   const { gameState } = useLocalGame();
+  const { isSmallViewport } = useMobileUI();
   const [showActionsPanel, setShowActionsPanel] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const compactDesktopLayout = isSmallViewport;
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -74,9 +77,19 @@ export default function SelectedUnitPanel({ unit }: SelectedUnitPanelProps) {
   return (
     <div
       ref={panelRef}
-      className="absolute bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-[calc(env(safe-area-inset-left)+1rem)] pointer-events-auto"
+      className={
+        compactDesktopLayout
+          ? "absolute top-[calc(env(safe-area-inset-top)+1rem+var(--player-hud-height,0px)+0.75rem)] left-[calc(env(safe-area-inset-left)+1rem)] pointer-events-auto"
+          : "absolute bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-[calc(env(safe-area-inset-left)+1rem)] pointer-events-auto"
+      }
     >
-      <Card className="w-64 max-w-[calc(100vw-env(safe-area-inset-left)-env(safe-area-inset-right)-2rem)] max-h-[calc(100vh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] flex flex-col overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20">
+      <Card
+        className={
+          compactDesktopLayout
+            ? "w-80 max-w-[calc(100vw-env(safe-area-inset-left)-env(safe-area-inset-right)-2rem)] max-h-[calc(100vh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-var(--player-hud-height,0px)-3rem)] flex flex-col overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20"
+            : "w-64 max-w-[calc(100vw-env(safe-area-inset-left)-env(safe-area-inset-right)-2rem)] max-h-[calc(100vh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] flex flex-col overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20"
+        }
+      >
         <CardHeader className="pb-2 px-4 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
           <div className="flex items-center justify-between">
             <CardTitle className="flex-1 text-center text-amber-100 font-cinzel font-semibold tracking-wide">{unitStats.definition.name}</CardTitle>

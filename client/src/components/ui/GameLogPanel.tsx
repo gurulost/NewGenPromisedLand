@@ -31,6 +31,8 @@ interface GameLogPanelProps {
     onToggle: () => void;
     maxEntries?: number;
     avoidBottomLeft?: boolean;
+    hideCollapsedTrigger?: boolean;
+    compactDesktopMode?: boolean;
 }
 
 const typeIcons: Record<GameLogEntryType, string> = {
@@ -59,7 +61,9 @@ export function GameLogPanel({
     isOpen,
     onToggle,
     maxEntries = 100,
-    avoidBottomLeft = false
+    avoidBottomLeft = false,
+    hideCollapsedTrigger = false,
+    compactDesktopMode = false,
 }: GameLogPanelProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [autoScroll, setAutoScroll] = useState(true);
@@ -68,6 +72,19 @@ export function GameLogPanel({
         ? 'bottom-[calc(env(safe-area-inset-bottom)+1rem+var(--selected-unit-panel-height,0px)+0.75rem)]'
         : 'bottom-[calc(env(safe-area-inset-bottom)+1rem)]';
     const desktopLeftClass = 'left-[calc(env(safe-area-inset-left)+1rem)]';
+
+    useEffect(() => {
+        if (!(compactDesktopMode && isOpen)) return;
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onToggle();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [compactDesktopMode, isOpen, onToggle]);
 
     // Auto-scroll to bottom when new entries come in
     useEffect(() => {
@@ -94,7 +111,7 @@ export function GameLogPanel({
                     <div className="flex items-center justify-between px-4 py-3 border-b border-stone-700/50 bg-stone-900/80">
                         <div className="flex items-center gap-2">
                             <Scroll className="w-4 h-4 text-amber-400" />
-                            <h3 className="text-sm font-bold text-stone-200">Game History</h3>
+                            <h3 className="text-sm font-bold text-stone-200">Game Log</h3>
                         </div>
                         <button
                             onClick={onToggle}
@@ -161,10 +178,123 @@ export function GameLogPanel({
         );
     }
 
+    if (compactDesktopMode) {
+        if (!isOpen) {
+            if (hideCollapsedTrigger) return null;
+
+            return (
+                <motion.button
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onClick={onToggle}
+                    className={`fixed ${desktopBottomClass} ${desktopLeftClass} z-[var(--z-floating)] pointer-events-auto flex items-center gap-2 px-3 py-2 bg-stone-800/90 border border-stone-600/50 rounded-lg hover:bg-stone-700/90 transition-colors backdrop-blur-sm`}
+                >
+                    <Scroll className="w-4 h-4 text-amber-400" />
+                    <span className="text-sm text-stone-300">Game Log</span>
+                    {entries.length > 0 && (
+                        <span className="px-1.5 py-0.5 text-xs bg-amber-600/30 text-amber-300 rounded">
+                            {entries.length}
+                        </span>
+                    )}
+                </motion.button>
+            );
+        }
+
+        return (
+            <ModalLayer
+                className="fixed inset-0 z-[var(--z-modal-backdrop)] bg-slate-950/55 backdrop-blur-[2px]"
+                onClick={onToggle}
+            >
+                <ModalLayerContent className="pointer-events-none fixed inset-0 z-[var(--z-modal-content)]">
+                    <motion.div
+                        initial={{ opacity: 0, y: 14, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 14, scale: 0.98 }}
+                        transition={{ duration: 0.18, ease: 'easeOut' }}
+                        onClick={(event) => event.stopPropagation()}
+                        className="pointer-events-auto fixed left-[calc(env(safe-area-inset-left)+1rem)] top-[calc(env(safe-area-inset-top)+1rem+var(--player-hud-height,0px)+0.75rem)] z-[var(--z-modal-content)] flex w-80 max-w-[calc(100vw-env(safe-area-inset-left)-env(safe-area-inset-right)-2rem)] max-h-[calc(100vh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-var(--player-hud-height,0px)-2.75rem)] flex-col overflow-hidden rounded-xl border border-stone-600/55 bg-stone-900/95 shadow-[0_24px_60px_rgba(2,6,23,0.5)] backdrop-blur-sm"
+                    >
+                        <div className="flex items-center justify-between border-b border-stone-700/50 bg-stone-800/50 px-4 py-3">
+                            <div className="flex items-center gap-2">
+                                <Scroll className="w-4 h-4 text-amber-400" />
+                                <div>
+                                    <h3 className="text-sm font-bold text-stone-200">Game Log</h3>
+                                    <p className="text-[11px] text-stone-400">Recent turns and faction actions</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-stone-500">Turn {currentTurn}</span>
+                                <button
+                                    onClick={onToggle}
+                                    className="p-1 hover:bg-stone-700/50 rounded transition-colors"
+                                    aria-label="Close game log"
+                                >
+                                    <X className="w-4 h-4 text-stone-400" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div
+                            ref={scrollRef}
+                            className="min-h-0 flex-1 overflow-y-auto p-2 space-y-1"
+                            onScroll={(e) => {
+                                const target = e.target as HTMLDivElement;
+                                const isAtBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 20;
+                                setAutoScroll(isAtBottom);
+                            }}
+                        >
+                            {Object.entries(entriesByTurn).map(([turn, turnEntries]) => (
+                                <div key={turn} className="mb-2">
+                                    <div className="text-xs text-stone-500 uppercase tracking-wide mb-1 px-2">
+                                        Turn {turn}
+                                    </div>
+                                    {turnEntries.map(entry => (
+                                        <div
+                                            key={entry.id}
+                                            className="flex items-start gap-2 px-2 py-1.5 rounded hover:bg-stone-800/50 transition-colors"
+                                        >
+                                            <span className="text-sm mt-0.5">{typeIcons[entry.type]}</span>
+                                            <div className="flex-1 min-w-0">
+                                                <span className={`text-xs font-medium ${typeColors[entry.type]}`}>
+                                                    {entry.playerName}:
+                                                </span>
+                                                <p className="text-xs text-stone-300 break-words">
+                                                    {entry.message}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+
+                            {entries.length === 0 && (
+                                <div className="text-center py-8 text-stone-500 text-sm">
+                                    No events yet
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="px-3 py-2 border-t border-stone-700/50 bg-stone-800/30">
+                            <div className="flex items-center justify-between text-xs text-stone-500">
+                                <span>{entries.length} events</span>
+                                <button
+                                    onClick={() => setAutoScroll(!autoScroll)}
+                                    className={`px-2 py-0.5 rounded ${autoScroll ? 'bg-amber-600/20 text-amber-400' : 'bg-stone-700/50'}`}
+                                >
+                                    {autoScroll ? 'Auto-scroll: ON' : 'Auto-scroll: OFF'}
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                </ModalLayerContent>
+            </ModalLayer>
+        );
+    }
+
     return (
         <>
             {/* Collapsed Button */}
-            {!isOpen && (
+            {!isOpen && !hideCollapsedTrigger && (
                 <motion.button
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -195,7 +325,7 @@ export function GameLogPanel({
                         <div className="flex items-center justify-between px-4 py-3 border-b border-stone-700/50 bg-stone-800/50">
                             <div className="flex items-center gap-2">
                                 <Scroll className="w-4 h-4 text-amber-400" />
-                                <h3 className="text-sm font-bold text-stone-200">Game History</h3>
+                                <h3 className="text-sm font-bold text-stone-200">Game Log</h3>
                             </div>
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-stone-500">Turn {currentTurn}</span>

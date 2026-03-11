@@ -1,5 +1,16 @@
-import React, { useMemo, useState } from 'react';
-import { Star, TrendingUp, Book, Hammer, Info, Trophy, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import clsx from 'clsx';
+import {
+  Star,
+  TrendingUp,
+  Book,
+  Hammer,
+  Info,
+  Trophy,
+  ChevronDown,
+  ChevronUp,
+  ScrollText,
+} from 'lucide-react';
 
 import { HUDShell } from '../primitives/HUDShell';
 import { AvatarBadge } from '../primitives/AvatarBadge';
@@ -8,7 +19,12 @@ import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Progress } from '../ui/progress';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { InfoTooltip } from '../primitives/InfoTooltip';
-import { DissentSystemTooltip, FaithSystemTooltip, PrideSystemTooltip, StarProductionTooltip } from '../ui/TooltipSystem';
+import {
+  DissentSystemTooltip,
+  FaithSystemTooltip,
+  PrideSystemTooltip,
+  StarProductionTooltip,
+} from '../ui/TooltipSystem';
 import { TutorialHelpIcon } from '../ui/TutorialHelpIcon';
 
 import { PlayerState, GameState } from '@shared/types/game';
@@ -20,6 +36,7 @@ import { getPlayerStats, PlayerStats } from '../../selectors/player';
 import { useAutosaveStatus } from '../../lib/stores/useAutosaveStatus';
 import { useTutorialStore } from '../../lib/stores/useTutorial';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
+import { useMobileUI } from '../../hooks/useMobileUI';
 
 function formatRelativeTime(ts: number): string {
   const deltaMs = Date.now() - ts;
@@ -37,27 +54,103 @@ interface PlayerHUDProps {
   onShowTechPanel: () => void;
   onShowConstructionHall: () => void;
   onShowDiplomacy: () => void;
+  onToggleGameLog?: () => void;
+  gameLogEntryCount?: number;
+  isGameLogOpen?: boolean;
   onEndTurn?: () => void;
 }
 
-export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructionHall, onShowDiplomacy, onEndTurn }: PlayerHUDProps) {
+type AuraSummary = {
+  unitsAffected: number;
+  attackPenalty: number;
+  durationTurns: number;
+};
+
+type AuraPayload = {
+  attackPenalty: number;
+  durationTurns: number;
+  affected: Array<{ playerId: string; unitIds: string[] }>;
+};
+
+function extractAuraEffect(
+  action: GameState['lastAction'],
+  eventType: 'TESTIMONY_PRESSURE' | 'INTIMIDATION_AURA',
+  playerId: string,
+): AuraSummary {
+  const empty = { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
+  if (!action) return empty;
+
+  let payload: AuraPayload | undefined;
+
+  if (action.type === 'END_TURN_RESOLUTION') {
+    const endTurnPayload = action.payload as { events: Array<{ type: string; payload: unknown }> };
+    const hit = endTurnPayload.events.find((event) => event.type === eventType);
+    payload = hit?.payload as AuraPayload | undefined;
+  } else if (action.type === eventType) {
+    payload = action.payload as AuraPayload;
+  }
+
+  if (!payload) return empty;
+  const mine = payload.affected?.find((affectedPlayer) => affectedPlayer.playerId === playerId);
+  return {
+    unitsAffected: mine?.unitIds?.length ?? 0,
+    attackPenalty: payload.attackPenalty ?? 0,
+    durationTurns: payload.durationTurns ?? 0,
+  };
+}
+
+export function PlayerHUD({
+  player,
+  gameState,
+  onShowTechPanel,
+  onShowConstructionHall,
+  onShowDiplomacy,
+  onToggleGameLog,
+  gameLogEntryCount = 0,
+  isGameLogOpen = false,
+  onEndTurn,
+}: PlayerHUDProps) {
   const faction = getFaction(coerceFactionId(player.factionId)!);
-  const handleEndTurn = onEndTurn ?? (() => { });
+  const handleEndTurn = onEndTurn ?? (() => {});
   const autosaveStatus = useAutosaveStatus();
   const [victoryOpen, setVictoryOpen] = useState(false);
   const openTutorialIfNeeded = useTutorialStore((state) => state.openIfNeeded);
   const gameMode = useLocalGame((state) => state.gameMode);
+  const { isSmallViewport } = useMobileUI();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const compactLayout = isSmallViewport;
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const updateHeight = () => {
+      const height = Math.ceil(panelRef.current?.getBoundingClientRect().height ?? 0);
+      document.documentElement.style.setProperty('--player-hud-height', `${height}px`);
+    };
+
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    const observer =
+      typeof ResizeObserver !== 'undefined' && panelRef.current
+        ? new ResizeObserver(updateHeight)
+        : null;
+    if (observer && panelRef.current) {
+      observer.observe(panelRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateHeight);
+      observer?.disconnect();
+      document.documentElement.style.removeProperty('--player-hud-height');
+    };
+  }, []);
 
   const openIfAllowed = (cardId: Parameters<typeof openTutorialIfNeeded>[0]) => {
     if (gameMode === 'tutorialEpisode') return;
     openTutorialIfNeeded(cardId);
   };
 
-  // Moved expensive calculations to selector
-  const playerStats = useMemo(() =>
-    getPlayerStats(player, gameState),
-    [player, gameState]
-  );
+  const playerStats = useMemo(() => getPlayerStats(player, gameState), [player, gameState]);
 
   const handleTechPanel = () => {
     openIfAllowed('hud');
@@ -74,6 +167,11 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
     onShowDiplomacy();
   };
 
+  const handleGameLog = () => {
+    openIfAllowed('hud');
+    onToggleGameLog?.();
+  };
+
   const handleEndTurnClick = () => {
     openIfAllowed('end-turn');
     handleEndTurn();
@@ -84,40 +182,6 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
       openIfAllowed('victory');
     }
     setVictoryOpen(open);
-  };
-
-  // Typed shape for TESTIMONY_PRESSURE / INTIMIDATION_AURA payloads
-  type AuraPayload = {
-    attackPenalty: number;
-    durationTurns: number;
-    affected: Array<{ playerId: string; unitIds: string[] }>;
-  };
-
-  const extractAuraEffect = (
-    action: GameState['lastAction'],
-    eventType: 'TESTIMONY_PRESSURE' | 'INTIMIDATION_AURA',
-    playerId: string,
-  ) => {
-    const empty = { unitsAffected: 0, attackPenalty: 0, durationTurns: 0 };
-    if (!action) return empty;
-
-    let payload: AuraPayload | undefined;
-
-    if (action.type === 'END_TURN_RESOLUTION') {
-      const endTurnPayload = action.payload as { events: Array<{ type: string; payload: unknown }> };
-      const hit = endTurnPayload.events.find(e => e.type === eventType);
-      payload = hit?.payload as AuraPayload | undefined;
-    } else if (action.type === eventType) {
-      payload = action.payload as AuraPayload;
-    }
-
-    if (!payload) return empty;
-    const mine = payload.affected?.find(a => a.playerId === playerId);
-    return {
-      unitsAffected: mine?.unitIds?.length ?? 0,
-      attackPenalty: payload.attackPenalty ?? 0,
-      durationTurns: payload.durationTurns ?? 0,
-    };
   };
 
   const testimonyPressureLastTurn = useMemo(
@@ -134,70 +198,95 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
 
   return (
     <HUDShell position="top-left">
-      <Card className="w-72 max-w-[calc(100vw-env(safe-area-inset-left)-env(safe-area-inset-right)-2rem)] max-h-[calc(100vh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] flex flex-col overflow-hidden bg-gradient-to-br from-slate-900/95 via-slate-800/90 to-slate-900/95 border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20 backdrop-blur-sm">
-        <CardHeader className="pb-3 bg-gradient-to-r from-amber-900/20 to-amber-800/20 border-b border-amber-500/20">
-        <CardTitle className="flex w-full items-center gap-3 text-amber-100 font-cinzel text-lg font-semibold tracking-wide">
-          <AvatarBadge
-            color={faction.color}
-            size="md"
-            aria-label={`${faction.name} faction`}
+      <Card
+        ref={panelRef}
+        className={clsx(
+          compactLayout ? 'w-80' : 'w-72',
+          'max-w-[calc(100vw-env(safe-area-inset-left)-env(safe-area-inset-right)-2rem)]',
+          'max-h-[calc(100vh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)]',
+          'flex flex-col overflow-hidden bg-gradient-to-br from-slate-900/95 via-slate-800/90 to-slate-900/95',
+          'border-2 border-amber-500/30 shadow-2xl shadow-amber-500/20 backdrop-blur-sm',
+        )}
+      >
+        <CardHeader
+          className={clsx(
+            'border-b border-amber-500/20 bg-gradient-to-r from-amber-900/20 to-amber-800/20',
+            compactLayout ? 'space-y-2 px-4 py-4' : 'pb-3',
+          )}
+        >
+          <CardTitle
+            className={clsx(
+              'flex w-full items-center gap-3 font-cinzel font-semibold tracking-wide text-amber-100',
+              compactLayout ? 'text-base' : 'text-lg',
+            )}
           >
-            <span className="text-white font-bold text-sm">
-              {faction.name.charAt(0)}
-            </span>
-          </AvatarBadge>
-          {player.name}
-          <div className="ml-auto">
-            <TutorialHelpIcon cardId="hud" label="Open HUD tutorial" />
-          </div>
-        </CardTitle>
-          <div className="text-xs text-amber-300/70 font-normal">
-            — Leader of the Promised Land —
-          </div>
+            <AvatarBadge color={faction.color} size="md" aria-label={`${faction.name} faction`}>
+              <span className="text-sm font-bold text-white">{faction.name.charAt(0)}</span>
+            </AvatarBadge>
+            <span className="truncate">{player.name}</span>
+            <div className="ml-auto flex items-center gap-2">
+              <div className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[10px] uppercase tracking-[0.24em] text-amber-200/80">
+                Turn {gameState.turn}
+              </div>
+              <TutorialHelpIcon cardId="hud" label="Open HUD tutorial" />
+            </div>
+          </CardTitle>
+
+          <div className="text-xs font-normal text-amber-300/70">— Leader of the Promised Land —</div>
+
           {autosaveStatus.lastFailureAt ? (
-            <div className="text-xs text-red-200/90 font-body">
+            <div className="text-xs font-body text-red-200/90">
               Autosave unavailable — progress may be lost on reload
             </div>
           ) : autosaveStatus.lastSuccessAt ? (
-            <div className="text-xs text-amber-200/70 font-body">
-              Autosaved {autosaveStatus.lastSuccessTurn ? `turn ${autosaveStatus.lastSuccessTurn}` : 'game'} {formatRelativeTime(autosaveStatus.lastSuccessAt)}
-              {autosaveStatus.isSaving ? ' (saving…)': ''}
+            <div className="text-xs font-body text-amber-200/70">
+              Autosaved {autosaveStatus.lastSuccessTurn ? `turn ${autosaveStatus.lastSuccessTurn}` : 'game'}{' '}
+              {formatRelativeTime(autosaveStatus.lastSuccessAt)}
+              {autosaveStatus.isSaving ? ' (saving...)' : ''}
             </div>
           ) : autosaveStatus.isSaving ? (
-            <div className="text-xs text-amber-200/70 font-body">Autosaving…</div>
+            <div className="text-xs font-body text-amber-200/70">Autosaving...</div>
           ) : null}
         </CardHeader>
 
-        <CardContent className="flex-1 min-h-0 overflow-y-auto touch-scroll space-y-4 bg-slate-900/40 p-4">
-          {/* Star Resources */}
+        <CardContent
+          className={clsx(
+            'flex-1 min-h-0 overflow-y-auto touch-scroll bg-slate-900/40',
+            compactLayout ? 'space-y-3 p-3 pt-3' : 'space-y-4 p-4 pt-4',
+          )}
+        >
           <StarResourcesSection
             stars={player.stars}
             starProduction={playerStats.starProduction}
             breakdown={playerStats.starProductionBreakdown}
+            compact={compactLayout}
           />
 
-          {/* Faith/Pride/Dissent Progress Bars */}
           <ResourceProgressSection
             playerStats={playerStats}
             testimonyPressureLastTurn={testimonyPressureLastTurn}
             intimidationAuraLastTurn={intimidationAuraLastTurn}
+            compact={compactLayout}
           />
 
-          {/* Victory Progress */}
           <VictoryProgressSection
             player={player}
             gameState={gameState}
             playerStats={playerStats}
             isOpen={victoryOpen}
             onToggle={handleVictoryToggle}
+            compact={compactLayout}
           />
 
-          {/* Action Buttons */}
           <ActionButtonsSection
             onShowTechPanel={handleTechPanel}
             onShowConstructionHall={handleConstructionHall}
             onShowDiplomacy={handleDiplomacyPanel}
+            onToggleGameLog={handleGameLog}
+            gameLogEntryCount={gameLogEntryCount}
+            isGameLogOpen={isGameLogOpen}
             onEndTurn={handleEndTurnClick}
+            compact={compactLayout}
           />
         </CardContent>
       </Card>
@@ -205,316 +294,586 @@ export function PlayerHUD({ player, gameState, onShowTechPanel, onShowConstructi
   );
 }
 
-// Memoized sub-components for performance
-const StarResourcesSection = React.memo(({ stars, starProduction, breakdown }: {
-  stars: number;
-  starProduction: number;
-  breakdown: PlayerStats['starProductionBreakdown'];
-}) => (
-  <div className="space-y-2">
-    <div className="flex items-center justify-between text-amber-100">
-      <div className="flex items-center gap-2">
-        <Star className="w-4 h-4 text-amber-400" />
-        <span className="font-semibold text-amber-200">{stars}</span>
-        <InfoTooltip content={<StarProductionTooltip totalIncome={starProduction} breakdown={breakdown} />} ariaLabel="Star production breakdown">
-          <Info className="w-3 h-3 text-amber-400/60 hover:text-amber-400 cursor-help transition-colors" />
-        </InfoTooltip>
-      </div>
-      <div className="flex items-center gap-1 text-sm text-amber-300">
-        <TrendingUp className="w-3 h-3" />
-        <span>+{starProduction}/turn</span>
-      </div>
-    </div>
-
-    <details className="group">
-      <summary className="text-xs text-amber-300/70 cursor-pointer hover:text-amber-300 flex items-center gap-1">
-        <span>Production breakdown</span>
-        <span className="transition-transform group-open:rotate-90">▶</span>
-      </summary>
-      <div className="mt-2 space-y-1 text-xs bg-amber-900/10 rounded-lg p-3 border border-amber-500/20">
-        {breakdown.map((item, index) => (
-          <div key={index} className="flex justify-between text-amber-200">
-            <span>{item.source}:</span>
-            <span className="text-amber-300">
-              {item.amount >= 0 ? `+${item.amount}` : `${item.amount}`}
-            </span>
-          </div>
-        ))}
-        <div className="flex justify-between font-semibold text-amber-100 border-t border-amber-600/50 pt-1 mt-2">
-          <span>Total:</span>
-          <span className="text-amber-300">+{starProduction}</span>
-        </div>
-      </div>
-    </details>
-  </div>
-));
-
-const ResourceProgressSection = React.memo(({ playerStats, testimonyPressureLastTurn, intimidationAuraLastTurn }: {
-  playerStats: PlayerStats;
-  testimonyPressureLastTurn: { unitsAffected: number; attackPenalty: number; durationTurns: number };
-  intimidationAuraLastTurn: { unitsAffected: number; attackPenalty: number; durationTurns: number };
-}) => (
-  <div className="space-y-3">
-    {/* Faith Progress */}
-    <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span className="text-blue-300 font-cinzel font-medium flex items-center gap-1">
-          Faith
-          <InfoTooltip content={<FaithSystemTooltip />} ariaLabel="How faith works">
-            <Info className="w-3 h-3 text-blue-400/60 hover:text-blue-400 cursor-help transition-colors" />
-          </InfoTooltip>
-        </span>
-        <span className="text-amber-100 font-body font-medium">{playerStats.faithPercentage}/100</span>
-      </div>
-      <Progress value={playerStats.faithPercentage} className="h-2" />
-      {testimonyPressureLastTurn.unitsAffected > 0 && testimonyPressureLastTurn.attackPenalty > 0 && (
-        <div className="mt-1 text-xs text-blue-200/70 font-body">
-          Testimony pressure: {testimonyPressureLastTurn.unitsAffected} unit(s) -{testimonyPressureLastTurn.attackPenalty} attack ({testimonyPressureLastTurn.durationTurns} turn)
-        </div>
+const StarResourcesSection = React.memo(
+  ({
+    stars,
+    starProduction,
+    breakdown,
+    compact = false,
+  }: {
+    stars: number;
+    starProduction: number;
+    breakdown: PlayerStats['starProductionBreakdown'];
+    compact?: boolean;
+  }) => (
+    <div
+      className={clsx(
+        compact && 'rounded-xl border border-amber-500/20 bg-amber-900/10 px-3 py-3 shadow-[inset_0_1px_0_rgba(251,191,36,0.08)]',
       )}
-    </div>
-
-    {/* Pride Progress */}
-    <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span className="text-purple-300 font-cinzel font-medium flex items-center gap-1">
-          Pride
-          <InfoTooltip content={<PrideSystemTooltip />} ariaLabel="How pride works">
-            <Info className="w-3 h-3 text-purple-400/60 hover:text-purple-400 cursor-help transition-colors" />
-          </InfoTooltip>
-        </span>
-        <span className="text-amber-100 font-body font-medium">{playerStats.pridePercentage}/100</span>
-      </div>
-      <Progress value={playerStats.pridePercentage} className="h-2" />
-    </div>
-
-    {/* Dissent Progress */}
-    <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span className="text-red-300 font-cinzel font-medium flex items-center gap-1">
-          Dissent
-          <InfoTooltip content={<DissentSystemTooltip />} ariaLabel="How dissent works">
-            <Info className="w-3 h-3 text-red-400/60 hover:text-red-400 cursor-help transition-colors" />
-          </InfoTooltip>
-        </span>
-        <span className="text-amber-100 font-body font-medium">{playerStats.dissentPercentage}/100</span>
-      </div>
-      <Progress value={playerStats.dissentPercentage} className="h-2" />
-      {intimidationAuraLastTurn.unitsAffected > 0 && intimidationAuraLastTurn.attackPenalty > 0 && (
-        <div className="mt-1 text-xs text-red-200/70 font-body">
-          Intimidation aura: {intimidationAuraLastTurn.unitsAffected} unit(s) -{intimidationAuraLastTurn.attackPenalty} attack ({intimidationAuraLastTurn.durationTurns} turn)
-        </div>
-      )}
-    </div>
-  </div>
-));
-
-const VictoryProgressSection = React.memo(({ player, gameState, playerStats, isOpen, onToggle }: {
-  player: PlayerState;
-  gameState: GameState;
-  playerStats: PlayerStats;
-  isOpen: boolean;
-  onToggle: (open: boolean) => void;
-}) => {
-  const playerCount = gameState.players.length;
-  const economicTargets = GameRuleHelpers.getEconomicVictoryThresholds(playerCount);
-  const culturalTargets = GameRuleHelpers.getCulturalVictoryThresholds(playerCount);
-  const totalTechs = Object.keys(TECHNOLOGIES).length || 1;
-  const techPercent = Math.round((player.researchedTechs.length / totalTechs) * 100);
-
-  const ownedCities = (gameState.cities || []).filter(c => c.ownerId === player.id);
-  const population = ownedCities.reduce((sum, city) => sum + (city.population || 0), 0);
-
-  const culturalStructureCount =
-    (gameState.structures || []).filter(
-      s => s.ownerId === player.id &&
-        s.constructionTurns === 0 &&
-        culturalTargets.structureTypes.includes(s.type)
-    ).length +
-    (gameState.improvements || []).filter(
-      i => i.ownerId === player.id &&
-        i.constructionTurns === 0 &&
-        culturalTargets.improvementTypes.includes(i.type)
-    ).length;
-
-  const totalOwnedCities = gameState.players.reduce((sum, p) => sum + p.citiesOwned.length, 0);
-  const territoryPercent = totalOwnedCities > 0
-    ? Math.round((player.citiesOwned.length / totalOwnedCities) * 100)
-    : 0;
-  const territoryTarget = Math.round(GAME_RULES.victory.territoryControlThreshold * 100);
-  const maxTurns = GAME_RULES.turns.maxTurnsPerGame;
-  const turnLabel = maxTurns > 0 ? `${gameState.turn}/${maxTurns}` : `${gameState.turn}/no cap`;
-
-  const summaryItems = [
-    { label: 'F', value: `${player.stats.faith}/${GAME_RULES.victory.faithThreshold}` },
-    { label: 'E', value: `+${playerStats.starProduction}/${economicTargets.income}` },
-    { label: 'C', value: `${population}/${culturalTargets.population}` },
-    { label: 'T', value: `${territoryPercent}%/${territoryTarget}%` },
-  ];
-
-  return (
-    <Collapsible open={isOpen} onOpenChange={onToggle} className="space-y-2">
-      <div className="flex items-start gap-2">
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex-1 rounded-lg border border-amber-500/20 bg-slate-900/40 px-3 py-2 text-left transition-colors hover:bg-slate-800/50"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm text-amber-100 font-cinzel font-semibold">
-                <Trophy className="w-4 h-4 text-amber-400" />
-                <span>Victory</span>
-                <InfoTooltip ariaLabel="Victory conditions" content={
-                  <div className="space-y-1 text-xs">
-                    <div>Faith: reach threshold with low dissent.</div>
-                    <div>Economic: income + treasury + tech percent.</div>
-                    <div>Cultural: population + cultural sites + low dissent.</div>
-                    <div>Territory: share of owned cities.</div>
-                  </div>
-                }>
-                  <Info
-                    className="w-3 h-3 text-amber-400/60 hover:text-amber-400 cursor-help transition-colors"
-                    onClick={(event) => event.stopPropagation()}
-                  />
-                </InfoTooltip>
-              </div>
-              <div className="flex items-center gap-2 text-[11px] text-amber-200/70">
-                <span>{turnLabel}</span>
-                {isOpen ? (
-                  <ChevronUp className="w-3 h-3 text-amber-300" />
-                ) : (
-                  <ChevronDown className="w-3 h-3 text-amber-300" />
-                )}
-              </div>
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-amber-200/80 font-body">
-              {summaryItems.map(item => (
-                <span key={item.label} className="flex items-center gap-1">
-                  <span className="text-amber-300/80">{item.label}</span>
-                  <span>{item.value}</span>
-                </span>
-              ))}
-            </div>
-          </button>
-        </CollapsibleTrigger>
-        <TutorialHelpIcon
-          cardId="victory"
-          label="Open victory tutorial"
-          className="h-8 w-8 mt-1"
-          iconClassName="h-4 w-4"
-        />
-      </div>
-      <CollapsibleContent>
-        <div className="grid grid-cols-2 gap-2 text-xs text-amber-200/80 font-body">
-          <div>
-            <div className="text-amber-200">Faith</div>
-            <div className="text-amber-100">
-              {player.stats.faith}/{GAME_RULES.victory.faithThreshold}
-              <span className="text-amber-200/70"> (dissent &lt;= {GAME_RULES.victory.faithDissentMax})</span>
-            </div>
-          </div>
-          <div>
-            <div className="text-amber-200">Territory</div>
-            <div className="text-amber-100">{territoryPercent}% / {territoryTarget}%</div>
-          </div>
-          <div>
-            <div className="text-amber-200">Economic</div>
-            <div className="text-amber-100">
-              +{playerStats.starProduction}/{economicTargets.income} stars
-            </div>
-            <div className="text-amber-100">
-              {player.stars}/{economicTargets.treasury} stars | {techPercent}%/{Math.round(economicTargets.techPercent * 100)}%
-            </div>
-          </div>
-          <div>
-            <div className="text-amber-200">Cultural</div>
-            <div className="text-amber-100">
-              Pop {population}/{culturalTargets.population}
-            </div>
-            <div className="text-amber-100">
-              Sites {culturalStructureCount}/{culturalTargets.structures} | Dissent &lt;= {culturalTargets.dissentMax}
-            </div>
-          </div>
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-});
-
-const ActionButtonsSection = React.memo(({ onShowTechPanel, onShowConstructionHall, onShowDiplomacy, onEndTurn }: {
-  onShowTechPanel: () => void;
-  onShowConstructionHall: () => void;
-  onShowDiplomacy: () => void;
-  onEndTurn: () => void;
-}) => (
-  <div className="space-y-2 pt-2">
-    <div className="grid grid-cols-2 gap-2">
-      <GlowingButton
-        variant="outline"
-        size="sm"
-        glowColor="blue"
-        intensity="medium"
-        data-testid="hud-knowledge-button"
-        className="w-full bg-gradient-to-r from-blue-600/20 to-blue-700/20 border-blue-400/60 
-                   text-blue-100 text-xs px-4 py-3 min-h-[48px] justify-center"
-        onClick={onShowTechPanel}
-        soundEffect="cta-click"
-      >
-        <Book className="w-4 h-4 flex-shrink-0" />
-        <span className="ml-2">Knowledge</span>
-      </GlowingButton>
-
-      <GlowingButton
-        variant="outline"
-        size="sm"
-        glowColor="amber"
-        intensity="medium"
-        className="w-full bg-gradient-to-r from-amber-600/20 to-amber-700/20 border-amber-400/60 
-                   text-amber-100 text-xs px-4 py-3 min-h-[48px] justify-center"
-        onClick={onShowConstructionHall}
-        soundEffect="cta-click"
-      >
-        <Hammer className="w-4 h-4 flex-shrink-0" />
-        <span className="ml-2">Build</span>
-      </GlowingButton>
-    </div>
-
-    <GlowingButton
-      variant="outline"
-      size="sm"
-      glowColor="purple"
-      intensity="medium"
-      className="w-full bg-gradient-to-r from-purple-600/20 to-purple-700/20 border-purple-400/60 
-                 text-purple-100 text-xs px-4 py-3 min-h-[48px] justify-center"
-      onClick={onShowDiplomacy}
-      soundEffect="cta-click"
     >
-      <span className="text-base mr-2">🤝</span>
-      <span>Diplomacy</span>
-    </GlowingButton>
+      <div className="flex items-center justify-between gap-3 text-amber-100">
+        <div className="flex items-center gap-2">
+          <Star className={clsx('text-amber-400', compact ? 'h-4 w-4' : 'h-4 w-4')} />
+          <div>
+            {compact && (
+              <div className="text-[10px] uppercase tracking-[0.28em] text-amber-200/55">Stars</div>
+            )}
+            <div className="flex items-center gap-2">
+              <span className={clsx('font-semibold text-amber-100', compact ? 'text-2xl leading-none' : 'text-base')}>
+                {stars}
+              </span>
+              <InfoTooltip
+                content={<StarProductionTooltip totalIncome={starProduction} breakdown={breakdown} />}
+                ariaLabel="Star production breakdown"
+              >
+                <Info className="h-3 w-3 cursor-help text-amber-400/60 transition-colors hover:text-amber-400" />
+              </InfoTooltip>
+            </div>
+          </div>
+        </div>
 
-    <div className="flex items-center gap-2">
-      <GlowingButton
-        variant="default"
-        size="sm"
-        glowColor="green"
-        intensity="high"
-        data-testid="hud-end-turn-button"
-        className="flex-1 text-sm font-semibold bg-gradient-to-r from-green-600 to-green-700 
-                   text-white border border-green-400/60 hover:from-green-500 hover:to-green-600"
-        onClick={onEndTurn}
-        soundEffect="cta-click"
-      >
-        End Turn
-      </GlowingButton>
-      <TutorialHelpIcon
-        cardId="end-turn"
-        label="Open turn flow tutorial"
-        className="h-9 w-9"
-        iconClassName="h-4 w-4"
-      />
+        <div className="flex items-center gap-1 rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-sm text-amber-300">
+          <TrendingUp className="h-3 w-3" />
+          <span>+{starProduction}/turn</span>
+        </div>
+      </div>
+
+      <details className="group mt-2">
+        <summary className="flex cursor-pointer list-none items-center gap-1 text-xs text-amber-300/70 hover:text-amber-300 [&::-webkit-details-marker]:hidden">
+          <span>{compact ? 'Income details' : 'Production breakdown'}</span>
+          <span className="transition-transform group-open:rotate-90">▶</span>
+        </summary>
+        <div className="mt-2 space-y-1 rounded-lg border border-amber-500/20 bg-amber-900/10 p-3 text-xs">
+          {breakdown.map((item, index) => (
+            <div key={index} className="flex justify-between text-amber-200">
+              <span>{item.source}:</span>
+              <span className="text-amber-300">{item.amount >= 0 ? `+${item.amount}` : `${item.amount}`}</span>
+            </div>
+          ))}
+          <div className="mt-2 flex justify-between border-t border-amber-600/50 pt-1 font-semibold text-amber-100">
+            <span>Total:</span>
+            <span className="text-amber-300">+{starProduction}</span>
+          </div>
+        </div>
+      </details>
     </div>
-  </div>
-));
+  ),
+);
+
+const ResourceProgressSection = React.memo(
+  ({
+    playerStats,
+    testimonyPressureLastTurn,
+    intimidationAuraLastTurn,
+    compact = false,
+  }: {
+    playerStats: PlayerStats;
+    testimonyPressureLastTurn: AuraSummary;
+    intimidationAuraLastTurn: AuraSummary;
+    compact?: boolean;
+  }) => {
+    if (compact) {
+      const statCards = [
+        {
+          key: 'faith',
+          label: 'Faith',
+          value: playerStats.faithPercentage,
+          shellClass: 'border-sky-400/25 bg-sky-500/10',
+          labelClass: 'text-sky-200/90',
+          valueClass: 'text-sky-50',
+          iconClass: 'text-sky-300/70 hover:text-sky-200',
+          barClass: 'bg-sky-300',
+          tooltip: <FaithSystemTooltip />,
+        },
+        {
+          key: 'pride',
+          label: 'Pride',
+          value: playerStats.pridePercentage,
+          shellClass: 'border-violet-400/25 bg-violet-500/10',
+          labelClass: 'text-violet-200/90',
+          valueClass: 'text-violet-50',
+          iconClass: 'text-violet-300/70 hover:text-violet-200',
+          barClass: 'bg-violet-300',
+          tooltip: <PrideSystemTooltip />,
+        },
+        {
+          key: 'dissent',
+          label: 'Dissent',
+          value: playerStats.dissentPercentage,
+          shellClass: 'border-rose-400/25 bg-rose-500/10',
+          labelClass: 'text-rose-200/90',
+          valueClass: 'text-rose-50',
+          iconClass: 'text-rose-300/70 hover:text-rose-200',
+          barClass: 'bg-rose-300',
+          tooltip: <DissentSystemTooltip />,
+        },
+      ] as const;
+
+      return (
+        <div className="space-y-2 rounded-xl border border-amber-500/20 bg-slate-950/35 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+          <div className="grid grid-cols-3 gap-2">
+            {statCards.map((card) => (
+              <div key={card.key} className={clsx('rounded-xl border px-2.5 py-2', card.shellClass)}>
+                <div className="flex items-center justify-between gap-1">
+                  <span className={clsx('text-[10px] uppercase tracking-[0.22em]', card.labelClass)}>{card.label}</span>
+                  <InfoTooltip content={card.tooltip} ariaLabel={`How ${card.label.toLowerCase()} works`}>
+                    <Info className={clsx('h-3 w-3 cursor-help transition-colors', card.iconClass)} />
+                  </InfoTooltip>
+                </div>
+
+                <div className="mt-2 text-center">
+                  <div className={clsx('text-lg font-semibold leading-none', card.valueClass)}>{card.value}</div>
+                  <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-amber-100/45">of 100</div>
+                </div>
+
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/25">
+                  <div className={clsx('h-full rounded-full transition-all', card.barClass)} style={{ width: `${card.value}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {(testimonyPressureLastTurn.unitsAffected > 0 || intimidationAuraLastTurn.unitsAffected > 0) && (
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              {testimonyPressureLastTurn.unitsAffected > 0 && testimonyPressureLastTurn.attackPenalty > 0 && (
+                <div className="rounded-full border border-sky-400/20 bg-sky-500/10 px-2.5 py-1 text-sky-100">
+                  Testimony pressure: {testimonyPressureLastTurn.unitsAffected} unit(s), -
+                  {testimonyPressureLastTurn.attackPenalty} attack
+                </div>
+              )}
+              {intimidationAuraLastTurn.unitsAffected > 0 && intimidationAuraLastTurn.attackPenalty > 0 && (
+                <div className="rounded-full border border-rose-400/20 bg-rose-500/10 px-2.5 py-1 text-rose-100">
+                  Intimidation aura: {intimidationAuraLastTurn.unitsAffected} unit(s), -
+                  {intimidationAuraLastTurn.attackPenalty} attack
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        <div>
+          <div className="mb-1 flex justify-between text-sm">
+            <span className="flex items-center gap-1 font-cinzel font-medium text-blue-300">
+              Faith
+              <InfoTooltip content={<FaithSystemTooltip />} ariaLabel="How faith works">
+                <Info className="h-3 w-3 cursor-help text-blue-400/60 transition-colors hover:text-blue-400" />
+              </InfoTooltip>
+            </span>
+            <span className="font-body font-medium text-amber-100">{playerStats.faithPercentage}/100</span>
+          </div>
+          <Progress value={playerStats.faithPercentage} className="h-2" />
+          {testimonyPressureLastTurn.unitsAffected > 0 && testimonyPressureLastTurn.attackPenalty > 0 && (
+            <div className="mt-1 text-xs font-body text-blue-200/70">
+              Testimony pressure: {testimonyPressureLastTurn.unitsAffected} unit(s) -
+              {testimonyPressureLastTurn.attackPenalty} attack ({testimonyPressureLastTurn.durationTurns} turn)
+            </div>
+          )}
+        </div>
+
+        <div>
+          <div className="mb-1 flex justify-between text-sm">
+            <span className="flex items-center gap-1 font-cinzel font-medium text-purple-300">
+              Pride
+              <InfoTooltip content={<PrideSystemTooltip />} ariaLabel="How pride works">
+                <Info className="h-3 w-3 cursor-help text-purple-400/60 transition-colors hover:text-purple-400" />
+              </InfoTooltip>
+            </span>
+            <span className="font-body font-medium text-amber-100">{playerStats.pridePercentage}/100</span>
+          </div>
+          <Progress value={playerStats.pridePercentage} className="h-2" />
+        </div>
+
+        <div>
+          <div className="mb-1 flex justify-between text-sm">
+            <span className="flex items-center gap-1 font-cinzel font-medium text-red-300">
+              Dissent
+              <InfoTooltip content={<DissentSystemTooltip />} ariaLabel="How dissent works">
+                <Info className="h-3 w-3 cursor-help text-red-400/60 transition-colors hover:text-red-400" />
+              </InfoTooltip>
+            </span>
+            <span className="font-body font-medium text-amber-100">{playerStats.dissentPercentage}/100</span>
+          </div>
+          <Progress value={playerStats.dissentPercentage} className="h-2" />
+          {intimidationAuraLastTurn.unitsAffected > 0 && intimidationAuraLastTurn.attackPenalty > 0 && (
+            <div className="mt-1 text-xs font-body text-red-200/70">
+              Intimidation aura: {intimidationAuraLastTurn.unitsAffected} unit(s) -
+              {intimidationAuraLastTurn.attackPenalty} attack ({intimidationAuraLastTurn.durationTurns} turn)
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  },
+);
+
+const VictoryProgressSection = React.memo(
+  ({
+    player,
+    gameState,
+    playerStats,
+    isOpen,
+    onToggle,
+    compact = false,
+  }: {
+    player: PlayerState;
+    gameState: GameState;
+    playerStats: PlayerStats;
+    isOpen: boolean;
+    onToggle: (open: boolean) => void;
+    compact?: boolean;
+  }) => {
+    const playerCount = gameState.players.length;
+    const economicTargets = GameRuleHelpers.getEconomicVictoryThresholds(playerCount);
+    const culturalTargets = GameRuleHelpers.getCulturalVictoryThresholds(playerCount);
+    const totalTechs = Object.keys(TECHNOLOGIES).length || 1;
+    const techPercent = Math.round((player.researchedTechs.length / totalTechs) * 100);
+
+    const ownedCities = (gameState.cities || []).filter((city) => city.ownerId === player.id);
+    const population = ownedCities.reduce((sum, city) => sum + (city.population || 0), 0);
+
+    const culturalStructureCount =
+      (gameState.structures || []).filter(
+        (structure) =>
+          structure.ownerId === player.id &&
+          structure.constructionTurns === 0 &&
+          culturalTargets.structureTypes.includes(structure.type),
+      ).length +
+      (gameState.improvements || []).filter(
+        (improvement) =>
+          improvement.ownerId === player.id &&
+          improvement.constructionTurns === 0 &&
+          culturalTargets.improvementTypes.includes(improvement.type),
+      ).length;
+
+    const totalOwnedCities = gameState.players.reduce((sum, currentPlayer) => sum + currentPlayer.citiesOwned.length, 0);
+    const territoryPercent = totalOwnedCities > 0
+      ? Math.round((player.citiesOwned.length / totalOwnedCities) * 100)
+      : 0;
+    const territoryTarget = Math.round(GAME_RULES.victory.territoryControlThreshold * 100);
+    const maxTurns = GAME_RULES.turns.maxTurnsPerGame;
+    const turnLabel = maxTurns > 0 ? `${gameState.turn}/${maxTurns}` : `${gameState.turn}/no cap`;
+
+    const summaryTiles = [
+      {
+        key: 'faith',
+        label: 'Faith',
+        value: `${player.stats.faith}/${GAME_RULES.victory.faithThreshold}`,
+        tone: 'border-sky-400/20 bg-sky-500/10 text-sky-50',
+        detail: `Reach ${GAME_RULES.victory.faithThreshold} Faith while keeping Dissent at ${GAME_RULES.victory.faithDissentMax} or lower.`,
+      },
+      {
+        key: 'economy',
+        label: 'Income',
+        value: `+${playerStats.starProduction}/${economicTargets.income}`,
+        tone: 'border-emerald-400/20 bg-emerald-500/10 text-emerald-50',
+        detail: `Treasury ${player.stars}/${economicTargets.treasury} and research ${techPercent}%/${Math.round(
+          economicTargets.techPercent * 100,
+        )}% are also required.`,
+      },
+      {
+        key: 'population',
+        label: 'Population',
+        value: `${population}/${culturalTargets.population}`,
+        tone: 'border-fuchsia-400/20 bg-fuchsia-500/10 text-fuchsia-50',
+        detail: `Culture path also needs ${culturalStructureCount}/${culturalTargets.structures} sites and Dissent at ${culturalTargets.dissentMax} or lower.`,
+      },
+      {
+        key: 'territory',
+        label: 'Territory',
+        value: `${territoryPercent}%/${territoryTarget}%`,
+        tone: 'border-amber-400/20 bg-amber-500/10 text-amber-50',
+        detail: `You currently control ${player.citiesOwned.length} of ${Math.max(totalOwnedCities, 1)} occupied cities.`,
+      },
+    ] as const;
+
+    return (
+      <Collapsible open={isOpen} onOpenChange={onToggle} className="space-y-2">
+        <div className="flex items-start gap-2">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className={clsx(
+                'flex-1 rounded-xl border border-amber-500/20 bg-slate-900/40 text-left transition-colors hover:bg-slate-800/50',
+                compact ? 'px-3 py-3' : 'px-3 py-2',
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-cinzel font-semibold text-amber-100">
+                  <Trophy className="h-4 w-4 text-amber-400" />
+                  <span className={clsx(compact && 'whitespace-nowrap text-[0.95rem] leading-none')}>
+                    {compact ? 'Victory Paths' : 'Victory'}
+                  </span>
+                  <InfoTooltip
+                    ariaLabel="Victory conditions"
+                    content={
+                      <div className="space-y-1 text-xs">
+                        <div>Faith: reach threshold with low dissent.</div>
+                        <div>Economic: income + treasury + tech percent.</div>
+                        <div>Cultural: population + cultural sites + low dissent.</div>
+                        <div>Territory: share of owned cities.</div>
+                      </div>
+                    }
+                  >
+                    <Info
+                      className="h-3 w-3 cursor-help text-amber-400/60 transition-colors hover:text-amber-400"
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  </InfoTooltip>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full border border-amber-500/15 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200/80">
+                    Turn {turnLabel}
+                  </span>
+                  {isOpen ? (
+                    <ChevronUp className="h-3 w-3 text-amber-300" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3 text-amber-300" />
+                  )}
+                </div>
+              </div>
+
+              {compact ? (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {summaryTiles.map((tile) => (
+                    <div key={tile.key} className={clsx('rounded-lg border px-2.5 py-2', tile.tone)}>
+                      <div className="text-[10px] uppercase tracking-[0.22em] text-white/70">{tile.label}</div>
+                      <div className="mt-1 text-sm font-semibold">{tile.value}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-body text-amber-200/80">
+                  {summaryTiles.map((tile) => (
+                    <span key={tile.key} className="flex items-center gap-1">
+                      <span className="text-amber-300/80">{tile.label}</span>
+                      <span>{tile.value}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </button>
+          </CollapsibleTrigger>
+
+          <TutorialHelpIcon
+            cardId="victory"
+            label="Open victory tutorial"
+            className={compact ? 'mt-1 h-8 w-8' : 'mt-1 h-8 w-8'}
+            iconClassName="h-4 w-4"
+          />
+        </div>
+
+        <CollapsibleContent>
+          <div className={clsx(compact ? 'grid gap-2' : 'grid grid-cols-2 gap-2', 'text-xs font-body')}>
+            {summaryTiles.map((tile) => (
+              <div key={tile.key} className="rounded-lg border border-amber-500/15 bg-slate-950/35 px-3 py-2">
+                <div className="text-[11px] uppercase tracking-[0.22em] text-amber-200/75">{tile.label}</div>
+                <div className="mt-1 text-sm font-semibold text-amber-100">{tile.value}</div>
+                <div className="mt-1 leading-relaxed text-amber-100/70">{tile.detail}</div>
+              </div>
+            ))}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  },
+);
+
+const ActionButtonsSection = React.memo(
+  ({
+    onShowTechPanel,
+    onShowConstructionHall,
+    onShowDiplomacy,
+    onToggleGameLog,
+    gameLogEntryCount = 0,
+    isGameLogOpen = false,
+    onEndTurn,
+    compact = false,
+  }: {
+    onShowTechPanel: () => void;
+    onShowConstructionHall: () => void;
+    onShowDiplomacy: () => void;
+    onToggleGameLog?: () => void;
+    gameLogEntryCount?: number;
+    isGameLogOpen?: boolean;
+    onEndTurn: () => void;
+    compact?: boolean;
+  }) => {
+    if (compact) {
+      const compactButtonClass =
+        'min-h-[44px] justify-center px-3 py-2 text-xs';
+
+      return (
+        <div className="space-y-2 pt-1">
+          <div className="grid grid-cols-2 gap-2">
+            <GlowingButton
+              variant="outline"
+              size="sm"
+              glowColor="blue"
+              intensity="medium"
+              data-testid="hud-knowledge-button"
+              className={clsx(
+                compactButtonClass,
+                'w-full border-blue-400/60 bg-gradient-to-r from-blue-600/20 to-blue-700/20 text-blue-100',
+              )}
+              onClick={onShowTechPanel}
+              soundEffect="cta-click"
+            >
+              <Book className="h-4 w-4 flex-shrink-0" />
+              <span className="ml-2">Knowledge</span>
+            </GlowingButton>
+
+            <GlowingButton
+              variant="outline"
+              size="sm"
+              glowColor="amber"
+              intensity="medium"
+              className={clsx(
+                compactButtonClass,
+                'w-full border-amber-400/60 bg-gradient-to-r from-amber-600/20 to-amber-700/20 text-amber-100',
+              )}
+              onClick={onShowConstructionHall}
+              soundEffect="cta-click"
+            >
+              <Hammer className="h-4 w-4 flex-shrink-0" />
+              <span className="ml-2">Build</span>
+            </GlowingButton>
+
+            <GlowingButton
+              variant="outline"
+              size="sm"
+              glowColor="purple"
+              intensity="medium"
+              className={clsx(
+                compactButtonClass,
+                'w-full border-purple-400/60 bg-gradient-to-r from-purple-600/20 to-purple-700/20 text-purple-100',
+              )}
+              onClick={onShowDiplomacy}
+              soundEffect="cta-click"
+            >
+              <span className="mr-2 text-base">🤝</span>
+              <span>Diplomacy</span>
+            </GlowingButton>
+
+            <GlowingButton
+              variant="outline"
+              size="sm"
+              glowColor="amber"
+              intensity="medium"
+              data-testid="hud-game-log-button"
+              className={clsx(
+                compactButtonClass,
+                'w-full border-stone-500/50 bg-gradient-to-r from-stone-800/80 to-slate-800/70 text-stone-100',
+                isGameLogOpen && 'border-amber-400/60 text-amber-100',
+              )}
+              onClick={onToggleGameLog}
+              soundEffect="cta-click"
+            >
+              <ScrollText className="h-4 w-4 flex-shrink-0 text-amber-300" />
+              <span className="ml-2">Game Log</span>
+              {gameLogEntryCount > 0 && (
+                <span className="ml-2 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-200">
+                  {gameLogEntryCount}
+                </span>
+              )}
+            </GlowingButton>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <GlowingButton
+              variant="default"
+              size="sm"
+              glowColor="green"
+              intensity="high"
+              data-testid="hud-end-turn-button"
+              className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-sm font-semibold text-white border border-green-400/60 hover:from-green-500 hover:to-green-600"
+              onClick={onEndTurn}
+              soundEffect="cta-click"
+            >
+              End Turn
+            </GlowingButton>
+            <TutorialHelpIcon
+              cardId="end-turn"
+              label="Open turn flow tutorial"
+              className="h-10 w-10 shrink-0"
+              iconClassName="h-4 w-4"
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2 pt-2">
+        <div className="grid grid-cols-2 gap-2">
+          <GlowingButton
+            variant="outline"
+            size="sm"
+            glowColor="blue"
+            intensity="medium"
+            data-testid="hud-knowledge-button"
+            className="w-full min-h-[48px] justify-center bg-gradient-to-r from-blue-600/20 to-blue-700/20 px-4 py-3 text-xs text-blue-100 border-blue-400/60"
+            onClick={onShowTechPanel}
+            soundEffect="cta-click"
+          >
+            <Book className="h-4 w-4 flex-shrink-0" />
+            <span className="ml-2">Knowledge</span>
+          </GlowingButton>
+
+          <GlowingButton
+            variant="outline"
+            size="sm"
+            glowColor="amber"
+            intensity="medium"
+            className="w-full min-h-[48px] justify-center bg-gradient-to-r from-amber-600/20 to-amber-700/20 px-4 py-3 text-xs text-amber-100 border-amber-400/60"
+            onClick={onShowConstructionHall}
+            soundEffect="cta-click"
+          >
+            <Hammer className="h-4 w-4 flex-shrink-0" />
+            <span className="ml-2">Build</span>
+          </GlowingButton>
+        </div>
+
+        <GlowingButton
+          variant="outline"
+          size="sm"
+          glowColor="purple"
+          intensity="medium"
+          className="w-full min-h-[48px] justify-center bg-gradient-to-r from-purple-600/20 to-purple-700/20 px-4 py-3 text-xs text-purple-100 border-purple-400/60"
+          onClick={onShowDiplomacy}
+          soundEffect="cta-click"
+        >
+          <span className="mr-2 text-base">🤝</span>
+          <span>Diplomacy</span>
+        </GlowingButton>
+
+        <div className="flex items-center gap-2">
+          <GlowingButton
+            variant="default"
+            size="sm"
+            glowColor="green"
+            intensity="high"
+            data-testid="hud-end-turn-button"
+            className="flex-1 border border-green-400/60 bg-gradient-to-r from-green-600 to-green-700 text-sm font-semibold text-white hover:from-green-500 hover:to-green-600"
+            onClick={onEndTurn}
+            soundEffect="cta-click"
+          >
+            End Turn
+          </GlowingButton>
+          <TutorialHelpIcon
+            cardId="end-turn"
+            label="Open turn flow tutorial"
+            className="h-9 w-9"
+            iconClassName="h-4 w-4"
+          />
+        </div>
+      </div>
+    );
+  },
+);
 
 // Tooltip content components are centralized in `client/src/components/ui/TooltipSystem.tsx`

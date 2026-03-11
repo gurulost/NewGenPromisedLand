@@ -9,6 +9,9 @@ import type { GameState } from '../shared/types/game';
 // Mock the stores
 vi.mock('../client/src/lib/stores/useGameState');
 vi.mock('../client/src/lib/stores/useLocalGame');
+vi.mock('../client/src/hooks/useMobileUI', () => ({
+  useMobileUI: () => ({ isSmallViewport: false }),
+}));
 
 describe('Movement System Core Logic Tests', () => {
   let mockUnit: Unit;

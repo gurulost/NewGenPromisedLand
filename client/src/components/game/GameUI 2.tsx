@@ -31,7 +31,6 @@ import { TutorialOverlay } from "../ui/TutorialOverlay";
 import { TutorialLibrary } from "../ui/TutorialLibrary";
 import TutorialEpisodeCoach from "../ui/TutorialEpisodeCoach";
 import { AITurnIndicator } from "../ui/AITurnIndicator";
-import BugReportStartHint from "../ui/BugReportStartHint";
 import { SpawnDebugPanel } from "../debug/SpawnDebugPanel";
 import MovementControls from "../game/MovementControls";
 import { useSfxEngine } from "../../hooks/useSfx";
@@ -48,7 +47,6 @@ import { useMemoryCleanup, useTurnEndCleanup } from "../../hooks/useMemoryCleanu
 import { requestAutosaveIfDirty } from "../../lib/autosaveManager";
 import { useAutosaveStatus } from "../../lib/stores/useAutosaveStatus";
 import { useTutorialStore } from "../../lib/stores/useTutorial";
-import { useAnimationLabAccess } from "../../lib/stores/useAnimationLabAccess";
 import { isUnitVisibleToPlayer } from "@shared/logic/unitLogic";
 import { hexDistance } from "@shared/utils/hex";
 import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
@@ -82,9 +80,7 @@ export default function GameUI() {
   const { gameState, endTurn, useAbility: triggerAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
   const gameMode = useLocalGame((state) => state.gameMode);
   const authUser = useAuth((state) => state.user);
-  const animationLabAllowed = useAnimationLabAccess((state) => state.allowed);
-  const { isMobileUI, isPortrait, isSmallViewport } = useMobileUI();
-  const compactDesktopHUD = !isMobileUI && isSmallViewport;
+  const { isMobileUI, isPortrait } = useMobileUI();
   const actionError = useLocalGame((state) => state.actionError);
   const clearActionError = useLocalGame((state) => state.clearActionError);
   const onlineSession = useLocalGame((state) => state.onlineSession);
@@ -1117,11 +1113,6 @@ export default function GameUI() {
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();
   const { isAIProcessing, currentAIPlayer } = useAITurn();
   const suppressChatPeekActive = suppressChatPeek || isTransitioning;
-  const shouldBlockBugReportHint = Boolean(
-    gameMode === "tutorialEpisode" ||
-    activeTutorialCardId ||
-    isTutorialLibraryOpen,
-  );
   const heapMb = heapBytes ? Math.round(heapBytes / (1024 * 1024)) : null;
 
   const shouldIgnoreGlobalHotkeys = useCallback(() => {
@@ -1947,40 +1938,27 @@ export default function GameUI() {
           onShowTechPanel={() => setShowTechPanel(true)}
           onShowConstructionHall={handleShowConstructionHall}
           onShowDiplomacy={() => setShowDiplomacy(true)}
-          onToggleGameLog={() => setShowGameLog(!showGameLog)}
-          gameLogEntryCount={gameLogEntries.length}
-          isGameLogOpen={showGameLog}
           onEndTurn={handleEndTurn}
         />
       )}
 
       {isMobileUI && (
-        <>
-          <MobileHUD
-            player={currentPlayer}
-            gameState={gameState}
-            onEndTurn={handleEndTurn}
-            onOpenTech={() => setShowTechPanel(true)}
-            onOpenConstruction={handleShowConstructionHall}
-            onOpenDiplomacy={() => setShowDiplomacy(true)}
-            onOpenSaveLoad={() => setShowSaveLoadMenu(true)}
-            onOpenSettings={() => setShowSettings(true)}
-            onOpenBugReport={() => openBugReportDialog({ source: "mobile_menu" })}
-            onOpenGameLog={() => setShowGameLog(true)}
-            onOpenChat={() => setShowMobileChat(true)}
-            showChat={Boolean(chatIdentity)}
-            onOpenCities={handleShowCityPanel}
-            onOpenAdvancedSave={() => setShowAdvancedSaveSystem(true)}
-          />
-          {gameState && (
-            <BugReportStartHint
-              gameId={gameState.id}
-              turn={gameState.turn}
-              isMobile={true}
-              blocked={shouldBlockBugReportHint}
-            />
-          )}
-        </>
+        <MobileHUD
+          player={currentPlayer}
+          gameState={gameState}
+          onEndTurn={handleEndTurn}
+          onOpenTech={() => setShowTechPanel(true)}
+          onOpenConstruction={handleShowConstructionHall}
+          onOpenDiplomacy={() => setShowDiplomacy(true)}
+          onOpenSaveLoad={() => setShowSaveLoadMenu(true)}
+          onOpenSettings={() => setShowSettings(true)}
+          onOpenBugReport={() => openBugReportDialog({ source: "mobile_menu" })}
+          onOpenGameLog={() => setShowGameLog(true)}
+          onOpenChat={() => setShowMobileChat(true)}
+          showChat={Boolean(chatIdentity)}
+          onOpenCities={handleShowCityPanel}
+          onOpenAdvancedSave={() => setShowAdvancedSaveSystem(true)}
+        />
       )}
 
       {/* Selected Unit Panel - Unified interface with all unit actions */}
@@ -2229,9 +2207,7 @@ export default function GameUI() {
         currentTurn={gameState?.turn || 1}
         isOpen={showGameLog}
         onToggle={() => setShowGameLog(!showGameLog)}
-        avoidBottomLeft={!isMobileUI && Boolean(selectedUnit) && !isSmallViewport}
-        hideCollapsedTrigger={compactDesktopHUD}
-        compactDesktopMode={compactDesktopHUD}
+        avoidBottomLeft={!isMobileUI && Boolean(selectedUnit)}
       />
 
       {/* Screen Flash Effect */}
@@ -2277,25 +2253,15 @@ export default function GameUI() {
           data-testid="utility-dock"
           className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] right-[calc(env(safe-area-inset-right)+1.5rem)] z-[var(--z-floating)] flex flex-col gap-2"
         >
-          {isBugReportingEnabled() && gameState && (
-            <BugReportStartHint
-              gameId={gameState.id}
-              turn={gameState.turn}
-              isMobile={false}
-              blocked={shouldBlockBugReportHint}
-            />
-          )}
-          {animationLabAllowed && (
-            <a
-              href="/animations"
-              data-testid="utility-animation-lab-link"
-              className="p-3 min-w-[48px] min-h-[48px] bg-black/60 hover:bg-black/70 active:bg-black/80 text-white rounded-lg border border-white/20 transition-all shadow-lg flex items-center justify-center gap-2 backdrop-blur-sm"
-              aria-label="Open Animation Lab"
-            >
-              <span className="text-lg">🎞️</span>
-              <span className="text-sm font-medium">Animation Lab</span>
-            </a>
-          )}
+          <a
+            href="/animations"
+            data-testid="utility-animation-lab-link"
+            className="p-3 min-w-[48px] min-h-[48px] bg-black/60 hover:bg-black/70 active:bg-black/80 text-white rounded-lg border border-white/20 transition-all shadow-lg flex items-center justify-center gap-2 backdrop-blur-sm"
+            aria-label="Open Animation Lab"
+          >
+            <span className="text-lg">🎞️</span>
+            <span className="text-sm font-medium">Animation Lab</span>
+          </a>
           {isBugReportingEnabled() && (
             <button
               data-testid="utility-bug-report-button"
