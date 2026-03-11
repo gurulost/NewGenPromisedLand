@@ -12,6 +12,9 @@ import type { Unit as UnitType } from '../shared/types/unit';
 // Mock the stores
 vi.mock('../client/src/lib/stores/useGameState');
 vi.mock('../client/src/lib/stores/useLocalGame');
+vi.mock('../client/src/hooks/useMobileUI', () => ({
+  useMobileUI: () => ({ isSmallViewport: false }),
+}));
 vi.mock('../client/src/hooks/usePathfindingWorker', () => ({
   usePathfindingWorker: () => ({
     getReachableTiles: vi.fn((coord, passable, tileCosts, maxCost, callback) => {
