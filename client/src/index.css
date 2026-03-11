@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    color-scheme: dark;
     --z-game-base: 10;
     --z-hud: 120;
     --z-floating: 140;
@@ -15,6 +16,39 @@
     --z-critical: 9999;
     --mobile-hud-height: 0px;
     --selected-unit-panel-height: 0px;
+    --radius: 1rem;
+    --background: 222 47% 11%;
+    --foreground: 43 100% 96%;
+    --card: 222 33% 16%;
+    --card-foreground: 43 100% 96%;
+    --popover: 221 58% 11%;
+    --popover-foreground: 43 100% 96%;
+    --primary: 43 96% 56%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 32% 22%;
+    --secondary-foreground: 43 70% 92%;
+    --muted: 217 27% 20%;
+    --muted-foreground: 215 18% 74%;
+    --accent: 217 30% 28%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 217 27% 28%;
+    --input: 217 27% 28%;
+    --ring: 43 96% 56%;
+    --chart-1: 43 96% 56%;
+    --chart-2: 199 89% 48%;
+    --chart-3: 142 71% 45%;
+    --chart-4: 11 89% 61%;
+    --chart-5: 262 83% 58%;
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 43 100% 96%;
+    --sidebar-primary: 43 96% 56%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 217 30% 28%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 217 27% 24%;
+    --sidebar-ring: 43 96% 56%;
   }
 
   * {

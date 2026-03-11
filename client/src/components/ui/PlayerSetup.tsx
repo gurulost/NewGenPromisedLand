@@ -29,6 +29,21 @@ interface PlayerSetupData {
   aiPrefixAuto: boolean;
 }
 
+const sharedSelectTriggerTone =
+  "h-11 rounded-xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200";
+const humanSelectTriggerTone =
+  "border-slate-500/75 bg-slate-950/78 text-slate-50 data-[placeholder]:text-slate-300/70 focus-visible:border-amber-300/60 focus-visible:ring-amber-400/35 [&>svg]:text-amber-100/60";
+const aiSelectTriggerTone =
+  "border-jade-600/70 bg-jade-950/78 text-jade-50 data-[placeholder]:text-jade-200/75 focus-visible:border-jade-300/55 focus-visible:ring-jade-400/35 [&>svg]:text-jade-200/70";
+const humanSelectContentTone =
+  "w-[22rem] max-w-[calc(100vw-2rem)] rounded-2xl border-slate-500/80 bg-[linear-gradient(180deg,rgba(10,25,56,0.98),rgba(7,18,40,0.98))] text-slate-50 shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl";
+const aiSelectContentTone =
+  "w-[22rem] max-w-[calc(100vw-2rem)] rounded-2xl border-jade-500/70 bg-[linear-gradient(180deg,rgba(8,48,28,0.98),rgba(4,29,18,0.98))] text-jade-50 shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl";
+const humanSelectItemTone =
+  "rounded-xl border border-transparent px-3 py-2.5 text-slate-50 data-[highlighted]:border-amber-300/30 data-[highlighted]:bg-slate-700/95 data-[highlighted]:text-white data-[state=checked]:border-slate-400/35 data-[state=checked]:bg-slate-800/95 data-[state=checked]:text-white";
+const aiSelectItemTone =
+  "rounded-xl border border-transparent px-3 py-2.5 text-jade-50 data-[highlighted]:border-jade-400/40 data-[highlighted]:bg-jade-800/90 data-[highlighted]:text-jade-50 data-[state=checked]:border-jade-500/40 data-[state=checked]:bg-jade-900/95 data-[state=checked]:text-jade-50";
+
 export default function PlayerSetup() {
   const { setGamePhase, startLocalGame } = useLocalGame();
   const [players, setPlayers] = useState<PlayerSetupData[]>([
@@ -160,12 +175,18 @@ export default function PlayerSetup() {
         backgroundRepeat: 'no-repeat'
       }}
     >
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-950/85 via-slate-950/55 to-slate-950/85" />
-      <div className="pointer-events-none absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.25),_transparent_60%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.95),rgba(2,6,23,0.78)_32%,rgba(2,6,23,0.92))]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_transparent_36%),radial-gradient(circle_at_bottom_left,_rgba(16,185,129,0.12),_transparent_32%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_22%,_rgba(2,6,23,0.3)_100%)]" />
 
       <div className="relative z-10 min-h-full flex items-center justify-center py-8">
         <div className="w-full max-w-5xl">
-          <ContentShell size="full" shimmerBorder showCornerOrnaments className="max-w-5xl">
+          <ContentShell
+            size="full"
+            shimmerBorder
+            showCornerOrnaments
+            className="max-w-5xl ring-1 ring-amber-200/10 shadow-[0_42px_140px_rgba(2,6,23,0.72)]"
+          >
             <div className="p-6 lg:p-8 space-y-6">
               <PanelHeader
                 icon={<Users />}
@@ -225,16 +246,16 @@ export default function PlayerSetup() {
                   <div className="space-y-4">
                     {players.map((player, index) => {
                       const playerReady = Boolean(player.name.trim() && player.factionId);
-                      const toneLabel = player.isAI ? "text-jade-200" : "text-amber-200";
+                      const toneLabel = player.isAI ? "text-jade-50/95" : "text-amber-100/95";
                       const fieldTone = player.isAI
-                        ? "bg-jade-950/40 border-jade-600/50 text-white placeholder:text-jade-200/50 focus-visible:ring-jade-400/40"
-                        : "bg-slate-900/60 border-slate-600/70 text-white placeholder:text-slate-400 focus-visible:ring-amber-400/40";
+                        ? "h-11 rounded-xl bg-jade-950/78 border-jade-600/70 text-jade-50 placeholder:text-jade-200/70 caret-jade-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus-visible:border-jade-300/55 focus-visible:ring-jade-400/35"
+                        : "h-11 rounded-xl bg-slate-950/78 border-slate-500/75 text-slate-50 placeholder:text-slate-300/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus-visible:border-amber-300/60 focus-visible:ring-amber-400/35";
                       const triggerTone = player.isAI
-                        ? "bg-jade-950/50 border-jade-600/60 text-white focus-visible:ring-jade-400/40"
-                        : "bg-slate-900/70 border-slate-600/70 text-white focus-visible:ring-amber-400/40";
+                        ? `${sharedSelectTriggerTone} ${aiSelectTriggerTone}`
+                        : `${sharedSelectTriggerTone} ${humanSelectTriggerTone}`;
                       const cardTone = player.isAI
-                        ? "border-jade-500/40 from-jade-950/50 via-slate-900/70 to-slate-950/90"
-                        : "border-amber-500/30 from-slate-950/70 via-slate-900/70 to-slate-950/90";
+                        ? "border-jade-500/45 from-jade-950/72 via-slate-950/84 to-slate-950/94"
+                        : "border-amber-500/35 from-slate-950/82 via-slate-950/88 to-slate-950/94";
 
                       return (
                         <motion.div
@@ -384,29 +405,64 @@ export default function PlayerSetup() {
                                       <SelectValue placeholder="Choose faction" />
                                     </SelectTrigger>
                                     <SelectContent className={clsx(
-                                      "border",
-                                      player.isAI ? "bg-jade-950 border-jade-600/70" : "bg-slate-900 border-slate-600"
+                                      "border max-h-[32rem]",
+                                      player.isAI ? aiSelectContentTone : humanSelectContentTone
                                     )}>
                                       {factions.map(faction => {
                                         const FactionIcon = getFactionIcon(faction.id);
+                                        const factionTaken = usedFactions.includes(faction.id) && player.factionId !== faction.id;
                                         return (
                                           <SelectItem
                                             key={faction.id}
                                             value={faction.id}
                                             data-testid={`player-setup-faction-option-${faction.id}`}
-                                            disabled={usedFactions.includes(faction.id) && player.factionId !== faction.id}
-                                            className="text-white hover:bg-slate-700"
+                                            disabled={factionTaken}
+                                            className={clsx(
+                                              player.isAI
+                                                ? aiSelectItemTone
+                                                : humanSelectItemTone,
+                                              factionTaken && "opacity-55"
+                                            )}
                                           >
-                                            <div className="flex items-center gap-2">
-                                              {FactionIcon ? (
-                                                <FactionIcon size="sm" style={{ color: faction.color }} />
-                                              ) : (
-                                                <div
-                                                  className="w-3 h-3 rounded-full"
-                                                  style={{ backgroundColor: faction.color }}
-                                                />
+                                            <div className="flex w-full items-center gap-3">
+                                              <div
+                                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border"
+                                                style={{
+                                                  backgroundColor: `${faction.color}22`,
+                                                  borderColor: `${faction.color}66`,
+                                                  boxShadow: `inset 0 0 0 1px ${faction.color}18`,
+                                                }}
+                                              >
+                                                {FactionIcon ? (
+                                                  <FactionIcon size="sm" style={{ color: faction.color }} />
+                                                ) : (
+                                                  <div
+                                                    className="h-3 w-3 rounded-full"
+                                                    style={{ backgroundColor: faction.color }}
+                                                  />
+                                                )}
+                                              </div>
+                                              <div className="min-w-0 flex-1">
+                                                <div className="truncate font-medium tracking-[0.01em]">
+                                                  {faction.name}
+                                                </div>
+                                                <div className={clsx(
+                                                  "truncate text-[11px]",
+                                                  player.isAI ? "text-jade-200/72" : "text-slate-300/72"
+                                                )}>
+                                                  {faction.playstyle}
+                                                </div>
+                                              </div>
+                                              {factionTaken && (
+                                                <span className={clsx(
+                                                  "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.18em]",
+                                                  player.isAI
+                                                    ? "border-jade-300/25 bg-jade-400/10 text-jade-100/80"
+                                                    : "border-amber-200/20 bg-amber-400/10 text-amber-100/80"
+                                                )}>
+                                                  Claimed
+                                                </span>
                                               )}
-                                              {faction.name}
                                             </div>
                                           </SelectItem>
                                         );
@@ -418,21 +474,21 @@ export default function PlayerSetup() {
 
                               {player.isAI && (
                                 <div className="space-y-2 md:w-32">
-                                  <Label className="text-jade-200">Difficulty</Label>
+                                  <Label className="text-jade-100">Difficulty</Label>
                                   <Select
                                     value={player.aiDifficulty}
                                     onValueChange={(value) => updatePlayer(player.id, 'aiDifficulty', value as AIDifficulty)}
                                   >
                                     <SelectTrigger
                                       data-testid={`player-setup-ai-difficulty-${player.id}`}
-                                      className="bg-jade-950/60 border-jade-500 text-white"
+                                      className={clsx(sharedSelectTriggerTone, aiSelectTriggerTone)}
                                     >
                                       <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="bg-jade-950 border-jade-500">
-                                      <SelectItem value="easy" className="text-green-300 hover:bg-jade-800">Easy</SelectItem>
-                                      <SelectItem value="normal" className="text-yellow-300 hover:bg-jade-800">Normal</SelectItem>
-                                      <SelectItem value="hard" className="text-red-300 hover:bg-jade-800">Hard</SelectItem>
+                                    <SelectContent className={clsx("w-[14rem]", aiSelectContentTone)}>
+                                      <SelectItem value="easy" className={clsx(aiSelectItemTone, "text-green-200 data-[highlighted]:text-green-50 data-[state=checked]:text-green-50")}>Easy</SelectItem>
+                                      <SelectItem value="normal" className={clsx(aiSelectItemTone, "text-yellow-200 data-[highlighted]:text-yellow-50 data-[state=checked]:text-yellow-50")}>Normal</SelectItem>
+                                      <SelectItem value="hard" className={clsx(aiSelectItemTone, "text-red-200 data-[highlighted]:text-red-50 data-[state=checked]:text-red-50")}>Hard</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
@@ -475,16 +531,16 @@ export default function PlayerSetup() {
                       <Select value={selectedMapSize} onValueChange={(value: MapSize) => setSelectedMapSize(value)}>
                         <SelectTrigger
                           data-testid="player-setup-map-size"
-                          className="bg-slate-900/70 border-slate-600 text-white"
+                          className={clsx(sharedSelectTriggerTone, humanSelectTriggerTone)}
                         >
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-900 border-slate-600">
+                        <SelectContent className={clsx("w-[24rem] max-w-[calc(100vw-2rem)]", humanSelectContentTone)}>
                           {Object.entries(MAP_SIZE_CONFIGS).map(([size, config]) => (
                             <SelectItem
                               key={size}
                               value={size}
-                              className="text-white hover:bg-slate-700"
+                              className={humanSelectItemTone}
                             >
                               <div className="flex flex-col">
                                 <span className="font-medium">{config.name}</span>
