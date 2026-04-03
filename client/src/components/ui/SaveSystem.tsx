@@ -4,6 +4,7 @@ import { Save, Trash2, Download, Upload, Calendar, Clock, Users } from 'lucide-r
 import { GameState } from '@shared/types/game';
 import { compress, decompress } from 'lz-string';
 import { trackGameSaved } from '../../utils/telemetry/gameplayAnalytics';
+import { useVisualFeedback } from './VisualFeedback';
 
 interface SaveSlot {
   id: string;
@@ -29,6 +30,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
   const [selectedSave, setSelectedSave] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+  const { showToast } = useVisualFeedback();
 
   useEffect(() => {
     loadSaveSlots();
@@ -165,7 +167,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
       });
     } catch (error) {
       console.error('Failed to save game:', error);
-      alert('Failed to save game. Storage might be full.');
+      showToast('Failed to save game. Storage might be full.', 'error');
     }
   };
 
@@ -206,7 +208,7 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Failed to export save:', error);
-      alert('Failed to export save file.');
+      showToast('Failed to export save file.', 'error');
     } finally {
       setIsExporting(false);
     }
@@ -242,10 +244,10 @@ export function SaveSystem({ currentGameState, onLoadGame, onClose }: SaveSystem
         localStorage.setItem('game_save_indices', JSON.stringify(saveIndices));
 
         loadSaveSlots();
-        alert('Save file imported successfully!');
+        showToast('Save file imported successfully!', 'success');
       } catch (error) {
         console.error('Failed to import save:', error);
-        alert('Failed to import save file. Please check the file format.');
+        showToast('Failed to import save file. Please check the file format.', 'error');
       }
     };
     

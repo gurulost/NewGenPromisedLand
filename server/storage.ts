@@ -12,11 +12,12 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  getGameSavesByDeviceId(deviceId: string): Promise<GameSave[]>;
+  getGameSavesByOwnerId(ownerId: string): Promise<GameSave[]>;
   getGameSaveById(id: number): Promise<GameSave | undefined>;
   createGameSave(save: InsertGameSave): Promise<GameSave>;
   updateGameSave(id: number, save: Partial<InsertGameSave>): Promise<GameSave | undefined>;
   deleteGameSave(id: number): Promise<boolean>;
+  transferGameSaveOwnership(fromOwnerId: string, toOwnerId: string): Promise<number>;
   
   // Lobby methods
   createLobby(lobby: InsertGameLobby): Promise<GameLobby>;
@@ -69,9 +70,9 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getGameSavesByDeviceId(deviceId: string): Promise<GameSave[]> {
+  async getGameSavesByOwnerId(ownerId: string): Promise<GameSave[]> {
     return db.select().from(gameSaves)
-      .where(eq(gameSaves.deviceId, deviceId))
+      .where(eq(gameSaves.deviceId, ownerId))
       .orderBy(desc(gameSaves.updatedAt));
   }
 
@@ -96,6 +97,14 @@ export class DatabaseStorage implements IStorage {
   async deleteGameSave(id: number): Promise<boolean> {
     const result = await db.delete(gameSaves).where(eq(gameSaves.id, id)).returning();
     return result.length > 0;
+  }
+
+  async transferGameSaveOwnership(fromOwnerId: string, toOwnerId: string): Promise<number> {
+    const moved = await db.update(gameSaves)
+      .set({ deviceId: toOwnerId, updatedAt: new Date() })
+      .where(eq(gameSaves.deviceId, fromOwnerId))
+      .returning({ id: gameSaves.id });
+    return moved.length;
   }
 
   // Lobby methods

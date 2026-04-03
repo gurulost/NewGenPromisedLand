@@ -177,6 +177,89 @@ describe('Game Reducer', () => {
     });
   });
 
+  describe('CAPTURE_CITY action', () => {
+    beforeEach(() => {
+      const enemyPlayer: PlayerState = {
+        ...mockPlayer,
+        id: 'player2',
+        name: 'Enemy Player',
+        turnOrder: 1,
+        citiesOwned: ['city1']
+      };
+
+      mockGameState.players = [mockPlayer, enemyPlayer];
+      mockGameState.cities = [{
+        id: 'city1',
+        name: 'Enemy City',
+        coordinate: { q: 1, r: 0, s: -1 },
+        ownerId: 'player2',
+        population: 1,
+        maxPopulation: 4,
+        level: 1,
+        starProduction: 2,
+        unrestTurns: 0,
+        improvements: [],
+        structures: [],
+        harvestedResources: []
+      }];
+      mockGameState.map.tiles = mockGameState.map.tiles.map(tile =>
+        tile.coordinate.q === 1 && tile.coordinate.r === 0
+          ? { ...tile, hasCity: true, cityOwner: 'player2' }
+          : tile
+      );
+    });
+
+    it('should capture an adjacent enemy city on the active player turn', () => {
+      const captureAction: GameAction = {
+        type: 'CAPTURE_CITY',
+        payload: {
+          playerId: 'player1',
+          cityId: 'city1'
+        }
+      };
+
+      const newState = resolveActionState(mockGameState, captureAction);
+
+      expect(newState.cities.find(city => city.id === 'city1')?.ownerId).toBe('player1');
+      expect(newState.players.find(player => player.id === 'player1')?.citiesOwned).toContain('city1');
+      expect(newState.players.find(player => player.id === 'player2')?.citiesOwned).not.toContain('city1');
+    });
+
+    it('should not capture a city when no player unit is adjacent', () => {
+      mockGameState.units[0].coordinate = { q: -2, r: 0, s: 2 };
+
+      const captureAction: GameAction = {
+        type: 'CAPTURE_CITY',
+        payload: {
+          playerId: 'player1',
+          cityId: 'city1'
+        }
+      };
+
+      const newState = resolveActionState(mockGameState, captureAction);
+
+      expect(newState.cities.find(city => city.id === 'city1')?.ownerId).toBe('player2');
+      expect(newState.players.find(player => player.id === 'player1')?.citiesOwned).not.toContain('city1');
+    });
+
+    it('should not capture a city outside the active player turn', () => {
+      mockGameState.currentPlayerIndex = 1;
+
+      const captureAction: GameAction = {
+        type: 'CAPTURE_CITY',
+        payload: {
+          playerId: 'player1',
+          cityId: 'city1'
+        }
+      };
+
+      const newState = resolveActionState(mockGameState, captureAction);
+
+      expect(newState.cities.find(city => city.id === 'city1')?.ownerId).toBe('player2');
+      expect(newState.players.find(player => player.id === 'player1')?.citiesOwned).not.toContain('city1');
+    });
+  });
+
   describe('Victory conditions', () => {
     const makePlayer = (overrides: Partial<PlayerState> = {}): PlayerState => ({
       id: overrides.id ?? 'player1',
@@ -386,6 +469,53 @@ describe('Game Reducer', () => {
       const newState = resolveActionState(mockGameState, endTurnAction);
       
       expect(newState.currentPlayerIndex).toBe(1);
+    });
+
+    it('skips eliminated players when advancing a 4-player turn order', () => {
+      mockGameState.players = [
+        {
+          ...mockPlayer,
+          id: 'player1',
+          name: 'Player 1',
+          turnOrder: 0,
+          citiesOwned: ['city1'],
+        },
+        {
+          ...mockPlayer,
+          id: 'player2',
+          name: 'Player 2',
+          turnOrder: 1,
+          citiesOwned: ['city2'],
+        },
+        {
+          ...mockPlayer,
+          id: 'player3',
+          name: 'Player 3',
+          turnOrder: 2,
+          isEliminated: true,
+          citiesOwned: [],
+        },
+        {
+          ...mockPlayer,
+          id: 'player4',
+          name: 'Player 4',
+          turnOrder: 3,
+          citiesOwned: ['city4'],
+        },
+      ];
+      mockGameState.currentPlayerIndex = 1;
+
+      const endTurnAction: GameAction = {
+        type: 'END_TURN',
+        payload: {
+          playerId: 'player2',
+        },
+      };
+
+      const newState = resolveActionState(mockGameState, endTurnAction);
+
+      expect(newState.currentPlayerIndex).toBe(3);
+      expect(newState.players[newState.currentPlayerIndex]?.id).toBe('player4');
     });
 
     it('should reset unit movement', () => {

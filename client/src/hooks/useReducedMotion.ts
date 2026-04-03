@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
 
+import { useUIPreferences } from './useUIPreferences';
+
 export function useReducedMotion(): boolean {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const { preferences } = useUIPreferences();
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     setPrefersReducedMotion(mediaQuery.matches);
 
@@ -15,5 +22,5 @@ export function useReducedMotion(): boolean {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  return prefersReducedMotion;
+  return prefersReducedMotion || preferences.reducedMotion || !preferences.showAnimations;
 }

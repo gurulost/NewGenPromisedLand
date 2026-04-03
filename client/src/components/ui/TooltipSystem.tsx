@@ -6,6 +6,7 @@ import { GAME_RULES } from '@shared/data/gameRules';
 import { ABILITIES } from '@shared/data/abilities';
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from '@shared/types/city';
 import { formatRequirementList, getTechDisplayName, getWorldElementActionRequirements } from '../../utils/worldElementRequirements';
+import { useUIPreferences } from '../../hooks/useUIPreferences';
 
 type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right';
 
@@ -46,6 +47,8 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
   const [position, setPosition] = useState<TooltipPosition>({ x: 0, y: 0, placement });
   const [isHovered, setIsHovered] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const { preferences } = useUIPreferences();
+  const tooltipsEnabled = preferences.showTooltips;
 
   // Check if any modals are open that should hide tooltips and info icons
   const shouldHideForModals = () => {
@@ -77,14 +80,14 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
   };
 
   const showTooltip = useCallback((event: React.MouseEvent) => {
-    if (disabled || shouldHideForModals()) return;
+    if (disabled || !tooltipsEnabled || shouldHideForModals()) return;
 
     event.stopPropagation();
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     const tooltipPosition = calculatePosition(rect, placement);
     setPosition(tooltipPosition);
     setIsVisible(true);
-  }, [disabled, placement]);
+  }, [disabled, placement, tooltipsEnabled]);
 
   const hideTooltip = useCallback(() => {
     setIsVisible(false);
@@ -200,7 +203,7 @@ export function InfoTooltip({ content, placement = 'top', disabled = false, clas
   );
 
   // Don't render if disabled or modals are open
-  if (disabled || shouldHide || shouldHideForModals()) {
+  if (disabled || !tooltipsEnabled || shouldHide || shouldHideForModals()) {
     return null;
   }
 
@@ -220,14 +223,16 @@ export function Tooltip({
   placement = 'top',
   disabled = false
 }: LegacyTooltipProps) {
+  const { preferences } = useUIPreferences();
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState<TooltipPosition>({ x: 0, y: 0, placement });
   const timeoutRef = useRef<NodeJS.Timeout>();
   const elementRef = useRef<HTMLElement>();
   const isTouchRef = useRef(false);
+  const tooltipsEnabled = preferences.showTooltips;
 
   const showTooltip = useCallback((event: PointerEvent | MouseEvent) => {
-    if (disabled) return;
+    if (disabled || !tooltipsEnabled) return;
 
     // Track if this is a touch interaction
     if ('pointerType' in event) {
@@ -245,7 +250,7 @@ export function Tooltip({
     timeoutRef.current = setTimeout(() => {
       setIsVisible(true);
     }, delay);
-  }, [delay, disabled, placement]);
+  }, [delay, disabled, placement, tooltipsEnabled]);
 
   const hideTooltip = useCallback(() => {
     if (timeoutRef.current) {
@@ -256,7 +261,7 @@ export function Tooltip({
 
   // Click-to-toggle for touch devices
   const handleClick = useCallback((event: MouseEvent) => {
-    if (disabled) return;
+    if (disabled || !tooltipsEnabled) return;
 
     // Only toggle on touch devices - desktop uses hover
     if (isTouchRef.current || 'ontouchstart' in window) {
@@ -266,7 +271,7 @@ export function Tooltip({
       setPosition(tooltipPosition);
       setIsVisible(prev => !prev);
     }
-  }, [disabled, placement]);
+  }, [disabled, placement, tooltipsEnabled]);
 
   // Close tooltip when clicking outside on touch devices
   useEffect(() => {
@@ -334,7 +339,7 @@ export function Tooltip({
 
   return (
     <>
-      {clonedChild}
+      {disabled || !tooltipsEnabled ? children : clonedChild}
       {tooltipElement && createPortal(tooltipElement, document.body)}
     </>
   );

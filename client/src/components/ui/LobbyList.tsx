@@ -72,11 +72,15 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
 }
 
 function CreateLobbyForm({ onCreated }: { onCreated: (id: number) => void }) {
-  const { createLobby } = useLobby();
+  const { createLobby, error: storeError, clearError } = useLobby();
   const [name, setName] = useState("");
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [mapSize, setMapSize] = useState("normal");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,26 +133,27 @@ function CreateLobbyForm({ onCreated }: { onCreated: (id: number) => void }) {
       <GlowingButton type="submit" className="w-full" disabled={loading}>
         {loading ? "Creating..." : "Create Game"}
       </GlowingButton>
+      {storeError && <p className="text-red-400 text-sm">{storeError}</p>}
     </form>
   );
 }
 
 function JoinByCodeForm({ onJoined }: { onJoined: (id: number) => void }) {
-  const { joinLobby, error: storeError } = useLobby();
+  const { joinLobby, error: storeError, clearError } = useLobby();
   const [code, setCode] = useState("");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
     const lobby = await joinLobby(code.toUpperCase());
     setLoading(false);
     if (lobby) {
       onJoined(lobby.id);
-    } else {
-      setError(storeError || "Lobby not found");
     }
   };
 
@@ -168,7 +173,7 @@ function JoinByCodeForm({ onJoined }: { onJoined: (id: number) => void }) {
           <LogIn className="w-4 h-4" />
         </GlowingButton>
       </div>
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {storeError && <p className="text-red-400 text-sm">{storeError}</p>}
     </form>
   );
 }

@@ -8,6 +8,7 @@ import { getUnitDefinition } from "../../data/units";
 import { hexDistance } from "../../utils/hex";
 import { nextId } from "../rng";
 import { applyPopulationGain } from "../cityGrowth";
+import { canPlayerCaptureCity } from "../cityCapture";
 import {
   getUnitActionsRemaining,
   getUnitAttackRangeFromDefinition,
@@ -374,17 +375,7 @@ export function handleCaptureCity(
   );
   if (!cityTile) return state;
 
-  const playerUnits = state.units.filter(unit => unit.playerId === playerId);
-  const canCapture = playerUnits.some(unit => {
-    const distance = Math.max(
-      Math.abs(unit.coordinate.q - targetCity.coordinate.q),
-      Math.abs(unit.coordinate.r - targetCity.coordinate.r),
-      Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (targetCity.coordinate.s || -targetCity.coordinate.q - targetCity.coordinate.r))
-    );
-    return distance <= 1;
-  });
-
-  if (!canCapture) return state;
+  if (!canPlayerCaptureCity(state, playerId, cityId)) return state;
 
   const updatedPlayers = state.players.map(p => {
     if (p.citiesOwned.includes(cityId)) {

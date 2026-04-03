@@ -14,8 +14,9 @@ import { VOICE_LIMITS } from "@shared/types/voiceLimits";
 
 import type { ChatIdentity, ChatMessage, VoiceDraft } from "@/components/chat/types";
 import { useChatUIState } from "@/hooks/useChatUIState";
+import { subscribeLobbyRealtime } from "@/lib/lobbyRealtimeStream";
 
-const POLL_INTERVAL_MS = 1200;
+const FALLBACK_POLL_INTERVAL_MS = 15000;
 
 export interface UseChatChannelResult {
   sendTextMessage: (text: string, options?: { messageId?: string; createdAt?: number }) => Promise<void>;
@@ -298,16 +299,31 @@ export function useChatChannel(identity: ChatIdentity | null): UseChatChannelRes
     };
     void bootstrap();
 
+    const unsubscribeRealtime = subscribeLobbyRealtime(identity.lobbyCode, (event) => {
+      if (cancelled) return;
+      if (event.type === "ready") {
+        void refreshMessageSnapshot().catch(() => undefined);
+        return;
+      }
+      if (event.type !== "chat-event") return;
+      applyTransportEvent(event.event);
+      const version = asFiniteInt(event.event.version);
+      if (version !== null) {
+        lastEventVersionRef.current = Math.max(lastEventVersionRef.current, version);
+      }
+    });
+
     const interval = window.setInterval(() => {
       void pollEvents();
-    }, POLL_INTERVAL_MS);
+    }, FALLBACK_POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
+      unsubscribeRealtime();
       window.clearInterval(interval);
       pollingInFlightRef.current = false;
     };
-  }, [identity, pollEvents, refreshMessageSnapshot]);
+  }, [applyTransportEvent, identity, pollEvents, refreshMessageSnapshot]);
 
   useEffect(() => {
     if (!identity) return;

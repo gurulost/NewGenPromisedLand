@@ -30,26 +30,38 @@ export interface UserPreferences {
   version: number;
 }
 
+export const DEFAULT_CAMERA_PREFERENCES: CameraPreferences = {
+  autoFollowTurnChange: true,
+  autoFollowUnitSelection: false, // Polytopia-style manual control by default
+  cameraSpeed: 1.0,
+  zoomSpeed: 1.0,
+};
+
+export const DEFAULT_UI_PREFERENCES: UIPreferences = {
+  showTooltips: true,
+  tooltipDelay: 500,
+  reducedMotion: false,
+  showAnimations: true,
+};
+
+export const DEFAULT_AUDIO_PREFERENCES: AudioPreferences = {
+  masterVolume: 0.7,
+  sfxVolume: 0.8,
+  musicVolume: 0.6,
+  isMuted: false,
+  uiSoundsEnabled: true,
+};
+
 // Default preferences
-const DEFAULT_PREFERENCES: UserPreferences = {
+export const DEFAULT_PREFERENCES: UserPreferences = {
   camera: {
-    autoFollowTurnChange: true,
-    autoFollowUnitSelection: false, // Polytopia-style manual control by default
-    cameraSpeed: 1.0,
-    zoomSpeed: 1.0,
+    ...DEFAULT_CAMERA_PREFERENCES,
   },
   ui: {
-    showTooltips: true,
-    tooltipDelay: 500,
-    reducedMotion: false,
-    showAnimations: true,
+    ...DEFAULT_UI_PREFERENCES,
   },
   audio: {
-    masterVolume: 0.7,
-    sfxVolume: 0.8,
-    musicVolume: 0.6,
-    isMuted: false,
-    uiSoundsEnabled: true,
+    ...DEFAULT_AUDIO_PREFERENCES,
   },
   version: 1,
 };

@@ -22,7 +22,6 @@ interface MobileHUDProps {
   onOpenChat: () => void;
   showChat?: boolean;
   onOpenCities?: () => void;
-  onOpenAdvancedSave?: () => void;
 }
 
 export function MobileHUD({
@@ -39,7 +38,6 @@ export function MobileHUD({
   onOpenChat,
   showChat = true,
   onOpenCities,
-  onOpenAdvancedSave,
 }: MobileHUDProps) {
   const { isPortrait } = useMobileUI();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -181,15 +179,6 @@ export function MobileHUD({
               >
                 <MessageSquare className="h-4 w-4" />
                 Chat
-              </button>
-            )}
-            {onOpenAdvancedSave && (
-              <button
-                onClick={() => handleMenuAction(onOpenAdvancedSave)}
-                className="min-h-[52px] rounded-lg border border-slate-600/40 bg-slate-800/40 text-slate-100 flex items-center justify-center gap-2"
-              >
-                <Save className="h-4 w-4" />
-                Advanced
               </button>
             )}
             {isBugReportingEnabled() && (

@@ -26,9 +26,8 @@ export default defineConfig({
   root: path.resolve(__dirname, "client"),
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
-    // Public assets are served from a fallback static mount in production
-    // to avoid unreliable filesystem copy stalls during large-media builds.
-    copyPublicDir: false,
+    // Production artifacts must be self-contained.
+    copyPublicDir: true,
     emptyOutDir: true,
     rollupOptions: {
       output: {

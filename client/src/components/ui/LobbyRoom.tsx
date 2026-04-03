@@ -1,18 +1,35 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useAuth } from "../../lib/stores/useAuth";
 import { useLobby } from "../../lib/stores/useLobby";
 import { ContentShell } from "../primitives/ContentShell";
 import { PanelHeader } from "../primitives/PanelHeader";
 import { GlowingButton } from "../primitives/GlowingButton";
-import { ArrowLeft, Users, Copy, Check, UserPlus, Bot, RefreshCw, Loader2, MessageSquare } from "lucide-react";
+import { Alert, AlertDescription } from "./alert";
+import { useToastContext } from "./ToastProvider";
+import { ArrowLeft, Users, Copy, Check, UserPlus, Bot, RefreshCw, Loader2, MessageSquare, AlertTriangle, X } from "lucide-react";
 import { FACTIONS } from "@shared/data/factions";
-import { coerceFactionId } from "@shared/types/factionId";
+import { coerceFactionId, type FactionId } from "@shared/types/factionId";
 import type { MapSize } from "@shared/utils/mapGenerator";
+import {
+  getDuplicateFactionIds,
+  getTakenFactionIds,
+  isFactionTakenByAnotherEntry,
+  type FactionAssignmentEntry,
+} from "@shared/utils/factionAssignments";
 import { getInitialActionVersionFromLobbyConfig } from "../../hooks/onlineSyncUtils";
 import { ChatPanel } from "../chat/ChatPanel";
 import { useMobileUI } from "../../hooks/useMobileUI";
 import BugReportSupportCallout from "./BugReportSupportCallout";
+
+type LobbySeat = {
+  id: number;
+  userId: number | null;
+  playerName: string | null;
+  factionId: string | null;
+  isReady: boolean;
+  isAI: boolean;
+};
 
 function SeatSlot({
   seat,
@@ -20,28 +37,56 @@ function SeatSlot({
   lobbyId,
   isHost,
   userId,
+  claimedFactionEntries,
+  takenFactionIds,
 }: {
-  seat: { id: number; userId: number | null; playerName: string | null; factionId: string | null; isReady: boolean; isAI: boolean } | null;
+  seat: LobbySeat | null;
   seatIndex: number;
   lobbyId: number;
   isHost: boolean;
   userId: number;
+  claimedFactionEntries: FactionAssignmentEntry[];
+  takenFactionIds: Set<FactionId>;
 }) {
-  const { claimSeat, releaseSeat, updateSeat, addAISeat } = useLobby();
+  const { claimSeat, releaseSeat, updateSeat, addAISeat, removeAISeat } = useLobby();
   const [playerName, setPlayerName] = useState("");
   const [showClaim, setShowClaim] = useState(false);
+  const [aiName, setAiName] = useState(seat?.playerName ?? "");
+
+  useEffect(() => {
+    setAiName(seat?.playerName ?? "");
+  }, [seat?.id, seat?.playerName]);
 
   const isMySeat = seat?.userId === userId;
   const isEmpty = !seat;
-  const isAISeat = seat?.isAI;
+  const isAISeat = Boolean(seat?.isAI);
+  const canManageAISeat = isHost && isAISeat;
+  const showSeatControls = !isEmpty && (isMySeat || canManageAISeat);
   const seatFactionId = coerceFactionId(seat?.factionId);
   const seatFaction = seatFactionId ? FACTIONS[seatFactionId] : null;
+  const seatHasFactionConflict = !!seat && !!seatFactionId && isFactionTakenByAnotherEntry(
+    claimedFactionEntries,
+    seatFactionId,
+    seat.id,
+  );
+  const seatHasInvalidFaction = !!seat && !!seat.factionId && !seatFactionId;
+  const seatHasSelectionIssue = seatHasFactionConflict || seatHasInvalidFaction;
+  const validationMessage = seatHasInvalidFaction
+    ? "Faction selection is invalid. Choose a valid faction."
+    : seatHasFactionConflict
+      ? "Faction already claimed by another seat. Choose a different faction."
+      : null;
+  const normalizedAiName = aiName.trim();
+  const currentAiName = seat?.playerName?.trim() ?? "";
+  const canSaveAiName = canManageAISeat && normalizedAiName !== currentAiName;
 
   const handleClaim = async () => {
     if (playerName.trim()) {
-      await claimSeat(lobbyId, seatIndex, playerName.trim());
-      setShowClaim(false);
-      setPlayerName("");
+      const claimed = await claimSeat(lobbyId, seatIndex, playerName.trim());
+      if (claimed) {
+        setShowClaim(false);
+        setPlayerName("");
+      }
     }
   };
 
@@ -50,24 +95,39 @@ function SeatSlot({
   };
 
   const handleFactionChange = async (factionId: string) => {
-    await updateSeat(lobbyId, seatIndex, { factionId });
+    await updateSeat(lobbyId, seatIndex, { factionId: factionId || null });
   };
 
   const handleToggleReady = async () => {
-    if (seat) {
+    if (seat && seatFactionId && !seatHasSelectionIssue) {
       await updateSeat(lobbyId, seatIndex, { isReady: !seat.isReady });
     }
   };
 
   const handleAddAI = async () => {
-    const factions = Object.keys(FACTIONS);
-    const defaultFaction = factions[seatIndex % factions.length];
+    const defaultFaction = (Object.keys(FACTIONS) as FactionId[]).find(
+      (factionId) => !takenFactionIds.has(factionId),
+    );
+    if (!defaultFaction) {
+      return;
+    }
+
     await addAISeat(lobbyId, seatIndex, defaultFaction);
+  };
+
+  const handleRenameAI = async () => {
+    if (!seat || !canManageAISeat || !canSaveAiName) return;
+    await updateSeat(lobbyId, seatIndex, { playerName: normalizedAiName || null });
+  };
+
+  const handleRemoveAI = async () => {
+    await removeAISeat(lobbyId, seatIndex);
   };
 
   return (
     <div className={`p-3 rounded border ${
       isEmpty ? "border-amber-500/20 bg-slate-800/30" :
+      seatHasSelectionIssue ? "border-rose-500/40 bg-rose-900/20" :
       isAISeat ? "border-purple-500/40 bg-purple-900/20" :
       isMySeat ? "border-amber-500/50 bg-amber-900/20" :
       "border-slate-500/30 bg-slate-800/40"
@@ -137,36 +197,83 @@ function SeatSlot({
             </>
           )}
         </div>
-        
-        {isMySeat && !isEmpty && (
-          <div className="flex items-center gap-2">
-            <select
-              value={seat.factionId || ""}
-              onChange={(e) => handleFactionChange(e.target.value)}
-              className="px-2 py-1 bg-slate-800 border border-amber-500/30 rounded text-amber-100 text-xs focus:outline-none focus:border-amber-500"
+      </div>
+
+      {showSeatControls && seat && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {canManageAISeat && (
+            <>
+              <input
+                type="text"
+                value={aiName}
+                onChange={(e) => setAiName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && void handleRenameAI()}
+                placeholder="Bot name"
+                className="min-w-[8rem] flex-1 px-2 py-1 bg-slate-800 border border-purple-500/30 rounded text-amber-100 text-xs focus:outline-none focus:border-purple-400"
+              />
+              <GlowingButton
+                size="sm"
+                variant="secondary"
+                onClick={handleRenameAI}
+                disabled={!canSaveAiName}
+              >
+                Rename
+              </GlowingButton>
+            </>
+          )}
+
+          <select
+            value={seat.factionId || ""}
+            onChange={(e) => handleFactionChange(e.target.value)}
+            className={`px-2 py-1 bg-slate-800 border rounded text-amber-100 text-xs focus:outline-none ${
+              canManageAISeat
+                ? "border-purple-500/30 focus:border-purple-400"
+                : "border-amber-500/30 focus:border-amber-500"
+            }`}
+          >
+            <option value="">Select Faction</option>
+            {Object.entries(FACTIONS).map(([id, faction]) => {
+              const factionTaken = takenFactionIds.has(id as FactionId) && seatFactionId !== id;
+              return (
+                <option key={id} value={id} disabled={factionTaken}>
+                  {faction.name}
+                </option>
+              );
+            })}
+          </select>
+
+          <GlowingButton
+            size="sm"
+            variant={seat.isReady ? "default" : "secondary"}
+            onClick={handleToggleReady}
+            disabled={!seatFactionId || seatHasSelectionIssue}
+          >
+            {seat.isReady ? "Ready!" : "Ready?"}
+          </GlowingButton>
+
+          {canManageAISeat ? (
+            <button
+              onClick={handleRemoveAI}
+              className="text-red-400 hover:text-red-300 text-xs"
             >
-              <option value="">Select Faction</option>
-              {Object.entries(FACTIONS).map(([id, faction]) => (
-                <option key={id} value={id}>{faction.name}</option>
-              ))}
-            </select>
-            <GlowingButton
-              size="sm"
-              variant={seat.isReady ? "default" : "secondary"}
-              onClick={handleToggleReady}
-              disabled={!seat.factionId}
-            >
-              {seat.isReady ? "Ready!" : "Ready?"}
-            </GlowingButton>
+              Remove AI
+            </button>
+          ) : (
             <button
               onClick={handleRelease}
               className="text-red-400 hover:text-red-300 text-xs"
             >
               Leave
             </button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
+
+      {!isEmpty && validationMessage && (
+        <p className="mt-2 text-xs text-rose-200">
+          {validationMessage}
+        </p>
+      )}
     </div>
   );
 }
@@ -174,8 +281,10 @@ function SeatSlot({
 export default function LobbyRoom() {
   const { setGamePhase, setOnlineSession, clearOnlineSession, startLocalGame, loadGameState } = useLocalGame();
   const { user } = useAuth();
-  const { currentLobby, leaveLobby, fetchLobby, startGame, error } = useLobby();
+  const { currentLobby, leaveLobby, fetchLobby, startGame, error, clearError } = useLobby();
   const { isMobileUI } = useMobileUI();
+  const toast = useToastContext();
+  const { success, error: showErrorToast } = toast;
   const lobbyId = currentLobby?.id;
   const lobbyCode = currentLobby?.code;
   const lobbyStatus = currentLobby?.status;
@@ -185,6 +294,9 @@ export default function LobbyRoom() {
   const [copied, setCopied] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
+  const roomCodeRef = useRef<HTMLSpanElement | null>(null);
+  const copiedResetTimeoutRef = useRef<number | null>(null);
+  const lastToastedErrorRef = useRef<string | null>(null);
   const chatIdentity = useMemo(() => {
     if (!currentLobby || !user) return null;
     const mySeat = currentLobby.seats.find((seat) => seat.userId === user.id);
@@ -201,6 +313,14 @@ export default function LobbyRoom() {
       setGamePhase('lobbies');
     }
   }, [currentLobby, setGamePhase]);
+
+  useEffect(() => {
+    return () => {
+      if (copiedResetTimeoutRef.current !== null) {
+        window.clearTimeout(copiedResetTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (lobbyId == null) return;
@@ -296,14 +416,88 @@ export default function LobbyRoom() {
     userId,
   ]);
 
+  useEffect(() => {
+    if (!error) {
+      lastToastedErrorRef.current = null;
+      return;
+    }
+    if (lastToastedErrorRef.current === error) {
+      return;
+    }
+
+    toast.error("Lobby action failed", error);
+    lastToastedErrorRef.current = error;
+  }, [error, toast]);
+
   if (!currentLobby || !user) {
     return null;
   }
 
-  const copyCode = () => {
-    navigator.clipboard.writeText(currentLobby.code);
+  const showCopiedState = () => {
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copiedResetTimeoutRef.current !== null) {
+      window.clearTimeout(copiedResetTimeoutRef.current);
+    }
+    copiedResetTimeoutRef.current = window.setTimeout(() => {
+      setCopied(false);
+      copiedResetTimeoutRef.current = null;
+    }, 2000);
+  };
+
+  const selectRoomCode = () => {
+    try {
+      if (!roomCodeRef.current) return false;
+      const selection = window.getSelection();
+      if (!selection) return false;
+
+      const range = document.createRange();
+      range.selectNodeContents(roomCodeRef.current);
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const copyCode = async () => {
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard API unavailable");
+      }
+
+      await navigator.clipboard.writeText(currentLobby.code);
+      showCopiedState();
+      success("Room code copied");
+      return;
+    } catch {
+      const selectedRoomCode = selectRoomCode();
+      const legacyCopySucceeded =
+        selectedRoomCode && typeof document.execCommand === "function"
+          ? (() => {
+              try {
+                return document.execCommand("copy");
+              } catch {
+                return false;
+              }
+            })()
+          : false;
+
+      if (legacyCopySucceeded) {
+        showCopiedState();
+        success("Room code copied");
+        return;
+      }
+
+      setCopied(false);
+      showErrorToast(
+        "Copy failed",
+        selectedRoomCode
+          ? "Room code selected. Press Cmd+C or Ctrl+C to copy it."
+          : "Clipboard access is unavailable in this browser context."
+      );
+    }
   };
 
   const isHost = currentLobby.hostUserId === user.id;
@@ -325,16 +519,20 @@ export default function LobbyRoom() {
     : currentLobby.seats.map(s => ({ seatIndex: s.seatIndex, seat: s }));
 
   const claimedSeats = seatSlots.filter(({ seat }) => seat && (seat.userId !== null || seat.isAI));
-  const allClaimedReady = claimedSeats.every(({ seat }) => seat!.isReady && seat!.factionId);
-  const canStart = isHost && allClaimedReady && claimedSeats.length >= 2;
+  const claimedFactionEntries = claimedSeats.map(({ seat }) => ({
+    id: seat!.id,
+    factionId: seat!.factionId,
+  }));
+  const takenFactionIds = getTakenFactionIds(claimedFactionEntries);
+  const duplicateFactionIds = getDuplicateFactionIds(claimedFactionEntries);
+  const duplicateFactionNames = Array.from(duplicateFactionIds).map((factionId) => FACTIONS[factionId].name);
+  const allClaimedReady = claimedSeats.every(({ seat }) => seat!.isReady && coerceFactionId(seat!.factionId));
+  const canStart = isHost && allClaimedReady && claimedSeats.length >= 2 && duplicateFactionIds.size === 0;
 
   const handleStartGame = async () => {
     setIsStarting(true);
-    const result = await startGame();
+    await startGame();
     setIsStarting(false);
-    if (!result) {
-      console.error("Failed to start game:", error);
-    }
   };
 
   return (
@@ -360,7 +558,7 @@ export default function LobbyRoom() {
               <div className="flex items-center justify-between bg-slate-800/50 rounded p-3 border border-amber-500/20">
                 <div>
                   <span className="text-amber-100/60 text-sm">Room Code: </span>
-                  <span className="text-amber-300 font-mono tracking-widest text-lg">{currentLobby.code}</span>
+                  <span ref={roomCodeRef} className="text-amber-300 font-mono tracking-widest text-lg">{currentLobby.code}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {isMobileUI && chatIdentity && (
@@ -390,6 +588,23 @@ export default function LobbyRoom() {
                 </div>
               </div>
 
+              {error && (
+                <Alert className="border-red-500/40 bg-red-950/35 text-red-100">
+                  <AlertTriangle className="h-4 w-4 text-red-300" />
+                  <AlertDescription className="pr-8 text-sm text-red-100">
+                    {error}
+                  </AlertDescription>
+                  <button
+                    type="button"
+                    onClick={clearError}
+                    className="absolute right-3 top-3 text-red-200/80 transition-colors hover:text-red-100"
+                    aria-label="Dismiss lobby error"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </Alert>
+              )}
+
               <div className="space-y-2">
                 <h3 className="text-amber-200 font-medium text-sm">Players ({claimedSeats.length}/{currentLobby.maxPlayers})</h3>
                 {seatSlots.map(({ seatIndex, seat }) => (
@@ -400,9 +615,24 @@ export default function LobbyRoom() {
                     lobbyId={currentLobby.id}
                     isHost={isHost}
                     userId={user.id}
+                    claimedFactionEntries={claimedFactionEntries}
+                    takenFactionIds={takenFactionIds}
                   />
                 ))}
               </div>
+
+              {(duplicateFactionNames.length > 0 || error) && (
+                <div className="rounded border border-rose-500/35 bg-rose-900/20 px-3 py-2 text-sm text-rose-100">
+                  {duplicateFactionNames.length > 0 && (
+                    <p>
+                      Resolve duplicate factions before starting: {duplicateFactionNames.join(", ")}.
+                    </p>
+                  )}
+                  {error && (
+                    <p className={duplicateFactionNames.length > 0 ? "mt-1" : undefined}>{error}</p>
+                  )}
+                </div>
+              )}
 
               <BugReportSupportCallout />
 
@@ -417,7 +647,7 @@ export default function LobbyRoom() {
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Starting...
                     </span>
-                  ) : canStart ? "Start Game" : claimedSeats.length < 2 ? "Need at least 2 players" : "Waiting for players to ready up..."}
+                  ) : canStart ? "Start Game" : claimedSeats.length < 2 ? "Need at least 2 players" : duplicateFactionIds.size > 0 ? "Resolve duplicate factions" : "Waiting for players to ready up..."}
                 </GlowingButton>
               )}
 

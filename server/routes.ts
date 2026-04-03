@@ -1,4 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import { randomUUID } from "crypto";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import session from "express-session";
@@ -61,6 +62,7 @@ import {
   BugReportScreenshotUploadRequestSchema,
   SubmitBugReportSchema,
 } from "@shared/types/bugReport";
+import type { LobbyRealtimeEvent } from "@shared/types/lobbyRealtime";
 import type {
   ChatMessageEventPayload,
   ChatMessagesResponse,
@@ -68,6 +70,14 @@ import type {
   ChatReadUpdateEventPayload,
   ChatTypingEventPayload,
 } from "@shared/types/chatEvents";
+import { coerceFactionId } from "@shared/types/factionId";
+import {
+  getDuplicateFactionIds,
+  isFactionTakenByAnotherEntry,
+} from "@shared/utils/factionAssignments";
+import { openLobbyRealtimeStream, publishLobbyRealtimeEvent } from "./lobbyRealtimeBroker";
+import { GameStateSchema } from "@shared/types/game";
+import { SaveWriteRequestSchema } from "@shared/types/save";
 
 const MemoryStoreSession = MemoryStore(session);
 const PgSessionStore = connectPgSimple(session);
@@ -84,6 +94,7 @@ const MULTIPLAYER_TURN_RECOVERY_ENABLED = process.env.MULTIPLAYER_TURN_RECOVERY 
 const ANIMATION_OVERRIDES_PATH = path.resolve(process.cwd(), "server", "animation-overrides.json");
 const UNIT_ANIMATION_REGISTRY_PATH = path.resolve(process.cwd(), "client", "src", "utils", "unitAnimationRegistry.ts");
 const ANIMATION_STATES = ["idle", "move", "celebrate", "death", "attack", "hit", "ability"] as const;
+const MIN_PASSWORD_LENGTH = Number.parseInt(process.env.MIN_PASSWORD_LENGTH ?? "8", 10);
 
 type AnimationState = typeof ANIMATION_STATES[number];
 
@@ -399,6 +410,21 @@ function setPrivateNoStoreHeaders(res: Response): void {
   res.setHeader("Pragma", "no-cache");
 }
 
+function publishChatRealtimeEvent(lobbyCode: string, event: LobbyRealtimeEvent): void {
+  publishLobbyRealtimeEvent(lobbyCode, event);
+}
+
+function publishMultiplayerSyncEvent(
+  lobbyCode: string,
+  reason: Extract<LobbyRealtimeEvent, { type: "multiplayer-sync" }>["reason"],
+): void {
+  publishLobbyRealtimeEvent(lobbyCode, {
+    type: "multiplayer-sync",
+    lobbyCode,
+    reason,
+  });
+}
+
 async function persistSession(req: Request): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     req.session.save((error) => {
@@ -406,6 +432,51 @@ async function persistSession(req: Request): Promise<void> {
       else resolve();
     });
   });
+}
+
+async function regenerateSession(req: Request): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    req.session.regenerate((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
+async function establishAuthenticatedSession(
+  req: Request,
+  user: { id: number; username: string },
+): Promise<void> {
+  const previousAnonymousOwnerId =
+    req.session.userId == null && req.session.anonymousSaveOwnerId
+      ? `anon:${req.session.anonymousSaveOwnerId}`
+      : null;
+
+  await regenerateSession(req);
+  req.session.userId = user.id;
+  req.session.username = user.username;
+  await persistSession(req);
+
+  if (previousAnonymousOwnerId) {
+    try {
+      await storage.transferGameSaveOwnership(previousAnonymousOwnerId, `user:${user.id}`);
+    } catch (error) {
+      console.error("Failed to migrate anonymous saves after login:", error);
+    }
+  }
+}
+
+async function getSaveOwnerId(req: Request): Promise<string> {
+  if (req.session.userId) {
+    return `user:${req.session.userId}`;
+  }
+
+  if (!req.session.anonymousSaveOwnerId) {
+    req.session.anonymousSaveOwnerId = randomUUID();
+    await persistSession(req);
+  }
+
+  return `anon:${req.session.anonymousSaveOwnerId}`;
 }
 
 const authRateLimit = createRateLimitMiddleware({
@@ -498,6 +569,7 @@ declare module "express-session" {
   interface SessionData {
     userId?: number;
     username?: string;
+    anonymousSaveOwnerId?: string;
     animationLabUnlockedAt?: number;
   }
 }
@@ -642,8 +714,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (username.length < 3 || username.length > 20) {
         return res.status(400).json({ error: "Username must be 3-20 characters" });
       }
-      if (password.length < 4) {
-        return res.status(400).json({ error: "Password must be at least 4 characters" });
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
       }
       
       const existingUser = await storage.getUserByUsername(username);
@@ -653,10 +725,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const hashedPassword = await hashPassword(password);
       const user = await storage.createUser({ username, password: hashedPassword });
-      
-      req.session.userId = user.id;
-      req.session.username = user.username;
-      
+
+      await establishAuthenticatedSession(req, user);
       res.status(201).json({ id: user.id, username: user.username });
     } catch (error) {
       console.error("Signup failed:", error);
@@ -681,10 +751,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!isValidPassword) {
         return res.status(401).json({ error: "Invalid username or password" });
       }
-      
-      req.session.userId = user.id;
-      req.session.username = user.username;
-      
+
+      await establishAuthenticatedSession(req, user);
       res.json({ id: user.id, username: user.username });
     } catch (error) {
       console.error("Login failed:", error);
@@ -698,6 +766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (err) {
         return res.status(500).json({ error: "Logout failed" });
       }
+      res.clearCookie("connect.sid");
       res.json({ success: true });
     });
   });
@@ -922,7 +991,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update seat (faction, ready status)
+  // Update seat (faction, ready status, player name)
   app.patch("/api/lobbies/:code/seats/:seatIndex", requireAuth, async (req, res) => {
     try {
       const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
@@ -943,14 +1012,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!seat) {
         return res.status(404).json({ error: "Seat not found" });
       }
-      if (seat.userId !== req.session.userId) {
-        return res.status(403).json({ error: "Not your seat" });
+      const isSeatOwner = seat.userId === req.session.userId;
+      const isHostManagingAI = lobby.hostUserId === req.session.userId && seat.isAI;
+      if (!isSeatOwner && !isHostManagingAI) {
+        return res.status(403).json({ error: "Not allowed to update this seat" });
       }
-      
-      const { factionId, isReady } = req.body;
-      const updates: any = {};
-      if (factionId !== undefined) updates.factionId = factionId;
-      if (isReady !== undefined) updates.isReady = isReady;
+
+      const body = req.body ?? {};
+      const updates: {
+        factionId?: string | null;
+        isReady?: boolean;
+        playerName?: string | null;
+      } = {};
+
+      if (Object.prototype.hasOwnProperty.call(body, "factionId")) {
+        if (body.factionId != null && typeof body.factionId !== "string") {
+          return res.status(400).json({ error: "Invalid faction" });
+        }
+        const factionId = typeof body.factionId === "string" ? body.factionId.trim() : "";
+        updates.factionId = factionId || null;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, "isReady")) {
+        if (typeof body.isReady !== "boolean") {
+          return res.status(400).json({ error: "Invalid ready state" });
+        }
+        updates.isReady = body.isReady;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, "playerName")) {
+        if (body.playerName != null && typeof body.playerName !== "string") {
+          return res.status(400).json({ error: "Invalid player name" });
+        }
+        const playerName = typeof body.playerName === "string" ? body.playerName.trim() : "";
+        updates.playerName = playerName || null;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No valid seat updates" });
+      }
+
+      const claimedFactionEntries = seats
+        .filter((entry) => entry.userId !== null || entry.isAI)
+        .map((entry) => ({ id: entry.id, factionId: entry.factionId }));
+      let nextFactionId = seat.factionId;
+
+      if (Object.prototype.hasOwnProperty.call(body, "factionId")) {
+        if (body.factionId === null || body.factionId === "") {
+          nextFactionId = null;
+        } else {
+          const canonicalFactionId = coerceFactionId(body.factionId);
+          if (!canonicalFactionId) {
+            return res.status(400).json({ error: "Invalid faction selection" });
+          }
+          nextFactionId = canonicalFactionId;
+        }
+
+        if (
+          nextFactionId &&
+          isFactionTakenByAnotherEntry(claimedFactionEntries, nextFactionId, seat.id)
+        ) {
+          return res.status(409).json({ error: "That faction is already claimed by another seat" });
+        }
+
+        updates.factionId = nextFactionId;
+        if (!nextFactionId) {
+          updates.isReady = false;
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, "isReady")) {
+        if (body.isReady && !nextFactionId) {
+          return res.status(400).json({ error: "Select a faction before readying up" });
+        }
+        if (
+          body.isReady &&
+          isFactionTakenByAnotherEntry(claimedFactionEntries, nextFactionId, seat.id)
+        ) {
+          return res.status(409).json({ error: "That faction is already claimed by another seat" });
+        }
+
+        updates.isReady = body.isReady;
+      }
       
       await storage.updateSeat(seat.id, updates);
       await storage.touchLobby(lobby.id);
@@ -987,14 +1130,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!seat) {
         return res.status(404).json({ error: "Seat not found" });
       }
-      if (seat.userId !== null) {
+      if (seat.userId !== null || seat.isAI) {
         return res.status(400).json({ error: "Seat claimed by player" });
       }
       
       const { factionId } = req.body;
+      const canonicalFactionId = coerceFactionId(factionId);
+      if (!canonicalFactionId) {
+        return res.status(400).json({ error: "AI seat needs a valid faction" });
+      }
+
+      const claimedFactionEntries = seats
+        .filter((entry) => entry.userId !== null || entry.isAI)
+        .map((entry) => ({ id: entry.id, factionId: entry.factionId }));
+      if (isFactionTakenByAnotherEntry(claimedFactionEntries, canonicalFactionId, seat.id)) {
+        return res.status(409).json({ error: "That faction is already claimed by another seat" });
+      }
+
       await storage.updateSeat(seat.id, { 
+        userId: null,
+        playerName: null,
         isAI: true, 
-        factionId: factionId || null,
+        factionId: canonicalFactionId,
         isReady: true 
       });
       await storage.touchLobby(lobby.id);
@@ -1036,6 +1193,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       await storage.updateSeat(seat.id, { 
+        userId: null,
+        playerName: null,
         isAI: false, 
         factionId: null,
         isReady: false 
@@ -1139,6 +1298,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!seat.factionId) {
           return res.status(400).json({ error: "All players must select a faction" });
         }
+        if (!coerceFactionId(seat.factionId)) {
+          return res.status(400).json({ error: "All players must select a valid faction" });
+        }
+      }
+
+      const claimedFactionEntries = claimedSeats.map((seat) => ({ id: seat.id, factionId: seat.factionId }));
+      if (getDuplicateFactionIds(claimedFactionEntries).size > 0) {
+        return res.status(400).json({ error: "Each player must select a unique faction" });
       }
 
       const existingLobbyState = (lobby.gameState as any) || {};
@@ -1151,7 +1318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         seatIndex: seat.seatIndex,
         userId: seat.userId,
         name: seat.playerName || `Player ${seat.seatIndex + 1}`,
-        factionId: seat.factionId!,
+        factionId: coerceFactionId(seat.factionId)!,
         isAI: seat.isAI,
         turnOrder: index,
         lastSeenAt: hostLastSeen,
@@ -1269,6 +1436,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to fetch chat events:", error);
       return res.status(500).json({ error: "Failed to fetch chat events" });
+    }
+  });
+
+  // Shared realtime stream for chat + multiplayer invalidation events
+  app.get("/api/lobbies/:code/realtime", requireAuth, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) {
+        return res.status(404).json({ error: "Lobby not found" });
+      }
+
+      const seats = await storage.getSeatsByLobbyId(lobby.id);
+      const userId = req.session.userId!;
+      if (!isLobbyParticipant(lobby.hostUserId, seats, userId)) {
+        return res.status(403).json({ error: "Not a participant" });
+      }
+
+      setPrivateNoStoreHeaders(res);
+      openLobbyRealtimeStream(lobby.code, res);
+    } catch (error) {
+      console.error("Failed to open realtime stream:", error);
+      return res.status(500).json({ error: "Failed to open realtime stream" });
     }
   });
 
@@ -1431,6 +1620,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } as any,
         });
         if (updated) {
+          const latestEvent = nextChat.events[nextChat.events.length - 1];
+          if (latestEvent) {
+            publishChatRealtimeEvent(lobby.code, {
+              type: "chat-event",
+              lobbyCode: lobby.code,
+              event: latestEvent,
+            });
+          }
           return res.json({
             duplicate: false,
             messageVersion: nextChat.messageVersion,
@@ -1504,6 +1701,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } as any,
         });
         if (updated) {
+          const latestEvent = nextChat.events[nextChat.events.length - 1];
+          if (latestEvent) {
+            publishChatRealtimeEvent(lobby.code, {
+              type: "chat-event",
+              lobbyCode: lobby.code,
+              event: latestEvent,
+            });
+          }
           return res.json({ ok: true, eventVersion: nextChat.eventVersion });
         }
       }
@@ -1556,6 +1761,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } as any,
         });
         if (updated) {
+          const latestEvent = nextChat.events[nextChat.events.length - 1];
+          if (latestEvent) {
+            publishChatRealtimeEvent(lobby.code, {
+              type: "chat-event",
+              lobbyCode: lobby.code,
+              event: latestEvent,
+            });
+          }
           return res.json({ ok: true, eventVersion: nextChat.eventVersion, readAt });
         }
       }
@@ -1701,6 +1914,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             toHostUserId: userId,
             hostEpoch: nextEpoch,
           });
+          publishMultiplayerSyncEvent(lobby.code, "host-claimed");
           return res.json({ hostUserId: userId, hostEpoch: nextEpoch, hostLastSeen });
         }
       }
@@ -1973,6 +2187,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           gameState: { ...lobbyState, pendingVersion, pendingActions, players: playersMeta } as any,
         });
         if (updated) {
+          publishMultiplayerSyncEvent(lobby.code, "queue-updated");
           return res.json({ queueVersion: pendingVersion });
         }
       }
@@ -2142,6 +2357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               hostUserId: lobby.hostUserId,
             });
           }
+          publishMultiplayerSyncEvent(lobby.code, "action-committed");
           return res.json({ actionVersion: nextActionVersion });
         }
       }
@@ -2224,11 +2440,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return respondSaveApiDisabled(res);
     }
     try {
-      const deviceId = req.headers["x-device-id"] as string;
-      if (!deviceId) {
-        return res.status(400).json({ error: "Device ID required" });
-      }
-      const saves = await storage.getGameSavesByDeviceId(deviceId);
+      setPrivateNoStoreHeaders(res);
+      const ownerId = await getSaveOwnerId(req);
+      const saves = await storage.getGameSavesByOwnerId(ownerId);
       res.json(saves);
     } catch (error) {
       console.error("Failed to list saves:", error);
@@ -2241,10 +2455,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return respondSaveApiDisabled(res);
     }
     try {
-      const deviceId = req.headers["x-device-id"] as string;
-      if (!deviceId) {
-        return res.status(400).json({ error: "Device ID required" });
-      }
+      setPrivateNoStoreHeaders(res);
+      const ownerId = await getSaveOwnerId(req);
       const id = parseIntParam(req.params.id);
       if (id === null) {
         return res.status(400).json({ error: "Invalid ID" });
@@ -2253,7 +2465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!save) {
         return res.status(404).json({ error: "Save not found" });
       }
-      if (save.deviceId !== deviceId) {
+      if (save.deviceId !== ownerId) {
         return res.status(403).json({ error: "Access denied" });
       }
       res.json(save);
@@ -2268,19 +2480,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return respondSaveApiDisabled(res);
     }
     try {
-      const deviceId = req.headers["x-device-id"] as string;
-      if (!deviceId) {
-        return res.status(400).json({ error: "Device ID required" });
+      setPrivateNoStoreHeaders(res);
+      const ownerId = await getSaveOwnerId(req);
+      const parsed = SaveWriteRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid save payload" });
       }
-      const { name, gameState, metadata } = req.body;
-      if (!name || !gameState || !metadata) {
-        return res.status(400).json({ error: "Name, gameState, and metadata required" });
-      }
+
+      const { name, gameState, metadata } = parsed.data;
       const save = await storage.createGameSave({
-        deviceId,
+        deviceId: ownerId,
         name,
         gameState,
-        metadata
+        metadata,
       });
       res.status(201).json(save);
     } catch (error) {
@@ -2294,10 +2506,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return respondSaveApiDisabled(res);
     }
     try {
-      const deviceId = req.headers["x-device-id"] as string;
-      if (!deviceId) {
-        return res.status(400).json({ error: "Device ID required" });
-      }
+      setPrivateNoStoreHeaders(res);
+      const ownerId = await getSaveOwnerId(req);
       const id = parseIntParam(req.params.id);
       if (id === null) {
         return res.status(400).json({ error: "Invalid ID" });
@@ -2306,10 +2516,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existingSave) {
         return res.status(404).json({ error: "Save not found" });
       }
-      if (existingSave.deviceId !== deviceId) {
+      if (existingSave.deviceId !== ownerId) {
         return res.status(403).json({ error: "Access denied" });
       }
-      const { name, gameState, metadata } = req.body;
+      const parsed = SaveWriteRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid save payload" });
+      }
+      const { name, gameState, metadata } = parsed.data;
       const save = await storage.updateGameSave(id, { name, gameState, metadata });
       res.json(save);
     } catch (error) {
@@ -2323,10 +2537,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return respondSaveApiDisabled(res);
     }
     try {
-      const deviceId = req.headers["x-device-id"] as string;
-      if (!deviceId) {
-        return res.status(400).json({ error: "Device ID required" });
-      }
+      setPrivateNoStoreHeaders(res);
+      const ownerId = await getSaveOwnerId(req);
       const id = parseIntParam(req.params.id);
       if (id === null) {
         return res.status(400).json({ error: "Invalid ID" });
@@ -2335,7 +2547,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existingSave) {
         return res.status(404).json({ error: "Save not found" });
       }
-      if (existingSave.deviceId !== deviceId) {
+      if (existingSave.deviceId !== ownerId) {
         return res.status(403).json({ error: "Access denied" });
       }
       await storage.deleteGameSave(id);

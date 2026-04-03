@@ -34,14 +34,20 @@ vi.mock('../client/src/components/primitives/GlowingButton', () => ({
 }));
 
 const mockListSaves = vi.fn();
+const mockListLocalSaves = vi.fn();
 const mockCreateSave = vi.fn();
+const mockCreateLocalSave = vi.fn();
 const mockDeleteSave = vi.fn();
+const mockDeleteLocalSave = vi.fn();
 const mockGetLocalSavesSnapshot = vi.fn();
 
 vi.mock('../client/src/lib/saveApi', () => ({
   listSaves: (...args: any[]) => mockListSaves(...args),
+  listLocalSaves: (...args: any[]) => mockListLocalSaves(...args),
   createSave: (...args: any[]) => mockCreateSave(...args),
+  createLocalSave: (...args: any[]) => mockCreateLocalSave(...args),
   deleteSave: (...args: any[]) => mockDeleteSave(...args),
+  deleteLocalSave: (...args: any[]) => mockDeleteLocalSave(...args),
   getLocalSavesSnapshot: (...args: any[]) => mockGetLocalSavesSnapshot(...args),
 }));
 
@@ -82,9 +88,12 @@ describe('SaveLoadMenu', () => {
     vi.clearAllMocks();
 
     mockGetLocalSavesSnapshot.mockReturnValue([]);
+    mockListLocalSaves.mockReturnValue([]);
     mockListSaves.mockResolvedValue([]);
-    mockCreateSave.mockResolvedValue({ id: 101, name: 'Test Save' });
+    mockCreateSave.mockResolvedValue({ id: 101, name: 'Test Save', storage: 'server' });
+    mockCreateLocalSave.mockReturnValue({ id: 202, name: 'Local Save', storage: 'local' });
     mockDeleteSave.mockResolvedValue(undefined);
+    mockDeleteLocalSave.mockImplementation(() => undefined);
 
     mockUseLocalGame.mockReturnValue({
       gameState: mockGameState,
@@ -103,6 +112,7 @@ describe('SaveLoadMenu', () => {
     expect(screen.getByText('Save Current Game')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Enter save name...')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save on this device' })).toBeInTheDocument();
     await waitFor(() => expect(mockListSaves).toHaveBeenCalled());
   });
 
@@ -171,6 +181,8 @@ describe('SaveLoadMenu', () => {
     const mockSave = {
       id: 101,
       name: 'Test Save',
+      storage: 'server',
+      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       gameState: mockGameState,
       metadata: {
@@ -178,6 +190,7 @@ describe('SaveLoadMenu', () => {
         turn: 5,
         playerCount: 1,
         mapSize: '8x8',
+        factions: ['NEPHITES'],
       },
     };
 
@@ -197,6 +210,8 @@ describe('SaveLoadMenu', () => {
     const mockSave = {
       id: 101,
       name: 'Test Save',
+      storage: 'server',
+      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       gameState: mockGameState,
       metadata: {
@@ -204,6 +219,7 @@ describe('SaveLoadMenu', () => {
         turn: 5,
         playerCount: 1,
         mapSize: '8x8',
+        factions: ['NEPHITES'],
       },
     };
 
@@ -229,6 +245,8 @@ describe('SaveLoadMenu', () => {
     const mockSave = {
       id: 101,
       name: 'Test Save',
+      storage: 'server',
+      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       gameState: mockGameState,
       metadata: {
@@ -236,6 +254,7 @@ describe('SaveLoadMenu', () => {
         turn: 5,
         playerCount: 1,
         mapSize: '8x8',
+        factions: ['NEPHITES'],
       },
     };
 
@@ -264,6 +283,8 @@ describe('SaveLoadMenu', () => {
     const mockSave = {
       id: 101,
       name: 'Test Save',
+      storage: 'server',
+      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       gameState: mockGameState,
       metadata: {
@@ -271,6 +292,7 @@ describe('SaveLoadMenu', () => {
         turn: 5,
         playerCount: 1,
         mapSize: '8x8',
+        factions: ['NEPHITES'],
       },
     };
 

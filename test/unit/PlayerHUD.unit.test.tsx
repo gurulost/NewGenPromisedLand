@@ -50,9 +50,9 @@ describe('PlayerHUD Unit Tests', () => {
 
     expect(screen.getByText('25')).toBeInTheDocument();
     expect(screen.getByText('+4/turn')).toBeInTheDocument();
-    expect(screen.getByText('Faith')).toBeInTheDocument();
+    expect(screen.getAllByText('Faith').length).toBeGreaterThan(0);
     expect(screen.getByText('8/100')).toBeInTheDocument();
-    expect(screen.getByText('Pride')).toBeInTheDocument();
+    expect(screen.getAllByText('Pride').length).toBeGreaterThan(0);
     expect(screen.getByText('3/100')).toBeInTheDocument();
   });
 

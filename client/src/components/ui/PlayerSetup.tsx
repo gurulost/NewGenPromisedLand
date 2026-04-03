@@ -17,6 +17,10 @@ import { getFactionIcon, TempleIcon } from "../primitives/ThematicIcons";
 import BugReportSupportCallout from "./BugReportSupportCallout";
 import { useHotkeys } from "../../hooks/useHotkeys";
 import { usePerformanceMode } from "../../hooks/usePerformanceMode";
+import {
+  getDuplicateFactionIds,
+  isFactionTakenByAnotherEntry,
+} from "@shared/utils/factionAssignments";
 
 export type AIDifficulty = 'easy' | 'normal' | 'hard';
 
@@ -54,7 +58,8 @@ export default function PlayerSetup() {
   const nextIdRef = useRef(3);
 
   const factions = getAllFactions();
-  const usedFactions = players.map(p => p.factionId).filter(Boolean);
+  const factionAssignments = players.map((player) => ({ id: player.id, factionId: player.factionId }));
+  const duplicateFactionIds = getDuplicateFactionIds(factionAssignments);
   const perfMode = usePerformanceMode();
 
   useHotkeys('Escape', () => setGamePhase('menu'));
@@ -128,7 +133,7 @@ export default function PlayerSetup() {
 
   const canStart = players.length >= 2 &&
     players.every(p => p.name.trim() && p.factionId) &&
-    new Set(players.map(p => p.factionId)).size === players.length;
+    duplicateFactionIds.size === 0;
 
   const handleStartGame = () => {
     if (canStart) {
@@ -149,9 +154,7 @@ export default function PlayerSetup() {
   const readyCount = players.filter(p => p.name.trim() && p.factionId).length;
   const missingNames = players.filter(p => !p.name.trim()).length;
   const missingFactions = players.filter(p => !p.factionId).length;
-  const assignedFactionCount = players.filter(p => p.factionId).length;
-  const uniqueFactionCount = new Set(players.map(p => p.factionId).filter(Boolean)).size;
-  const duplicateFactions = uniqueFactionCount !== assignedFactionCount;
+  const duplicateFactions = duplicateFactionIds.size > 0;
 
   const rosterIssues: string[] = [];
   if (missingNames > 0) {
@@ -410,7 +413,11 @@ export default function PlayerSetup() {
                                     )}>
                                       {factions.map(faction => {
                                         const FactionIcon = getFactionIcon(faction.id);
-                                        const factionTaken = usedFactions.includes(faction.id) && player.factionId !== faction.id;
+                                        const factionTaken = isFactionTakenByAnotherEntry(
+                                          factionAssignments,
+                                          faction.id,
+                                          player.id,
+                                        );
                                         return (
                                           <SelectItem
                                             key={faction.id}

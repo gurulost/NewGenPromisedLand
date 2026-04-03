@@ -1,15 +1,21 @@
 import express, { type Request, Response, NextFunction, type Express } from "express";
 import { registerRoutes } from "./routes";
+import { pool } from "./db";
 import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
+import {
+  attachRequestLogging,
+  createDatabaseHealthCheck,
+  createGracefulShutdownController,
+  createRuntimeState,
+  registerGracefulShutdownHandlers,
+  registerHealthEndpoint,
+  REQUEST_ID_HEADER,
+} from "./ops";
 
 const app = express();
-app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: false }));
-app.get("/__health", (_req, res) => {
-  res.status(200).json({ ok: true });
-});
+const runtimeState = createRuntimeState();
 
 const logMessage = (message: string, source = "express") => {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -21,50 +27,59 @@ const logMessage = (message: string, source = "express") => {
   console.log(`${formattedTime} [${source}] ${message}`);
 };
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      logMessage(logLine);
-    }
-  });
-
-  next();
+app.disable("x-powered-by");
+attachRequestLogging(app, (message) => logMessage(message));
+registerHealthEndpoint(app, {
+  runtimeState,
+  dependencyChecks: [createDatabaseHealthCheck(pool)],
 });
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false }));
 
 (async () => {
   const server = await registerRoutes(app);
+  let closeDevServer: (() => Promise<void>) | null = null;
+  const parsedShutdownTimeoutMs = Number.parseInt(process.env.SHUTDOWN_TIMEOUT_MS ?? "10000", 10);
+  const shutdownTimeoutMs =
+    Number.isFinite(parsedShutdownTimeoutMs) && parsedShutdownTimeoutMs > 0 ? parsedShutdownTimeoutMs : 10000;
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  const registerShutdownHandlers = () => {
+    const shutdownController = createGracefulShutdownController({
+      server,
+      runtimeState,
+      timeoutMs: shutdownTimeoutMs,
+      cleanup: async () => {
+        if (closeDevServer) {
+          await closeDevServer();
+        }
+        await pool.end();
+      },
+      log: (message) => logMessage(message),
+      logError: (message, error) => {
+        console.error("[express] shutdown error", {
+          message,
+          error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+        });
+      },
+    });
+    registerGracefulShutdownHandlers(shutdownController);
+  };
+
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
+    const requestId = String(res.getHeader(REQUEST_ID_HEADER) ?? res.locals.requestId ?? "unknown");
 
     console.error("[express] request error", {
+      requestId,
+      method: req.method,
+      path: req.path,
       status,
       message,
       stack: err?.stack,
     });
 
-    res.status(status).json({ message });
+    res.status(status).json({ message, requestId });
   });
 
   // Static file serving for production
@@ -94,7 +109,7 @@ app.use((req, res, next) => {
   // Only setup Vite in development to avoid pulling dev deps in production
   if (app.get("env") === "development") {
     const { setupVite } = await import("./vite");
-    await setupVite(app, server);
+    closeDevServer = await setupVite(app, server);
   } else {
     serveStatic(app);
   }
@@ -134,6 +149,7 @@ app.use((req, res, next) => {
   try {
     await listenOnce(shouldPreferReusePort);
     logMessage(`serving on port ${port}${shouldPreferReusePort ? " (reusePort enabled)" : ""}`);
+    registerShutdownHandlers();
   } catch (err) {
     const listenError = err as NodeJS.ErrnoException;
     const shouldRetryWithoutReusePort =
@@ -144,6 +160,7 @@ app.use((req, res, next) => {
       try {
         await listenOnce(false);
         logMessage(`serving on port ${port}`);
+        registerShutdownHandlers();
       } catch (fallbackError) {
         const finalError = fallbackError as NodeJS.ErrnoException;
         console.error("[express] failed to start server", {

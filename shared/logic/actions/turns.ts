@@ -18,6 +18,7 @@ import { getUnitSpawnCoordinate } from "./spawnUtils";
 import { applyStatusEffect } from "../statusEffects";
 import { onTurnStartUnit } from "../effects";
 import { getUnitAttackRangeFromDefinition, resetUnitActions, spendUnitActions } from "../unitLogic";
+import { findNextTurnPlayerIndex, normalizeTurnPlayerIndex } from "../turnOrder";
 
 
 type VictoryType = "faith" | "territorial" | "elimination" | "economic" | "cultural" | "domination";
@@ -225,7 +226,9 @@ export function handleEndTurn(
   state: GameState,
   payload: { playerId: string }
 ): GameState {
-  const currentPlayer = state.players[state.currentPlayerIndex];
+  const currentPlayerIndex = normalizeTurnPlayerIndex(state.players, state.currentPlayerIndex);
+  const currentPlayer = currentPlayerIndex >= 0 ? state.players[currentPlayerIndex] : undefined;
+  if (!currentPlayer) return state;
   if (currentPlayer.id !== payload.playerId) return state;
 
   let updatedCities = [...(state.cities || [])];
@@ -643,8 +646,9 @@ export function handleEndTurn(
   });
 
   // Calculate next player and turn
-  const nextPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
-  const nextPlayer = updatedPlayers[nextPlayerIndex];
+  const nextPlayerIndex = findNextTurnPlayerIndex(updatedPlayers, currentPlayerIndex);
+  const nextPlayer = nextPlayerIndex >= 0 ? updatedPlayers[nextPlayerIndex] : undefined;
+  if (!nextPlayer) return state;
   const isNewTurn = nextPlayerIndex === 0;
 
   // Apply desertion removal after end-of-turn effects resolve
@@ -844,7 +848,7 @@ export function handleEndTurn(
     victoryType: victory?.victoryType,
     rngSeed,
     lastAction: endTurnEvents.length > 0
-      ? { type: 'END_TURN_RESOLUTION', payload: { endingPlayerId: payload.playerId, nextPlayerId: updatedPlayers[nextPlayerIndex].id, events: endTurnEvents } }
+      ? { type: 'END_TURN_RESOLUTION', payload: { endingPlayerId: payload.playerId, nextPlayerId: nextPlayer.id, events: endTurnEvents } }
       : { type: 'END_TURN', payload }
   };
 }

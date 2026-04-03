@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { useUIPreferences } from '../../hooks/useUIPreferences';
 
 interface InfoTooltipProps {
   content: React.ReactNode;
@@ -27,6 +28,7 @@ export function InfoTooltip({
   const triggerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotion();
+  const { preferences } = useUIPreferences();
 
   const calculatePosition = useCallback(() => {
     if (!triggerRef.current || !tooltipRef.current || !isVisible) return;
@@ -130,6 +132,9 @@ export function InfoTooltip({
   }, [isVisible]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (!preferences.showTooltips) {
+      return;
+    }
     e.preventDefault();
     setIsVisible(prev => !prev);
   };
@@ -193,6 +198,10 @@ export function InfoTooltip({
           transition: { duration: 0.1 }
         }
       };
+
+  if (!preferences.showTooltips) {
+    return children ? <>{children}</> : null;
+  }
 
   return (
     <div 

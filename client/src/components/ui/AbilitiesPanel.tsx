@@ -15,6 +15,7 @@ import { getUnitDefinition } from "@shared/data/units";
 import { GAME_RULES } from "@shared/data/gameRules";
 import { WORLD_ELEMENTS } from "@shared/data/worldElements";
 import { getActionAvailability } from "../../lib/helpers/actionAvailabilityHelpers";
+import { getCapturableCitiesForUnit } from "@shared/logic/cityCapture";
 import type { Unit } from "@shared/types/unit";
 import { IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { hexDistance } from "@shared/utils/hex";
@@ -69,6 +70,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     tile.coordinate.r === unit.coordinate.r
   );
   const worldElementIds = (currentTile?.resources || []).filter(resource => WORLD_ELEMENTS[resource]);
+  const capturableCity = getCapturableCitiesForUnit(unit, currentPlayer, gameState)[0];
 
   const getClosestOwnedCityId = (): string | null => {
     const ownedCities = (gameState.cities || []).filter(c => c.ownerId === currentPlayer.id);
@@ -130,25 +132,15 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
       });
     }
 
-    // City capture action - appears when adjacent to enemy city
-    const adjacentEnemyCity = gameState?.cities?.find(city => {
-      if (currentPlayer.citiesOwned.includes(city.id)) return false; // Skip own cities
-      const distance = Math.max(
-        Math.abs(unit.coordinate.q - city.coordinate.q),
-        Math.abs(unit.coordinate.r - city.coordinate.r),
-        Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (city.coordinate.s || -city.coordinate.q - city.coordinate.r))
-      );
-      return distance <= 1; // Adjacent or on the tile
-    });
-
-    if (adjacentEnemyCity && isPlayerTurn) {
+    // City capture action - appears when this unit can capture an enemy city
+    if (capturableCity) {
       actions.push({
         id: 'capture_city',
         name: 'Capture City',
-        description: `Capture ${adjacentEnemyCity.name} - requires defeating garrison first`,
+        description: `Capture ${capturableCity.name} from an adjacent tile`,
         icon: <Crown className="w-4 h-4" />,
-        cost: 'Combat Victory',
-        available: true // Available if adjacent
+        cost: 'Free',
+        available: true
       });
     }
 
@@ -527,23 +519,12 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         break;
 
       case 'capture_city':
-        // Find adjacent enemy city and dispatch capture action
-        const adjacentEnemyCity = gameState?.cities?.find(city => {
-          if (currentPlayer.citiesOwned.includes(city.id)) return false;
-          const distance = Math.max(
-            Math.abs(unit.coordinate.q - city.coordinate.q),
-            Math.abs(unit.coordinate.r - city.coordinate.r),
-            Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (city.coordinate.s || -city.coordinate.q - city.coordinate.r))
-          );
-          return distance <= 1;
-        });
-
-        if (adjacentEnemyCity) {
+        if (capturableCity) {
           dispatch({
             type: 'CAPTURE_CITY',
             payload: {
               playerId: currentPlayer.id,
-              cityId: adjacentEnemyCity.id
+              cityId: capturableCity.id
             }
           });
         }

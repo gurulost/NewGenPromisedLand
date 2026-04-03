@@ -15,7 +15,11 @@ import { useHotkeys } from "../../hooks/useHotkeys";
 import { useMobileUI } from "../../hooks/useMobileUI";
 import { 
   listSaves, createSave, deleteSave as apiDeleteSave,
+  createLocalSave,
+  deleteLocalSave,
   getLocalSavesSnapshot,
+  listLocalSaves,
+  SaveApiError,
   type ServerSave, type SaveMetadata 
 } from "../../lib/saveApi";
 import { loadAutosave, type AutosavePayload } from "../../lib/autosaveStorage";
@@ -33,13 +37,21 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
   const { gameState, loadGameState } = useLocalGame();
   const { isMobileUI } = useMobileUI();
   const initialSaves = getLocalSavesSnapshot();
-  const [savedGames, setSavedGames] = useState<ServerSave[]>(initialSaves);
+  const [cloudSaves, setCloudSaves] = useState<ServerSave[]>([]);
+  const [localSaves, setLocalSaves] = useState<ServerSave[]>(initialSaves);
   const [autosaveData, setAutosaveData] = useState<AutosavePayload | null>(null);
   const [saveName, setSaveName] = useState("");
-  const [selectedSave, setSelectedSave] = useState<number | string | null>(null);
+  const [selectedSave, setSelectedSave] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cloudStatus, setCloudStatus] = useState<string | null>(null);
+
+  const savedGames = [...cloudSaves, ...localSaves].sort((a, b) =>
+    a.updatedAt < b.updatedAt ? 1 : -1
+  );
+
+  const getSaveSelectionKey = (save: ServerSave) => `${save.storage}:${save.id}`;
 
   useHotkeys('Escape', onClose);
   useHotkeys('KeyB', onClose);
@@ -61,19 +73,27 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
   };
 
   const loadSavedGamesList = async () => {
+    setIsLoading(true);
     setError(null);
+    setLocalSaves(listLocalSaves());
     try {
       const saves = await listSaves();
-      setSavedGames(saves);
+      setCloudSaves(saves);
+      setCloudStatus(null);
     } catch (err) {
       console.error('Error loading saves:', err);
-      setError('Failed to load saved games');
+      setCloudSaves([]);
+      setCloudStatus(
+        err instanceof SaveApiError
+          ? err.message
+          : 'Cloud saves are unavailable right now',
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const saveGame = async () => {
+  const saveGame = async (storage: ServerSave["storage"]) => {
     if (!gameState || !saveName.trim()) return;
 
     setIsSaving(true);
@@ -88,25 +108,33 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
         factions: gameState.players.map(p => p.factionId)
       };
 
-      const saved = await createSave(saveName.trim(), gameState, metadata);
+      const saved = storage === "server"
+        ? await createSave(saveName.trim(), gameState, metadata)
+        : createLocalSave(saveName.trim(), gameState, metadata);
       trackGameSaved({
         gameState,
-        source: 'manual_save_menu',
+        source: storage === "server" ? 'manual_save_menu' : 'local_offline',
         saveId: saved.id,
         saveName: saved.name,
       });
       setSaveName("");
       await loadSavedGamesList();
-      console.log('Game saved successfully:', saveName);
+      console.log(`Game saved successfully (${storage}):`, saveName);
     } catch (err) {
       console.error('Failed to save game:', err);
-      setError('Failed to save game');
+      setError(
+        err instanceof SaveApiError
+          ? err.message
+          : storage === "server"
+            ? 'Failed to save to cloud'
+            : 'Failed to save on this device',
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
-  const loadGame = (saveId: number | string) => {
+  const loadGame = (saveId: string) => {
     // Handle autosave
     if (saveId === 'autosave' && autosaveData?.gameState) {
       try {
@@ -122,7 +150,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
     }
 
     // Handle regular saves
-    const save = savedGames.find(s => s.id === saveId);
+    const save = savedGames.find(s => getSaveSelectionKey(s) === saveId);
     if (!save) return;
 
     try {
@@ -136,21 +164,29 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
     }
   };
 
-  const deleteSave = async (saveId: number) => {
+  const deleteSave = async (save: ServerSave) => {
     try {
-      await apiDeleteSave(saveId);
+      if (save.storage === "server") {
+        await apiDeleteSave(save.id);
+      } else {
+        deleteLocalSave(save.id);
+      }
       await loadSavedGamesList();
-      if (selectedSave === saveId) {
+      if (selectedSave === getSaveSelectionKey(save)) {
         setSelectedSave(null);
       }
     } catch (err) {
       console.error('Failed to delete save:', err);
-      setError('Failed to delete save');
+      setError(
+        err instanceof SaveApiError
+          ? err.message
+          : `Failed to delete ${save.storage === "server" ? "cloud" : "local"} save`,
+      );
     }
   };
 
-  const exportSave = (saveId: number) => {
-    const save = savedGames.find(s => s.id === saveId);
+  const exportSave = (saveId: string) => {
+    const save = savedGames.find(s => getSaveSelectionKey(s) === saveId);
     if (!save) return;
 
     try {
@@ -184,7 +220,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
       try {
         const imported = JSON.parse(e.target?.result as string);
         if (imported && imported.gameState && imported.metadata) {
-          await createSave(
+          createLocalSave(
             imported.name || `Imported ${new Date().toLocaleDateString()}`,
             imported.gameState,
             imported.metadata
@@ -226,6 +262,12 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
             </div>
           )}
 
+          {cloudStatus && (
+            <div className="p-3 bg-amber-900/40 border border-amber-500/40 rounded-lg text-amber-100 text-sm">
+              Cloud saves unavailable: {cloudStatus}. Device-local saves are still available below and must be created explicitly.
+            </div>
+          )}
+
           {/* Save Current Game */}
           {gameState && !onLoadFromMenu && (
             <div>
@@ -237,18 +279,29 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                   value={saveName}
                   onChange={(e) => setSaveName(e.target.value)}
                   className="flex-1 bg-slate-800 border-slate-600 text-white"
-                  onKeyPress={(e) => e.key === 'Enter' && saveName.trim() && saveGame()}
+                  onKeyPress={(e) => e.key === 'Enter' && saveName.trim() && saveGame("server")}
                   disabled={isSaving}
                 />
                 <GlowingButton
                   data-testid="save-load-save-button"
-                  onClick={saveGame}
+                  onClick={() => saveGame("server")}
                   disabled={!saveName.trim() || isSaving}
                   aria-label="Save"
                 >
                   <span className="flex items-center justify-center gap-2">
                     {isSaving ? <Loader2 className="animate-spin" /> : <Save />}
-                    {isSaving ? "Saving..." : "Save"}
+                    {isSaving ? "Saving..." : "Save to Cloud"}
+                  </span>
+                </GlowingButton>
+                <GlowingButton
+                  variant="secondary"
+                  onClick={() => saveGame("local")}
+                  disabled={!saveName.trim() || isSaving}
+                  aria-label="Save on this device"
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    <Save />
+                    Save on This Device
                   </span>
                 </GlowingButton>
               </div>
@@ -278,7 +331,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                   </span>
                 </GlowingButton>
               
-                {selectedSave !== null && typeof selectedSave === 'number' && (
+                {selectedSave !== null && (
                   <GlowingButton
                     variant="secondary"
                     onClick={() => exportSave(selectedSave)}
@@ -380,17 +433,27 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                     initial={{ x: -20, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ delay: index * 0.05 }}
-                    data-testid={`save-entry-${save.id}`}
+                    data-testid={`save-entry-${save.storage}-${save.id}`}
                     className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selectedSave === save.id
+                      selectedSave === getSaveSelectionKey(save)
                         ? 'bg-blue-600/20 border-blue-500/50'
                         : 'bg-slate-800/50 border-slate-600 hover:bg-slate-800'
                     }`}
-                    onClick={() => setSelectedSave(save.id)}
+                    onClick={() => setSelectedSave(getSaveSelectionKey(save))}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h4 className="font-semibold text-white text-lg">{save.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-white text-lg">{save.name}</h4>
+                          <Badge
+                            variant="outline"
+                            className={save.storage === "server"
+                              ? "text-sky-200 border-sky-400/50"
+                              : "text-amber-200 border-amber-400/50"}
+                          >
+                            {save.storage === "server" ? "Cloud" : "This Device"}
+                          </Badge>
+                        </div>
                         
                         <div className="flex items-center gap-4 mt-2 text-sm text-slate-400">
                           <div className="flex items-center gap-1">
@@ -425,7 +488,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                           aria-label="Load"
                           onClick={(e) => {
                             e?.stopPropagation();
-                            loadGame(save.id);
+                            loadGame(getSaveSelectionKey(save));
                           }}
                         >
                           <FolderOpen className="w-4 h-4" />
@@ -436,7 +499,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                           aria-label="Delete"
                           onClick={(e) => {
                             e?.stopPropagation();
-                            deleteSave(save.id);
+                            deleteSave(save);
                           }}
                         >
                           <Trash2 className="w-4 h-4" />

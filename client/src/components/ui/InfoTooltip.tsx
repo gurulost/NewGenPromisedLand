@@ -1,12 +1,20 @@
 import React from 'react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 
+import { useUIPreferences } from '../../hooks/useUIPreferences';
+
 interface InfoTooltipProps {
   content: React.ReactNode;
   children?: React.ReactNode;
 }
 
 export function InfoTooltip({ content, children }: InfoTooltipProps) {
+  const { preferences } = useUIPreferences();
+
+  if (!preferences.showTooltips) {
+    return children ? <>{children}</> : null;
+  }
+
   return (
     <Tooltip.Provider delayDuration={400}>
       <Tooltip.Root>

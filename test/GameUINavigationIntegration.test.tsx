@@ -173,6 +173,13 @@ describe('GameUI Navigation Integration Tests', () => {
   });
 
   describe('Primary Navigation Flow', () => {
+    it('exposes only the canonical save/load entry point', async () => {
+      await renderGameUI();
+
+      expect(screen.getByTitle('Save/Load Game (S)')).toBeInTheDocument();
+      expect(screen.queryByTestId('utility-advanced-save-button')).not.toBeInTheDocument();
+    });
+
     it('renders Construction Hall button in PlayerHUD instead of Cities', async () => {
       await renderGameUI();
 

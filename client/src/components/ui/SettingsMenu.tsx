@@ -1,12 +1,14 @@
 import React from 'react';
-import { Settings, Volume2, VolumeX, Music, Zap, CircleHelp } from 'lucide-react';
+import { Settings, Volume2, VolumeX, Music, Zap, CircleHelp, Monitor } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './dialog';
 import { Button } from './button';
 import { Slider } from './slider';
 import { Separator } from './separator';
+import { Switch } from './switch';
 import { useAudioControls } from '../../hooks/useAudioIntegration';
 import { useTutorialStore } from '../../lib/stores/useTutorial';
 import { useMobileUI } from '../../hooks/useMobileUI';
+import { useUIPreferences } from '../../hooks/useUIPreferences';
 
 interface SettingsMenuProps {
   isOpen: boolean;
@@ -27,6 +29,7 @@ export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
   } = useAudioControls();
   const { isMobileUI } = useMobileUI();
   const openTutorialLibrary = useTutorialStore((state) => state.openLibrary);
+  const { preferences: uiPreferences, isLoaded: isUIPreferencesLoaded, updateUI } = useUIPreferences();
 
   const handleMuteToggle = () => {
     const wasMuted = isMuted;
@@ -34,6 +37,10 @@ export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
     if (wasMuted) {
       startBackgroundMusic();
     }
+  };
+
+  const handleDisplayPreferenceChange = (updates: Partial<typeof uiPreferences>) => {
+    void updateUI(updates).catch(() => {});
   };
 
   return (
@@ -159,11 +166,48 @@ export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
           <Separator className="bg-amber-500/20" />
           
           <section>
-            <h3 className="text-amber-200 font-semibold text-sm mb-3 uppercase tracking-wider">
+            <h3 className="text-amber-200 font-semibold text-sm mb-4 uppercase tracking-wider flex items-center gap-2">
+              <Monitor className="w-4 h-4" />
               Display
             </h3>
-            <div className="text-slate-500 text-sm italic bg-slate-800/30 p-3 rounded-lg">
-              Additional display options coming soon...
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-4 rounded-lg bg-slate-800/30 p-3">
+                <div className="space-y-1">
+                  <p className="text-sm text-slate-200">Reduce Motion</p>
+                  <p className="text-xs text-slate-400">
+                    Uses simpler transitions across the interface. System accessibility preferences still apply.
+                  </p>
+                </div>
+                <Switch
+                  checked={uiPreferences.reducedMotion}
+                  disabled={!isUIPreferencesLoaded}
+                  aria-label="Reduce Motion"
+                  onCheckedChange={(checked) => handleDisplayPreferenceChange({ reducedMotion: checked })}
+                  className="data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-slate-700"
+                />
+              </div>
+
+              <div className="flex items-start justify-between gap-4 rounded-lg bg-slate-800/30 p-3">
+                <div className="space-y-1">
+                  <p className="text-sm text-slate-200">Show Tooltips</p>
+                  <p className="text-xs text-slate-400">
+                    Shows help icons and hover hints throughout the HUD.
+                  </p>
+                </div>
+                <Switch
+                  checked={uiPreferences.showTooltips}
+                  disabled={!isUIPreferencesLoaded}
+                  aria-label="Show Tooltips"
+                  onCheckedChange={(checked) => handleDisplayPreferenceChange({ showTooltips: checked })}
+                  className="data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-slate-700"
+                />
+              </div>
+
+              {!isUIPreferencesLoaded && (
+                <div className="text-slate-500 text-xs italic bg-slate-800/20 p-3 rounded-lg">
+                  Loading display settings...
+                </div>
+              )}
             </div>
           </section>
 

@@ -6,7 +6,7 @@ import { Separator } from "./separator";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { Star, Building, Sword, Hammer, Users, Sparkles, Pencil, Check, X, Info } from "lucide-react";
-import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS, type ImprovementType, type StructureType } from "@shared/types/city";
+import { STRUCTURE_DEFINITIONS, type StructureType } from "@shared/types/city";
 import { getUnitDefinition, UNIT_DEFINITIONS } from "@shared/data/units";
 import { getFaction } from "@shared/data/factions";
 import { coerceFactionId } from "@shared/types/factionId";
@@ -41,7 +41,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
   const { gameState, dispatch } = useLocalGame();
   const { startConstruction, startSpawnSelection } = useGameState();
   const { isMobileUI } = useMobileUI();
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'structures' | 'units' | 'improvements'>('overview');
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'structures' | 'units'>('overview');
   const [showAdvancedBuildingMenu, setShowAdvancedBuildingMenu] = useState(false);
   const [showGrowthGuide, setShowGrowthGuide] = useState(false);
 

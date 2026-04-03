@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
+import { resolveUiTurnPlayer } from "../../lib/turnPresentation";
 import { getFaction } from "@shared/data/factions";
 import { GlowingButton } from "../primitives/GlowingButton";
 import { AvatarBadge } from "../primitives/AvatarBadge";
@@ -52,7 +53,7 @@ const BACKGROUND_IMAGES = [
 const loadedImages = new Set<string>();
 
 export default function HandoffScreen() {
-  const { gameState, setGamePhase, onlineSession } = useLocalGame();
+  const { gameState, turnPresentation, setGamePhase, onlineSession } = useLocalGame();
   const [backgroundImage, setBackgroundImage] = useState<string>('');
   const [imageLoaded, setImageLoaded] = useState<boolean>(false);
   const [imageFailed, setImageFailed] = useState<boolean>(false);
@@ -134,9 +135,8 @@ export default function HandoffScreen() {
     return null;
   }
 
-  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  
-  // Guard against undefined currentPlayer (can happen during turn transitions with 4+ players)
+  const currentPlayer = resolveUiTurnPlayer(gameState, turnPresentation?.player ?? null);
+
   if (!currentPlayer) {
     console.warn('HandoffScreen: currentPlayer is undefined at index', gameState.currentPlayerIndex);
     return null;

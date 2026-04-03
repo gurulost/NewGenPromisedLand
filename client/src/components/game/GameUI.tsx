@@ -16,7 +16,6 @@ import { BuildingMenu } from "../ui/BuildingMenu";
 import VictoryScreen from "../ui/VictoryScreen";
 import SaveLoadMenu from "../ui/SaveLoadMenu";
 import { TurnTransition, useTurnTransition } from "../ui/TurnTransition";
-import { SaveSystem } from "../ui/SaveSystem";
 import { UnitSelectionUI } from "../effects/UnitSelection";
 import { WorldElementPanel } from "../ui/WorldElementPanel";
 import { VillageCapturePanel } from "../ui/VillageCapturePanel";
@@ -49,10 +48,12 @@ import { requestAutosaveIfDirty } from "../../lib/autosaveManager";
 import { useAutosaveStatus } from "../../lib/stores/useAutosaveStatus";
 import { useTutorialStore } from "../../lib/stores/useTutorial";
 import { useAnimationLabAccess } from "../../lib/stores/useAnimationLabAccess";
+import { resolveUiTurnPlayer } from "../../lib/turnPresentation";
 import { isUnitVisibleToPlayer } from "@shared/logic/unitLogic";
 import { hexDistance } from "@shared/utils/hex";
 import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
 import { getValidSpawnTiles } from "@shared/logic/gameReducer";
+import { findNextTurnPlayerIndex } from "@shared/logic/turnOrder";
 import type { Unit } from "@shared/types/unit";
 import type { GameState } from "@shared/types/game";
 import { MobileHUD } from "../hud/MobileHUD";
@@ -79,7 +80,17 @@ interface TurnRecoveryStatus {
 
 export default function GameUI() {
   const isDev = import.meta.env.DEV;
-  const { gameState, endTurn, useAbility: triggerAbility, attackUnit, setGamePhase, resetGame, loadGameState } = useLocalGame();
+  const {
+    gameState,
+    turnPresentation,
+    beginTurnPresentationTransition,
+    endTurn,
+    useAbility: triggerAbility,
+    attackUnit,
+    setGamePhase,
+    resetGame,
+    loadGameState,
+  } = useLocalGame();
   const gameMode = useLocalGame((state) => state.gameMode);
   const authUser = useAuth((state) => state.user);
   const animationLabAllowed = useAnimationLabAccess((state) => state.allowed);
@@ -973,7 +984,6 @@ export default function GameUI() {
   }, [gameState, addToast, addPulse, playSfx, onlineMyPlayerIds, onlineSession]);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [showSaveLoadMenu, setShowSaveLoadMenu] = useState(false);
-  const [showAdvancedSaveSystem, setShowAdvancedSaveSystem] = useState(false);
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [showCitySelector, setShowCitySelector] = useState(false);
   const [citySelectorAction, setCitySelectorAction] = useState<'city_panel' | 'construction'>('city_panel');
@@ -996,7 +1006,7 @@ export default function GameUI() {
   const [showSettings, setShowSettings] = useState(false);
   // Local screenFlash state removed in favor of VisualFeedbackProvider
 
-  const currentPlayer = gameState?.players?.[gameState.currentPlayerIndex] ?? null;
+  const currentPlayer = resolveUiTurnPlayer(gameState, turnPresentation?.player ?? null);
   const turnRecoveryActor = turnRecoveryStatus?.actorId
     ? gameState?.players?.find((player) => player.id === turnRecoveryStatus.actorId) ?? null
     : null;
@@ -1019,7 +1029,6 @@ export default function GameUI() {
   const chatDockTopOffset = hasTopRightModeIndicator ? 116 : 0;
   const suppressChatPeek = Boolean(
     showSaveLoadMenu ||
-      showAdvancedSaveSystem ||
       showSettings ||
       conquestBanner ||
       gameState?.winner ||
@@ -1127,7 +1136,6 @@ export default function GameUI() {
   const shouldIgnoreGlobalHotkeys = useCallback(() => {
     if (
       showSaveLoadMenu ||
-      showAdvancedSaveSystem ||
       showTechPanel ||
       showCityPanel ||
       showConstructionHall ||
@@ -1155,7 +1163,6 @@ export default function GameUI() {
     return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
   }, [
     showSaveLoadMenu,
-    showAdvancedSaveSystem,
     showTechPanel,
     showCityPanel,
     showConstructionHall,
@@ -1215,8 +1222,11 @@ export default function GameUI() {
     // Close any open context menu
     closeTileContextMenu();
 
-    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
-    const nextPlayer = gameState.players[nextPlayerIndex];
+    const nextPlayerIndex = findNextTurnPlayerIndex(
+      gameState.players,
+      gameState.currentPlayerIndex,
+    );
+    const nextPlayer = nextPlayerIndex >= 0 ? gameState.players[nextPlayerIndex] : null;
 
     // Guard against undefined next player
     if (!nextPlayer) {
@@ -1225,6 +1235,7 @@ export default function GameUI() {
     }
 
     // Start turn transition animation
+    beginTurnPresentationTransition?.(nextPlayer);
     startTransition(nextPlayer);
 
     // Complete turn after transition
@@ -1232,7 +1243,15 @@ export default function GameUI() {
       endTurn(currentPlayer.id); // Pass the current player's ID
       completeTransition();
     }, 1000);
-  }, [gameState, currentPlayer, closeTileContextMenu, startTransition, endTurn, completeTransition]);
+  }, [
+    gameState,
+    currentPlayer,
+    closeTileContextMenu,
+    beginTurnPresentationTransition,
+    startTransition,
+    endTurn,
+    completeTransition,
+  ]);
 
   // Keyboard controls
   useEffect(() => {
@@ -1647,7 +1666,8 @@ export default function GameUI() {
     return null;
   }
 
-  // Guard against undefined currentPlayer (can happen during turn transitions with 4+ players)
+  // The UI keeps a stable turn snapshot for handoff/transition edges, but this remains
+  // as a final guard if both game state and presentation state are unavailable.
   if (!currentPlayer) {
     console.warn('GameUI: currentPlayer is undefined at index', gameState.currentPlayerIndex);
     return null;
@@ -1970,7 +1990,6 @@ export default function GameUI() {
             onOpenChat={() => setShowMobileChat(true)}
             showChat={Boolean(chatIdentity)}
             onOpenCities={handleShowCityPanel}
-            onOpenAdvancedSave={() => setShowAdvancedSaveSystem(true)}
           />
           {gameState && (
             <BugReportStartHint
@@ -2039,7 +2058,10 @@ export default function GameUI() {
               const validTiles = getValidSpawnTiles(gameState, city.coordinate, optionId as any, currentPlayer.id);
 
               if (validTiles.length === 0) {
-                alert(`Cannot recruit ${optionId}: No valid spawn locations available.`);
+                showToast(
+                  `Cannot recruit ${optionId}: all nearby tiles are blocked or at capacity.`,
+                  "warning"
+                );
                 return;
               }
 
@@ -2237,18 +2259,6 @@ export default function GameUI() {
       {/* Screen Flash Effect */}
       {/* Screen Flash Effect handled by Provider */}
 
-      {/* Advanced Save System */}
-      {showAdvancedSaveSystem && (
-        <SaveSystem
-          currentGameState={gameState}
-          onLoadGame={(loadedState) => {
-            loadGameState(loadedState, { source: 'advanced_save_system' });
-            setShowAdvancedSaveSystem(false);
-          }}
-          onClose={() => setShowAdvancedSaveSystem(false)}
-        />
-      )}
-
       {/* Turn Transition Animation */}
       <TurnTransition
         isVisible={isTransitioning}
@@ -2331,19 +2341,6 @@ export default function GameUI() {
           >
             <span className="text-lg">💾</span>
             <span className="text-sm font-medium">Save/Load</span>
-          </button>
-          <button
-            data-testid="utility-advanced-save-button"
-            className="p-3 min-w-[48px] min-h-[48px] bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all shadow-lg flex items-center justify-center gap-2"
-            onClick={() => setShowAdvancedSaveSystem(true)}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              setShowAdvancedSaveSystem(true);
-            }}
-            title="Advanced Save System"
-          >
-            <span className="text-lg">📁</span>
-            <span className="text-sm font-medium">Advanced</span>
           </button>
         </div>
       )}

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import SaveLoadMenu from '../../client/src/components/ui/SaveLoadMenu';
 import { useLocalGame } from '../../client/src/lib/stores/useLocalGame';
-import { GameState } from '../types/game';
+import { GameStateSchema, type GameState } from '../types/game';
 
 // Mock the useLocalGame hook
 vi.mock('../../client/src/lib/stores/useLocalGame');
@@ -97,7 +97,8 @@ describe('SaveLoadMenu', () => {
     
     expect(screen.getByText('Save Current Game')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Enter save name...')).toBeInTheDocument();
-    expect(screen.getByText('Save')).toBeInTheDocument();
+    expect(screen.getByText('Save to Cloud')).toBeInTheDocument();
+    expect(screen.getByText('Save on This Device')).toBeInTheDocument();
   });
 
   it('does not display save section when gameState is null', async () => {
@@ -130,7 +131,7 @@ describe('SaveLoadMenu', () => {
     const nameInput = screen.getByPlaceholderText('Enter save name...');
     
     fireEvent.change(nameInput, { target: { value: 'Test Save' } });
-    const saveButton = screen.getByLabelText('Save');
+    const saveButton = screen.getByRole('button', { name: 'Save on this device' });
     fireEvent.click(saveButton);
     
     await waitFor(() => {
@@ -210,7 +211,10 @@ describe('SaveLoadMenu', () => {
     fireEvent.click(loadButton);
     
     await waitFor(() => {
-      expect(mockLoadGameState).toHaveBeenCalledWith(mockGameState, { source: 'save_load_menu', saveId: 123 });
+      expect(mockLoadGameState).toHaveBeenCalledWith(
+        GameStateSchema.parse(mockGameState),
+        { source: 'save_load_menu', saveId: 123 },
+      );
       expect(mockProps.onClose).toHaveBeenCalled();
     });
   });
@@ -287,17 +291,12 @@ describe('SaveLoadMenu', () => {
     await renderMenu();
     
     
-    const deleteButton = screen.getAllByRole('button').find(btn => 
-      btn.querySelector('svg') && btn.classList.contains('border-red-600')
-    );
+    const deleteButton = screen.getByRole('button', { name: 'Delete' });
+    fireEvent.click(deleteButton);
     
-    if (deleteButton) {
-      fireEvent.click(deleteButton);
-      
-      await waitFor(() => {
-        expect(localStorageMock.removeItem).toHaveBeenCalledWith('chronicles_save_save_123');
-      });
-    }
+    await waitFor(() => {
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('chronicles_save_save_123');
+    });
   });
 
   it('handles corrupt save data gracefully', async () => {

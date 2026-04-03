@@ -18,6 +18,13 @@ import { markAutosaveDirty, requestAutosave } from "../autosaveManager";
 import { getUnitAnimationMoveSpeed, hasUnitAnimationState } from "../../utils/unitAnimationRegistry";
 import { useUnitAnimationEventStore } from "./useUnitAnimationEventStore";
 import {
+  INITIAL_TURN_PRESENTATION_STATE,
+  type TurnPresentationPhase,
+  type TurnPresentationState,
+  reduceTurnPresentation,
+  resolveUiTurnPlayer,
+} from "../turnPresentation";
+import {
   trackGameEnded,
   trackGameLoaded,
   trackGamePhaseChanged,
@@ -27,6 +34,7 @@ import {
   trackPlayerSetupChoices,
   type GameplayActionSource,
 } from "../../utils/telemetry/gameplayAnalytics";
+import { normalizeTurnPlayerIndex } from "@shared/logic/turnOrder";
 
 const applyPlayerDefaults = (player: PlayerState): PlayerState => {
   const normalized: PlayerState = { ...player };
@@ -79,7 +87,7 @@ interface ActionError {
 const canAct = (gameState: GameState | null, onlineSession: OnlineSession | null): boolean => {
   if (!onlineSession) return true;
   if (!gameState) return false;
-  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  const currentPlayer = resolveUiTurnPlayer(gameState);
   if (!currentPlayer) return false;
   if (currentPlayer.isAI) {
     return onlineSession.userId === onlineSession.hostUserId;
@@ -87,10 +95,36 @@ const canAct = (gameState: GameState | null, onlineSession: OnlineSession | null
   return onlineSession.myPlayerIds.includes(currentPlayer.id);
 };
 
+const getTurnPresentationPhaseForGamePhase = (
+  gamePhase: GamePhase,
+): TurnPresentationPhase | null => {
+  if (gamePhase === "handoff") return "handoff";
+  if (gamePhase === "playing" || gamePhase === "gameOver") return "idle";
+  return null;
+};
+
+const normalizeGameStateTurnPlayer = (gameState: GameState | null): GameState | null => {
+  if (!gameState || gameState.players.length === 0) return gameState;
+
+  const normalizedIndex = normalizeTurnPlayerIndex(
+    gameState.players,
+    gameState.currentPlayerIndex,
+  );
+  if (normalizedIndex < 0 || normalizedIndex === gameState.currentPlayerIndex) {
+    return gameState;
+  }
+
+  return {
+    ...gameState,
+    currentPlayerIndex: normalizedIndex,
+  };
+};
+
 interface LocalGameStore {
   gamePhase: GamePhase;
   gameMode: GameMode;
   gameState: GameState | null;
+  turnPresentation: TurnPresentationState;
   onlineSession: OnlineSession | null;
   actionError: ActionError | null;
   hostLeaseExpired: boolean;
@@ -102,6 +136,7 @@ interface LocalGameStore {
 
   setGamePhase: (phase: GamePhase) => void;
   setGameState: (state: GameState | null) => void;
+  beginTurnPresentationTransition: (player: PlayerState | null) => void;
   setOnlineSession: (session: OnlineSession) => void;
   clearOnlineSession: () => void;
   clearActionError: () => void;
@@ -180,14 +215,31 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     } as const;
   };
 
+  const syncTurnPresentation = (
+    gameState: GameState | null,
+    gamePhase: GamePhase,
+    currentTurnPresentation: TurnPresentationState,
+  ): TurnPresentationState => {
+    const presentationPhase = getTurnPresentationPhaseForGamePhase(gamePhase);
+    if (!presentationPhase) {
+      return INITIAL_TURN_PRESENTATION_STATE;
+    }
+
+    return reduceTurnPresentation(currentTurnPresentation, {
+      type: "sync",
+      gameState,
+      phase: presentationPhase,
+    });
+  };
+
   const applyActionToState = (
     action: TrackedAction,
     actionSource: GameplayActionSource,
     telemetryMeta: ActionTelemetryMeta,
   ): { applied: boolean; state?: GameState } => {
-    const { gameState } = get();
-    if (!gameState) return { applied: false };
-    const previousState = gameState;
+    const { gameState, gamePhase, turnPresentation } = get();
+    const previousState = normalizeGameStateTurnPlayer(gameState);
+    if (!previousState) return { applied: false };
     const newGameState = resolveActionState(previousState, action as any, { source: 'client' });
     if (newGameState === previousState) {
       trackGameplayActionBlocked(
@@ -333,15 +385,23 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       }
     }
 
-    set({ gameState: newGameState });
+    const normalizedNextGameState = normalizeGameStateTurnPlayer(newGameState) ?? newGameState;
+    set((state) => ({
+      gameState: normalizedNextGameState,
+      turnPresentation: syncTurnPresentation(
+        normalizedNextGameState,
+        gamePhase,
+        state.turnPresentation ?? turnPresentation,
+      ),
+    }));
     trackGameplayActionApplied(
       action,
       previousState,
-      newGameState,
+      normalizedNextGameState,
       buildActionContext(actionSource, { ...telemetryMeta, gameState: previousState })
     );
-    if (!previousState.winner && newGameState.winner) {
-      trackGameEnded({ gameState: newGameState, source: 'victory_condition' });
+    if (!previousState.winner && normalizedNextGameState.winner) {
+      trackGameEnded({ gameState: normalizedNextGameState, source: 'victory_condition' });
     }
 
     const selectionStore = useGameState.getState();
@@ -355,7 +415,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       }
     }
     markAutosaveDirty();
-    return { applied: true, state: newGameState };
+    return { applied: true, state: normalizedNextGameState };
   };
 
   let onlineActionChain = Promise.resolve();
@@ -400,7 +460,15 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       });
       if (result.applied && action.type === 'END_TURN') {
         useGameState.getState().setSelectedUnit(null);
-        set({ gamePhase: gameMode === 'tutorialEpisode' ? 'playing' : 'handoff' });
+        const nextPhase: GamePhase = gameMode === 'tutorialEpisode' ? 'playing' : 'handoff';
+        set((state) => ({
+          gamePhase: nextPhase,
+          turnPresentation: syncTurnPresentation(
+            result.state ?? state.gameState,
+            nextPhase,
+            state.turnPresentation,
+          ),
+        }));
         if (result.state) {
           requestAutosave(result.state, 'endTurn');
         }
@@ -419,7 +487,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       return;
     }
     if (!canAct(gameState, onlineSession)) {
-      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+      const currentPlayer = resolveUiTurnPlayer(gameState);
       const message = currentPlayer?.isAI
         ? "AI turn in progress. Please wait for the host to finish."
         : "It is not your turn yet.";
@@ -433,7 +501,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       return;
     }
 
-    const actorId = gameState.players[gameState.currentPlayerIndex]?.id;
+    const actorId = resolveUiTurnPlayer(gameState)?.id;
     if (!actorId) {
       trackGameplayActionBlocked(
         action,
@@ -534,6 +602,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     gamePhase: 'menu',
     gameMode: 'standard',
     gameState: null,
+    turnPresentation: INITIAL_TURN_PRESENTATION_STATE,
     onlineSession: null,
     actionError: null,
     hostLeaseExpired: false,
@@ -547,7 +616,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       const previousPhase = get().gamePhase;
       gameDebugger.trackGamePhase(phase);
       gameDebugger.logUIInteraction(`Game phase changed to: ${phase}`, { phase });
-      set({ gamePhase: phase });
+      set((state) => ({
+        gamePhase: phase,
+        turnPresentation: syncTurnPresentation(state.gameState, phase, state.turnPresentation),
+      }));
       if (previousPhase !== phase) {
         trackGamePhaseChanged(previousPhase, phase);
       }
@@ -555,7 +627,24 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     setGameState: (state) => {
       gameDebugger.logUIInteraction(`Game state updated`, { hasState: !!state });
-      set({ gameState: state });
+      const normalizedState = normalizeGameStateTurnPlayer(state);
+      set((currentState) => ({
+        gameState: normalizedState,
+        turnPresentation: syncTurnPresentation(
+          normalizedState,
+          currentState.gamePhase,
+          currentState.turnPresentation,
+        ),
+      }));
+    },
+
+    beginTurnPresentationTransition: (player) => {
+      set((state) => ({
+        turnPresentation: reduceTurnPresentation(state.turnPresentation, {
+          type: "transition",
+          player,
+        }),
+      }));
     },
 
     setOnlineSession: (session) => {
@@ -863,9 +952,15 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
           victoryType: undefined,
         };
 
+        const gamePhase: GamePhase = isOnline ? 'playing' : 'handoff';
         set({
           gameState,
-          gamePhase: isOnline ? 'playing' : 'handoff',
+          gamePhase,
+          turnPresentation: syncTurnPresentation(
+            gameState,
+            gamePhase,
+            INITIAL_TURN_PRESENTATION_STATE,
+          ),
           isGeneratingMap: false,
           gameMode: 'standard',
         });
@@ -1483,6 +1578,11 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       set({
         gameState,
         gamePhase: 'playing',
+        turnPresentation: syncTurnPresentation(
+          gameState,
+          'playing',
+          INITIAL_TURN_PRESENTATION_STATE,
+        ),
         gameMode: 'tutorialEpisode',
         isGeneratingMap: false,
       });
@@ -1541,6 +1641,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         gamePhase: 'menu',
         gameMode: 'standard',
         gameState: null,
+        turnPresentation: INITIAL_TURN_PRESENTATION_STATE,
         onlineSession: null,
         hostLeaseExpired: false,
         hostLastSeen: null,
@@ -1555,13 +1656,24 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     loadGameState: (state: GameState, options) => {
       const normalizedPlayers = state.players.map(applyPlayerDefaults);
-      const normalizedState = { ...state, players: normalizedPlayers };
+      const normalizedState = normalizeGameStateTurnPlayer({
+        ...state,
+        players: normalizedPlayers,
+      }) ?? {
+        ...state,
+        players: normalizedPlayers,
+      };
       const nextMode: GameMode = normalizedState.id?.startsWith('tutorial-episode-')
         ? 'tutorialEpisode'
         : 'standard';
       set({
         gameState: normalizedState,
         gamePhase: 'playing',
+        turnPresentation: syncTurnPresentation(
+          normalizedState,
+          'playing',
+          INITIAL_TURN_PRESENTATION_STATE,
+        ),
         isGeneratingMap: false,
         gameMode: nextMode,
       });
@@ -1586,7 +1698,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     declareWar: (targetPlayerId) => {
       const { gameState } = get();
-      const playerId = gameState?.players[gameState.currentPlayerIndex]?.id;
+      const playerId = resolveUiTurnPlayer(gameState)?.id;
       if (!playerId) return;
       if (import.meta.env.DEV) console.log('🤝 Diplomacy: DECLARE_WAR', { playerId, targetPlayerId });
       void submitAction({ type: 'DECLARE_WAR', payload: { playerId, targetPlayerId } });
@@ -1594,7 +1706,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     formAlliance: (targetPlayerId) => {
       const { gameState } = get();
-      const playerId = gameState?.players[gameState.currentPlayerIndex]?.id;
+      const playerId = resolveUiTurnPlayer(gameState)?.id;
       if (!playerId) return;
       if (import.meta.env.DEV) console.log('🤝 Diplomacy: FORM_ALLIANCE', { playerId, targetPlayerId });
       void submitAction({ type: 'FORM_ALLIANCE', payload: { playerId, targetPlayerId } });
@@ -1602,7 +1714,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     establishTradeRoute: (fromCityId, toCityId) => {
       const { gameState } = get();
-      const playerId = gameState?.players[gameState.currentPlayerIndex]?.id;
+      const playerId = resolveUiTurnPlayer(gameState)?.id;
       if (!playerId) return;
       if (import.meta.env.DEV) console.log('🤝 Diplomacy: ESTABLISH_TRADE_ROUTE', { playerId, fromCityId, toCityId });
       void submitAction({ type: 'ESTABLISH_TRADE_ROUTE', payload: { playerId, fromCityId, toCityId } });
