@@ -121,7 +121,8 @@ export function getActionAvailabilityForUnit(
   player: PlayerState,
   gameState: GameState
 ): ActionAvailabilityResult {
-  const isPlayerTurn = gameState.players[gameState.currentPlayerIndex]?.id === player.id;
+  const gameHasEnded = gameState.phase === 'ended' || Boolean(gameState.winner);
+  const isPlayerTurn = !gameHasEnded && gameState.players[gameState.currentPlayerIndex]?.id === player.id;
   const actionsRemaining = getUnitActionsRemaining(unit);
 
   const hasMovementPoints = unit.remainingMovement > 0;
@@ -187,11 +188,11 @@ export function getActionAvailabilityForUnit(
     canUseAbilities,
     hasAbilities,
     actionReasons: {
-      move: !isPlayerTurn ? 'Not your turn' : !hasMovementPoints ? 'No movement remaining' : undefined,
-      attack: !isPlayerTurn ? 'Not your turn' : actionsRemaining <= 0 ? 'No actions remaining' : undefined,
-      act: !isPlayerTurn ? 'Not your turn' : actionsRemaining <= 0 ? 'No actions remaining' : !canUseAbilities ? 'Insufficient resources' : undefined,
-      harvest: !isPlayerTurn ? 'Not your turn' : actionsRemaining <= 0 ? 'No actions remaining' : !canHarvest ? 'No resources on tile' : undefined,
-      build: !isPlayerTurn ? 'Not your turn' : actionsRemaining <= 0 ? 'No actions remaining' : !canBuild ? 'Cannot build here' : undefined,
+      move: gameHasEnded ? 'Game has ended' : !isPlayerTurn ? 'Not your turn' : !hasMovementPoints ? 'No movement remaining' : undefined,
+      attack: gameHasEnded ? 'Game has ended' : !isPlayerTurn ? 'Not your turn' : actionsRemaining <= 0 ? 'No actions remaining' : undefined,
+      act: gameHasEnded ? 'Game has ended' : !isPlayerTurn ? 'Not your turn' : actionsRemaining <= 0 ? 'No actions remaining' : !canUseAbilities ? 'Insufficient resources' : undefined,
+      harvest: gameHasEnded ? 'Game has ended' : !isPlayerTurn ? 'Not your turn' : actionsRemaining <= 0 ? 'No actions remaining' : !canHarvest ? 'No resources on tile' : undefined,
+      build: gameHasEnded ? 'Game has ended' : !isPlayerTurn ? 'Not your turn' : actionsRemaining <= 0 ? 'No actions remaining' : !canBuild ? 'Cannot build here' : undefined,
     },
     reachableTilesCount: reachableMoveTiles.length,
     attackTargetsCount: canAttackTargets.length,

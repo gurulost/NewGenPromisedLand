@@ -6,6 +6,7 @@ import { UNIT_DEFINITIONS, getUnitDefinition } from '../data/units';
 import { TECHNOLOGIES } from '../data/technologies';
 import { GAME_RULES, GameRuleHelpers } from '../data/gameRules';
 import { getFaction } from '../data/factions';
+import { getWorldElement } from '../data/worldElements';
 import { coerceFactionId } from '../types/factionId';
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '../types/city';
 import { TacticalEngine, TacticalTarget } from './aiTacticalEngine';
@@ -16,6 +17,8 @@ import { getTechCostDetails } from '../logic/technologyHelpers';
 import { calculateReachableTiles, canUnitReachCoordinate, getUnitActionsRemaining, getUnitAttackRangeFromDefinition, isPassableForUnit } from '../logic/unitLogic';
 import { resolveCombat } from '../logic/combatResolver';
 import { getFriendlyBuildAnchors, isTileExploredByPlayer, isWithinFriendlyBuildRadius, STRUCTURE_BUILD_RADIUS } from '../logic/constructionRules';
+import { canExecuteElementAction } from '../logic/worldElementActions';
+import { canUnitCaptureCity } from '../logic/cityCapture';
 import type { Technology } from '../data/technologies';
 import type { City, StructureDefinition, StructureType } from '../types/city';
 import type { Tile } from '../types/game';
@@ -27,8 +30,14 @@ export interface AIDecision {
   type:
   | 'MOVE_UNIT'
   | 'ATTACK_UNIT'
+  | 'CAPTURE_CITY'
+  | 'CONQUER_VILLAGE'
+  | 'CONVERT_VILLAGE'
+  | 'WORLD_ELEMENT_HARVEST'
+  | 'WORLD_ELEMENT_BUILD'
+  | 'EXPLORE_RUINS'
   | 'RESEARCH_TECH'
-  | 'BUILD_STRUCTURE'
+  | 'START_CONSTRUCTION'
   | 'END_TURN'
   | 'USE_ABILITY'
   | 'HEAL_UNIT'
@@ -43,6 +52,7 @@ export interface AIDecision {
   buildingType?: string;
   cityId?: string;
   abilityId?: string;
+  elementId?: string;
   constructionCategory?: 'improvements' | 'structures' | 'units';
   priority: number; // Higher = more important
 }
@@ -179,6 +189,7 @@ export class AIEngine {
   public makeDecision(): AIDecision[] {
     const startTime = performance.now();
     const decisions: AIDecision[] = [];
+    this.reservedUnits.clear();
 
     // Update AI mood based on current game state
     this.updatePersonalityMood();
@@ -187,28 +198,34 @@ export class AIEngine {
     // Generate influence map for tactical awareness
     const influenceMap = this.tacticalEngine.generateInfluenceMap();
 
-    // 1. Economy automation – execute improvement jobs before other actions
+    // 1. Immediate objective interactions should happen before drifting away.
+    decisions.push(...this.evaluateObjectiveActions());
+
+    // 2. Economy automation – execute improvement jobs before other actions
     decisions.push(...this.evaluateWorkerAutomation());
 
-    // 2. Directed exploration before combat commitments
+    // 3. Move units toward visible villages, ruins, and world elements.
+    decisions.push(...this.evaluateObjectiveMovement());
+
+    // 4. Directed exploration before combat commitments
     decisions.push(...this.evaluateExplorationGoals());
 
-    // 3. Enhanced combat evaluation with tactical engine
+    // 5. Enhanced combat evaluation with tactical engine
     decisions.push(...this.evaluateAdvancedCombat());
 
-    // 4. Intelligent movement with threat assessment
+    // 6. Intelligent movement with threat assessment
     decisions.push(...this.evaluateIntelligentMovement());
 
-    // 4.5. Naval movement - embark/sail/disembark for water crossings
+    // 6.5. Naval movement - embark/sail/disembark for water crossings
     decisions.push(...this.evaluateNavalMovement());
 
-    // 5. Personality-driven technology research
+    // 7. Personality-driven technology research
     decisions.push(...this.evaluatePersonalityTechResearch());
 
-    // 6. Faction-specific city building
+    // 8. Faction-specific city building
     decisions.push(...this.evaluateFactionCityBuilding());
 
-    // 7. Advanced unit abilities usage
+    // 9. Advanced unit abilities usage
     decisions.push(...this.evaluateAbilityUsage());
 
     // Apply personality modifiers to decisions
@@ -433,7 +450,7 @@ export class AIEngine {
     // Base priority based on tech type and AI strategy
     switch (this.difficulty) {
       case 'easy':
-        priority += Math.random() * 20; // More random decisions
+        priority += this.rng.next() * 20; // Less focused, but still deterministic
         break;
       case 'normal':
         priority += 30;
@@ -696,6 +713,387 @@ export class AIEngine {
     return decisions;
   }
 
+  private evaluateObjectiveActions(): AIDecision[] {
+    const decisions: AIDecision[] = [];
+    const myUnits = this.getMyUnits();
+    const personality = this.personalityEngine.getPersonality();
+    const preferredVictory = this.strategy.victoryProgress?.preferredType ?? personality.preferredVictory;
+    const captureCandidates = new Map<string, AIDecision>();
+
+    for (const city of this.gameState.cities || []) {
+      if (city.ownerId === this.aiPlayer.id) continue;
+
+      for (const unit of myUnits) {
+        if (!canUnitCaptureCity(this.gameState, { playerId: this.aiPlayer.id, unitId: unit.id, cityId: city.id })) {
+          continue;
+        }
+
+        const priority =
+          240 +
+          city.population * 12 +
+          (preferredVictory === 'conquest' ? 35 : 0) +
+          personality.aggression * 20;
+
+        const existing = captureCandidates.get(city.id);
+        if (!existing || priority > existing.priority) {
+          captureCandidates.set(city.id, {
+            type: 'CAPTURE_CITY',
+            unitId: unit.id,
+            cityId: city.id,
+            priority,
+          });
+        }
+      }
+    }
+
+    decisions.push(...Array.from(captureCandidates.values()));
+
+    for (const unit of myUnits) {
+      const actionsRemaining = getUnitActionsRemaining(unit);
+      if (actionsRemaining <= 0) continue;
+
+      const currentTile = this.getTileAt(unit.coordinate);
+      if (!currentTile) continue;
+
+      if (currentTile.feature === 'village' && currentTile.cityOwner !== this.aiPlayer.id) {
+        const villageDecision = this.getVillageObjectiveDecision(unit);
+        if (villageDecision) {
+          decisions.push(villageDecision);
+        }
+      }
+
+      for (const ruinTile of this.getAdjacentRuins(unit)) {
+        decisions.push({
+          type: 'EXPLORE_RUINS',
+          unitId: unit.id,
+          targetCoordinate: ruinTile.coordinate,
+          priority: 185 + personality.expansionism * 20 + (unit.type === 'scout' ? 15 : 0),
+        });
+      }
+
+      for (const elementId of this.getWorldElementIdsAtCoordinate(unit.coordinate)) {
+        const elementDecision = this.getWorldElementDecision(unit, elementId, unit.coordinate);
+        if (elementDecision) {
+          decisions.push(elementDecision);
+        }
+      }
+    }
+
+    return decisions;
+  }
+
+  private evaluateObjectiveMovement(): AIDecision[] {
+    const decisions: AIDecision[] = [];
+
+    for (const unit of this.getMyUnits()) {
+      if (this.reservedUnits.has(unit.id)) continue;
+      if (unit.remainingMovement <= 0) continue;
+
+      const objectiveMove = this.findObjectiveMovement(unit);
+      if (!objectiveMove) continue;
+
+      decisions.push({
+        type: 'MOVE_UNIT',
+        unitId: unit.id,
+        targetCoordinate: objectiveMove.target,
+        priority: objectiveMove.priority,
+      });
+      this.reservedUnits.add(unit.id);
+    }
+
+    return decisions;
+  }
+
+  private getVillageObjectiveDecision(unit: Unit): AIDecision | null {
+    const personality = this.personalityEngine.getPersonality();
+    const preferredVictory = this.strategy.victoryProgress?.preferredType ?? personality.preferredVictory;
+    const canConvert = this.aiPlayer.stats.faith >= GAME_RULES.conversion.costs.village;
+    const isMissionary = unit.type === 'missionary' || (unit.abilities || []).some(ability => String(ability).toUpperCase() === 'CONVERT');
+
+    const conquerPriority =
+      175 +
+      personality.aggression * 28 +
+      (preferredVictory === 'conquest' ? 25 : 0) +
+      (this.strategy.budget.savingForTech ? 10 : 0);
+
+    let convertPriority = Number.NEGATIVE_INFINITY;
+    if (canConvert) {
+      convertPriority =
+        170 +
+        personality.piety * 30 +
+        (preferredVictory === 'faith' ? 28 : 0) +
+        (preferredVictory === 'cultural' ? 14 : 0) +
+        (isMissionary ? 18 : 0);
+    }
+
+    if (convertPriority >= conquerPriority) {
+      return {
+        type: 'CONVERT_VILLAGE',
+        unitId: unit.id,
+        priority: convertPriority,
+      };
+    }
+
+    return {
+      type: 'CONQUER_VILLAGE',
+      unitId: unit.id,
+      priority: conquerPriority,
+    };
+  }
+
+  private getWorldElementDecision(unit: Unit, elementId: string, coordinate: HexCoordinate): AIDecision | null {
+    const element = getWorldElement(elementId);
+    if (!element) return null;
+
+    const harvestAvailable = canExecuteElementAction(
+      this.gameState,
+      this.aiPlayer.id,
+      elementId,
+      'harvest',
+      coordinate,
+      unit.id
+    ).canExecute;
+    const buildAvailable = canExecuteElementAction(
+      this.gameState,
+      this.aiPlayer.id,
+      elementId,
+      'build',
+      coordinate,
+      unit.id
+    ).canExecute;
+
+    const harvestPriority =
+      harvestAvailable && element.immediateAction
+        ? this.scoreWorldElementHarvest(elementId)
+        : Number.NEGATIVE_INFINITY;
+    const buildPriority =
+      buildAvailable && element.longTermBuild
+        ? this.scoreWorldElementBuild(elementId, coordinate)
+        : Number.NEGATIVE_INFINITY;
+
+    if (harvestPriority === Number.NEGATIVE_INFINITY && buildPriority === Number.NEGATIVE_INFINITY) {
+      return null;
+    }
+
+    if (buildPriority > harvestPriority) {
+      return {
+        type: 'WORLD_ELEMENT_BUILD',
+        unitId: unit.id,
+        elementId,
+        targetCoordinate: coordinate,
+        priority: buildPriority,
+      };
+    }
+
+    return {
+      type: 'WORLD_ELEMENT_HARVEST',
+      unitId: unit.id,
+      elementId,
+      targetCoordinate: coordinate,
+      priority: harvestPriority,
+    };
+  }
+
+  private scoreWorldElementHarvest(elementId: string): number {
+    const element = getWorldElement(elementId);
+    const action = element?.immediateAction;
+    if (!element || !action) return Number.NEGATIVE_INFINITY;
+
+    const personality = this.personalityEngine.getPersonality();
+    const preferredVictory = this.strategy.victoryProgress?.preferredType ?? personality.preferredVictory;
+    let score =
+      165 +
+      action.starsDelta * 14 +
+      action.popDelta * 12 +
+      action.faithDelta * (10 + personality.piety * 10) +
+      action.prideDelta * Math.max(2, (1 - personality.piety) * 8) -
+      action.dissentDelta * 8;
+
+    if (this.strategy.budget.savingForTech) {
+      score += action.starsDelta * 12;
+    }
+    if (preferredVictory === 'faith') {
+      score += action.faithDelta * 12;
+    }
+    if (preferredVictory === 'cultural') {
+      score += action.popDelta * 10;
+    }
+    if (elementId === 'jaredite_ruins') {
+      score += 35;
+    }
+
+    return score;
+  }
+
+  private scoreWorldElementBuild(elementId: string, coordinate: HexCoordinate): number {
+    const element = getWorldElement(elementId);
+    const build = element?.longTermBuild;
+    if (!element || !build) return Number.NEGATIVE_INFINITY;
+
+    const personality = this.personalityEngine.getPersonality();
+    const preferredVictory = this.strategy.victoryProgress?.preferredType ?? personality.preferredVictory;
+    const markerPrefix = `we:${elementId}:`;
+    const tile = this.getTileAt(coordinate);
+    const existingMarker = (tile?.resources || []).find(resource => String(resource).startsWith(markerPrefix));
+    const baseMarker = `${markerPrefix}${build.name}`;
+    const upgrade = build.upgrade && existingMarker === baseMarker ? build.upgrade : undefined;
+    const popDelta = upgrade ? upgrade.effectPermanent.popDelta : build.effectPermanent.popDelta;
+    const starsPerTurn = upgrade ? upgrade.effectPermanent.starsPerTurn : build.effectPermanent.starsPerTurn;
+    const faithDelta = build.faithDelta;
+    const buildCost = upgrade ? (upgrade.costStars || 0) : build.costStars;
+
+    let score =
+      155 +
+      popDelta * 16 +
+      starsPerTurn * 20 +
+      faithDelta * 10 -
+      buildCost * (this.strategy.budget.savingForTech ? 6 : 3);
+
+    if (preferredVictory === 'economic') {
+      score += starsPerTurn * 14;
+    }
+    if (preferredVictory === 'cultural') {
+      score += popDelta * 12;
+    }
+    if (preferredVictory === 'faith') {
+      score += faithDelta * 12;
+    }
+
+    return score;
+  }
+
+  private findObjectiveMovement(unit: Unit): { target: HexCoordinate; priority: number } | null {
+    const reachable = this.getReachableTiles(unit).filter(coordinate =>
+      !this.isTileOccupiedByFriendly(coordinate, unit.playerId) &&
+      !this.isTileOccupiedByEnemy(coordinate, unit.playerId)
+    );
+    if (!reachable.length) return null;
+
+    const candidates: Array<{ coordinate: HexCoordinate; priority: number }> = [];
+
+    for (const tile of this.gameState.map.tiles) {
+      if (!tile.exploredBy.includes(this.aiPlayer.id)) continue;
+
+      if (tile.feature === 'village' && tile.cityOwner !== this.aiPlayer.id) {
+        const canConvert = this.aiPlayer.stats.faith >= GAME_RULES.conversion.costs.village;
+        const villagePriority =
+          120 +
+          (tile.cityOwner ? 8 : 18) +
+          (canConvert ? 6 : 0) +
+          (unit.type === 'missionary' ? 15 : 0);
+        candidates.push({ coordinate: tile.coordinate, priority: villagePriority });
+      }
+
+      if (tile.feature === 'ruin') {
+        candidates.push({
+          coordinate: tile.coordinate,
+          priority: 118 + (unit.type === 'scout' ? 15 : 0),
+        });
+      }
+
+      for (const elementId of this.getWorldElementIdsAtCoordinate(tile.coordinate)) {
+        if (!this.canUnitPursueWorldElement(unit, elementId, tile.coordinate)) continue;
+        const buildPriority = this.scoreWorldElementBuild(elementId, tile.coordinate);
+        const harvestPriority = this.scoreWorldElementHarvest(elementId);
+        candidates.push({
+          coordinate: tile.coordinate,
+          priority: Math.max(buildPriority, harvestPriority) - 18,
+        });
+      }
+    }
+
+    let bestMove: { target: HexCoordinate; priority: number } | null = null;
+    for (const candidate of candidates) {
+      const currentDistance = hexDistance(unit.coordinate, candidate.coordinate);
+      if (currentDistance === 0) continue;
+
+      for (const coordinate of reachable) {
+        const nextDistance = hexDistance(coordinate, candidate.coordinate);
+        if (nextDistance >= currentDistance) continue;
+
+        const priority =
+          candidate.priority -
+          nextDistance * 8 +
+          (nextDistance === 0 ? 18 : 0) +
+          (coordinate.q === candidate.coordinate.q && coordinate.r === candidate.coordinate.r ? 12 : 0);
+
+        if (!bestMove || priority > bestMove.priority) {
+          bestMove = { target: coordinate, priority };
+        }
+      }
+    }
+
+    return bestMove;
+  }
+
+  private canUnitPursueWorldElement(unit: Unit, elementId: string, coordinate: HexCoordinate): boolean {
+    const element = getWorldElement(elementId);
+    if (!element) return false;
+    if (element.techPrerequisite && !this.aiPlayer.researchedTechs.includes(element.techPrerequisite)) {
+      return false;
+    }
+
+    if (element.immediateAction) {
+      const simulatedState = this.withUnitAtCoordinate(unit, coordinate);
+      if (canExecuteElementAction(simulatedState, this.aiPlayer.id, elementId, 'harvest', coordinate, unit.id).canExecute) {
+        return true;
+      }
+    }
+
+    if (element.longTermBuild) {
+      const simulatedState = this.withUnitAtCoordinate(unit, coordinate);
+      return canExecuteElementAction(simulatedState, this.aiPlayer.id, elementId, 'build', coordinate, unit.id).canExecute;
+    }
+
+    return false;
+  }
+
+  private withUnitAtCoordinate(unit: Unit, coordinate: HexCoordinate): GameState {
+    return {
+      ...this.gameState,
+      units: this.gameState.units.map(candidate =>
+        candidate.id === unit.id
+          ? { ...candidate, coordinate: { ...coordinate } }
+          : candidate
+      ),
+    };
+  }
+
+  private getAdjacentRuins(unit: Unit): Tile[] {
+    return (this.gameState.map.tiles || []).filter(tile =>
+      tile.feature === 'ruin' &&
+      hexDistance(unit.coordinate, tile.coordinate) <= 1
+    );
+  }
+
+  private getTileAt(coordinate: HexCoordinate): Tile | undefined {
+    return this.gameState.map.tiles.find(tile =>
+      tile.coordinate.q === coordinate.q && tile.coordinate.r === coordinate.r
+    );
+  }
+
+  private getWorldElementIdsAtCoordinate(coordinate: HexCoordinate): string[] {
+    const tile = this.getTileAt(coordinate);
+    if (!tile) return [];
+
+    const ids = new Set<string>();
+    if (tile.feature) {
+      const featureId = String(tile.feature);
+      if (getWorldElement(featureId)) {
+        ids.add(featureId);
+      }
+    }
+
+    for (const resource of tile.resources || []) {
+      const resourceId = String(resource);
+      if (getWorldElement(resourceId)) {
+        ids.add(resourceId);
+      }
+    }
+
+    return Array.from(ids);
+  }
+
   private evaluateWorkerAutomation(): AIDecision[] {
     const decisions: AIDecision[] = [];
     const jobs = this.strategy.improvementJobs;
@@ -747,7 +1145,7 @@ export class AIEngine {
       const distance = hexDistance(worker.coordinate, job.coordinate);
       if (distance === 0) {
         decisions.push({
-          type: 'BUILD_STRUCTURE',
+          type: 'START_CONSTRUCTION',
           buildingType: job.improvementId,
           cityId: job.cityId,
           constructionCategory: 'improvements',
@@ -954,7 +1352,7 @@ export class AIEngine {
         }
 
         const decision: AIDecision = {
-          type: 'BUILD_STRUCTURE',
+          type: 'START_CONSTRUCTION',
           buildingType: plan.optionId,
           cityId: city.id,
           constructionCategory: plan.category,
@@ -1249,7 +1647,7 @@ export class AIEngine {
 
       const priority = 50 + benefit * 5 - struct.cost;
       decisions.push({
-        type: 'BUILD_STRUCTURE',
+        type: 'START_CONSTRUCTION',
         cityId: city.id,
         buildingType: struct.id,
         constructionCategory: 'structures',
@@ -1290,7 +1688,7 @@ export class AIEngine {
           imp.cost;
 
         decisions.push({
-          type: 'BUILD_STRUCTURE',
+          type: 'START_CONSTRUCTION',
           cityId: city.id,
           buildingType: imp.id,
           constructionCategory: 'improvements',
@@ -2535,7 +2933,19 @@ export class AIEngine {
   // Helper methods
 
   private generateSeed(): number {
-    return Date.now() + parseInt(this.aiPlayer.id) * 1000;
+    const turn = typeof this.gameState.turn === 'number' ? this.gameState.turn : 0;
+    const baseSeed = this.gameState.rngSeed ?? 0;
+    const playerHash = this.hashString(this.aiPlayer.id);
+    return (baseSeed ^ Math.imul(turn + 1, 2654435761) ^ Math.imul(this.gameState.currentPlayerIndex + 1, 2246822519) ^ playerHash) >>> 0;
+  }
+
+  private hashString(value: string): number {
+    let hash = 0;
+    for (let i = 0; i < value.length; i++) {
+      hash = Math.imul(hash, 31) + value.charCodeAt(i);
+      hash |= 0;
+    }
+    return hash >>> 0;
   }
 
   private getMaxActionsPerTurn(): number {

@@ -14,6 +14,7 @@ import { computeUnitPassiveEffectsForPlayer } from "../unitPassiveEffects";
 import { nextId } from "../rng";
 import { clamp01 } from "../../utils/math";
 import { applyMoralDelta, clampStat, pickWeightedIndex } from "./helpers";
+import { applyYieldModifiers, getPlayerYieldModifiers, tickActiveEffectsForPlayer } from "../activeEffects";
 import { getUnitSpawnCoordinate } from "./spawnUtils";
 import { applyStatusEffect } from "../statusEffects";
 import { onTurnStartUnit } from "../effects";
@@ -107,7 +108,7 @@ function getValidTradeRoutes(state: GameState, player: PlayerState): TradeRoute[
   });
 }
 
-function calculatePlayerStarIncome(
+export function calculatePlayerStarIncome(
   state: GameState,
   player: PlayerState,
   options?: {
@@ -171,7 +172,54 @@ function calculatePlayerStarIncome(
 
   starIncome += unitPassive.perTurn.stars || 0;
 
-  return starIncome;
+  return applyYieldModifiers(starIncome, getPlayerYieldModifiers(state, player.id, 'stars'));
+}
+
+export function calculatePlayerFaithGeneration(
+  state: GameState,
+  player: PlayerState,
+  options?: {
+    unitPassive?: UnitPassiveEffects;
+    statsOverride?: PlayerState['stats'];
+  }
+): number {
+  const stats = options?.statsOverride ?? player.stats;
+  const unitPassive = options?.unitPassive ?? computeUnitPassiveEffectsForPlayer(state, player.id, stats);
+  const playerCities = player.citiesOwned.length;
+
+  const baseFaith = GameRuleHelpers.calculateFaithGeneration(playerCities);
+
+  const faithFromStructures = (state.structures || [])
+    .filter(s => s.ownerId === player.id && s.constructionTurns === 0)
+    .reduce((sum, s) => {
+      const def = STRUCTURE_DEFINITIONS[s.type as keyof typeof STRUCTURE_DEFINITIONS];
+      return sum + (s.effects?.faithProduction ?? def?.effects?.faithProduction ?? 0);
+    }, 0);
+
+  const faithFromImprovements = (state.improvements || [])
+    .filter(imp => imp.ownerId === player.id && imp.constructionTurns === 0)
+    .reduce((sum, imp) => {
+      const def = IMPROVEMENT_DEFINITIONS[imp.type as keyof typeof IMPROVEMENT_DEFINITIONS];
+      return sum + (def?.effects?.faithProduction ?? 0);
+    }, 0);
+
+  const missionaries = state.units.filter(u =>
+    u.playerId === player.id &&
+    u.type === 'missionary'
+  ).length;
+  const missionaryFaith = Math.min(
+    missionaries * GAME_RULES.resources.faithPerMissionary,
+    GAME_RULES.resources.maxMissionaryFaithBonus
+  );
+
+  const faithGeneration =
+    baseFaith +
+    faithFromStructures +
+    faithFromImprovements +
+    missionaryFaith +
+    (unitPassive.perTurn.faith || 0);
+
+  return applyYieldModifiers(faithGeneration, getPlayerYieldModifiers(state, player.id, 'faith'));
 }
 
 function getPlayerPopulation(state: GameState, playerId: string): number {
@@ -226,6 +274,8 @@ export function handleEndTurn(
   state: GameState,
   payload: { playerId: string }
 ): GameState {
+  if (state.phase === 'ended') return state;
+
   const currentPlayerIndex = normalizeTurnPlayerIndex(state.players, state.currentPlayerIndex);
   const currentPlayer = currentPlayerIndex >= 0 ? state.players[currentPlayerIndex] : undefined;
   if (!currentPlayer) return state;
@@ -259,44 +309,11 @@ export function handleEndTurn(
       });
 
       // Resource generation from cities and improvements using centralized rules
-      const playerCities = player.citiesOwned.length;
-
-      // Faith income is data-driven from structure/improvement effects (plus a small missionary presence bonus).
-      const baseFaith = GameRuleHelpers.calculateFaithGeneration(playerCities);
-
       const unitPassive = computeUnitPassiveEffectsForPlayer(state, player.id, updatedStats);
-
-      const faithFromStructures = (state.structures || [])
-        .filter(s => s.ownerId === player.id && s.constructionTurns === 0)
-        .reduce((sum, s) => {
-          const def = STRUCTURE_DEFINITIONS[s.type as keyof typeof STRUCTURE_DEFINITIONS];
-          return sum + (s.effects?.faithProduction ?? def?.effects?.faithProduction ?? 0);
-        }, 0);
-
-      const faithFromImprovements = (state.improvements || [])
-        .filter(imp => imp.ownerId === player.id && imp.constructionTurns === 0)
-        .reduce((sum, imp) => {
-          const def = IMPROVEMENT_DEFINITIONS[imp.type as keyof typeof IMPROVEMENT_DEFINITIONS];
-          return sum + (def?.effects?.faithProduction ?? 0);
-        }, 0);
-
-      // Missionary presence bonus: +1 per missionary (capped)
-      const missionaries = state.units.filter(u =>
-        u.playerId === player.id &&
-        u.type === 'missionary'
-      ).length;
-      const missionaryFaith = Math.min(
-        missionaries * GAME_RULES.resources.faithPerMissionary,
-        GAME_RULES.resources.maxMissionaryFaithBonus
-      );
-
-      // Calculate base income from cities using Polytopia-style mechanics
-      const faithGeneration =
-        baseFaith +
-        faithFromStructures +
-        faithFromImprovements +
-        missionaryFaith +
-        (unitPassive.perTurn.faith || 0);
+      const faithGeneration = calculatePlayerFaithGeneration(state, player, {
+        unitPassive,
+        statsOverride: updatedStats,
+      });
 
       // Trade route income: persistent per-turn income, and validated (routes can disappear if the network breaks).
       const validTradeRoutes = getValidTradeRoutes(state, player);
@@ -511,6 +528,7 @@ export function handleEndTurn(
   let updatedUnits = [...state.units];
   let updatedImprovements = [...(state.improvements || [])];
   let updatedStructures = [...(state.structures || [])];
+  let updatedActiveEffects = [...(state.activeEffects || [])];
 
   updatedPlayers.forEach(player => {
     if ((player as any).completedConstructions) {
@@ -532,7 +550,6 @@ export function handleEndTurn(
               spawnState,
               construction.type as UnitType,
               city.coordinate,
-              construction.playerId,
               construction.coordinate
             );
             if (!spawnCoordinate) return;
@@ -645,11 +662,22 @@ export function handleEndTurn(
     };
   });
 
+  updatedActiveEffects = tickActiveEffectsForPlayer({
+    ...state,
+    players: updatedPlayers,
+    units: updatedUnits,
+    improvements: updatedImprovements,
+    structures: updatedStructures,
+    cities: updatedCities,
+    activeEffects: updatedActiveEffects,
+  }, currentPlayer.id).activeEffects || [];
+
   // Calculate next player and turn
   const nextPlayerIndex = findNextTurnPlayerIndex(updatedPlayers, currentPlayerIndex);
   const nextPlayer = nextPlayerIndex >= 0 ? updatedPlayers[nextPlayerIndex] : undefined;
   if (!nextPlayer) return state;
-  const isNewTurn = nextPlayerIndex === 0;
+  const firstActivePlayerIndex = normalizeTurnPlayerIndex(updatedPlayers, 0);
+  const isNewTurn = firstActivePlayerIndex >= 0 && nextPlayerIndex === firstActivePlayerIndex;
 
   // Apply desertion removal after end-of-turn effects resolve
   if (pendingDesertedUnitId) {
@@ -697,6 +725,16 @@ export function handleEndTurn(
     return u;
   });
 
+  const getEffectEvaluationState = (): GameState => ({
+    ...state,
+    units: updatedUnits,
+    players: updatedPlayers,
+    improvements: updatedImprovements,
+    structures: updatedStructures,
+    cities: updatedCities,
+    activeEffects: updatedActiveEffects,
+  });
+
   // === Testimony Pressure (Missionaries) ===
   // Nephite / Anti-Nephi-Lehi missionaries can weaken adjacent enemy *military* units:
   // - temporary attack penalty
@@ -740,7 +778,7 @@ export function handleEndTurn(
           turnsRemaining: durationTurns,
           attackPenalty: penalty,
           sourcePlayerId: currentPlayer.id
-        });
+        }, getEffectEvaluationState());
 
         if (!withEffect) return u;
 
@@ -801,7 +839,7 @@ export function handleEndTurn(
           type: 'INTIMIDATED',
           turnsRemaining: durationTurns,
           sourcePlayerId: currentPlayer.id,
-        });
+        }, getEffectEvaluationState());
 
         if (!withEffect) return u;
 
@@ -832,6 +870,7 @@ export function handleEndTurn(
     improvements: updatedImprovements,
     structures: updatedStructures,
     cities: updatedCities,
+    activeEffects: updatedActiveEffects,
   };
   const victory = checkVictoryConditions(victoryState, updatedPlayers, { turnOverride: nextTurnValue });
 
@@ -842,8 +881,10 @@ export function handleEndTurn(
     improvements: updatedImprovements,
     structures: updatedStructures,
     cities: updatedCities,
+    activeEffects: updatedActiveEffects,
     currentPlayerIndex: nextPlayerIndex,
     turn: nextTurnValue,
+    phase: victory ? 'ended' : state.phase,
     winner: victory?.winnerId,
     victoryType: victory?.victoryType,
     rngSeed,

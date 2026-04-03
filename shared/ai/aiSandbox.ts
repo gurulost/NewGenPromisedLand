@@ -6,6 +6,7 @@
 import { GameState, PlayerState } from '../types/game';
 import { AIEngine, AIDifficulty } from './aiEngine';
 import { SeededRNG, AILogger, aiPerformanceMonitor } from './aiFoundation';
+import { findNextTurnPlayerIndex, getTurnPlayer, normalizeTurnPlayerIndex } from '../logic/turnOrder';
 // Note: Using simplified game state for sandbox testing
 
 /**
@@ -48,6 +49,7 @@ function createInitialGameState(players: PlayerState[], mapSize: string): GameSt
     cities: [],
     improvements: [],
     structures: [],
+    activeEffects: [],
     map: {
       width: size.width,
       height: size.height,
@@ -277,7 +279,7 @@ export class AISandbox {
       case 'RESEARCH_TECH':
         this.log(`  Researching technology ${decision.techId}`, 'verbose');
         break;
-      case 'BUILD_STRUCTURE':
+      case 'START_CONSTRUCTION':
         this.log(`  Building ${decision.buildingType} in city ${decision.cityId}`, 'verbose');
         break;
     }
@@ -302,13 +304,17 @@ export class AISandbox {
    * Helper methods
    */
   private getCurrentPlayer(): PlayerState | undefined {
-    return this.gameState.players[this.gameState.currentPlayerIndex];
+    return getTurnPlayer(this.gameState.players, this.gameState.currentPlayerIndex) ?? undefined;
   }
 
   private advanceToNextPlayer(): void {
-    const nextIndex = (this.gameState.currentPlayerIndex + 1) % this.gameState.players.length;
+    const nextIndex = findNextTurnPlayerIndex(
+      this.gameState.players,
+      this.gameState.currentPlayerIndex,
+    );
+    const firstActivePlayerIndex = normalizeTurnPlayerIndex(this.gameState.players, 0);
 
-    if (nextIndex === 0) {
+    if (firstActivePlayerIndex >= 0 && nextIndex === firstActivePlayerIndex) {
       this.gameState.turn++;
     }
 

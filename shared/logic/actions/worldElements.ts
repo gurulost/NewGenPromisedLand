@@ -1,17 +1,18 @@
 import { GameState } from "../../types/game";
-import { UnitType } from "../../types/unit";
+import type { Unit, UnitType } from "../../types/unit";
 import { HexCoordinate } from "../../types/coordinates";
 import { GAME_RULES } from "../../data/gameRules";
 import { TECHNOLOGIES } from "../../data/technologies";
 import { getUnitDefinition } from "../../data/units";
 import { getWorldElement } from "../../data/worldElements";
 import type { RuinReward } from "../../data/worldElements";
-import type { RuinsReward } from "../../data/ruinsRewards";
+import { getRandomRuinsReward, type RuinsReward } from "../../data/ruinsRewards";
 import { hexDistance } from "../../utils/hex";
 import { applyPopulationGain } from "../cityGrowth";
 import { executeElementHarvest, executeElementBuild } from "../worldElementActions";
 import { nextFloat, nextId } from "../rng";
 import { getUnitActionsRemaining, spendUnitActions } from "../unitLogic";
+import { createResolveResult, createRuinsRewardEvent, type ResolveResult } from "../actionResolution";
 
 const isNavalTransportUnit = (unit: { type: string; abilities?: string[] }) =>
   unit.type === "boat" ||
@@ -204,11 +205,11 @@ export function handleConvertVillage(
 export function handleExploreRuins(
   state: GameState,
   payload: { unitId: string; playerId: string; coordinate: any; randomSeed?: number }
-): GameState {
+): ResolveResult {
   const { unitId, playerId, coordinate } = payload;
 
   const unit = state.units.find(u => u.id === unitId);
-  if (!unit || unit.playerId !== playerId) return state;
+  if (!unit || unit.playerId !== playerId) return createResolveResult(state);
 
   const ruinsTile = state.map.tiles.find(tile =>
     tile.coordinate.q === coordinate.q &&
@@ -216,7 +217,7 @@ export function handleExploreRuins(
     tile.feature === "ruin"
   );
 
-  if (!ruinsTile) return state;
+  if (!ruinsTile) return createResolveResult(state);
 
   const distance = Math.max(
     Math.abs(unit.coordinate.q - coordinate.q),
@@ -224,9 +225,7 @@ export function handleExploreRuins(
     Math.abs((unit.coordinate.s || -unit.coordinate.q - unit.coordinate.r) - (coordinate.s || -coordinate.q - coordinate.r))
   );
 
-  if (distance > 1) return state;
-
-  const { getRandomRuinsReward } = require("../../data/ruinsRewards");
+  if (distance > 1) return createResolveResult(state);
 
   let rngSeed = state.rngSeed ?? 0;
   const rewardRoll = nextFloat(rngSeed);
@@ -234,7 +233,7 @@ export function handleExploreRuins(
   const reward = getRandomRuinsReward(rewardRoll.value);
 
   const player = state.players.find(p => p.id === playerId);
-  if (!player) return state;
+  if (!player) return createResolveResult(state);
 
   const updatedPlayers = state.players.map(p => {
     if (p.id !== playerId) return p;
@@ -265,9 +264,9 @@ export function handleExploreRuins(
   if (reward.unitType) {
     const unitIdResult = nextId(rngSeed, "unit");
     rngSeed = unitIdResult.seed;
-    const newUnit = {
+    const newUnit: Unit = {
       id: unitIdResult.id,
-      type: reward.unitType,
+      type: reward.unitType as UnitType,
       playerId: playerId,
       coordinate: { ...coordinate },
       hp: 10,
@@ -301,17 +300,11 @@ export function handleExploreRuins(
     return tile;
   });
 
-  if (typeof window !== "undefined") {
-    const rewardForUi = reward.unitType
-      ? { ...reward, unitName: getUnitDefinition(reward.unitType as UnitType)?.name }
-      : reward;
-    const rewardEvent = new CustomEvent("ruinsReward", {
-      detail: { reward: rewardForUi, coordinate }
-    });
-    window.dispatchEvent(rewardEvent);
-  }
+  const rewardForPresentation = reward.unitType
+    ? { ...reward, unitName: getUnitDefinition(reward.unitType as UnitType)?.name }
+    : reward;
 
-  return {
+  return createResolveResult({
     ...state,
     map: {
       ...state.map,
@@ -320,10 +313,15 @@ export function handleExploreRuins(
     players: updatedPlayers,
     units: updatedUnits,
     rngSeed
-  };
+  }, {
+    events: [createRuinsRewardEvent({
+      reward: rewardForPresentation,
+      coordinate: { ...coordinate },
+    })],
+  });
 }
 
-function buildRuinsUiRewardFromWorldElement(
+function buildRuinsRewardFromWorldElement(
   reward: RuinReward,
   resourceDeltas: { stars: number; faith: number; population?: number }
 ): RuinsReward {
@@ -411,14 +409,14 @@ function buildRuinsUiRewardFromWorldElement(
 export function handleWorldElementHarvest(
   state: GameState,
   payload: { playerId: string; unitId: string; elementId: string; coordinate: HexCoordinate }
-): GameState {
+): ResolveResult {
   const unit = state.units.find(u => u.id === payload.unitId);
-  if (!unit || unit.playerId !== payload.playerId) return state;
-  if (unit.coordinate.q !== payload.coordinate.q || unit.coordinate.r !== payload.coordinate.r) return state;
-  if (getUnitActionsRemaining(unit) <= 0) return state;
+  if (!unit || unit.playerId !== payload.playerId) return createResolveResult(state);
+  if (unit.coordinate.q !== payload.coordinate.q || unit.coordinate.r !== payload.coordinate.r) return createResolveResult(state);
+  if (getUnitActionsRemaining(unit) <= 0) return createResolveResult(state);
 
   const element = getWorldElement(payload.elementId);
-  if (!element) return state;
+  if (!element) return createResolveResult(state);
 
   const requiredTag = element.immediateAction?.requiresUnitTag;
   if (requiredTag) {
@@ -427,9 +425,9 @@ export function handleWorldElementHarvest(
         unit.type === "commander" &&
         (unit.abilities || []).some(a => String(a).toUpperCase() === "NAVAL_COMMAND")) ||
       (requiredTag === "naval_transport" && isNavalTransportUnit(unit));
-    if (!canActAsTag) return state;
+    if (!canActAsTag) return createResolveResult(state);
   } else if (payload.elementId !== "jaredite_ruins") {
-    if (unit.type !== "worker") return state;
+    if (unit.type !== "worker") return createResolveResult(state);
   }
 
   let rngSeed = state.rngSeed ?? 0;
@@ -441,26 +439,26 @@ export function handleWorldElementHarvest(
   const result = executeElementHarvest(state, payload.playerId, payload.elementId, payload.coordinate, rand);
 
   if (result.success && result.newState) {
-    if (typeof window !== "undefined" && result.effects?.ruinReward) {
-      const uiReward = buildRuinsUiRewardFromWorldElement(
-        result.effects.ruinReward,
-        result.resourceDeltas
-      );
-      window.dispatchEvent(new CustomEvent("ruinsReward", {
-        detail: { reward: uiReward, coordinate: payload.coordinate }
-      }));
-    }
+    const events = result.effects?.ruinReward
+      ? [createRuinsRewardEvent({
+        reward: buildRuinsRewardFromWorldElement(
+          result.effects.ruinReward,
+          result.resourceDeltas
+        ),
+        coordinate: { ...payload.coordinate },
+      })]
+      : [];
 
-    return {
+    return createResolveResult({
       ...result.newState,
       rngSeed,
       units: result.newState.units.map(u =>
         u.id === payload.unitId ? spendUnitActions(u) : u
       )
-    };
+    }, { events });
   }
 
-  return state;
+  return createResolveResult(state);
 }
 
 export function handleWorldElementBuild(

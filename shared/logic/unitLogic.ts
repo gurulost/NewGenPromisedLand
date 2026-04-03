@@ -12,6 +12,8 @@ import { getVisibleTilesInRange } from "../utils/lineOfSight";
  */
 
 const normalizeAbility = (abilityId: string) => abilityId.toUpperCase();
+const coordinatesMatch = (left: HexCoordinate, right: HexCoordinate) =>
+  left.q === right.q && left.r === right.r && left.s === right.s;
 export const unitHasAbility = (unit: Unit, abilityId: string) =>
   (unit.abilities || []).some(ability => normalizeAbility(String(ability)) === normalizeAbility(abilityId));
 const unitHasBombardment = (unit: Unit) =>
@@ -93,6 +95,12 @@ export function isPassableForUnit(
   );
   
   if (!tile) return false;
+
+  // The acting unit must always be able to stand on its current tile so
+  // pathfinding can recover even if an older save already contains a stack.
+  if (unit && coordinatesMatch(unit.coordinate, coordinate)) {
+    return true;
+  }
   
   const isNaval = isNavalUnit(unit);
   const isAmphibious = isAmphibiousUnit(unit);
@@ -113,19 +121,11 @@ export function isPassableForUnit(
   // Allow movement to unexplored tiles (units can explore new areas)
   // Units should be able to move to and explore adjacent unexplored tiles
   
-  // Check for units on the target tile
-  const unitOnTile = gameState.units.find(u => 
-    u.coordinate.q === coordinate.q && 
-    u.coordinate.r === coordinate.r &&
-    u.coordinate.s === coordinate.s
+  // The rest of the game assumes a single occupier per tile.
+  const blockingUnit = gameState.units.some(u =>
+    u.id !== unit?.id && coordinatesMatch(u.coordinate, coordinate)
   );
-  
-  if (unitOnTile) {
-    // Can't move to tiles with enemy units
-    if (unit && unitOnTile.playerId !== unit.playerId) return false;
-    // Allow friendly units to stack on the same tile
-    // This is common in many strategy games for tactical positioning
-  }
+  if (blockingUnit) return false;
   
   // Additional unit-specific checks could be added here
   // (e.g., naval units can pass through water, flying units over mountains)

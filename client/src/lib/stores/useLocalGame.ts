@@ -2,7 +2,12 @@ import { create } from "zustand";
 import { GameState, PlayerState } from "@shared/types/game";
 import type { HexCoordinate } from "@shared/types/coordinates";
 import { hexDistance } from "@shared/utils/hex";
-import { resolveActionState } from "@shared/logic/resolveAction";
+import { resolveAction } from "@shared/logic/resolveAction";
+import {
+  isRuinsRewardEvent,
+  isVillageEncounterEvent,
+  type ResolveResult,
+} from "@shared/logic/actionResolution";
 import { findPathAsync } from "../pathfindingClient";
 import { buildPathfindingInputs } from "../pathfindingInputs";
 import { MapGenerator, MapSize, MAP_SIZE_CONFIGS } from "@shared/utils/mapGenerator";
@@ -87,6 +92,7 @@ interface ActionError {
 const canAct = (gameState: GameState | null, onlineSession: OnlineSession | null): boolean => {
   if (!onlineSession) return true;
   if (!gameState) return false;
+  if (gameState.phase === 'ended' || gameState.winner) return false;
   const currentPlayer = resolveUiTurnPlayer(gameState);
   if (!currentPlayer) return false;
   if (currentPlayer.isAI) {
@@ -170,6 +176,7 @@ interface LocalGameStore {
   harvestResource: (unitId: string, resourceCoordinate: any, cityId: string) => void;
   declareWar: (targetPlayerId: string) => void;
   formAlliance: (targetPlayerId: string) => void;
+  breakAlliance: (targetPlayerId: string) => void;
   establishTradeRoute: (fromCityId: string, toCityId: string) => void;
 }
 
@@ -215,6 +222,21 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     } as const;
   };
 
+  const dispatchClientResolveEvents = (resolution: ResolveResult): void => {
+    if (typeof window === "undefined" || resolution.events.length === 0) return;
+
+    for (const event of resolution.events) {
+      if (isVillageEncounterEvent(event)) {
+        window.dispatchEvent(new CustomEvent('villageEncounter', { detail: event.payload }));
+        continue;
+      }
+
+      if (isRuinsRewardEvent(event)) {
+        window.dispatchEvent(new CustomEvent('ruinsReward', { detail: event.payload }));
+      }
+    }
+  };
+
   const syncTurnPresentation = (
     gameState: GameState | null,
     gamePhase: GamePhase,
@@ -240,8 +262,13 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     const { gameState, gamePhase, turnPresentation } = get();
     const previousState = normalizeGameStateTurnPlayer(gameState);
     if (!previousState) return { applied: false };
-    const newGameState = resolveActionState(previousState, action as any, { source: 'client' });
-    if (newGameState === previousState) {
+    const resolution = resolveAction(previousState, action as any, { source: 'client' });
+    const newGameState = resolution.state;
+    if (
+      newGameState === previousState &&
+      resolution.events.length === 0 &&
+      resolution.messages.length === 0
+    ) {
       trackGameplayActionBlocked(
         action,
         'rules_rejected',
@@ -346,19 +373,22 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     if (action.type === 'CAPTURE_CITY') {
       const playerId = action.payload?.playerId;
+      const unitId = action.payload?.unitId;
       const cityId = action.payload?.cityId;
       if (playerId && cityId) {
         const city = previousState.cities?.find(c => c.id === cityId);
         if (city) {
-          const celebratingUnit = previousState.units.find(u =>
-            u.playerId === playerId &&
-            hasUnitAnimationState(u.type, 'celebrate') &&
-            Math.max(
-              Math.abs(u.coordinate.q - city.coordinate.q),
-              Math.abs(u.coordinate.r - city.coordinate.r),
-              Math.abs((u.coordinate.s || -u.coordinate.q - u.coordinate.r) - (city.coordinate.s || -city.coordinate.q - city.coordinate.r))
-            ) <= 1
-          );
+          const celebratingUnit = unitId
+            ? previousState.units.find(u => u.id === unitId && hasUnitAnimationState(u.type, 'celebrate'))
+            : previousState.units.find(u =>
+              u.playerId === playerId &&
+              hasUnitAnimationState(u.type, 'celebrate') &&
+              Math.max(
+                Math.abs(u.coordinate.q - city.coordinate.q),
+                Math.abs(u.coordinate.r - city.coordinate.r),
+                Math.abs((u.coordinate.s || -u.coordinate.q - u.coordinate.r) - (city.coordinate.s || -city.coordinate.q - city.coordinate.r))
+              ) <= 1
+            );
           if (celebratingUnit) {
             emitCelebrate(celebratingUnit.id, celebratingUnit.type, 3);
           }
@@ -367,14 +397,14 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     }
 
     const celebrationActions = new Set([
-      'BUILD_IMPROVEMENT',
+      'START_CONSTRUCTION',
       'HARVEST_RESOURCE',
       'BUILD_ROAD',
       'CLEAR_FOREST',
     ]);
 
     if (celebrationActions.has(action.type)) {
-      const unitId = action.payload?.unitId;
+      const unitId = action.payload?.unitId ?? action.payload?.builderUnitId;
       const unit = unitId ? previousState.units.find(u => u.id === unitId) : undefined;
       if (unit && hasUnitAnimationState(unit.type, 'celebrate')) {
         useUnitAnimationEventStore.getState().emitEvent({
@@ -386,14 +416,20 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     }
 
     const normalizedNextGameState = normalizeGameStateTurnPlayer(newGameState) ?? newGameState;
+    const nextGamePhase: GamePhase =
+      normalizedNextGameState.phase === 'ended' || normalizedNextGameState.winner
+        ? 'gameOver'
+        : gamePhase;
     set((state) => ({
       gameState: normalizedNextGameState,
+      gamePhase: nextGamePhase,
       turnPresentation: syncTurnPresentation(
         normalizedNextGameState,
-        gamePhase,
+        nextGamePhase,
         state.turnPresentation ?? turnPresentation,
       ),
     }));
+    dispatchClientResolveEvents(resolution);
     trackGameplayActionApplied(
       action,
       previousState,
@@ -460,7 +496,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       });
       if (result.applied && action.type === 'END_TURN') {
         useGameState.getState().setSelectedUnit(null);
-        const nextPhase: GamePhase = gameMode === 'tutorialEpisode' ? 'playing' : 'handoff';
+        const nextPhase: GamePhase =
+          result.state?.phase === 'ended' || result.state?.winner
+            ? 'gameOver'
+            : gameMode === 'tutorialEpisode'
+              ? 'playing'
+              : 'handoff';
         set((state) => ({
           gamePhase: nextPhase,
           turnPresentation: syncTurnPresentation(
@@ -947,6 +988,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
           cities,
           improvements: [],
           structures: [],
+          activeEffects: [],
           lastAction: undefined,
           winner: undefined,
           victoryType: undefined,
@@ -1566,6 +1608,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         cities,
         improvements: [],
         structures: [],
+        activeEffects: [],
         lastAction: undefined,
         winner: undefined,
         victoryType: undefined,
@@ -1710,6 +1753,14 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       if (!playerId) return;
       if (import.meta.env.DEV) console.log('🤝 Diplomacy: FORM_ALLIANCE', { playerId, targetPlayerId });
       void submitAction({ type: 'FORM_ALLIANCE', payload: { playerId, targetPlayerId } });
+    },
+
+    breakAlliance: (targetPlayerId) => {
+      const { gameState } = get();
+      const playerId = resolveUiTurnPlayer(gameState)?.id;
+      if (!playerId) return;
+      if (import.meta.env.DEV) console.log('🤝 Diplomacy: BREAK_ALLIANCE', { playerId, targetPlayerId });
+      void submitAction({ type: 'BREAK_ALLIANCE', payload: { playerId, targetPlayerId } });
     },
 
     establishTradeRoute: (fromCityId, toCityId) => {

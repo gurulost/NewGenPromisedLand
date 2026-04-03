@@ -23,21 +23,12 @@ export function useGameActionAudio() {
         gameAudio.onUnitSelect(); // Ability activation
         break;
 
-      case 'BUILD_UNIT':
-        gameAudio.onUnitBuilt();
-        break;
-
       case 'HEAL_UNIT':
         gameAudio.onNotification();
         break;
 
       // Construction Actions
       case 'START_CONSTRUCTION':
-      case 'BUILD_STRUCTURE':
-        gameAudio.onBuildingBuilt();
-        break;
-
-      case 'BUILD_IMPROVEMENT':
         gameAudio.onBuildingBuilt();
         break;
 
@@ -89,6 +80,10 @@ export function useGameActionAudio() {
 
       case 'FORM_ALLIANCE':
         gameAudio.onAchievement();
+        break;
+
+      case 'BREAK_ALLIANCE':
+        gameAudio.onNotification();
         break;
 
       // Faction Actions

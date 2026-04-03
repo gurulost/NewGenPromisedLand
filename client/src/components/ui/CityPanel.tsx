@@ -99,7 +99,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
     if (validTiles.length === 0) {
       warning(
         'No Spawn Location',
-        `Cannot recruit ${unitType}: all nearby tiles are blocked or at capacity.`
+        `Cannot recruit ${unitType}: all nearby tiles are blocked, occupied, or already reserved.`
       );
       return;
     }

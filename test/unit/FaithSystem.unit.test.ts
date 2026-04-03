@@ -301,10 +301,37 @@ describe('Faith System', () => {
 	            expect(enemyUnit.statusEffects?.some((e: any) => e?.type === 'TESTIMONY_PRESSURE') || false).toBe(false);
 	        });
 
-	        it('expires after the affected player finishes their turn', () => {
-	            const state: GameState = {
-	                ...mockState,
-	                rngSeed: 1,
+        it('expires after the affected player finishes their turn', () => {
+            const state: GameState = {
+                ...mockState,
+                rngSeed: 1,
+                map: {
+                    ...mockState.map,
+                    tiles: [
+                        ...mockState.map.tiles,
+                        { coordinate: { q: 3, r: 0, s: -3 }, terrain: 'plains', resources: [], hasCity: true, cityOwner: 'lamanite1', exploredBy: ['lamanite1'] }
+                    ]
+                },
+                players: [
+                    { ...nephitePlayer },
+                    { ...lamanitePlayer, citiesOwned: ['city2'] },
+                ],
+                cities: [
+                    ...mockState.cities,
+                    {
+                        id: 'city2',
+                        name: 'Laman',
+                        coordinate: { q: 3, r: 0, s: -3 },
+                        ownerId: 'lamanite1',
+                        population: 1,
+                        maxPopulation: 4,
+                        level: 1,
+                        starProduction: 0,
+                        improvements: [],
+                        structures: [],
+                        harvestedResources: [],
+                    }
+                ],
                 units: [
                     createMissionary('m1', 'nephite1', { q: 0, r: 0, s: 0 }),
                     createWarrior('e1', 'lamanite1', { q: 1, r: 0, s: -1 }),

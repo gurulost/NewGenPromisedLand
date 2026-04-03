@@ -1,7 +1,6 @@
 import { GameState } from "../../types/game";
 import { UnitType } from "../../types/unit";
 import { HexCoordinate } from "../../types/coordinates";
-import { GAME_RULES } from "../../data/gameRules";
 import { getUnitDefinition } from "../../data/units";
 import { hexDistance, hexNeighbors } from "../../utils/hex";
 import { isTileExploredByPlayer } from "../constructionRules";
@@ -15,11 +14,9 @@ export function getUnitSpawnCoordinate(
   state: GameState,
   unitType: UnitType,
   cityCoordinate: HexCoordinate,
-  playerId: string,
   preferredCoordinate?: HexCoordinate
 ): HexCoordinate | null {
   const SPAWN_RADIUS = 2;
-  const MAX_UNITS_PER_TILE = GAME_RULES.units.maxUnitsPerCity;
   const queuedKeys = new Set(
     state.players.flatMap(player =>
       (player.constructionQueue || [])
@@ -28,16 +25,13 @@ export function getUnitSpawnCoordinate(
     )
   );
 
-  const getUnitsOnTile = (coord: HexCoordinate) =>
-    state.units.filter(u =>
+  const hasUnitOnTile = (coord: HexCoordinate) =>
+    state.units.some(u =>
       u.coordinate.q === coord.q && u.coordinate.r === coord.r
     );
 
   const isValidSpawnTile = (coord: HexCoordinate) => {
-    const unitsOnTile = getUnitsOnTile(coord);
-    const hasEnemy = unitsOnTile.some(u => u.playerId !== playerId);
-    if (hasEnemy) return false;
-    if (unitsOnTile.length >= MAX_UNITS_PER_TILE) return false;
+    if (hasUnitOnTile(coord)) return false;
     if (queuedKeys.has(`${coord.q},${coord.r}`)) return false;
     return true;
   };
@@ -85,11 +79,6 @@ export function getUnitSpawnCoordinate(
   }
 
   validSpawnTiles.sort((a, b) => {
-    const unitsOnA = getUnitsOnTile(a.coordinate).length;
-    const unitsOnB = getUnitsOnTile(b.coordinate).length;
-
-    if (unitsOnA !== unitsOnB) return unitsOnA - unitsOnB;
-
     return hexDistance(cityCoordinate, a.coordinate) - hexDistance(cityCoordinate, b.coordinate);
   });
 
@@ -103,7 +92,6 @@ export function getValidSpawnTiles(
   playerId: string
 ): HexCoordinate[] {
   const SPAWN_RADIUS = 2;
-  const MAX_UNITS_PER_TILE = GAME_RULES.units.maxUnitsPerCity;
   const queuedKeys = new Set(
     state.players.flatMap(player =>
       (player.constructionQueue || [])
@@ -112,16 +100,12 @@ export function getValidSpawnTiles(
     )
   );
 
-  const getUnitsOnTile = (coord: HexCoordinate) =>
-    state.units.filter(u =>
+  const hasUnitOnTile = (coord: HexCoordinate) =>
+    state.units.some(u =>
       u.coordinate.q === coord.q && u.coordinate.r === coord.r
     );
 
-  const isValidSpawnTile = (coord: HexCoordinate) => {
-    const unitsOnTile = getUnitsOnTile(coord);
-    const hasEnemy = unitsOnTile.some(u => u.playerId !== playerId);
-    return !hasEnemy && unitsOnTile.length < MAX_UNITS_PER_TILE;
-  };
+  const isValidSpawnTile = (coord: HexCoordinate) => !hasUnitOnTile(coord);
 
   if (isNavalSpawnUnitType(unitType)) {
     const adjacentTiles = hexNeighbors(cityCoordinate);

@@ -31,7 +31,7 @@ const deprecated = (actionName: string): UnitActionResult => ({
 export function executeWorkerAction(
   _state: GameState,
   _unit: Unit,
-  _action: 'BUILD_IMPROVEMENT' | 'BUILD_STRUCTURE' | 'REPAIR' | 'HARVEST' | 'CLEAR_FOREST' | 'BUILD_ROAD',
+  _action: 'START_CONSTRUCTION' | 'REPAIR' | 'HARVEST' | 'CLEAR_FOREST' | 'BUILD_ROAD',
   _target?: HexCoordinate,
   _buildingType?: string
 ): UnitActionResult {

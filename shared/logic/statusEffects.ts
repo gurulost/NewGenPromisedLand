@@ -3,7 +3,9 @@
  * This provides a single source of truth for status effect types and behaviors
  */
 
+import { GameState } from "../types/game";
 import { Unit } from "../types/unit";
+import { hasUnitEffectFlag } from "./activeEffects";
 
 // Status effect types
 export type StatusEffectType =
@@ -22,8 +24,10 @@ export interface StatusEffect {
     sourcePlayerId?: string;
 }
 
-// Morale debuffs - these can be resisted/cleansed by certain abilities
-export const MORALE_DEBUFFS: StatusEffectType[] = ['INTIMIDATED', 'TESTIMONY_PRESSURE'];
+// Negative statuses currently in the game ruleset. Keep centralized so
+// immunity effects do not need to know every call site that can apply them.
+export const NEGATIVE_STATUS_EFFECTS: StatusEffectType[] = ['INTIMIDATED', 'TESTIMONY_PRESSURE'];
+export const MORALE_DEBUFFS: StatusEffectType[] = NEGATIVE_STATUS_EFFECTS;
 
 /**
  * Check if a status effect is a morale debuff
@@ -32,12 +36,20 @@ export function isMoraleDebuff(type: string): boolean {
     return MORALE_DEBUFFS.includes(type as StatusEffectType);
 }
 
+export function isNegativeStatus(type: string): boolean {
+    return NEGATIVE_STATUS_EFFECTS.includes(type as StatusEffectType);
+}
+
 /**
  * Check if a status can be applied to a unit (respects immunity)
  * Units with YOUNG_VIGOR are immune to morale debuffs
  */
-export function canApplyStatus(unit: Unit, statusType: string): boolean {
-    if (isMoraleDebuff(statusType)) {
+export function canApplyStatus(unit: Unit, statusType: string, state?: GameState): boolean {
+    if (isNegativeStatus(statusType)) {
+        if (state && hasUnitEffectFlag(state, unit, 'immuneToNegativeStatus')) {
+            return false;
+        }
+
         const abilities = new Set(
             (unit.abilities ?? []).map(a => String(a).toUpperCase())
         );
@@ -94,8 +106,8 @@ export function getStatusAttackBonus(unit: Unit): number {
  * Apply a status effect to a unit (with immunity checks)
  * Returns the updated unit or null if status cannot be applied
  */
-export function applyStatusEffect(unit: Unit, effect: StatusEffect): Unit | null {
-    if (!canApplyStatus(unit, effect.type)) {
+export function applyStatusEffect(unit: Unit, effect: StatusEffect, state?: GameState): Unit | null {
+    if (!canApplyStatus(unit, effect.type, state)) {
         return null; // Unit is immune
     }
 

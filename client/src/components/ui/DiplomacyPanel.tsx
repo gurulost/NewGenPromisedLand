@@ -69,6 +69,12 @@ export function DiplomacyPanel({ gameState, currentPlayerId, onClose }: Diplomac
         onClose();
     };
 
+    const handleBreakAlliance = (targetPlayerId: string) => {
+        useLocalGame.getState().breakAlliance(targetPlayerId);
+        playSfx('cta-click');
+        onClose();
+    };
+
     const handleEstablishTrade = () => {
         if (!selectedFromCity || !selectedToCity) return;
         useLocalGame.getState().establishTradeRoute(selectedFromCity, selectedToCity);
@@ -214,6 +220,7 @@ export function DiplomacyPanel({ gameState, currentPlayerId, onClose }: Diplomac
                                     otherPlayers={otherPlayers}
                                     currentPlayer={currentPlayer}
                                     onFormAlliance={handleFormAlliance}
+                                    onBreakAlliance={handleBreakAlliance}
                                 />
                             )}
 
@@ -376,8 +383,9 @@ function WarTab({ otherPlayers, currentPlayer, confirmWarTarget, onConfirmWar, o
 }
 
 // Alliance Formation Tab
-function AllianceTab({ otherPlayers, currentPlayer, onFormAlliance }: any) {
+function AllianceTab({ otherPlayers, currentPlayer, onFormAlliance, onBreakAlliance }: any) {
     const allianceCooldown = currentPlayer.diplomaticCooldowns?.formAlliance || 0;
+    const breakAllianceCooldown = currentPlayer.diplomaticCooldowns?.breakAlliance || 0;
 
     return (
         <StaggeredContent>
@@ -390,9 +398,14 @@ function AllianceTab({ otherPlayers, currentPlayer, onFormAlliance }: any) {
                                 {allianceCooldown} turns cooldown
                             </span>
                         )}
+                        {breakAllianceCooldown > 0 && (
+                            <span className="text-xs bg-amber-800/60 text-amber-200 px-2 py-0.5 rounded">
+                                Break cooldown: {breakAllianceCooldown}
+                            </span>
+                        )}
                     </h3>
                     <p className="text-sm text-amber-100/80 mb-4">
-                        Establish peaceful relations with another civilization. Boosts Faith and reduces dissent.
+                        Establish peaceful relations with another civilization. Boosts Faith and reduces dissent. Existing alliances can also be dissolved here.
                     </p>
                     <div className="grid grid-cols-2 gap-3 text-xs">
                         <div className="text-blue-300">Effects: +10 Faith</div>
@@ -404,22 +417,34 @@ function AllianceTab({ otherPlayers, currentPlayer, onFormAlliance }: any) {
                     {otherPlayers.map((player: any) => {
                         const alreadyAllied = currentPlayer.alliedWith?.includes(player.id);
                         const atWar = currentPlayer.atWarWith?.includes(player.id);
-                        const onCooldown = allianceCooldown > 0;
-                        const canAlly = !alreadyAllied && !atWar && !onCooldown;
+                        const onAllianceCooldown = allianceCooldown > 0;
+                        const canAlly = !alreadyAllied && !atWar && !onAllianceCooldown;
+                        const canBreakAlliance = alreadyAllied && breakAllianceCooldown === 0;
+                        const isDisabled = alreadyAllied ? !canBreakAlliance : !canAlly;
 
                         return (
                             <motion.div
                                 key={player.id}
-                                whileHover={{ scale: canAlly ? 1.02 : 1 }}
+                                whileHover={{ scale: isDisabled ? 1 : 1.02 }}
                                 className={clsx(
                                     "p-4 bg-stone-900/40 border rounded-lg transition-all",
                                     alreadyAllied
-                                        ? "border-blue-600/60 bg-blue-900/20"
+                                        ? canBreakAlliance
+                                            ? "border-amber-600/50 bg-amber-900/20 cursor-pointer"
+                                            : "border-blue-600/60 bg-blue-900/20 opacity-60 cursor-not-allowed"
                                         : atWar
                                             ? "border-red-800/50 opacity-60 cursor-not-allowed"
-                                            : "border-blue-600/30 hover:border-blue-600/60 cursor-pointer"
+                                            : canAlly
+                                                ? "border-blue-600/30 hover:border-blue-600/60 cursor-pointer"
+                                                : "border-blue-800/40 opacity-60 cursor-not-allowed"
                                 )}
-                                onClick={() => canAlly && onFormAlliance(player.id)}
+                                onClick={() => {
+                                    if (alreadyAllied) {
+                                        if (canBreakAlliance) onBreakAlliance(player.id);
+                                        return;
+                                    }
+                                    if (canAlly) onFormAlliance(player.id);
+                                }}
                             >
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -440,11 +465,27 @@ function AllianceTab({ otherPlayers, currentPlayer, onFormAlliance }: any) {
                                     </div>
                                     <Button
                                         size="sm"
-                                        className={alreadyAllied ? "bg-blue-800" : atWar ? "bg-gray-700" : "bg-blue-700 hover:bg-blue-600"}
-                                        disabled={!canAlly}
+                                        className={
+                                            alreadyAllied
+                                                ? canBreakAlliance
+                                                    ? "bg-amber-700 hover:bg-amber-600"
+                                                    : "bg-gray-700"
+                                                : atWar
+                                                    ? "bg-gray-700"
+                                                    : "bg-blue-700 hover:bg-blue-600"
+                                        }
+                                        disabled={isDisabled}
                                     >
                                         <Heart className="w-4 h-4 mr-2" />
-                                        {alreadyAllied ? 'Allied' : atWar ? 'At War' : 'Form Alliance'}
+                                        {alreadyAllied
+                                            ? canBreakAlliance
+                                                ? 'Break Alliance'
+                                                : 'Break Cooldown'
+                                            : atWar
+                                                ? 'At War'
+                                                : onAllianceCooldown
+                                                    ? 'Cooldown'
+                                                    : 'Form Alliance'}
                                     </Button>
                                 </div>
                             </motion.div>

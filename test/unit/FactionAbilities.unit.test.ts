@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
+import { computeEffectiveStats } from '../../shared/logic/computeEffectiveStats';
 import { resolveActionState } from '../../shared/logic/resolveAction';
 import { subscribeTelemetry } from '../../shared/logic/telemetry';
 import type { TelemetryEvent } from '../../shared/logic/telemetry';
@@ -201,8 +202,13 @@ describe('Faction ability cooldowns', () => {
     expect(player.stats.faith).toBeLessThan(initialState.players[0].stats.faith);
 
     const buffedUnit = result.units.find(unit => unit.id === 'unit1');
-    expect(buffedUnit?.attack).toBeGreaterThan(initialState.units[0].attack);
-    expect(buffedUnit?.defense).toBeGreaterThan(initialState.units[0].defense);
+    const effectiveAttack = computeEffectiveStats(buffedUnit!, result, { role: 'attacker' });
+    const effectiveDefense = computeEffectiveStats(buffedUnit!, result, { role: 'defender' });
+    expect(result.activeEffects?.some(effect => effect.source.abilityId === 'TITLE_OF_LIBERTY')).toBe(true);
+    expect(buffedUnit?.attack).toBe(initialState.units[0].attack);
+    expect(buffedUnit?.defense).toBe(initialState.units[0].defense);
+    expect(effectiveAttack.attack).toBeGreaterThan(initialState.units[0].attack);
+    expect(effectiveDefense.defense).toBeGreaterThan(initialState.units[0].defense);
   });
 
   it('decrements cooldowns at end of turn', () => {

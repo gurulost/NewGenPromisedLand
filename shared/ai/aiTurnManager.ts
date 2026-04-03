@@ -1,6 +1,8 @@
-import { GameState, PlayerState } from '../types/game';
+import { GameAction, GameState, PlayerState } from '../types/game';
 import { executeAITurn, AIDecision, AIDifficulty } from './aiEngine';
 import { getUnitSpawnCoordinate } from '../logic/actions/spawnUtils';
+import { resolveActionState } from '../logic/resolveAction';
+import type { HexCoordinate } from '../types/coordinates';
 import type { UnitType } from '../types/unit';
 // Note: gameDebugger import removed to avoid cross-layer dependency
 
@@ -63,22 +65,39 @@ export class AITurnManager {
     const difficulty = (aiPlayer.aiDifficulty as AIDifficulty) || 'normal';
     const maxActionsPerTurn = this.getMaxActionsForDifficulty(difficulty);
 
-    for (let i = 0; i < decisions.length; i++) {
-      const decision = decisions[i];
-      
-      if (actionsExecuted >= maxActionsPerTurn) {
+    let plannedDecisions = decisions;
 
+    while (actionsExecuted < maxActionsPerTurn) {
+      const currentPlayer = this.gameState.players[this.gameState.currentPlayerIndex];
+      if (!currentPlayer || currentPlayer.id !== aiPlayer.id) {
         break;
       }
-      
-      const success = await this.executeDecision(decision, aiPlayer);
-      if (success) {
-        actionsExecuted++;
-        // Add delay between actions for more natural feel
-        const delay = this.getActionDelay(difficulty);
-        await this.delay(delay);
-      } else {
+
+      if (plannedDecisions.length === 0) {
+        plannedDecisions = executeAITurn(this.gameState, currentPlayer);
+      }
+
+      if (plannedDecisions.length === 0) {
+        break;
+      }
+
+      let committedAction = false;
+      for (const decision of plannedDecisions) {
+        const success = await this.executeDecision(decision, currentPlayer);
+        if (success) {
+          actionsExecuted++;
+          committedAction = true;
+          plannedDecisions = [];
+          const delay = this.getActionDelay(difficulty);
+          await this.delay(delay);
+          break;
+        }
+
         actionsFailed++;
+      }
+
+      if (!committedAction) {
+        break;
       }
     }
 
@@ -93,182 +112,19 @@ export class AITurnManager {
     const actionStart = performance.now();
     
     try {
-      
-      switch (decision.type) {
-        case 'MOVE_UNIT':
-          if (decision.unitId && decision.targetCoordinate) {
-            this.onDispatchAction({
-              type: 'MOVE_UNIT',
-              payload: {
-                unitId: decision.unitId,
-                targetCoordinate: decision.targetCoordinate
-              }
-            });
-            return true;
-          } else {
-          }
-          break;
-
-        case 'ATTACK_UNIT':
-          if (decision.unitId && decision.targetId) {
-            this.onDispatchAction({
-              type: 'ATTACK_UNIT',
-              payload: {
-                attackerId: decision.unitId,
-                targetId: decision.targetId
-              }
-            });
-            return true;
-          } else {
-          }
-          break;
-
-        case 'RESEARCH_TECH':
-          if (decision.techId) {
-            this.onDispatchAction({
-              type: 'RESEARCH_TECH',
-              payload: {
-                playerId: aiPlayer.id,
-                techId: decision.techId
-              }
-            });
-            return true;
-          } else {
-          }
-          break;
-
-        case 'BUILD_STRUCTURE':
-          if (decision.cityId && decision.buildingType) {
-            const payload: any = {
-              type: 'START_CONSTRUCTION',
-              payload: {
-                playerId: aiPlayer.id,
-                buildingType: decision.buildingType,
-                cityId: decision.cityId,
-                category: decision.constructionCategory ?? 'structures'
-              }
-            };
-
-            if ((decision.constructionCategory === 'improvements' || decision.constructionCategory === 'structures') && decision.targetCoordinate) {
-              payload.payload.coordinate = decision.targetCoordinate;
-            }
-
-            if (decision.constructionCategory === 'units' && decision.targetCoordinate) {
-              payload.payload.coordinate = decision.targetCoordinate;
-            } else if (decision.constructionCategory === 'units') {
-              const city = this.gameState.cities?.find(c => c.id === decision.cityId);
-              if (city) {
-                const spawnCoordinate = getUnitSpawnCoordinate(
-                  this.gameState,
-                  decision.buildingType as UnitType,
-                  city.coordinate,
-                  aiPlayer.id
-                );
-                if (spawnCoordinate) {
-                  payload.payload.coordinate = spawnCoordinate;
-                } else {
-                  return false;
-                }
-              } else {
-                return false;
-              }
-            }
-
-            this.onDispatchAction({
-              ...payload
-            });
-            return true;
-          } else {
-          }
-          break;
-
-        case 'USE_ABILITY':
-          if (decision.abilityId) {
-            this.onDispatchAction({
-              type: 'USE_ABILITY',
-              payload: {
-                playerId: aiPlayer.id,
-                abilityId: decision.abilityId
-              }
-            });
-            return true;
-          } else {
-          }
-          break;
-
-        case 'HEAL_UNIT':
-          if (decision.unitId) {
-            this.onDispatchAction({
-              type: 'HEAL_UNIT',
-              payload: {
-                unitId: decision.unitId,
-                playerId: aiPlayer.id,
-              },
-            });
-            return true;
-          } else {
-          }
-          break;
-
-        case 'APPLY_STEALTH':
-          if (decision.unitId) {
-            this.onDispatchAction({
-              type: 'APPLY_STEALTH',
-              payload: {
-                unitId: decision.unitId,
-                playerId: aiPlayer.id,
-              },
-            });
-            return true;
-          } else {
-          }
-          break;
-
-        case 'FORMATION_FIGHTING':
-          if (decision.unitId) {
-            this.onDispatchAction({
-              type: 'FORMATION_FIGHTING',
-              payload: {
-                unitId: decision.unitId,
-                playerId: aiPlayer.id,
-              },
-            });
-            return true;
-          } else {
-          }
-          break;
-
-        case 'SIEGE_MODE':
-          if (decision.unitId) {
-            this.onDispatchAction({
-              type: 'SIEGE_MODE',
-              payload: {
-                unitId: decision.unitId,
-                playerId: aiPlayer.id,
-              },
-            });
-            return true;
-          } else {
-          }
-          break;
-
-        case 'RALLY_TROOPS':
-          if (decision.unitId) {
-            this.onDispatchAction({
-              type: 'RALLY_TROOPS',
-              payload: {
-                unitId: decision.unitId,
-                playerId: aiPlayer.id,
-              },
-            });
-            return true;
-          } else {
-          }
-          break;
-
-        default:
-          break;
+      const action = this.translateDecisionToAction(decision, aiPlayer);
+      if (!action) {
+        return false;
       }
+
+      const nextState = resolveActionState(this.gameState, action, { source: 'ai' });
+      if (nextState === this.gameState) {
+        return false;
+      }
+
+      this.onDispatchAction(action);
+      this.gameState = nextState;
+      return true;
     } catch (error) {
       const actionTime = performance.now() - actionStart;
       console.error(`   💥 Failed to execute AI decision ${decision.type} after ${actionTime.toFixed(1)}ms:`, error);
@@ -277,19 +133,252 @@ export class AITurnManager {
     return false;
   }
 
+  private translateDecisionToAction(decision: AIDecision, aiPlayer: PlayerState): GameAction | null {
+    switch (decision.type) {
+      case 'MOVE_UNIT':
+        if (decision.unitId && decision.targetCoordinate) {
+          return {
+            type: 'MOVE_UNIT',
+            payload: {
+              unitId: decision.unitId,
+              targetCoordinate: decision.targetCoordinate,
+            },
+          };
+        }
+        return null;
+
+      case 'ATTACK_UNIT':
+        if (decision.unitId && decision.targetId) {
+          return {
+            type: 'ATTACK_UNIT',
+            payload: {
+              attackerId: decision.unitId,
+              targetId: decision.targetId,
+            },
+          };
+        }
+        return null;
+
+      case 'CAPTURE_CITY':
+        if (decision.unitId && decision.cityId) {
+          return {
+            type: 'CAPTURE_CITY',
+            payload: {
+              playerId: aiPlayer.id,
+              unitId: decision.unitId,
+              cityId: decision.cityId,
+            },
+          };
+        }
+        return null;
+
+      case 'CONQUER_VILLAGE':
+        if (decision.unitId) {
+          return {
+            type: 'CONQUER_VILLAGE',
+            payload: {
+              unitId: decision.unitId,
+              playerId: aiPlayer.id,
+            },
+          };
+        }
+        return null;
+
+      case 'CONVERT_VILLAGE':
+        if (decision.unitId) {
+          return {
+            type: 'CONVERT_VILLAGE',
+            payload: {
+              unitId: decision.unitId,
+              playerId: aiPlayer.id,
+            },
+          };
+        }
+        return null;
+
+      case 'EXPLORE_RUINS':
+        if (decision.unitId && decision.targetCoordinate) {
+          return {
+            type: 'EXPLORE_RUINS',
+            payload: {
+              unitId: decision.unitId,
+              playerId: aiPlayer.id,
+              coordinate: decision.targetCoordinate,
+            },
+          };
+        }
+        return null;
+
+      case 'WORLD_ELEMENT_HARVEST':
+        if (decision.unitId && decision.elementId && decision.targetCoordinate) {
+          return {
+            type: 'WORLD_ELEMENT_HARVEST',
+            payload: {
+              playerId: aiPlayer.id,
+              unitId: decision.unitId,
+              elementId: decision.elementId,
+              coordinate: decision.targetCoordinate,
+            },
+          };
+        }
+        return null;
+
+      case 'WORLD_ELEMENT_BUILD':
+        if (decision.unitId && decision.elementId && decision.targetCoordinate) {
+          return {
+            type: 'WORLD_ELEMENT_BUILD',
+            payload: {
+              playerId: aiPlayer.id,
+              unitId: decision.unitId,
+              elementId: decision.elementId,
+              coordinate: decision.targetCoordinate,
+            },
+          };
+        }
+        return null;
+
+      case 'RESEARCH_TECH':
+        if (decision.techId) {
+          return {
+            type: 'RESEARCH_TECH',
+            payload: {
+              playerId: aiPlayer.id,
+              techId: decision.techId,
+            },
+          };
+        }
+        return null;
+
+      case 'START_CONSTRUCTION':
+        if (decision.cityId && decision.buildingType) {
+          const payload = {
+            type: 'START_CONSTRUCTION' as const,
+            payload: {
+              playerId: aiPlayer.id,
+              buildingType: decision.buildingType,
+              cityId: decision.cityId,
+              category: decision.constructionCategory ?? 'structures',
+            } as {
+              playerId: string;
+              buildingType: string;
+              cityId: string;
+              category: 'improvements' | 'structures' | 'units';
+              coordinate?: HexCoordinate;
+            },
+          };
+
+          if ((decision.constructionCategory === 'improvements' || decision.constructionCategory === 'structures') && decision.targetCoordinate) {
+            payload.payload.coordinate = decision.targetCoordinate;
+          }
+
+          if (decision.constructionCategory === 'units' && decision.targetCoordinate) {
+            payload.payload.coordinate = decision.targetCoordinate;
+          } else if (decision.constructionCategory === 'units') {
+            const city = this.gameState.cities?.find(c => c.id === decision.cityId);
+            if (!city) return null;
+            const spawnCoordinate = getUnitSpawnCoordinate(
+              this.gameState,
+              decision.buildingType as UnitType,
+              city.coordinate
+            );
+            if (!spawnCoordinate) return null;
+            payload.payload.coordinate = spawnCoordinate;
+          }
+
+          return payload as GameAction;
+        }
+        return null;
+
+      case 'USE_ABILITY':
+        if (decision.abilityId) {
+          return {
+            type: 'USE_ABILITY',
+            payload: {
+              playerId: aiPlayer.id,
+              abilityId: decision.abilityId,
+            },
+          };
+        }
+        return null;
+
+      case 'HEAL_UNIT':
+        if (decision.unitId) {
+          return {
+            type: 'HEAL_UNIT',
+            payload: {
+              unitId: decision.unitId,
+              playerId: aiPlayer.id,
+            },
+          };
+        }
+        return null;
+
+      case 'APPLY_STEALTH':
+        if (decision.unitId) {
+          return {
+            type: 'APPLY_STEALTH',
+            payload: {
+              unitId: decision.unitId,
+              playerId: aiPlayer.id,
+            },
+          };
+        }
+        return null;
+
+      case 'FORMATION_FIGHTING':
+        if (decision.unitId) {
+          return {
+            type: 'FORMATION_FIGHTING',
+            payload: {
+              unitId: decision.unitId,
+              playerId: aiPlayer.id,
+            },
+          };
+        }
+        return null;
+
+      case 'SIEGE_MODE':
+        if (decision.unitId) {
+          return {
+            type: 'SIEGE_MODE',
+            payload: {
+              unitId: decision.unitId,
+              playerId: aiPlayer.id,
+            },
+          };
+        }
+        return null;
+
+      case 'RALLY_TROOPS':
+        if (decision.unitId) {
+          return {
+            type: 'RALLY_TROOPS',
+            payload: {
+              unitId: decision.unitId,
+              playerId: aiPlayer.id,
+            },
+          };
+        }
+        return null;
+
+      default:
+        return null;
+    }
+  }
+
   /**
    * End the AI player's turn
    */
   private endAITurn(aiPlayer: PlayerState): void {
-
-
-    
-    this.onDispatchAction({
+    const action: GameAction = {
       type: 'END_TURN',
       payload: {
         playerId: aiPlayer.id
       }
-    });
+    };
+
+    this.onDispatchAction(action);
+    this.gameState = resolveActionState(this.gameState, action, { source: 'ai' });
 
   }
 

@@ -33,7 +33,7 @@ export function getActionAvailability(
   const unitDef = getUnitDefinition(unit.type);
   const rawAbilityCount = ((unit.abilities && unit.abilities.length > 0) ? unit.abilities : unitDef?.abilities || []).length;
   const abilityCount = unit.type === "commander" ? 1 : rawAbilityCount;
-  const isPlayerTurn = currentPlayer?.id === unit.playerId;
+  const isPlayerTurn = gameState.phase === 'playing' && currentPlayer?.id === unit.playerId;
   const movementReason =
     shared.canMove
       ? `${shared.reachableTilesCount} tiles available`

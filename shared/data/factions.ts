@@ -64,7 +64,15 @@ export const FACTIONS: Record<FactionId, Faction> = {
         cooldown: 6,
         type: 'active',
         requirements: { pride: 60 },
-      }
+      },
+      {
+        id: 'lamanite_guerrilla_tactics',
+        name: 'Guerrilla Tactics',
+        description: 'Units positioned in forests gain a defense bonus until they leave the forest.',
+        cost: 0,
+        cooldown: 0,
+        type: 'active',
+      },
     ],
     uniqueUnits: getFactionSpecificUnitTypes('LAMANITES'),
     playstyle: 'Aggressive early game warfare',

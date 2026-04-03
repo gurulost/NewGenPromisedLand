@@ -11,7 +11,8 @@ function createMockGameState(): GameState {
     const p1: PlayerState = {
         id: 'p1',
         name: 'Nephites',
-        factionId: 'nephites',
+        factionId: 'NEPHITES',
+        isAI: false,
         isEliminated: false,
         stats: {
             faith: 100, // Starting high for testing
@@ -20,15 +21,29 @@ function createMockGameState(): GameState {
             // population/techProgress/wealth removed as they are not likely in minimal PlayerStats type or optional
         },
         stars: 10, // Starting stars
-        units: [],
-        cities: [],
+        modifiers: [],
         researchedTechs: [], // No techs
+        researchProgress: 0,
+        citiesOwned: ['city1'],
+        constructionQueue: [],
         visibilityMask: [],
         exploredTiles: [],
-        abilityCooldowns: {}
+        abilityCooldowns: {},
+        turnOrder: 0,
+        atWarWith: [],
+        alliedWith: [],
+        tradeRoutes: [],
+        diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 },
     };
 
-    const p2: PlayerState = { ...p1, id: 'p2', name: 'Lamanites', factionId: 'lamanites' };
+    const p2: PlayerState = {
+        ...p1,
+        id: 'p2',
+        name: 'Lamanites',
+        factionId: 'LAMANITES',
+        citiesOwned: [],
+        turnOrder: 1,
+    };
 
     // minimal map
     const tiles = [];
@@ -46,14 +61,29 @@ function createMockGameState(): GameState {
     if (forestTile) forestTile.terrain = 'forest';
 
     return {
+        id: 'golden-sim',
+        rngSeed: 12345,
         players: [p1, p2],
-        activePlayerId: 'p1',
+        currentPlayerIndex: 0,
         turn: 1,
-        map: { tiles, radius: 5 },
+        phase: 'playing',
+        map: { tiles, width: 11, height: 11 },
         units: [],
-        cities: [],
+        cities: [{
+            id: 'city1',
+            name: 'Zarahemla',
+            coordinate: coord(0, 0),
+            ownerId: 'p1',
+            population: 1,
+            maxPopulation: 4,
+            level: 1,
+            starProduction: 0,
+            improvements: [],
+            structures: [],
+            harvestedResources: [],
+        }],
         improvements: [],
-        rngSeed: 12345
+        structures: [],
     } as unknown as GameState; // Cast to GameState (simpler mock)
 }
 

@@ -2,13 +2,13 @@
   "largeFileLineLimit": 1000,
   "allowedLargeFiles": {
     "client/src/components/effects/CombatEffects.tsx": 1066,
-    "client/src/components/game/GameUI.tsx": 2393,
+    "client/src/components/game/GameUI.tsx": 2409,
     "client/src/components/ui/AbilitiesPanel.tsx": 1141,
     "client/src/components/ui/AnimationLab.tsx": 1348,
     "client/src/components/ui/TechPanel.tsx": 1094,
-    "client/src/lib/stores/useLocalGame.ts": 1724,
+    "client/src/lib/stores/useLocalGame.ts": 1775,
     "server/routes.ts": 2747,
-    "shared/ai/aiEngine.ts": 3088,
+    "shared/ai/aiEngine.ts": 3498,
     "shared/utils/mapGenerator.ts": 3734
   },
   "explicitAny": {

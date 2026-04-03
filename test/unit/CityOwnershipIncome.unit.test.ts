@@ -6,6 +6,7 @@ describe('City capture/conversion income', () => {
   it('capturing a city updates ownerId and grants its starProduction on end turn', () => {
     const p1 = 'p1';
     const p2 = 'p2';
+    const homeCityId = 'home';
     const cityId = 'c1';
 
     const state: GameState = {
@@ -19,6 +20,7 @@ describe('City capture/conversion income', () => {
         width: 5,
         height: 5,
         tiles: [
+          { coordinate: { q: -2, r: 0, s: 2 }, terrain: 'plains', resources: [], hasCity: true, cityOwner: p1, exploredBy: [p1, p2] },
           { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: true, cityOwner: p2, exploredBy: [p1, p2] },
           { coordinate: { q: 1, r: 0, s: -1 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [p1, p2] },
         ],
@@ -36,9 +38,9 @@ describe('City capture/conversion income', () => {
           visibilityMask: [],
           exploredTiles: [],
           researchProgress: 0,
-          citiesOwned: [],
+          citiesOwned: [homeCityId],
           constructionQueue: [],
-          atWarWith: [],
+          atWarWith: [p2],
           alliedWith: [],
           tradeRoutes: [],
           diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 },
@@ -57,13 +59,26 @@ describe('City capture/conversion income', () => {
           researchProgress: 0,
           citiesOwned: [cityId],
           constructionQueue: [],
-          atWarWith: [],
+          atWarWith: [p1],
           alliedWith: [],
           tradeRoutes: [],
           diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 },
         },
       ],
       cities: [
+        {
+          id: homeCityId,
+          name: 'Home',
+          coordinate: { q: -2, r: 0, s: 2 },
+          ownerId: p1,
+          population: 1,
+          maxPopulation: 4,
+          level: 1,
+          starProduction: 0,
+          improvements: [],
+          structures: [],
+          harvestedResources: [],
+        },
         {
           id: cityId,
           name: 'City',
@@ -103,7 +118,10 @@ describe('City capture/conversion income', () => {
       structures: [],
     };
 
-    const captured = resolveActionState(state, { type: 'CAPTURE_CITY', payload: { playerId: p1, cityId } } as any);
+    const captured = resolveActionState(state, {
+      type: 'CAPTURE_CITY',
+      payload: { playerId: p1, unitId: 'u1', cityId }
+    } as any);
     expect(captured.cities.find(c => c.id === cityId)?.ownerId).toBe(p1);
     expect(captured.players.find(p => p.id === p1)?.citiesOwned.includes(cityId)).toBe(true);
     expect(captured.players.find(p => p.id === p2)?.citiesOwned.includes(cityId)).toBe(false);
@@ -115,6 +133,7 @@ describe('City capture/conversion income', () => {
   it('converting a city updates ownerId and grants its starProduction on end turn', () => {
     const p1 = 'p1';
     const p2 = 'p2';
+    const homeCityId = 'home';
     const cityId = 'c1';
 
     const state: GameState = {
@@ -128,6 +147,7 @@ describe('City capture/conversion income', () => {
         width: 5,
         height: 5,
         tiles: [
+          { coordinate: { q: -2, r: 0, s: 2 }, terrain: 'plains', resources: [], hasCity: true, cityOwner: p1, exploredBy: [p1, p2] },
           { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: true, cityOwner: p2, exploredBy: [p1, p2] },
           { coordinate: { q: 1, r: 0, s: -1 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [p1, p2] },
         ],
@@ -145,7 +165,7 @@ describe('City capture/conversion income', () => {
           visibilityMask: [],
           exploredTiles: [],
           researchProgress: 0,
-          citiesOwned: [],
+          citiesOwned: [homeCityId],
           constructionQueue: [],
           atWarWith: [],
           alliedWith: [],
@@ -173,6 +193,19 @@ describe('City capture/conversion income', () => {
         },
       ],
       cities: [
+        {
+          id: homeCityId,
+          name: 'Home',
+          coordinate: { q: -2, r: 0, s: 2 },
+          ownerId: p1,
+          population: 1,
+          maxPopulation: 4,
+          level: 1,
+          starProduction: 0,
+          improvements: [],
+          structures: [],
+          harvestedResources: [],
+        },
         {
           id: cityId,
           name: 'City',

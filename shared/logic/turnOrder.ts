@@ -2,7 +2,10 @@ import type { PlayerState } from "../types/game";
 
 export function isTurnEligiblePlayer(player: PlayerState | null | undefined): boolean {
   if (!player) return false;
-  return !player.isEliminated;
+  if (player.isEliminated) return false;
+  // Treat live city ownership as the source of truth for turn eligibility.
+  // This keeps turn order stable if an older save or intermediate state has a stale isEliminated flag.
+  return player.citiesOwned.length > 0;
 }
 
 export function normalizeTurnPlayerIndex(players: PlayerState[], currentPlayerIndex: number): number {

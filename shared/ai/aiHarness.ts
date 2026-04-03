@@ -19,7 +19,7 @@ export function simulateAITurns(initialState: GameState, maxTurns = 10): Simulat
   const errors: SimulationResult['errors'] = [];
   let actionsApplied = 0;
 
-  const applyDecision = (decision: ReturnType<typeof executeAITurn>[number]) => {
+  const applyDecision = (decision: ReturnType<typeof executeAITurn>[number], playerId: string) => {
     let action: GameAction | null = null;
     switch (decision.type) {
       case 'MOVE_UNIT':
@@ -32,18 +32,81 @@ export function simulateAITurns(initialState: GameState, maxTurns = 10): Simulat
           action = { type: 'ATTACK_UNIT', payload: { attackerId: decision.unitId, targetId: decision.targetId } };
         }
         break;
+      case 'CAPTURE_CITY':
+        if (decision.unitId && decision.cityId) {
+          action = { type: 'CAPTURE_CITY', payload: { playerId, unitId: decision.unitId, cityId: decision.cityId } };
+        }
+        break;
+      case 'START_CONSTRUCTION':
+        if (decision.cityId && decision.buildingType) {
+          action = {
+            type: 'START_CONSTRUCTION',
+            payload: {
+              playerId,
+              buildingType: decision.buildingType,
+              cityId: decision.cityId,
+              category: decision.constructionCategory ?? 'structures',
+              ...(decision.targetCoordinate ? { coordinate: decision.targetCoordinate } : {}),
+            },
+          };
+        }
+        break;
+      case 'CONQUER_VILLAGE':
+        if (decision.unitId) {
+          action = { type: 'CONQUER_VILLAGE', payload: { unitId: decision.unitId, playerId } };
+        }
+        break;
+      case 'CONVERT_VILLAGE':
+        if (decision.unitId) {
+          action = { type: 'CONVERT_VILLAGE', payload: { unitId: decision.unitId, playerId } };
+        }
+        break;
+      case 'EXPLORE_RUINS':
+        if (decision.unitId && decision.targetCoordinate) {
+          action = {
+            type: 'EXPLORE_RUINS',
+            payload: { unitId: decision.unitId, playerId, coordinate: decision.targetCoordinate },
+          };
+        }
+        break;
+      case 'WORLD_ELEMENT_HARVEST':
+        if (decision.unitId && decision.elementId && decision.targetCoordinate) {
+          action = {
+            type: 'WORLD_ELEMENT_HARVEST',
+            payload: {
+              playerId,
+              unitId: decision.unitId,
+              elementId: decision.elementId,
+              coordinate: decision.targetCoordinate,
+            },
+          };
+        }
+        break;
+      case 'WORLD_ELEMENT_BUILD':
+        if (decision.unitId && decision.elementId && decision.targetCoordinate) {
+          action = {
+            type: 'WORLD_ELEMENT_BUILD',
+            payload: {
+              playerId,
+              unitId: decision.unitId,
+              elementId: decision.elementId,
+              coordinate: decision.targetCoordinate,
+            },
+          };
+        }
+        break;
       case 'USE_ABILITY':
         if (decision.abilityId) {
-          action = { type: 'USE_ABILITY', payload: { playerId: state.players[state.currentPlayerIndex].id, abilityId: decision.abilityId } };
+          action = { type: 'USE_ABILITY', payload: { playerId, abilityId: decision.abilityId } };
         }
         break;
       case 'RESEARCH_TECH':
         if (decision.techId) {
-          action = { type: 'RESEARCH_TECH', payload: { playerId: state.players[state.currentPlayerIndex].id, techId: decision.techId } };
+          action = { type: 'RESEARCH_TECH', payload: { playerId, techId: decision.techId } };
         }
         break;
       case 'END_TURN':
-        action = { type: 'END_TURN', payload: { playerId: state.players[state.currentPlayerIndex].id } };
+        action = { type: 'END_TURN', payload: { playerId } };
         break;
       default:
         // Unsupported actions (builds/abilities not in reducer) are skipped in the harness
@@ -51,7 +114,9 @@ export function simulateAITurns(initialState: GameState, maxTurns = 10): Simulat
     }
 
     if (!action) return;
-    state = resolveActionState(state, action);
+    const nextState = resolveActionState(state, action);
+    if (nextState === state) return;
+    state = nextState;
     actionsApplied += 1;
   };
 
@@ -64,8 +129,32 @@ export function simulateAITurns(initialState: GameState, maxTurns = 10): Simulat
     }
 
     try {
-      const decisions = executeAITurn(state, currentPlayer);
-      decisions.forEach(applyDecision);
+      const difficulty = currentPlayer.aiDifficulty || 'normal';
+      const maxActionsPerTurn = difficulty === 'easy' ? 2 : difficulty === 'hard' ? 4 : 3;
+      let actionsThisTurn = 0;
+
+      while (actionsThisTurn < maxActionsPerTurn) {
+        const refreshedPlayer = state.players[state.currentPlayerIndex];
+        if (!refreshedPlayer || refreshedPlayer.id !== currentPlayer.id) {
+          break;
+        }
+
+        const decisions = executeAITurn(state, refreshedPlayer);
+        let appliedThisPass = false;
+        for (const decision of decisions) {
+          const beforeState = state;
+          applyDecision(decision, refreshedPlayer.id);
+          if (state !== beforeState) {
+            actionsThisTurn += 1;
+            appliedThisPass = true;
+            break;
+          }
+        }
+
+        if (!appliedThisPass) {
+          break;
+        }
+      }
     } catch (err) {
       errors.push({
         turn,

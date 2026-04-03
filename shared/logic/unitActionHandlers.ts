@@ -478,7 +478,7 @@ export function handleRallyTroops(
                     targetDef?.tags?.includes('diplomat');
                 if (!isCivilian) {
                     // Apply rallied status (+2 Attack until next attack or end of next turn)
-                    const withEffect = applyStatusEffect(u, { type: 'RALLIED', turnsRemaining: 2 });
+                    const withEffect = applyStatusEffect(u, { type: 'RALLIED', turnsRemaining: 2 }, state);
                     if (!withEffect) return u;
                     return {
                         ...withEffect,

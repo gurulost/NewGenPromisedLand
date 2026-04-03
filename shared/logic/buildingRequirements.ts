@@ -5,7 +5,6 @@ import { coerceFactionId } from "../types/factionId";
 import type { UnitDefinition } from "../types/unit";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "../types/city";
 import { getUnitDefinition } from "../data/units";
-import { GAME_RULES } from "../data/gameRules";
 import { getFaction } from "../data/factions";
 import {
   STRUCTURE_BUILD_RADIUS,
@@ -199,7 +198,7 @@ export function getUnitBuildRequirements(
   requirements.push({
     id: "spawn_rules",
     label: "Spawn rules",
-    value: `No enemy units or queued builds, max ${GAME_RULES.units.maxUnitsPerCity} units per tile`,
+    value: "Tile must be empty and not already reserved by queued builds",
     status: "info",
   });
 

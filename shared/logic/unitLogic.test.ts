@@ -121,7 +121,7 @@ describe('Unit Logic', () => {
       expect(isPassableForUnit({ q: 3, r: 0, s: -3 }, mockGameState, testUnit)).toBe(false);
     });
 
-    it('should allow movement to tiles with friendly units', () => {
+    it('should block movement to tiles with friendly units', () => {
       const friendlyUnit: Unit = {
         ...enemyUnit,
         id: 'friendly1',
@@ -130,7 +130,19 @@ describe('Unit Logic', () => {
       };
       mockGameState.units.push(friendlyUnit);
 
-      expect(isPassableForUnit({ q: 1, r: 1, s: -2 }, mockGameState, testUnit)).toBe(true);
+      expect(isPassableForUnit({ q: 1, r: 1, s: -2 }, mockGameState, testUnit)).toBe(false);
+    });
+
+    it('should keep the acting unit current tile passable even in a stacked legacy state', () => {
+      const friendlyUnit: Unit = {
+        ...enemyUnit,
+        id: 'friendly-stack',
+        playerId: 'player1',
+        coordinate: { q: 0, r: 0, s: 0 }
+      };
+      mockGameState.units.push(friendlyUnit);
+
+      expect(isPassableForUnit({ q: 0, r: 0, s: 0 }, mockGameState, testUnit)).toBe(true);
     });
 
     it('should allow amphibious voyager movement on both water and land', () => {

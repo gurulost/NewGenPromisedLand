@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { resolveActionState } from '../../shared/logic/resolveAction';
+import { computeEffectiveStats } from '../../shared/logic/computeEffectiveStats';
 import { getUnitDefinition } from '../../shared/data/units';
 import { subscribeTelemetry, TelemetryEvent } from '../../shared/logic/telemetry';
 import type { GameState, PlayerState } from '../../shared/types/game';
@@ -395,7 +396,8 @@ describe('Combat ability interactions', () => {
     unsubscribe();
 
     const buffedAlly = result.units.find(unit => unit.id === 'ally');
-    expect(buffedAlly?.attack).toBeGreaterThan(ally.attack);
+    expect(result.activeEffects?.some(effect => effect.source.abilityId === 'BLOOD_FEUD')).toBe(true);
+    expect(computeEffectiveStats(buffedAlly!, result, { role: 'attacker' }).attack).toBeGreaterThan(ally.attack);
     expect(events.some(event => event.channel === 'combat' && event.status === 'success')).toBe(true);
   });
 
@@ -746,6 +748,7 @@ describe('Combat ability interactions', () => {
     const allyAfter = result.units.find(unit => unit.id === 'ally');
 
     expect(attackerAfter).toBeUndefined();
-    expect(allyAfter?.attack).toBe(5);
+    expect(result.activeEffects?.some(effect => effect.source.abilityId === 'BLOOD_FEUD')).toBe(true);
+    expect(computeEffectiveStats(allyAfter!, result, { role: 'attacker' }).attack).toBe(5);
   });
 });

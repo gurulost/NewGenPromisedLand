@@ -3,6 +3,7 @@ import { Unit } from "../types/unit";
 import { GAME_RULES } from "../data/gameRules";
 import { getActiveModifiers } from "../data/modifiers";
 import { hexDistance } from "../utils/hex";
+import { getUnitActiveEffects } from "./activeEffects";
 
 export interface ComputeStatsContext {
   role: "attacker" | "defender";
@@ -52,7 +53,35 @@ export function onComputeStats(
 
   let attack = unit.attack;
   let defense = unit.defense;
+  const baseAttack = unit.attack;
   const baseDefense = unit.defense;
+
+  const activeEffects = getUnitActiveEffects(state, unit);
+  const hasNegativeStatusImmunity = activeEffects.some(effect => Boolean(effect.flags?.immuneToNegativeStatus));
+
+  activeEffects.forEach(effect => {
+    effect.unitStatModifiers.forEach(modifier => {
+      const baseValue = modifier.stat === "attack" ? baseAttack : baseDefense;
+      const delta =
+        modifier.mode === "percent"
+          ? Math.round(baseValue * modifier.value)
+          : modifier.value;
+
+      if (delta === 0) return;
+
+      if (modifier.stat === "attack") {
+        attack += delta;
+        modifiers.push(`${delta >= 0 ? "+" : ""}${delta} Attack (${effect.name})`);
+      } else if (modifier.stat === "defense") {
+        defense += delta;
+        modifiers.push(`${delta >= 0 ? "+" : ""}${delta} Defense (${effect.name})`);
+      }
+    });
+
+    if (effect.flags?.immuneToNegativeStatus) {
+      specialEffects.push(`${effect.name} status immunity`);
+    }
+  });
 
   const statusEffects = Array.isArray((unit as any).statusEffects) ? (unit as any).statusEffects : [];
   const isRallied = unit.status === "rallied" || statusEffects.some((e: any) => e?.type === "RALLIED");
@@ -60,7 +89,7 @@ export function onComputeStats(
   if (ctx.role === "attacker") {
     const pressure = statusEffects.find((e: any) => e?.type === "TESTIMONY_PRESSURE");
     const testimonyPenalty = typeof pressure?.attackPenalty === "number" ? pressure.attackPenalty : 0;
-    if (testimonyPenalty > 0) {
+    if (testimonyPenalty > 0 && !hasNegativeStatusImmunity) {
       attack = Math.max(0, attack - testimonyPenalty);
       modifiers.push(`-${testimonyPenalty} Attack (Testimony Pressure)`);
     }
@@ -124,7 +153,7 @@ export function onComputeStats(
   }
 
   const intimidated = statusEffects.some((e: any) => e?.type === "INTIMIDATED");
-  if (intimidated && !hasAbility(abilities, "YOUNG_VIGOR")) {
+  if (intimidated && !hasAbility(abilities, "YOUNG_VIGOR") && !hasNegativeStatusImmunity) {
     attack = Math.max(0, attack - 1);
     modifiers.push("-1 Attack (Intimidated)");
   }

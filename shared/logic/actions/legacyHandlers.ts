@@ -1,6 +1,6 @@
 export { handleMoveUnit, handleAttackUnit } from "./movementCombat";
 export { handleResearchTech, handleResearchTechnology } from "./research";
-export { handleEstablishTradeRoute, handleDeclareWar, handleFormAlliance } from "./diplomacy";
+export { handleEstablishTradeRoute, handleDeclareWar, handleFormAlliance, handleBreakAlliance } from "./diplomacy";
 export { getValidSpawnTiles, getUnitSpawnCoordinate } from "./spawnUtils";
 export { handleConvertCity, handleConvertUnit } from "./conversion";
 export {
@@ -12,10 +12,6 @@ export {
 } from "./worldElements";
 export {
   handleStartConstruction,
-  handleBuildImprovement,
-  handleBuildStructure,
-  handleBuildUnit,
-  handleRecruitUnit,
   handleCaptureCity,
   handleHarvestResource,
   handleRenameCity,

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { resolveActionState } from './resolveAction';
+import { resolveAction, resolveActionState } from './resolveAction';
+import { GAME_EVENT_TYPES } from './actionResolution';
 import { GAME_RULES } from '../data/gameRules';
 import { TECHNOLOGIES } from '../data/technologies';
 import type { GameState, GameAction, PlayerState } from '../types/game';
@@ -28,7 +29,11 @@ describe('Game Reducer', () => {
       visibilityMask: [],
       exploredTiles: [],
       researchProgress: 0,
-      citiesOwned: []
+      citiesOwned: [],
+      atWarWith: [],
+      alliedWith: [],
+      tradeRoutes: [],
+      diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 }
     };
 
     mockUnit = {
@@ -111,6 +116,81 @@ describe('Game Reducer', () => {
       expect(unit?.coordinate).toEqual({ q: 0, r: 0, s: 0 });
       expect(unit?.remainingMovement).toBe(1);
     });
+
+    it('should return a village encounter event for neutral villages', () => {
+      mockGameState.map.tiles = mockGameState.map.tiles.map(tile =>
+        tile.coordinate.q === 1 && tile.coordinate.r === 0
+          ? { ...tile, feature: 'village' as const }
+          : tile
+      );
+
+      const moveAction: GameAction = {
+        type: 'MOVE_UNIT',
+        payload: {
+          unitId: 'unit1',
+          targetCoordinate: { q: 1, r: 0, s: -1 }
+        }
+      };
+
+      const result = resolveAction(mockGameState, moveAction);
+
+      expect(result.events).toEqual([
+        {
+          type: GAME_EVENT_TYPES.villageEncounter,
+          payload: {
+            unitId: 'unit1',
+            coordinate: { q: 1, r: 0, s: -1 }
+          }
+        }
+      ]);
+    });
+  });
+
+  describe('shared action events', () => {
+    it('should return a ruins reward event when exploring ruins', () => {
+      mockGameState.rngSeed = 1;
+      mockGameState.map.tiles = mockGameState.map.tiles.map(tile =>
+        tile.coordinate.q === 1 && tile.coordinate.r === 0
+          ? { ...tile, feature: 'ruin' as const }
+          : tile
+      );
+
+      const result = resolveAction(mockGameState, {
+        type: 'EXPLORE_RUINS',
+        payload: {
+          unitId: 'unit1',
+          playerId: 'player1',
+          coordinate: { q: 1, r: 0, s: -1 }
+        }
+      } as any);
+
+      expect(result.events).toHaveLength(1);
+      expect(result.events[0]?.type).toBe(GAME_EVENT_TYPES.ruinsReward);
+      expect((result.events[0]?.payload as any)?.coordinate).toEqual({ q: 1, r: 0, s: -1 });
+    });
+
+    it('should return a ruins reward event when harvesting Jaredite ruins', () => {
+      mockGameState.rngSeed = 1;
+      mockGameState.map.tiles = mockGameState.map.tiles.map(tile =>
+        tile.coordinate.q === 0 && tile.coordinate.r === 0
+          ? { ...tile, resources: ['jaredite_ruins'] }
+          : tile
+      );
+
+      const result = resolveAction(mockGameState, {
+        type: 'WORLD_ELEMENT_HARVEST',
+        payload: {
+          playerId: 'player1',
+          unitId: 'unit1',
+          elementId: 'jaredite_ruins',
+          coordinate: { q: 0, r: 0, s: 0 }
+        }
+      } as any);
+
+      expect(result.events).toHaveLength(1);
+      expect(result.events[0]?.type).toBe(GAME_EVENT_TYPES.ruinsReward);
+      expect((result.events[0]?.payload as any)?.coordinate).toEqual({ q: 0, r: 0, s: 0 });
+    });
   });
 
   describe('ATTACK_UNIT action', () => {
@@ -179,14 +259,17 @@ describe('Game Reducer', () => {
 
   describe('CAPTURE_CITY action', () => {
     beforeEach(() => {
+      mockPlayer.citiesOwned = ['capital1'];
       const enemyPlayer: PlayerState = {
         ...mockPlayer,
         id: 'player2',
         name: 'Enemy Player',
         turnOrder: 1,
-        citiesOwned: ['city1']
+        citiesOwned: ['city1'],
+        atWarWith: ['player1']
       };
 
+      mockPlayer.atWarWith = ['player2'];
       mockGameState.players = [mockPlayer, enemyPlayer];
       mockGameState.cities = [{
         id: 'city1',
@@ -214,6 +297,7 @@ describe('Game Reducer', () => {
         type: 'CAPTURE_CITY',
         payload: {
           playerId: 'player1',
+          unitId: 'unit1',
           cityId: 'city1'
         }
       };
@@ -223,6 +307,7 @@ describe('Game Reducer', () => {
       expect(newState.cities.find(city => city.id === 'city1')?.ownerId).toBe('player1');
       expect(newState.players.find(player => player.id === 'player1')?.citiesOwned).toContain('city1');
       expect(newState.players.find(player => player.id === 'player2')?.citiesOwned).not.toContain('city1');
+      expect(newState.units.find(unit => unit.id === 'unit1')?.actionsRemaining).toBe(0);
     });
 
     it('should not capture a city when no player unit is adjacent', () => {
@@ -232,6 +317,7 @@ describe('Game Reducer', () => {
         type: 'CAPTURE_CITY',
         payload: {
           playerId: 'player1',
+          unitId: 'unit1',
           cityId: 'city1'
         }
       };
@@ -249,6 +335,89 @@ describe('Game Reducer', () => {
         type: 'CAPTURE_CITY',
         payload: {
           playerId: 'player1',
+          unitId: 'unit1',
+          cityId: 'city1'
+        }
+      };
+
+      const newState = resolveActionState(mockGameState, captureAction);
+
+      expect(newState.cities.find(city => city.id === 'city1')?.ownerId).toBe('player2');
+      expect(newState.players.find(player => player.id === 'player1')?.citiesOwned).not.toContain('city1');
+    });
+
+    it('should not capture a city with a civilian unit', () => {
+      mockGameState.units[0] = {
+        ...mockGameState.units[0],
+        type: 'worker',
+      };
+
+      const captureAction: GameAction = {
+        type: 'CAPTURE_CITY',
+        payload: {
+          playerId: 'player1',
+          unitId: 'unit1',
+          cityId: 'city1'
+        }
+      };
+
+      const newState = resolveActionState(mockGameState, captureAction);
+
+      expect(newState.cities.find(city => city.id === 'city1')?.ownerId).toBe('player2');
+      expect(newState.players.find(player => player.id === 'player1')?.citiesOwned).not.toContain('city1');
+    });
+
+    it('should not capture an enemy city without a war declaration', () => {
+      mockGameState.players = mockGameState.players.map(player =>
+        player.id === 'player1'
+          ? { ...player, atWarWith: [] }
+          : player.id === 'player2'
+            ? { ...player, atWarWith: [] }
+            : player
+      );
+
+      const captureAction: GameAction = {
+        type: 'CAPTURE_CITY',
+        payload: {
+          playerId: 'player1',
+          unitId: 'unit1',
+          cityId: 'city1'
+        }
+      };
+
+      const newState = resolveActionState(mockGameState, captureAction);
+
+      expect(newState.cities.find(city => city.id === 'city1')?.ownerId).toBe('player2');
+      expect(newState.players.find(player => player.id === 'player1')?.citiesOwned).not.toContain('city1');
+    });
+
+    it('should not capture a city while a defending military garrison remains on the city tile', () => {
+      mockGameState.units.push({
+        id: 'enemy-garrison',
+        type: 'guard',
+        playerId: 'player2',
+        coordinate: { q: 1, r: 0, s: -1 },
+        hp: 10,
+        maxHp: 10,
+        attack: 4,
+        defense: 6,
+        movement: 2,
+        remainingMovement: 2,
+        maxActions: 1,
+        actionsRemaining: 1,
+        visionRadius: 2,
+        attackRange: 1,
+        status: 'active',
+        experience: 0,
+        abilities: [],
+        level: 1
+      });
+
+      const captureAction: GameAction = {
+        type: 'CAPTURE_CITY',
+        payload: {
+          playerId: 'player1',
+          unitId: 'unit1',
           cityId: 'city1'
         }
       };
@@ -324,6 +493,7 @@ describe('Game Reducer', () => {
         makeCity('city2', 'player2', { q: 1, r: 0, s: -1 })
       ]);
       const result = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+      expect(result.phase).toBe('ended');
       expect(result.winner).toBe('player1');
       expect(result.victoryType).toBe('faith');
     });
@@ -447,6 +617,27 @@ describe('Game Reducer', () => {
       expect(result.winner).toBe('player1');
       expect(result.victoryType).toBe('domination');
     });
+
+    it('rejects gameplay actions after the game has ended', () => {
+      const endedState: GameState = {
+        ...mockGameState,
+        phase: 'ended',
+        winner: 'player1',
+        victoryType: 'faith',
+      };
+      const moveAction: GameAction = {
+        type: 'MOVE_UNIT',
+        payload: {
+          unitId: 'unit1',
+          targetCoordinate: { q: 1, r: 0, s: -1 },
+        },
+      };
+
+      const result = resolveActionState(endedState, moveAction);
+
+      expect(result).toBe(endedState);
+      expect(result.units[0]?.coordinate).toEqual({ q: 0, r: 0, s: 0 });
+    });
   });
 
   describe('END_TURN action', () => {
@@ -455,8 +646,10 @@ describe('Game Reducer', () => {
         ...mockPlayer,
         id: 'player2',
         name: 'Player 2',
-        turnOrder: 1
+        turnOrder: 1,
+        citiesOwned: ['city2']
       };
+      mockPlayer.citiesOwned = ['city1'];
       mockGameState.players.push(player2);
 
       const endTurnAction: GameAction = {
@@ -468,7 +661,7 @@ describe('Game Reducer', () => {
 
       const newState = resolveActionState(mockGameState, endTurnAction);
       
-      expect(newState.currentPlayerIndex).toBe(1);
+      expect(newState.players[newState.currentPlayerIndex]?.id).toBe('player2');
     });
 
     it('skips eliminated players when advancing a 4-player turn order', () => {
@@ -518,6 +711,46 @@ describe('Game Reducer', () => {
       expect(newState.players[newState.currentPlayerIndex]?.id).toBe('player4');
     });
 
+    it('skips players with no cities even if isEliminated is stale', () => {
+      mockGameState.players = [
+        {
+          ...mockPlayer,
+          id: 'player1',
+          name: 'Player 1',
+          turnOrder: 0,
+          citiesOwned: ['city1'],
+        },
+        {
+          ...mockPlayer,
+          id: 'player2',
+          name: 'Player 2',
+          turnOrder: 1,
+          citiesOwned: [],
+          isEliminated: false,
+        },
+        {
+          ...mockPlayer,
+          id: 'player3',
+          name: 'Player 3',
+          turnOrder: 2,
+          citiesOwned: ['city3'],
+        },
+      ];
+      mockGameState.currentPlayerIndex = 0;
+
+      const endTurnAction: GameAction = {
+        type: 'END_TURN',
+        payload: {
+          playerId: 'player1',
+        },
+      };
+
+      const newState = resolveActionState(mockGameState, endTurnAction);
+
+      expect(newState.currentPlayerIndex).toBe(2);
+      expect(newState.players[newState.currentPlayerIndex]?.id).toBe('player3');
+    });
+
     it('should reset unit movement', () => {
       // Exhaust unit movement
       mockGameState.units[0].remainingMovement = 0;
@@ -544,8 +777,50 @@ describe('Game Reducer', () => {
       };
 
       const newState = resolveActionState(mockGameState, endTurnAction);
-      
+
       expect(newState.currentPlayerIndex).toBe(0);
+    });
+
+    it('increments turn when cycling back to the first active player', () => {
+      mockGameState.players = [
+        {
+          ...mockPlayer,
+          id: 'player1',
+          name: 'Player 1',
+          turnOrder: 0,
+          citiesOwned: [],
+          isEliminated: true,
+        },
+        {
+          ...mockPlayer,
+          id: 'player2',
+          name: 'Player 2',
+          turnOrder: 1,
+          citiesOwned: ['city2'],
+        },
+        {
+          ...mockPlayer,
+          id: 'player3',
+          name: 'Player 3',
+          turnOrder: 2,
+          citiesOwned: ['city3'],
+        },
+      ];
+      mockGameState.currentPlayerIndex = 2;
+      mockGameState.turn = 5;
+
+      const endTurnAction: GameAction = {
+        type: 'END_TURN',
+        payload: {
+          playerId: 'player3',
+        },
+      };
+
+      const newState = resolveActionState(mockGameState, endTurnAction);
+
+      expect(newState.currentPlayerIndex).toBe(1);
+      expect(newState.players[newState.currentPlayerIndex]?.id).toBe('player2');
+      expect(newState.turn).toBe(6);
     });
   });
 
@@ -745,6 +1020,13 @@ describe('Game Reducer', () => {
 
     it('should reset unit movement for next player units', () => {
       // Add some units for player2 and exhaust their movement
+      const player2: PlayerState = {
+        ...mockPlayer,
+        id: 'player2',
+        name: 'Player 2',
+        turnOrder: 1,
+        citiesOwned: ['city2'],
+      };
       const player2Unit: Unit = {
         id: 'player2-unit',
         status: 'active',
@@ -767,6 +1049,9 @@ describe('Game Reducer', () => {
       };
       
       mockGameState.units.push(player2Unit);
+      mockPlayer.citiesOwned = ['city1'];
+      mockGameState.players[0] = { ...mockPlayer };
+      mockGameState.players.push(player2);
 
       const endTurnAction: GameAction = {
         type: 'END_TURN',
@@ -787,6 +1072,15 @@ describe('Game Reducer', () => {
 
     it('should advance to next player correctly', () => {
       mockGameState.currentPlayerIndex = 0;
+      mockPlayer.citiesOwned = ['city1'];
+      mockGameState.players[0] = { ...mockPlayer };
+      mockGameState.players.push({
+        ...mockPlayer,
+        id: 'player2',
+        name: 'Player 2',
+        turnOrder: 1,
+        citiesOwned: ['city2'],
+      });
 
       const endTurnAction: GameAction = {
         type: 'END_TURN',
@@ -797,7 +1091,7 @@ describe('Game Reducer', () => {
 
       const newState = resolveActionState(mockGameState, endTurnAction);
       
-      expect(newState.currentPlayerIndex).toBe(1);
+      expect(newState.players[newState.currentPlayerIndex]?.id).toBe('player2');
     });
   });
 
@@ -816,8 +1110,10 @@ describe('Game Reducer', () => {
         stars: 10,
         researchedTechs: [],
         researchProgress: 0,
-        citiesOwned: []
+        citiesOwned: ['city2']
       };
+      mockPlayer.citiesOwned = ['city1'];
+      mockGameState.players[0] = { ...mockPlayer };
       
       const enemyUnit: Unit = {
         id: 'enemy-combat',
@@ -911,7 +1207,7 @@ describe('Game Reducer', () => {
       expect(newState).toEqual(mockGameState); // State should be unchanged
     });
 
-    it('should handle multiple units and coordinate conflicts', () => {
+    it('should prevent multiple friendly units from occupying the same tile', () => {
       // Add another friendly unit
       const unit2: Unit = {
         id: 'unit2',
@@ -948,8 +1244,8 @@ describe('Game Reducer', () => {
       const newState = resolveActionState(mockGameState, moveAction);
       const unit1 = newState.units.find(u => u.id === 'unit1');
       
-      // Should allow movement to tile with friendly unit
-      expect(unit1?.coordinate).toEqual({ q: 1, r: 0, s: -1 });
+      // Single-occupancy tiles should reject the move.
+      expect(unit1?.coordinate).toEqual({ q: 0, r: 0, s: 0 });
     });
 
     it('should handle unit death and removal correctly', () => {

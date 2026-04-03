@@ -1,5 +1,6 @@
 import { GameState } from "../../types/game";
 import { Unit } from "../../types/unit";
+import { ABILITIES } from "../../data/abilities";
 import { hexDistance } from "../../utils/hex";
 import { getUnitDefinition } from "../../data/units";
 import {
@@ -8,6 +9,8 @@ import {
   isPassableForUnit,
   spendUnitActions
 } from "../unitLogic";
+import { upsertActiveEffect } from "../activeEffects";
+import { createResolveResult, createVillageEncounterEvent, type ResolveResult } from "../actionResolution";
 import { emitTelemetry } from "../telemetry";
 import { resolveCombat } from "../combatResolver";
 import { applyStatusEffect } from "../statusEffects";
@@ -32,7 +35,7 @@ function applyIntimidateToAdjacentEnemies(
       targetDef?.tags?.includes('diplomat');
     if (isCivilian) return u;
 
-    const withEffect = applyStatusEffect(u, { type: 'INTIMIDATED', turnsRemaining: 1 });
+    const withEffect = applyStatusEffect(u, { type: 'INTIMIDATED', turnsRemaining: 1 }, state);
     return withEffect ?? u;
   });
 }
@@ -40,26 +43,26 @@ function applyIntimidateToAdjacentEnemies(
 export function handleMoveUnit(
   state: GameState,
   payload: { unitId: string; targetCoordinate: any }
-): GameState {
+): ResolveResult {
   const unit = state.units.find((u: Unit) => u.id === payload.unitId);
   if (!unit) {
-    return state;
+    return createResolveResult(state);
   }
 
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (unit.playerId !== currentPlayer.id) {
-    return state;
+    return createResolveResult(state);
   }
 
   // Check if movement is valid (weighted by terrain/path cost)
   const moveCost = getMovementCostToCoordinate(unit, payload.targetCoordinate, state);
   if (moveCost === null || moveCost > unit.remainingMovement) {
-    return state;
+    return createResolveResult(state);
   }
 
   // Check if target tile is passable (includes naval special-cases and enemy-blocking)
   if (!isPassableForUnit(payload.targetCoordinate, state, unit)) {
-    return state;
+    return createResolveResult(state);
   }
 
   const getTileAt = (coordinate: any) =>
@@ -147,25 +150,16 @@ export function handleMoveUnit(
     t.coordinate.r === payload.targetCoordinate.r
   );
 
-  // If unit is on a village that's NOT owned (neutral), trigger village encounter
-  // Don't trigger for villages owned by other players - those would need conquest
-  if (destTile?.feature === 'village' && !destTile.cityOwner) {
-    // Dispatch village encounter event to UI
-    if (typeof window !== 'undefined') {
-      const villageEvent = new CustomEvent('villageEncounter', {
-        detail: {
-          unitId: payload.unitId,
-          coordinate: payload.targetCoordinate
-        }
-      });
-      window.dispatchEvent(villageEvent);
-    }
-  }
-
   const movedUnit = updatedUnits.find((u: Unit) => u.id === payload.unitId);
   const finalUnits = applyIntimidateToAdjacentEnemies(updatedUnits, movedUnit, state);
+  const events = destTile?.feature === 'village' && !destTile.cityOwner
+    ? [createVillageEncounterEvent({
+      unitId: payload.unitId,
+      coordinate: { ...payload.targetCoordinate },
+    })]
+    : [];
 
-  return {
+  return createResolveResult({
     ...state,
     units: finalUnits,
     players: updatedPlayers,
@@ -173,7 +167,7 @@ export function handleMoveUnit(
       ...state.map,
       tiles: updatedTiles
     }
-  };
+  }, { events });
 }
 
 export function handleAttackUnit(
@@ -302,9 +296,13 @@ export function handleAttackUnit(
   }
 
   const intimidateSource = updatedUnits.find(u => u.id === attacker.id);
-  updatedUnits = applyIntimidateToAdjacentEnemies(updatedUnits, intimidateSource, state);
+  updatedUnits = applyIntimidateToAdjacentEnemies(updatedUnits, intimidateSource, {
+    ...state,
+    units: updatedUnits,
+  });
 
   const killedUnits = updatedUnits.filter(u => u.hp <= 0);
+  let updatedActiveEffects = [...(state.activeEffects || [])];
   if (killedUnits.length > 0) {
     const killedIds = new Set(killedUnits.map(u => u.id));
     let survivingUnits = updatedUnits.filter(u => !killedIds.has(u.id));
@@ -312,11 +310,43 @@ export function handleAttackUnit(
     killedUnits.forEach(deadUnit => {
       const owner = state.players.find(p => p.id === deadUnit.playerId);
       if (owner?.factionId === 'LAMANITES') {
-        survivingUnits = survivingUnits.map(u => {
-          if (u.playerId !== deadUnit.playerId) return u;
-          if (hexDistance(u.coordinate, deadUnit.coordinate) > 1) return u;
-          return { ...u, attack: u.attack + 2 };
-        });
+        const nearbyAllies = survivingUnits.filter(u =>
+          u.playerId === deadUnit.playerId &&
+          hexDistance(u.coordinate, deadUnit.coordinate) <= 1
+        );
+
+        if (nearbyAllies.length > 0) {
+          updatedActiveEffects = upsertActiveEffect(
+            {
+              ...state,
+              units: survivingUnits,
+              activeEffects: updatedActiveEffects,
+            },
+            {
+              id: `blood-feud:${deadUnit.id}:${state.turn}`,
+              name: ABILITIES.BLOOD_FEUD.name,
+              source: {
+                playerId: deadUnit.playerId,
+                abilityId: "BLOOD_FEUD",
+                coordinate: deadUnit.coordinate,
+              },
+              target: {
+                kind: "specific_units",
+                playerId: deadUnit.playerId,
+                unitIds: nearbyAllies.map(unit => unit.id),
+              },
+              durationTurns: 1,
+              turnsRemaining: 1,
+              tickOn: "source_turn_end",
+              stackRule: "stack",
+              unitStatModifiers: [
+                { stat: "attack", mode: "flat", value: 2 },
+              ],
+              yieldModifiers: [],
+              flags: {},
+            }
+          ).activeEffects || updatedActiveEffects;
+        }
       }
 
       if (unitHasAbility(deadUnit, 'PROTECTIVE_STANCE')) {
@@ -335,6 +365,7 @@ export function handleAttackUnit(
 
   return {
     ...state,
-    units: updatedUnits
+    units: updatedUnits,
+    activeEffects: updatedActiveEffects,
   };
 }

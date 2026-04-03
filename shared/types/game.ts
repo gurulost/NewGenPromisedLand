@@ -15,6 +15,63 @@ export type GameStats = z.infer<typeof GameStatsSchema>;
 
 // Hex coordinate system (imported from coordinates.ts)
 
+export const ActiveEffectSourceSchema = z.object({
+  playerId: z.string(),
+  abilityId: z.string(),
+  unitId: z.string().optional(),
+  coordinate: HexCoordinateSchema.optional(),
+});
+
+export type ActiveEffectSource = z.infer<typeof ActiveEffectSourceSchema>;
+
+export const ActiveEffectTargetSchema = z.object({
+  kind: z.enum(['player', 'all_units', 'units_in_radius', 'specific_units']),
+  playerId: z.string(),
+  unitIds: z.array(z.string()).optional(),
+  radius: z.number().int().positive().optional(),
+});
+
+export type ActiveEffectTarget = z.infer<typeof ActiveEffectTargetSchema>;
+
+export const ActiveEffectStatModifierSchema = z.object({
+  stat: z.enum(['attack', 'defense']),
+  mode: z.enum(['flat', 'percent']).default('flat'),
+  value: z.number(),
+});
+
+export type ActiveEffectStatModifier = z.infer<typeof ActiveEffectStatModifierSchema>;
+
+export const ActiveEffectYieldModifierSchema = z.object({
+  resource: z.enum(['stars', 'faith']),
+  multiplier: z.number().default(0),
+  flat: z.number().default(0),
+});
+
+export type ActiveEffectYieldModifier = z.infer<typeof ActiveEffectYieldModifierSchema>;
+
+export const ActiveEffectFlagsSchema = z.object({
+  immuneToNegativeStatus: z.boolean().optional(),
+}).default({});
+
+export type ActiveEffectFlags = z.infer<typeof ActiveEffectFlagsSchema>;
+
+export const ActiveEffectSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  source: ActiveEffectSourceSchema,
+  target: ActiveEffectTargetSchema,
+  durationTurns: z.number().int().positive(),
+  turnsRemaining: z.number().int().nonnegative(),
+  tickOn: z.enum(['source_turn_end', 'target_turn_end']).default('source_turn_end'),
+  stackRule: z.enum(['refresh', 'replace', 'stack']).default('refresh'),
+  unitStatModifiers: z.array(ActiveEffectStatModifierSchema).default([]),
+  yieldModifiers: z.array(ActiveEffectYieldModifierSchema).default([]),
+  flags: ActiveEffectFlagsSchema,
+  metadata: z.record(z.unknown()).optional(),
+});
+
+export type ActiveEffect = z.infer<typeof ActiveEffectSchema>;
+
 // Terrain types
 export const TerrainTypeSchema = z.enum([
   'plains',
@@ -134,6 +191,7 @@ export const GameStateSchema = z.object({
   cities: z.array(CitySchema).default([]),
   improvements: z.array(ImprovementSchema).default([]),
   structures: z.array(StructureSchema).default([]),
+  activeEffects: z.array(ActiveEffectSchema).default([]),
   lastAction: z.union([
     z.object({ type: z.literal('MOVE_UNIT'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema }) }),
     z.object({ type: z.literal('ATTACK_UNIT'), payload: z.object({ attackerId: z.string(), targetId: z.string() }) }),
@@ -234,14 +292,6 @@ export const GameActionSchema = z.discriminatedUnion('type', [
       playerId: z.string(),
       unitId: z.string(),
       targetUnitId: z.string(),
-    }),
-  }),
-  z.object({
-    type: z.literal('BUILD_UNIT'),
-    payload: z.object({
-      unitType: z.string(),
-      coordinate: HexCoordinateSchema,
-      playerId: z.string(),
     }),
   }),
   z.object({
@@ -351,16 +401,6 @@ export const GameActionSchema = z.discriminatedUnion('type', [
     }),
   }),
   z.object({
-    type: z.literal('BUILD_IMPROVEMENT'),
-    payload: z.object({
-      playerId: z.string(),
-      unitId: z.string(),
-      coordinate: HexCoordinateSchema,
-      improvementType: z.string(),
-      cityId: z.string(),
-    }),
-  }),
-  z.object({
     type: z.literal('START_CONSTRUCTION'),
     payload: z.object({
       playerId: z.string(),
@@ -368,21 +408,14 @@ export const GameActionSchema = z.discriminatedUnion('type', [
       category: z.enum(['improvements', 'structures', 'units']),
       coordinate: HexCoordinateSchema.optional(),
       cityId: z.string(),
-    }),
-  }),
-  z.object({
-    type: z.literal('BUILD_STRUCTURE'),
-    payload: z.object({
-      playerId: z.string(),
-      cityId: z.string(),
-      structureType: z.string(),
-      coordinate: HexCoordinateSchema.optional(),
+      builderUnitId: z.string().optional(),
     }),
   }),
   z.object({
     type: z.literal('CAPTURE_CITY'),
     payload: z.object({
       playerId: z.string(),
+      unitId: z.string(),
       cityId: z.string(),
     }),
   }),
@@ -410,14 +443,6 @@ export const GameActionSchema = z.discriminatedUnion('type', [
     }),
   }),
   z.object({
-    type: z.literal('RECRUIT_UNIT'),
-    payload: z.object({
-      playerId: z.string(),
-      cityId: z.string(),
-      unitType: z.string(),
-    }),
-  }),
-  z.object({
     type: z.literal('ESTABLISH_TRADE_ROUTE'),
     payload: z.object({
       playerId: z.string(),
@@ -434,6 +459,13 @@ export const GameActionSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('FORM_ALLIANCE'),
+    payload: z.object({
+      playerId: z.string(),
+      targetPlayerId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('BREAK_ALLIANCE'),
     payload: z.object({
       playerId: z.string(),
       targetPlayerId: z.string(),

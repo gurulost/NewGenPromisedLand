@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { resolveActionState } from '../../shared/logic/resolveAction';
 import type { GameState } from '../../shared/types/game';
+import type { Unit } from '../../shared/types/unit';
 
 function makeState(): GameState {
   const playerId = 'p1';
@@ -86,5 +87,78 @@ describe('Unit spawn selection', () => {
     const after = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
     const spawned = after.units.find(u => u.playerId === 'p1' && u.type === 'warrior');
     expect(spawned?.coordinate).toEqual({ q: 1, r: 0, s: -1 });
+  });
+
+  it('does not start unit construction on an occupied spawn tile', () => {
+    const state = makeState();
+    state.players[0].constructionQueue = [];
+    state.players[0].stars = 10;
+    state.units.push({
+      id: 'blocker',
+      type: 'warrior',
+      playerId: 'p1',
+      coordinate: { q: 1, r: 0, s: -1 },
+      hp: 10,
+      maxHp: 10,
+      attack: 2,
+      defense: 2,
+      movement: 2,
+      remainingMovement: 2,
+      maxActions: 1,
+      actionsRemaining: 1,
+      visionRadius: 2,
+      attackRange: 1,
+      status: 'active',
+      experience: 0,
+      abilities: [],
+      level: 1,
+    } satisfies Unit);
+
+    const after = resolveActionState(
+      state,
+      {
+        type: 'START_CONSTRUCTION',
+        payload: {
+          playerId: 'p1',
+          buildingType: 'warrior',
+          category: 'units',
+          cityId: 'city1',
+          coordinate: { q: 1, r: 0, s: -1 },
+        },
+      } as any
+    );
+
+    expect(after.players[0].stars).toBe(10);
+    expect(after.players[0].constructionQueue || []).toHaveLength(0);
+  });
+
+  it('falls back to the nearest empty spawn tile when the preferred tile becomes occupied', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    const state = makeState();
+    state.units.push({
+      id: 'blocker',
+      type: 'warrior',
+      playerId: 'p1',
+      coordinate: { q: 1, r: 0, s: -1 },
+      hp: 10,
+      maxHp: 10,
+      attack: 2,
+      defense: 2,
+      movement: 2,
+      remainingMovement: 2,
+      maxActions: 1,
+      actionsRemaining: 1,
+      visionRadius: 2,
+      attackRange: 1,
+      status: 'active',
+      experience: 0,
+      abilities: [],
+      level: 1,
+    } satisfies Unit);
+
+    const after = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'p1' } } as any);
+    const spawned = after.units.find(u => u.playerId === 'p1' && u.type === 'warrior' && u.id !== 'blocker');
+
+    expect(spawned?.coordinate).toEqual({ q: 0, r: 0, s: 0 });
   });
 });

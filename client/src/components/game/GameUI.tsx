@@ -800,6 +800,25 @@ export default function GameUI() {
             }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
           }
         }
+      } else if (action.type === 'BREAK_ALLIANCE') {
+        const actorId = action.payload?.playerId;
+        if (isLocalPlayerAction(actorId)) {
+          triggerFlash('gold');
+          showToast('Alliance Broken', 'warning');
+          const actor = gameState.players.find(p => p.id === actorId);
+          const target = gameState.players.find(p => p.id === action.payload?.targetPlayerId);
+          if (actor) {
+            setGameLogEntries(prev => pushCapped(prev, {
+              id: `log_${Date.now()}`,
+              turn: gameState.turn,
+              playerId: actor.id,
+              playerName: actor.name,
+              type: 'diplomacy',
+              message: `Ended alliance with ${target?.name || 'Unknown'}`,
+              timestamp: Date.now(),
+            }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
+          }
+        }
       } else if (action.type === 'ESTABLISH_TRADE_ROUTE') {
         const actorId = action.payload?.playerId;
         if (isLocalPlayerAction(actorId)) {
@@ -1217,7 +1236,7 @@ export default function GameUI() {
 
   // Enhanced end turn with transition  
   const handleEndTurn = useCallback(() => {
-    if (!gameState || !currentPlayer) return;
+    if (!gameState || !currentPlayer || gameState.phase === 'ended' || gameState.winner) return;
 
     // Close any open context menu
     closeTileContextMenu();
@@ -2059,7 +2078,7 @@ export default function GameUI() {
 
               if (validTiles.length === 0) {
                 showToast(
-                  `Cannot recruit ${optionId}: all nearby tiles are blocked or at capacity.`,
+                  `Cannot recruit ${optionId}: all nearby tiles are blocked, occupied, or already reserved.`,
                   "warning"
                 );
                 return;

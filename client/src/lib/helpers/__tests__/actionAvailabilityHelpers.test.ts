@@ -60,6 +60,7 @@ describe('ActionAvailabilityHelpers', () => {
 
     mockGameState = {
       id: 'game1',
+      phase: 'playing',
       status: 'playing',
       currentPlayerIndex: 0,
       turnNumber: 1,
@@ -149,6 +150,18 @@ describe('ActionAvailabilityHelpers', () => {
       const availability = getActionAvailability(mockUnit, mockGameState);
       
       expect(availability.canBuild).toBe(false);
+    });
+
+    it('should disable actions after the game has ended', () => {
+      mockGameState.phase = 'ended';
+
+      const availability = getActionAvailability(mockUnit, mockGameState);
+
+      expect(availability.isPlayerTurn).toBe(false);
+      expect(availability.canMove).toBe(false);
+      expect(availability.canAttack).toBe(false);
+      expect(availability.movementReason).toBe("Game has ended");
+      expect(availability.attackReason).toBe("Game has ended");
     });
   });
 

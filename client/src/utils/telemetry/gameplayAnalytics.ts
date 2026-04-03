@@ -159,11 +159,11 @@ const getGameSnapshot = (state: GameState) => {
 
 const getActionCategory = (actionType: string): string => {
   if (['MOVE_UNIT', 'ATTACK_UNIT', 'HEAL_UNIT', 'USE_ABILITY'].includes(actionType)) return 'unit';
-  if (['BUILD_UNIT', 'RECRUIT_UNIT', 'UPGRADE_UNIT'].includes(actionType)) return 'unit_production';
-  if (['BUILD_STRUCTURE', 'BUILD_IMPROVEMENT', 'START_CONSTRUCTION'].includes(actionType)) return 'construction';
+  if (['UPGRADE_UNIT'].includes(actionType)) return 'unit_production';
+  if (['START_CONSTRUCTION'].includes(actionType)) return 'construction';
   if (['RESEARCH_TECH', 'RESEARCH_TECHNOLOGY'].includes(actionType)) return 'research';
   if (['CAPTURE_CITY', 'CONQUER_VILLAGE', 'CONVERT_VILLAGE'].includes(actionType)) return 'control';
-  if (['DECLARE_WAR', 'FORM_ALLIANCE', 'ESTABLISH_TRADE_ROUTE'].includes(actionType)) return 'diplomacy';
+  if (['DECLARE_WAR', 'FORM_ALLIANCE', 'BREAK_ALLIANCE', 'ESTABLISH_TRADE_ROUTE'].includes(actionType)) return 'diplomacy';
   if (actionType === 'END_TURN') return 'turn';
   return 'system';
 };

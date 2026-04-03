@@ -1,35 +1,172 @@
-import { GameState, PlayerState } from "../../types/game";
+import { ActiveEffect, GameState, PlayerState } from "../../types/game";
 import { ABILITIES } from "../../data/abilities";
+import { FACTIONS } from "../../data/factions";
 import { TECHNOLOGIES } from "../../data/technologies";
 import { GAME_RULES } from "../../data/gameRules";
 import { getUnitDefinition } from "../../data/units";
 import { hexDistance } from "../../utils/hex";
+import { upsertActiveEffect } from "../activeEffects";
 import { nextInt } from "../rng";
 import { emitTelemetry } from "../telemetry";
 import { getUnitActionsRemaining, spendUnitActions } from "../unitLogic";
 import { handleApplyStealth, handleHealUnit, handleReconnaissance } from "../unitActionHandlers";
 import { handleConvertUnit } from "./conversion";
-import { hasAbility } from "./helpers";
+import { hasAbility, normalizeAbility } from "./helpers";
+
+const MANUALLY_ACTIVATABLE_UNIT_ABILITIES = new Set([
+  "HEAL",
+  "CONVERT",
+  "STEALTH",
+  "RECONNAISSANCE",
+  "RALLY",
+  "RALLY_TROOPS",
+  "BOMBARDMENT",
+  "SIEGE",
+  "FORMATION_FIGHTING",
+  "BUILD",
+  "HARVEST",
+  "CLEAR_FOREST",
+  "BUILD_ROAD",
+  "COASTAL_EXPLORATION",
+  "NAVAL_COMMAND",
+]);
+
+type AbilityActionPayload = {
+  playerId: string;
+  abilityId: string;
+  target?: any;
+  unitId?: string;
+  targetCoordinate?: any;
+  targetUnitId?: string;
+};
+
+function emitBlockedAbility(playerId: string, abilityId: string, reason: string): void {
+  emitTelemetry({
+    channel: "ability",
+    status: "blocked",
+    playerId,
+    abilityId,
+    reason,
+  });
+}
+
+function getFactionAbilityEntry(player: PlayerState, abilityId: string) {
+  const faction = Object.values(FACTIONS).find(({ id }) => id === player.factionId);
+  if (!faction) return undefined;
+
+  return faction.abilities.find((factionAbility) =>
+    normalizeAbility(factionAbility.id) === normalizeAbility(abilityId)
+  );
+}
+
+function validateManualAbilityUse(
+  state: GameState,
+  player: PlayerState,
+  payload: AbilityActionPayload
+): { ok: true } | { ok: false; reason: string } {
+  const ability = ABILITIES[payload.abilityId];
+  if (!ability) return { ok: false, reason: "unknown_ability" };
+
+  if (ability.type === "faction") {
+    const factionAbility = getFactionAbilityEntry(player, payload.abilityId);
+    if (!factionAbility) {
+      return { ok: false, reason: "not_owned" };
+    }
+
+    if (factionAbility.type !== "active") {
+      return {
+        ok: false,
+        reason: factionAbility.type === "triggered" ? "triggered_only" : "passive_only",
+      };
+    }
+
+    return { ok: true };
+  }
+
+  if (ability.type === "unit") {
+    if (!payload.unitId) {
+      return { ok: false, reason: "missing_unit" };
+    }
+
+    const actingUnit = state.units.find((unit) => unit.id === payload.unitId);
+    if (!actingUnit || actingUnit.playerId !== player.id) {
+      return { ok: false, reason: "invalid_unit" };
+    }
+
+    const unitDefinition = getUnitDefinition(actingUnit.type);
+    const ownsAbility =
+      hasAbility(unitDefinition.abilities, payload.abilityId) ||
+      hasAbility(actingUnit.abilities, payload.abilityId);
+
+    if (!ownsAbility) {
+      return { ok: false, reason: "not_owned" };
+    }
+
+    if (!MANUALLY_ACTIVATABLE_UNIT_ABILITIES.has(normalizeAbility(payload.abilityId))) {
+      return { ok: false, reason: "passive_only" };
+    }
+
+    return { ok: true };
+  }
+
+  return { ok: false, reason: "manual_activation_not_allowed" };
+}
+
+const TITLE_OF_LIBERTY_FAITH_COST = 50;
+
+function createActiveEffectId(state: GameState, abilityId: string, playerId: string): string {
+  return `${abilityId}:${playerId}:${state.turn}:${(state.activeEffects?.length ?? 0) + 1}`;
+}
+
+function addActiveEffect(state: GameState, effect: Omit<ActiveEffect, "id">): GameState {
+  return upsertActiveEffect(state, {
+    ...effect,
+    id: createActiveEffectId(state, effect.source.abilityId, effect.source.playerId),
+  });
+}
+
+function countFriendlyUnitsInRadius(state: GameState, playerId: string, unitId: string, radius: number): number {
+  const center = state.units.find(unit => unit.id === unitId && unit.playerId === playerId);
+  if (!center) return 0;
+
+  return state.units.filter(unit =>
+    unit.playerId === playerId &&
+    hexDistance(unit.coordinate, center.coordinate) <= radius
+  ).length;
+}
+
+function selectBestFriendlySourceUnit(state: GameState, playerId: string, radius: number) {
+  const friendlyUnits = state.units.filter(unit => unit.playerId === playerId);
+  if (friendlyUnits.length === 0) return undefined;
+
+  return [...friendlyUnits].sort((left, right) => {
+    const coverageDelta =
+      countFriendlyUnitsInRadius(state, playerId, right.id, radius) -
+      countFriendlyUnitsInRadius(state, playerId, left.id, radius);
+    if (coverageDelta !== 0) return coverageDelta;
+    return left.id.localeCompare(right.id);
+  })[0];
+}
 
 export function handleUseAbility(
   state: GameState,
-  payload: { playerId: string; abilityId: string; target?: any; unitId?: string; targetCoordinate?: any; targetUnitId?: string }
+  payload: AbilityActionPayload
 ): GameState {
   const player = state.players.find(p => p.id === payload.playerId);
   if (!player) return state;
+
+  const validation = validateManualAbilityUse(state, player, payload);
+  if (!validation.ok) {
+    emitBlockedAbility(player.id, payload.abilityId, validation.reason);
+    return state;
+  }
 
   const ability = ABILITIES[payload.abilityId];
   if (!ability) return state;
 
   const cooldownRemaining = player.abilityCooldowns?.[payload.abilityId] ?? 0;
   if (cooldownRemaining > 0) {
-    emitTelemetry({
-      channel: "ability",
-      status: "blocked",
-      playerId: player.id,
-      abilityId: payload.abilityId,
-      reason: "cooldown"
-    });
+    emitBlockedAbility(player.id, payload.abilityId, "cooldown");
     return state;
   }
 
@@ -42,10 +179,13 @@ export function handleUseAbility(
   let next: GameState = state;
   switch (payload.abilityId) {
     case "TITLE_OF_LIBERTY":
-      next = applyTitleOfLiberty(state, player);
+      next = applyTitleOfLiberty(state, player, payload.targetUnitId);
       break;
     case "RAMEUMPTOM":
       next = applyRameumptom(state, player);
+      break;
+    case "WARRIOR_RAGE":
+      next = applyWarriorRage(state, player);
       break;
     case "COVENANT_OF_PEACE":
       next = applyCovenantOfPeace(state, player);
@@ -110,22 +250,46 @@ export function handleUseAbility(
   return next;
 }
 
-function applyTitleOfLiberty(state: GameState, player: PlayerState): GameState {
+function applyTitleOfLiberty(state: GameState, player: PlayerState, targetUnitId?: string): GameState {
   if (player.stats.faith < 70) return state;
 
+  const radius = 3;
+  const sourceUnit = targetUnitId
+    ? state.units.find(unit => unit.id === targetUnitId && unit.playerId === player.id)
+    : selectBestFriendlySourceUnit(state, player.id, radius);
+  if (!sourceUnit) return state;
+
+  const buffedState = addActiveEffect(state, {
+    name: ABILITIES.TITLE_OF_LIBERTY.name,
+    source: {
+      playerId: player.id,
+      abilityId: "TITLE_OF_LIBERTY",
+      unitId: sourceUnit.id,
+    },
+    target: {
+      kind: "units_in_radius",
+      playerId: player.id,
+      radius,
+    },
+    durationTurns: ABILITIES.TITLE_OF_LIBERTY.duration ?? 3,
+    turnsRemaining: ABILITIES.TITLE_OF_LIBERTY.duration ?? 3,
+    tickOn: "source_turn_end",
+    stackRule: "refresh",
+    unitStatModifiers: [
+      { stat: "attack", mode: "percent", value: 0.3 },
+      { stat: "defense", mode: "percent", value: 0.3 },
+    ],
+    yieldModifiers: [],
+    flags: {
+      immuneToNegativeStatus: true,
+    },
+  });
+
   return {
-    ...state,
-    units: state.units.map(u => {
-      if (u.playerId !== player.id) return u;
-      return {
-        ...u,
-        attack: u.attack + 2,
-        defense: u.defense + 2,
-      };
-    }),
+    ...buffedState,
     players: state.players.map(p =>
       p.id === player.id
-        ? { ...p, stats: { ...p.stats, faith: p.stats.faith - 50 } }
+        ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - TITLE_OF_LIBERTY_FAITH_COST) } }
         : p
     )
   };
@@ -134,21 +298,68 @@ function applyTitleOfLiberty(state: GameState, player: PlayerState): GameState {
 function applyRameumptom(state: GameState, player: PlayerState): GameState {
   if (player.stats.pride < 70) return state;
 
+  const buffedState = addActiveEffect(state, {
+    name: ABILITIES.RAMEUMPTOM.name,
+    source: {
+      playerId: player.id,
+      abilityId: "RAMEUMPTOM",
+    },
+    target: {
+      kind: "player",
+      playerId: player.id,
+    },
+    durationTurns: ABILITIES.RAMEUMPTOM.duration ?? 5,
+    turnsRemaining: ABILITIES.RAMEUMPTOM.duration ?? 5,
+    tickOn: "source_turn_end",
+    stackRule: "refresh",
+    unitStatModifiers: [],
+    yieldModifiers: [
+      { resource: "stars", multiplier: 1, flat: 0 },
+      { resource: "faith", multiplier: 1, flat: 0 },
+    ],
+    flags: {},
+  });
+
   return {
-    ...state,
-    players: state.players.map(p =>
+    ...buffedState,
+    players: buffedState.players.map(p =>
       p.id === player.id
         ? {
           ...p,
           stats: {
             ...p.stats,
-            pride: Math.min(100, p.stats.pride + 30),
             internalDissent: Math.min(100, p.stats.internalDissent + 20)
           }
         }
         : p
     )
   };
+}
+
+function applyWarriorRage(state: GameState, player: PlayerState): GameState {
+  if (player.stats.pride < 60) return state;
+
+  return addActiveEffect(state, {
+    name: ABILITIES.WARRIOR_RAGE.name,
+    source: {
+      playerId: player.id,
+      abilityId: "WARRIOR_RAGE",
+    },
+    target: {
+      kind: "all_units",
+      playerId: player.id,
+    },
+    durationTurns: ABILITIES.WARRIOR_RAGE.duration ?? 4,
+    turnsRemaining: ABILITIES.WARRIOR_RAGE.duration ?? 4,
+    tickOn: "source_turn_end",
+    stackRule: "refresh",
+    unitStatModifiers: [
+      { stat: "attack", mode: "flat", value: 3 },
+      { stat: "defense", mode: "flat", value: -1 },
+    ],
+    yieldModifiers: [],
+    flags: {},
+  });
 }
 
 function applyCovenantOfPeace(state: GameState, player: PlayerState): GameState {

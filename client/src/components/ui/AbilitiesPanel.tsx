@@ -16,6 +16,7 @@ import { GAME_RULES } from "@shared/data/gameRules";
 import { WORLD_ELEMENTS } from "@shared/data/worldElements";
 import { getActionAvailability } from "../../lib/helpers/actionAvailabilityHelpers";
 import { getCapturableCitiesForUnit } from "@shared/logic/cityCapture";
+import { CITY_WORK_RADIUS } from "@shared/logic/constructionValidation";
 import type { Unit } from "@shared/types/unit";
 import { IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { hexDistance } from "@shared/utils/hex";
@@ -61,7 +62,8 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
 
   const unitDef = getUnitDefinition(unit.type);
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  const isPlayerTurn = currentPlayer.id === unit.playerId;
+  const gameHasEnded = gameState.phase === 'ended' || Boolean(gameState.winner);
+  const isPlayerTurn = !gameHasEnded && currentPlayer.id === unit.playerId;
   const actionAvailability = getActionAvailability(unit, gameState);
   const actionsRemaining = unit.actionsRemaining ?? unit.maxActions ?? 1;
 
@@ -70,22 +72,26 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     tile.coordinate.r === unit.coordinate.r
   );
   const worldElementIds = (currentTile?.resources || []).filter(resource => WORLD_ELEMENTS[resource]);
-  const capturableCity = getCapturableCitiesForUnit(unit, currentPlayer, gameState)[0];
+  const capturableCities = isPlayerTurn
+    ? getCapturableCitiesForUnit(unit, currentPlayer, gameState)
+    : [];
+  const capturableCity = capturableCities[0];
 
   const getClosestOwnedCityId = (): string | null => {
+    if (!currentTile) return null;
     const ownedCities = (gameState.cities || []).filter(c => c.ownerId === currentPlayer.id);
     if (ownedCities.length === 0) return null;
 
-    let best = ownedCities[0];
-    let bestDistance = hexDistance(best.coordinate, unit.coordinate);
+    let best: (typeof ownedCities)[number] | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
     for (const city of ownedCities) {
-      const distance = hexDistance(city.coordinate, unit.coordinate);
-      if (distance < bestDistance) {
+      const distance = hexDistance(city.coordinate, currentTile.coordinate);
+      if (distance <= CITY_WORK_RADIUS && distance < bestDistance) {
         best = city;
         bestDistance = distance;
       }
     }
-    return best.id;
+    return best?.id ?? null;
   };
 
   const getBestImprovementForCurrentTile = (): keyof typeof IMPROVEMENT_DEFINITIONS | null => {
@@ -134,12 +140,13 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
 
     // City capture action - appears when this unit can capture an enemy city
     if (capturableCity) {
+      const multipleCaptureNote = capturableCities.length > 1 ? ` (${capturableCities.length} available)` : '';
       actions.push({
         id: 'capture_city',
         name: 'Capture City',
-        description: `Capture ${capturableCity.name} from an adjacent tile`,
+        description: `Capture ${capturableCity.name} with this unit${multipleCaptureNote}`,
         icon: <Crown className="w-4 h-4" />,
-        cost: 'Free',
+        cost: 'Turn',
         available: true
       });
     }
@@ -183,7 +190,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             description: !actionAvailability.canBuild
               ? 'Cannot build on this tile'
               : !closestCityId
-                ? 'No owned city available'
+                ? `No owned city within ${CITY_WORK_RADIUS} tiles`
                 : !bestImprovement
                   ? 'No valid improvement available (check tech/stars/terrain)'
                   : `Build ${IMPROVEMENT_DEFINITIONS[bestImprovement].name} (${IMPROVEMENT_DEFINITIONS[bestImprovement].cost} stars)`,
@@ -257,7 +264,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             icon: <Heart className="w-4 h-4" />,
             cost: `${healingCost} Faith`,
             faithCost: healingCost,
-            available: damagedAllyInRange && currentPlayer.stats.faith >= healingCost && actionsRemaining > 0,
+            available: isPlayerTurn && damagedAllyInRange && currentPlayer.stats.faith >= healingCost && actionsRemaining > 0,
             rangeType: 'ability',
             range: GAME_RULES.abilities.healRadius
           },
@@ -272,7 +279,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             icon: <Star className="w-4 h-4" />,
             cost: `${unitConversionFaithCost} Faith`,
             faithCost: unitConversionFaithCost,
-            available: currentPlayer.stats.faith >= unitConversionFaithCost && actionsRemaining > 0 && adjacentEnemyUnits.length > 0,
+            available: isPlayerTurn && currentPlayer.stats.faith >= unitConversionFaithCost && actionsRemaining > 0 && adjacentEnemyUnits.length > 0,
             rangeType: 'attack',
             range: GAME_RULES.abilities.conversionRadius
           }
@@ -524,6 +531,7 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
             type: 'CAPTURE_CITY',
             payload: {
               playerId: currentPlayer.id,
+              unitId: unit.id,
               cityId: capturableCity.id
             }
           });
@@ -580,13 +588,14 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           const closestCityId = getClosestOwnedCityId();
           if (!bestImprovement || !closestCityId) break;
           dispatch({
-            type: 'BUILD_IMPROVEMENT',
+            type: 'START_CONSTRUCTION',
             payload: {
               playerId: currentPlayer.id,
-              unitId: unit.id,
+              buildingType: bestImprovement,
+              category: 'improvements',
               coordinate: currentTile.coordinate,
-              improvementType: bestImprovement,
               cityId: closestCityId,
+              builderUnitId: unit.id,
             }
           });
         }
