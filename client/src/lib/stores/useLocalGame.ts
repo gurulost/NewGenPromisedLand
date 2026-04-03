@@ -20,11 +20,15 @@ import { useUnitMotionStore } from "./useUnitMotionStore";
 import { gameDebugger } from "../../utils/gameDebug";
 import { clearAutosave } from "../autosaveStorage";
 import { markAutosaveDirty, requestAutosave } from "../autosaveManager";
+import {
+  getTurnPresentationPhaseForGamePhase,
+  type GamePhase,
+  resolveGamePhaseForState,
+} from "../localGamePhases";
 import { getUnitAnimationMoveSpeed, hasUnitAnimationState } from "../../utils/unitAnimationRegistry";
 import { useUnitAnimationEventStore } from "./useUnitAnimationEventStore";
 import {
   INITIAL_TURN_PRESENTATION_STATE,
-  type TurnPresentationPhase,
   type TurnPresentationState,
   reduceTurnPresentation,
   resolveUiTurnPlayer,
@@ -61,15 +65,6 @@ const applyPlayerDefaults = (player: PlayerState): PlayerState => {
   return normalized;
 };
 
-type GamePhase =
-  | 'menu'
-  | 'tutorialEpisodeIntro'
-  | 'playerSetup'
-  | 'handoff'
-  | 'playing'
-  | 'gameOver'
-  | 'lobbies'
-  | 'lobbyRoom';
 type GameMode = 'standard' | 'tutorialEpisode';
 
 interface OnlineSession {
@@ -99,14 +94,6 @@ const canAct = (gameState: GameState | null, onlineSession: OnlineSession | null
     return onlineSession.userId === onlineSession.hostUserId;
   }
   return onlineSession.myPlayerIds.includes(currentPlayer.id);
-};
-
-const getTurnPresentationPhaseForGamePhase = (
-  gamePhase: GamePhase,
-): TurnPresentationPhase | null => {
-  if (gamePhase === "handoff") return "handoff";
-  if (gamePhase === "playing" || gamePhase === "gameOver") return "idle";
-  return null;
 };
 
 const normalizeGameStateTurnPlayer = (gameState: GameState | null): GameState | null => {
@@ -416,10 +403,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     }
 
     const normalizedNextGameState = normalizeGameStateTurnPlayer(newGameState) ?? newGameState;
-    const nextGamePhase: GamePhase =
-      normalizedNextGameState.phase === 'ended' || normalizedNextGameState.winner
-        ? 'gameOver'
-        : gamePhase;
+    const nextGamePhase = resolveGamePhaseForState(gamePhase, normalizedNextGameState);
     set((state) => ({
       gameState: normalizedNextGameState,
       gamePhase: nextGamePhase,
@@ -490,6 +474,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     const actionId = createActionId();
 
     if (!onlineSession) {
+      if (gameState?.phase === "ended") {
+        reportActionError("The match has concluded. Review the final world or return to the menu.", "warning");
+        return;
+      }
       const result = applyActionToState(action, 'local_offline', {
         actionId,
         gameState,
@@ -525,6 +513,16 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         null
       );
       reportActionError("Game state is not ready yet.", "warning");
+      return;
+    }
+    if (gameState.phase === "ended") {
+      trackGameplayActionBlocked(
+        action,
+        "game_already_concluded",
+        buildActionContext(onlineActionSource, { actionId, gameState }),
+        gameState,
+      );
+      reportActionError("The match has concluded. Review the final world or return to the menu.", "warning");
       return;
     }
     if (!canAct(gameState, onlineSession)) {
@@ -671,9 +669,10 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       const normalizedState = normalizeGameStateTurnPlayer(state);
       set((currentState) => ({
         gameState: normalizedState,
+        gamePhase: resolveGamePhaseForState(currentState.gamePhase, normalizedState),
         turnPresentation: syncTurnPresentation(
           normalizedState,
-          currentState.gamePhase,
+          resolveGamePhaseForState(currentState.gamePhase, normalizedState),
           currentState.turnPresentation,
         ),
       }));
@@ -1709,12 +1708,13 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       const nextMode: GameMode = normalizedState.id?.startsWith('tutorial-episode-')
         ? 'tutorialEpisode'
         : 'standard';
+      const nextPhase = normalizedState.phase === "ended" ? "gameOver" : "playing";
       set({
         gameState: normalizedState,
-        gamePhase: 'playing',
+        gamePhase: nextPhase,
         turnPresentation: syncTurnPresentation(
           normalizedState,
-          'playing',
+          nextPhase,
           INITIAL_TURN_PRESENTATION_STATE,
         ),
         isGeneratingMap: false,

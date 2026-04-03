@@ -1,3 +1,5 @@
+import { GameRuleHelpers } from "./gameRules";
+
 export interface Technology {
   id: string;
   name: string;
@@ -299,9 +301,7 @@ export function getAvailableTechnologies(researchedTechs: string[]): Technology[
  * Calculate research cost (can scale with number of techs researched)
  */
 export function calculateResearchCost(tech: Technology, researchedCount: number): number {
-  // Use direct scaling factor to avoid circular dependency
-  const costScalingFactor = 1.2; // From GAME_RULES.research.costScalingFactor
-  return Math.floor(tech.cost * Math.pow(costScalingFactor, researchedCount));
+  return GameRuleHelpers.calculateResearchCost(tech.cost, researchedCount);
 }
 
 /**

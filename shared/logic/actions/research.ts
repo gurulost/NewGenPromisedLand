@@ -1,5 +1,6 @@
 import { GameState } from "../../types/game";
-import { TECHNOLOGIES, calculateResearchCost } from "../../data/technologies";
+import { TECHNOLOGIES } from "../../data/technologies";
+import { getTechCostDetails, playerHasTechPrerequisites } from "../technologyHelpers";
 
 export function handleResearchTech(
   state: GameState,
@@ -13,10 +14,10 @@ export function handleResearchTech(
   const player = state.players.find(p => p.id === playerId);
   if (!player) return state;
 
-  const cost = calculateResearchCost(tech, player.researchedTechs.length);
+  const { finalCost } = getTechCostDetails(tech, player);
 
-  if (player.stars < cost) return state;
-  if (!tech.prerequisites.every(prereq => player.researchedTechs.includes(prereq))) return state;
+  if (player.stars < finalCost) return state;
+  if (!playerHasTechPrerequisites(player, tech)) return state;
   if (player.researchedTechs.includes(techId)) return state;
 
   return {
@@ -25,7 +26,7 @@ export function handleResearchTech(
       p.id === playerId
         ? {
           ...p,
-          stars: p.stars - cost,
+          stars: p.stars - finalCost,
           researchedTechs: [...p.researchedTechs, techId],
         }
         : p

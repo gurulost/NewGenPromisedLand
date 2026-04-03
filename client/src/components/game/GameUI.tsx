@@ -6,6 +6,7 @@ import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useAITurn } from "../../hooks/useAITurn";
 import { useOnlineGameSync } from "../../hooks/useOnlineGameSync";
+import { useEndgameUiCleanup } from "../../hooks/useEndgameUiCleanup";
 import { getFaction } from "@shared/data/factions";
 import { PlayerHUD } from "../hud/PlayerHUD";
 import SelectedUnitPanel from "../ui/SelectedUnitPanel";
@@ -13,7 +14,6 @@ import UnitActionsPanel from "../ui/AbilitiesPanel";
 import TechPanel from "../ui/TechPanel";
 import CityPanel from "../ui/CityPanel";
 import { BuildingMenu } from "../ui/BuildingMenu";
-import VictoryScreen from "../ui/VictoryScreen";
 import SaveLoadMenu from "../ui/SaveLoadMenu";
 import { TurnTransition, useTurnTransition } from "../ui/TurnTransition";
 import { UnitSelectionUI } from "../effects/UnitSelection";
@@ -63,6 +63,8 @@ import { ChatPanel } from "../chat/ChatPanel";
 import { useChatUIState } from "../../hooks/useChatUIState";
 import { useAuth } from "../../lib/stores/useAuth";
 import { isBugReportingEnabled, openBugReportDialog } from "../../utils/bugReport";
+import { VictorySequenceOverlay } from "../ui/VictorySequenceOverlay";
+import type { VictoryLogEntry } from "../../lib/victoryPresentation";
 
 interface ActiveNotification {
   id: string;
@@ -87,8 +89,6 @@ export default function GameUI() {
     endTurn,
     useAbility: triggerAbility,
     attackUnit,
-    setGamePhase,
-    resetGame,
     loadGameState,
   } = useLocalGame();
   const gameMode = useLocalGame((state) => state.gameMode);
@@ -122,6 +122,8 @@ export default function GameUI() {
     isAttackMode, 
     setMovementMode, 
     setAttackMode, 
+    setReachableCoordinates,
+    setAttackableTargets,
     reachableCoordinates, 
     closeTileContextMenu, 
     showSpawnDebug, 
@@ -159,15 +161,7 @@ export default function GameUI() {
   const addPulse = useMapPulseStore(state => state.addPulse);
   const [activeNotification, setActiveNotification] = useState<ActiveNotification | null>(null);
   const gameLogRef = useRef<any[]>([]);
-  const [gameLogEntries, setGameLogEntries] = useState<Array<{
-    id: string;
-    turn: number;
-    playerId: string;
-    playerName: string;
-    type: string;
-    message: string;
-    timestamp: number;
-  }>>([]);
+  const [gameLogEntries, setGameLogEntries] = useState<VictoryLogEntry[]>([]);
 
   // Safety-net cleanup for long sessions (stale particles/map-toasts can linger when tab is backgrounded).
   useMemoryCleanup();
@@ -1006,23 +1000,43 @@ export default function GameUI() {
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [showCitySelector, setShowCitySelector] = useState(false);
   const [citySelectorAction, setCitySelectorAction] = useState<'city_panel' | 'construction'>('city_panel');
-
-  const [selectedWorldElement, setSelectedWorldElement] = useState<{
-    elementId: string;
-    coordinate: { q: number; r: number; s: number };
-    unitId?: string;
-  } | null>(null);
-
-  const [selectedVillage, setSelectedVillage] = useState<{
-    unitId: string;
-    coordinate: { q: number; r: number; s: number };
-  } | null>(null);
-
+  const [selectedWorldElement, setSelectedWorldElement] = useState<{ elementId: string; coordinate: { q: number; r: number; s: number }; unitId?: string } | null>(null);
+  const [selectedVillage, setSelectedVillage] = useState<{ unitId: string; coordinate: { q: number; r: number; s: number } } | null>(null);
   const [showDiplomacy, setShowDiplomacy] = useState(false);
   const [ruinsReward, setRuinsReward] = useState<any | null>(null);
   const [showLegendaryShimmer, setShowLegendaryShimmer] = useState(false);
   const [showGameLog, setShowGameLog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  useEndgameUiCleanup({
+    phase: gameState?.phase,
+    setShowTechPanel,
+    setShowCityPanel,
+    setShowConstructionHall,
+    setShowQuickUnitActions,
+    setShowSaveLoadMenu,
+    setShowTelemetry,
+    setShowCitySelector,
+    setSelectedCityId,
+    setSelectedWorldElement,
+    setSelectedVillage,
+    setShowDiplomacy,
+    setRuinsReward,
+    setShowLegendaryShimmer,
+    setShowGameLog,
+    setShowSettings,
+    setShowMobileChat,
+    setActiveTechReveal,
+    setTechRevealQueue,
+    setSelectedUnit,
+    setMovementMode,
+    setAttackMode,
+    setReachableCoordinates,
+    setAttackableTargets,
+    cancelConstruction,
+    cancelSpawnSelection,
+    cancelRoadBuild,
+    closeTileContextMenu,
+  });
   // Local screenFlash state removed in favor of VisualFeedbackProvider
 
   const currentPlayer = resolveUiTurnPlayer(gameState, turnPresentation?.player ?? null);
@@ -1050,7 +1064,7 @@ export default function GameUI() {
     showSaveLoadMenu ||
       showSettings ||
       conquestBanner ||
-      gameState?.winner ||
+      gameState?.phase === "ended" ||
       showTurnRecoveryBanner ||
       hostLeaseExpired ||
       activeTechReveal ||
@@ -1069,13 +1083,11 @@ export default function GameUI() {
     const nameKey = currentPlayer.name?.trim() || currentPlayer.id;
     return `local:${nameKey}`;
   }, [currentPlayer, onlineSession?.userId]);
-  const myOnlinePlayer = useMemo(
-    () => {
-      if (!onlineSession) return null;
-      return gameState?.players.find((player) => onlineMyPlayerIds.includes(player.id)) ?? null;
-    },
-    [gameState?.players, onlineMyPlayerIds, onlineSession],
-  );
+  const myOnlinePlayer = useMemo(() => (
+    onlineSession
+      ? gameState?.players.find((player) => onlineMyPlayerIds.includes(player.id)) ?? null
+      : null
+  ), [gameState?.players, onlineMyPlayerIds, onlineSession]);
   const chatIdentity = useMemo(() => {
     if (!onlineSession) return null;
     const fallbackName = myOnlinePlayer?.name ?? `Player ${onlineSession.userId}`;
@@ -2179,21 +2191,7 @@ export default function GameUI() {
         </div>
       )}
 
-      {/* Victory Screen */}
-      {gameState?.winner && (
-        <VictoryScreen
-          winnerId={gameState.winner}
-          victoryType={gameState.victoryType ?? 'faith'}
-          onPlayAgain={() => {
-            resetGame();
-            setGamePhase('menu');
-          }}
-          onMainMenu={() => {
-            resetGame();
-            setGamePhase('menu');
-          }}
-        />
-      )}
+      <VictorySequenceOverlay gameState={gameState} gameLogEntries={gameLogEntries} />
 
       {/* Save/Load Menu */}
       {showSaveLoadMenu && (

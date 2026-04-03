@@ -1,5 +1,6 @@
 import { GameState, PlayerState } from '@shared/types/game';
 import { TECHNOLOGIES } from '@shared/data/technologies';
+import { getEffectiveTechCostForPlayer } from '@shared/logic/technologyHelpers';
 
 export interface TechValidation {
   canResearch: (techId: string) => boolean;
@@ -14,7 +15,7 @@ export function getTechValidation(player: PlayerState, gameState: GameState): Te
   const canAfford = (techId: string): boolean => {
     const tech = TECHNOLOGIES[techId as keyof typeof TECHNOLOGIES];
     if (!tech) return false;
-    return player.stars >= tech.cost;
+    return player.stars >= getEffectiveTechCostForPlayer(tech, player);
   };
 
   const hasPrerequisites = (techId: string): boolean => {

@@ -862,6 +862,26 @@ describe('Game Reducer', () => {
       expect(player?.researchedTechs).not.toContain('agriculture');
       expect(player?.stars).toBe(5); // Stars should remain unchanged
     });
+
+    it('should respect research inspiration discounts when spending stars', () => {
+      mockGameState.players[0].stars = 7;
+      mockGameState.players[0].researchedTechs = ['organization'];
+      mockGameState.players[0].researchInspiration = 5;
+
+      const researchAction: GameAction = {
+        type: 'RESEARCH_TECH',
+        payload: {
+          playerId: 'player1',
+          techId: 'agriculture'
+        }
+      };
+
+      const newState = resolveActionState(mockGameState, researchAction);
+      const player = newState.players.find(p => p.id === 'player1');
+
+      expect(player?.researchedTechs).toContain('agriculture');
+      expect(player?.stars).toBe(0);
+    });
   });
 
   describe('Invalid Actions', () => {
