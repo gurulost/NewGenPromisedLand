@@ -11,7 +11,7 @@
 - Landmass indexing and early-passability helpers now live in `shared/utils/mapGenerationGeometry.ts`.
 - Water body indexing/grouping, water ratio/body-size lookups, water-mask cleanup, capital water metrics, water-repair path search, and water resource placement now live in `shared/utils/mapGenerationWater.ts`.
 - Capital spawn search, distance relaxation, landmass ordering, candidate-pool construction, and fallback placement now live in `shared/utils/mapGenerationCapitals.ts`.
-- Settlement ring bands, village location validation, neutral-city size lookups, contested-village detection, and village candidate scoring now live in `shared/utils/mapGenerationSettlements.ts`.
+- Neutral city placement, capital expansion-village guarantees, village placement, settlement ring bands, village location validation, neutral-city size lookups, contested-village detection, and village candidate scoring now live in `shared/utils/mapGenerationSettlements.ts`.
 - `shared/utils/mapGenerator.ts` remains the public facade for `MapGenerator`, constants, size types, config, and report types.
 
 ## Goals
@@ -53,7 +53,7 @@ The first split pass should keep these exports and behaviors stable:
 - `mapGenerationDiagnostics.ts`: spread summaries, diagnostics defaults, water-repair defaults, and debug logging helpers.
 - `mapGenerationCapitals.ts`: capital candidate selection, fallback placement, spacing, land access, and per-capital reports.
 - `mapGenerationWater.ts`: water motifs, water masks, body analysis, coastal/repair rules, and water resources.
-- `mapSettlementPlacement.ts`: neutral cities, expansion villages, contested villages, ring counts, and village diagnostics.
+- `mapGenerationSettlements.ts`: neutral cities, expansion villages, contested villages, ring counts, and village diagnostics.
 - `mapTerrainGeneration.ts`: base terrain probabilities, noise classification, and faction terrain modifiers.
 - `mapLandResources.ts`: land resource candidates, spacing/cap constraints, home-zone guarantees, and variety guarantees.
 - `mapRuins.ts`: ruins targets, placement candidates, spacing, and special feature assignment.
