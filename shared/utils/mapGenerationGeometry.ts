@@ -1,7 +1,8 @@
 import type { HexCoordinate } from '@shared/types/coordinates';
 import type { Tile } from '@shared/types/game';
-import { hexDistance } from './hex';
-import type { PlacementContext } from './mapGenerationTypes';
+import { GameRuleHelpers } from '@shared/data/gameRules';
+import { hexDistance, hexNeighbors } from './hex';
+import type { LandmassData, PlacementContext } from './mapGenerationTypes';
 
 export const coordKey = (coord: HexCoordinate): string => {
   return `${coord.q},${coord.r},${coord.s}`;
@@ -71,4 +72,51 @@ export const minDistanceToCity = (coord: HexCoordinate, context: PlacementContex
 
 export const minDistanceToVillage = (coord: HexCoordinate, context: PlacementContext): number => {
   return minDistanceToPositions(coord, context.villagePositions);
+};
+
+export const isEarlyPassable = (tile: Tile): boolean => {
+  return GameRuleHelpers.isTerrainPassable(tile.terrain);
+};
+
+export const buildLandmassData = (tiles: Tile[]): LandmassData => {
+  const tileIndex = buildTileIndex(tiles);
+  const visited = new Set<string>();
+  const massByCoord = new Map<string, number>();
+  const massSizes: number[] = [];
+  let massId = 0;
+
+  for (const tile of tiles) {
+    if (!isEarlyPassable(tile)) continue;
+    const key = coordKey(tile.coordinate);
+    if (visited.has(key)) continue;
+
+    const queue: Tile[] = [tile];
+    visited.add(key);
+    let massSize = 0;
+
+    while (queue.length > 0) {
+      const current = queue.shift() as Tile;
+      const currentKey = coordKey(current.coordinate);
+      massByCoord.set(currentKey, massId);
+      massSize += 1;
+
+      for (const neighborCoord of hexNeighbors(current.coordinate)) {
+        const neighborKey = coordKey(neighborCoord);
+        if (visited.has(neighborKey)) continue;
+        const neighbor = tileIndex.get(neighborKey);
+        if (!neighbor || !isEarlyPassable(neighbor)) continue;
+        visited.add(neighborKey);
+        queue.push(neighbor);
+      }
+    }
+
+    massSizes[massId] = massSize;
+    massId += 1;
+  }
+
+  return { massByCoord, massSizes };
+};
+
+export const buildLandmassIndex = (tiles: Tile[]): Map<string, number> => {
+  return buildLandmassData(tiles).massByCoord;
 };

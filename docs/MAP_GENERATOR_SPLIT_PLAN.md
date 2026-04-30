@@ -8,8 +8,10 @@
 - Internal generation, candidate, diagnostics, and report types now live in `shared/utils/mapGenerationTypes.ts`.
 - Debug logging, default diagnostics, water-repair reason defaults, and spread helpers now live in `shared/utils/mapGenerationDiagnostics.ts`.
 - Coordinate keys, tile indexes, and mutable placement-context helpers now live in `shared/utils/mapGenerationGeometry.ts`.
+- Landmass indexing and early-passability helpers now live in `shared/utils/mapGenerationGeometry.ts`.
 - Water body indexing/grouping, water ratio/body-size lookups, water-mask cleanup, capital water metrics, water-repair path search, and water resource placement now live in `shared/utils/mapGenerationWater.ts`.
 - Capital spawn search, distance relaxation, landmass ordering, candidate-pool construction, and fallback placement now live in `shared/utils/mapGenerationCapitals.ts`.
+- Settlement ring bands, village location validation, neutral-city size lookups, contested-village detection, and village candidate scoring now live in `shared/utils/mapGenerationSettlements.ts`.
 - `shared/utils/mapGenerator.ts` remains the public facade for `MapGenerator`, constants, size types, config, and report types.
 
 ## Goals

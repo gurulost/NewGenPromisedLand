@@ -8,6 +8,8 @@ import { generateCapitalSpawns as generateCapitalSpawnPositions } from './mapGen
 import {
   addCityToContext,
   addVillageToContext,
+  buildLandmassData,
+  buildLandmassIndex,
   buildPlacementContext,
   buildTileIndex,
   coordKey,
@@ -17,6 +19,19 @@ import {
   minDistanceToCity,
   minDistanceToVillage,
 } from './mapGenerationGeometry';
+import {
+  getNeutralCityEarlyRadius,
+  getNeutralCityLandmassMin,
+  getNeutralCityWorkableMin,
+  getVillageEarlyRadius,
+  getVillageRing,
+  getVillageRingBands,
+  getVillageTargetEarlyMin,
+  isValidVillageLocation,
+  isVillageContested,
+  pickVillageRing,
+  scoreVillageCandidate,
+} from './mapGenerationSettlements';
 import {
   buildWaterBodyIndex,
   fillWaterDeficit,
@@ -50,11 +65,9 @@ import type {
   GenerationDiagnostics,
   LandResourceConstraintContext,
   LandResourceType,
-  LandmassData,
   MapGenerationConfig,
   MapGenerationReport,
   NeutralCityRejectionCounts,
-  PlacementContext,
   ResourceCandidate,
   ResourceSpawnRate,
   TerrainProbabilities,
@@ -63,8 +76,6 @@ import type {
   VillageCandidateEntry,
   VillageRejectionCounts,
   VillageRing,
-  VillageRingBand,
-  VillageRingBands,
   VillageSpacingOverrides,
   WaterBodyData,
   WaterRepairReasonCounts,
@@ -373,11 +384,11 @@ export class MapGenerator {
     landResourceContext: LandResourceConstraintContext
   ): MapGenerationReport {
     const tileIndex = buildTileIndex(tiles);
-    const landmassData = this.buildLandmassData(tiles);
+    const landmassData = buildLandmassData(tiles);
     const capitalLandmass = capitalPositions.map(cap => landmassData.massByCoord.get(coordKey(cap)));
-    const ringBands = this.getVillageRingBands();
-    const villageEarlyRadius = this.getVillageEarlyRadius();
-    const neutralEarlyRadius = this.getNeutralCityEarlyRadius();
+    const ringBands = getVillageRingBands(this.config.mapSize);
+    const villageEarlyRadius = getVillageEarlyRadius(this.config.mapSize);
+    const neutralEarlyRadius = getNeutralCityEarlyRadius(this.config.mapSize);
 
     const villages = tiles.filter(tile => tile.feature === 'village');
     const neutralCities = tiles.filter(tile => tile.hasCity && !capitalPositions.some(cap => coordKey(cap) === coordKey(tile.coordinate)));
@@ -395,7 +406,7 @@ export class MapGenerator {
         nearestDistance: sorted[0] ?? Infinity,
         secondDistance: sorted[1] ?? Infinity,
       };
-      if (this.isVillageContested(entry, ringBands)) {
+      if (isVillageContested(entry, ringBands)) {
         contestedCount += 1;
       }
 
@@ -408,7 +419,7 @@ export class MapGenerator {
         if (distance <= villageEarlyRadius) {
           villageEarlyCounts[index] += 1;
         }
-        const ring = this.getVillageRing(distance, ringBands);
+        const ring = getVillageRing(distance, ringBands);
         if (ring) {
           ringCounts[index][ring] += 1;
         }
@@ -544,7 +555,7 @@ export class MapGenerator {
     tiles: Tile[],
     waterData: WaterBodyData
   ): HexCoordinate[] {
-    const landmassData = this.buildLandmassData(tiles);
+    const landmassData = buildLandmassData(tiles);
 
     return generateCapitalSpawnPositions({
       tiles,
@@ -844,15 +855,15 @@ export class MapGenerator {
 
     const neutralRng = this.rngStreams.neutralCities;
     const placementContext = buildPlacementContext(tiles);
-    const landmassData = this.buildLandmassData(tiles);
+    const landmassData = buildLandmassData(tiles);
     const capitalLandmass = capitalPositions.map(cap =>
       landmassData.massByCoord.get(coordKey(cap))
     );
     const minLandNeighbors = MAP_GENERATION_CONSTANTS.NEUTRAL_CITY_MIN_LAND_NEIGHBORS;
-    const minWorkable = this.getNeutralCityWorkableMin();
-    const minLandmass = this.getNeutralCityLandmassMin();
-    const earlyRadius = this.getNeutralCityEarlyRadius();
-    const ringBands = this.getVillageRingBands();
+    const minWorkable = getNeutralCityWorkableMin(this.config.mapSize);
+    const minLandmass = getNeutralCityLandmassMin(this.config.mapSize);
+    const earlyRadius = getNeutralCityEarlyRadius(this.config.mapSize);
+    const ringBands = getVillageRingBands(this.config.mapSize);
     const minDistanceFromCapital = ringBands.near.max + 1;
 
     const tileIndex = buildTileIndex(tiles);
@@ -972,7 +983,7 @@ export class MapGenerator {
         : 0;
       const spreadPenalty = projectedSpread > 1 ? projectedSpread - 1 : 0;
 
-      const ring = this.getVillageRing(entry.nearestDistance, ringBands);
+      const ring = getVillageRing(entry.nearestDistance, ringBands);
       const distanceScore = ring === 'mid' ? 1 : ring === 'far' ? 0.6 : -0.4;
 
       const earlyPenalty = entry.nearestDistance <= earlyRadius
@@ -1176,7 +1187,7 @@ export class MapGenerator {
     mapRadius: number
   ): void {
     const rng = this.rngStreams.villages;
-    const ringBands = this.getVillageRingBands();
+    const ringBands = getVillageRingBands(this.config.mapSize);
     const minDist = Math.max(
       MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE_FROM_CITY,
       ringBands.near.min
@@ -1192,7 +1203,7 @@ export class MapGenerator {
     );
     const placementContext = buildPlacementContext(tiles);
     const villagePositions = placementContext.villagePositions;
-    const landmassIndex = this.buildLandmassIndex(tiles);
+    const landmassIndex = buildLandmassIndex(tiles);
 
     for (let i = 0; i < capitalPositions.length; i++) {
       const capital = capitalPositions[i];
@@ -1216,7 +1227,7 @@ export class MapGenerator {
           const tileLandmass = landmassIndex.get(coordKey(tile.coordinate));
           if (tileLandmass !== capitalLandmass) return false;
         }
-        return this.isValidVillageLocation(tile, mapRadius, placementContext, undefined, overrides);
+        return isValidVillageLocation(tile, mapRadius, placementContext, undefined, overrides);
       });
 
       let candidates = buildCandidates();
@@ -1265,9 +1276,9 @@ export class MapGenerator {
     const rng = this.rngStreams.villages;
     const placementContext = buildPlacementContext(tiles);
     const placedVillages = placementContext.villagePositions;
-    const ringBands = this.getVillageRingBands();
-    const earlyRadius = this.getVillageEarlyRadius();
-    const targetEarlyMin = this.getVillageTargetEarlyMin();
+    const ringBands = getVillageRingBands(this.config.mapSize);
+    const earlyRadius = getVillageEarlyRadius(this.config.mapSize);
+    const targetEarlyMin = getVillageTargetEarlyMin();
 
     const maxVillages = Math.floor(tiles.length / MAP_GENERATION_CONSTANTS.VILLAGE_DENSITY_RATIO);
     const targetTotal = Math.max(0, maxVillages);
@@ -1277,11 +1288,11 @@ export class MapGenerator {
       return;
     }
 
-    const landmassIndex = this.buildLandmassIndex(tiles);
+    const landmassIndex = buildLandmassIndex(tiles);
     const capitalLandmass = capitalPositions.map(cap => landmassIndex.get(coordKey(cap)));
 
     const baseCandidates = tiles.filter(tile =>
-      this.isValidVillageLocation(tile, mapRadius, placementContext, diagnostics)
+      isValidVillageLocation(tile, mapRadius, placementContext, diagnostics)
     );
 
     const candidateEntries: VillageCandidateEntry[] = baseCandidates.map(tile => {
@@ -1323,7 +1334,7 @@ export class MapGenerator {
         }
 
         const distanceToCapital = entry.distances[capIndex];
-        const ring = this.getVillageRing(distanceToCapital, ringBands);
+        const ring = getVillageRing(distanceToCapital, ringBands);
         if (!ring) continue;
 
         pools[capIndex][ring].push({
@@ -1341,7 +1352,7 @@ export class MapGenerator {
         }
 
         const distanceToCapital = entry.distances[capIndex];
-        const ring = this.getVillageRing(distanceToCapital, ringBands);
+        const ring = getVillageRing(distanceToCapital, ringBands);
         if (!ring) continue;
 
         fallbackPools[capIndex][ring].push({
@@ -1372,7 +1383,7 @@ export class MapGenerator {
         if (distance <= earlyRadius) {
           earlyCount[index] += 1;
         }
-        const ring = this.getVillageRing(distance, ringBands);
+        const ring = getVillageRing(distance, ringBands);
         if (ring) {
           ringCount[index][ring] += 1;
         }
@@ -1410,7 +1421,7 @@ export class MapGenerator {
       addVillageToContext(candidate.entry.tile.coordinate, placementContext);
       assignedCount[capIndex] += 1;
       updateVillageCounts(candidate.entry.tile.coordinate);
-      if (this.isVillageContested(candidate.entry, ringBands)) {
+      if (isVillageContested(candidate.entry, ringBands)) {
         contestedPlaced += 1;
       }
     };
@@ -1430,28 +1441,28 @@ export class MapGenerator {
 
       for (let i = 0; i < sampleCount; i++) {
         const pick = pool[Math.floor(rng.next() * pool.length)];
-        if (!this.isValidVillageLocation(pick.entry.tile, mapRadius, placementContext)) {
+        if (!isValidVillageLocation(pick.entry.tile, mapRadius, placementContext)) {
           continue;
         }
 
         const isOwnershipPenalty =
           allowOwnershipPenalty && pick.distanceToCapital > pick.entry.nearestDistance;
-        const score = this.scoreVillageCandidate(
-          pick.entry,
-          pick.distanceToCapital,
+        const score = scoreVillageCandidate({
+          candidate: pick.entry,
+          distanceToCapital: pick.distanceToCapital,
           ring,
-          ringBands,
+          bands: ringBands,
           mapRadius,
           placedVillages,
           contestedTarget,
           contestedPlaced,
-          earlyCount,
+          earlyCounts: earlyCount,
           earlyRadius,
           capIndex,
           needsNear,
-          isOwnershipPenalty,
-          rng
-        );
+          ownershipPenalty: isOwnershipPenalty,
+          rng,
+        });
 
         if (score > bestScore) {
           bestScore = score;
@@ -1461,28 +1472,28 @@ export class MapGenerator {
 
       if (!best) {
         for (const pick of pool) {
-          if (!this.isValidVillageLocation(pick.entry.tile, mapRadius, placementContext)) {
+          if (!isValidVillageLocation(pick.entry.tile, mapRadius, placementContext)) {
             continue;
           }
 
           const isOwnershipPenalty =
             allowOwnershipPenalty && pick.distanceToCapital > pick.entry.nearestDistance;
-          const score = this.scoreVillageCandidate(
-            pick.entry,
-            pick.distanceToCapital,
+          const score = scoreVillageCandidate({
+            candidate: pick.entry,
+            distanceToCapital: pick.distanceToCapital,
             ring,
-            ringBands,
+            bands: ringBands,
             mapRadius,
             placedVillages,
             contestedTarget,
             contestedPlaced,
-            earlyCount,
+            earlyCounts: earlyCount,
             earlyRadius,
             capIndex,
             needsNear,
-            isOwnershipPenalty,
-            rng
-          );
+            ownershipPenalty: isOwnershipPenalty,
+            rng,
+          });
           if (score > bestScore) {
             bestScore = score;
             best = pick;
@@ -1550,7 +1561,7 @@ export class MapGenerator {
               ? { near: 0, mid: 0.5, far: 0.5 }
               : { near: 0, mid: 0.75, far: 0.25 };
 
-        const ring = this.pickVillageRing(ringWeights, rng);
+        const ring = pickVillageRing(ringWeights, rng);
         const ringOrder: VillageRing[] = [ring];
         if (ring !== 'mid') ringOrder.push('mid');
         if (ring !== 'far') ringOrder.push('far');
@@ -1580,266 +1591,6 @@ export class MapGenerator {
         debugMapGeneratorLog?.(`Villages: ring counts ${ringSummary}`);
       }
     }
-  }
-
-  /**
-   * Check if a tile is valid for village placement using Polytopia spacing rules
-   */
-  private isValidVillageLocation(
-    tile: Tile,
-    mapRadius: number,
-    context: PlacementContext,
-    diagnostics?: VillageRejectionCounts,
-    overrides?: VillageSpacingOverrides
-  ): boolean {
-    const minVillageDistance =
-      overrides?.minVillageDistance ?? MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE;
-    const minDistanceFromCity =
-      overrides?.minDistanceFromCity ?? MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE_FROM_CITY;
-
-    // Must be land (not water)
-    if (tile.terrain === 'water') {
-      diagnostics && (diagnostics.water += 1);
-      return false;
-    }
-    
-    // Can't place on cities
-    if (isTileOccupiedByCity(tile, context)) {
-      diagnostics && (diagnostics.city += 1);
-      return false;
-    }
-    
-    // Already has a village
-    if (isTileOccupiedByVillage(tile, context)) {
-      diagnostics && (diagnostics.existingVillage += 1);
-      return false;
-    }
-    
-    // Must be ≥ 2 tiles inside map edge (Polytopia rule)
-    const distanceFromCenter = hexDistance(tile.coordinate, { q: 0, r: 0, s: 0 });
-    if (distanceFromCenter > mapRadius - MAP_GENERATION_CONSTANTS.MAP_EDGE_BUFFER) {
-      diagnostics && (diagnostics.edge += 1);
-      return false;
-    }
-
-    const radialDistance = Math.hypot(tile.coordinate.q, tile.coordinate.r);
-    const maxRadialDistance = mapRadius * MAP_GENERATION_CONSTANTS.VILLAGE_EDGE_RADIUS_RATIO;
-    if (radialDistance > maxRadialDistance) {
-      diagnostics && (diagnostics.edge += 1);
-      return false;
-    }
-    
-    // Must be ≥ 2 tiles from any existing village (Polytopia spacing rule)
-    if (minDistanceToVillage(tile.coordinate, context) < minVillageDistance) {
-      diagnostics && (diagnostics.spacing += 1);
-      return false;
-    }
-    
-    // Must be ≥ N tiles from any city (prevent blocking starting areas / neutral cities)
-    if (minDistanceToCity(tile.coordinate, context) < minDistanceFromCity) {
-      diagnostics && (diagnostics.cityDistance += 1);
-      return false;
-    }
-    
-    return true;
-  }
-
-  private getVillageRingBands(): VillageRingBands {
-    const size = this.config.mapSize;
-    const offset = size === 'tiny' || size === 'small' ? -1 : size === 'large' || size === 'huge' ? 1 : 0;
-    const minFromCity = MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE_FROM_CITY;
-
-    const near: VillageRingBand = { min: 3 + offset, max: 5 + offset };
-    const mid: VillageRingBand = { min: 6 + offset, max: 9 + offset };
-    const far: VillageRingBand = { min: 10 + offset, max: 14 + offset };
-
-    if (near.min < minFromCity) near.min = minFromCity;
-    if (near.max < near.min) near.max = near.min;
-    if (mid.min <= near.max) mid.min = near.max + 1;
-    if (mid.max < mid.min) mid.max = mid.min;
-    if (far.min <= mid.max) far.min = mid.max + 1;
-    if (far.max < far.min) far.max = far.min;
-
-    return { near, mid, far };
-  }
-
-  private getVillageEarlyRadius(): number {
-    return MAP_GENERATION_CONSTANTS.VILLAGE_EARLY_RADIUS_BY_SIZE[this.config.mapSize];
-  }
-
-  private getVillageTargetEarlyMin(): number {
-    return MAP_GENERATION_CONSTANTS.VILLAGE_TARGET_EARLY_MIN;
-  }
-
-  private getVillageRing(distance: number, bands: VillageRingBands): VillageRing | null {
-    if (distance >= bands.near.min && distance <= bands.near.max) return 'near';
-    if (distance >= bands.mid.min && distance <= bands.mid.max) return 'mid';
-    if (distance >= bands.far.min && distance <= bands.far.max) return 'far';
-    return null;
-  }
-
-  private pickVillageRing(
-    weights: Record<VillageRing, number>,
-    rng: SeededRandom
-  ): VillageRing {
-    const total = weights.near + weights.mid + weights.far;
-    const roll = rng.next() * total;
-    if (roll < weights.near) return 'near';
-    if (roll < weights.near + weights.mid) return 'mid';
-    return 'far';
-  }
-
-  private getNeutralCityWorkableMin(): number {
-    return MAP_GENERATION_CONSTANTS.NEUTRAL_CITY_WORKABLE_MIN_BY_SIZE[this.config.mapSize];
-  }
-
-  private getNeutralCityLandmassMin(): number {
-    return MAP_GENERATION_CONSTANTS.NEUTRAL_CITY_MIN_LANDMASS_BY_SIZE[this.config.mapSize];
-  }
-
-  private getNeutralCityEarlyRadius(): number {
-    return MAP_GENERATION_CONSTANTS.NEUTRAL_CITY_EARLY_RADIUS_BY_SIZE[this.config.mapSize];
-  }
-
-  private isEarlyPassable(tile: Tile): boolean {
-    return GameRuleHelpers.isTerrainPassable(tile.terrain);
-  }
-
-  private buildLandmassData(tiles: Tile[]): LandmassData {
-    const tileIndex = buildTileIndex(tiles);
-    const visited = new Set<string>();
-    const massByCoord = new Map<string, number>();
-    const massSizes: number[] = [];
-    let massId = 0;
-
-    for (const tile of tiles) {
-      if (!this.isEarlyPassable(tile)) continue;
-      const key = coordKey(tile.coordinate);
-      if (visited.has(key)) continue;
-
-      const queue: Tile[] = [tile];
-      visited.add(key);
-      let massSize = 0;
-
-      while (queue.length > 0) {
-        const current = queue.shift() as Tile;
-        const currentKey = coordKey(current.coordinate);
-        massByCoord.set(currentKey, massId);
-        massSize += 1;
-
-        for (const neighborCoord of hexNeighbors(current.coordinate)) {
-          const neighborKey = coordKey(neighborCoord);
-          if (visited.has(neighborKey)) continue;
-          const neighbor = tileIndex.get(neighborKey);
-          if (!neighbor || !this.isEarlyPassable(neighbor)) continue;
-          visited.add(neighborKey);
-          queue.push(neighbor);
-        }
-      }
-
-      massSizes[massId] = massSize;
-      massId += 1;
-    }
-
-    return { massByCoord, massSizes };
-  }
-
-  private buildLandmassIndex(tiles: Tile[]): Map<string, number> {
-    return this.buildLandmassData(tiles).massByCoord;
-  }
-
-  private isVillageContested(
-    candidate: VillageCandidateEntry,
-    bands: VillageRingBands
-  ): boolean {
-    const inMid = candidate.nearestDistance >= bands.mid.min && candidate.nearestDistance <= bands.mid.max;
-    if (!inMid) return false;
-    return candidate.secondDistance <= bands.mid.max + 1;
-  }
-
-  private scoreVillageCandidate(
-    candidate: VillageCandidateEntry,
-    distanceToCapital: number,
-    ring: VillageRing,
-    bands: VillageRingBands,
-    mapRadius: number,
-    placedVillages: HexCoordinate[],
-    contestedTarget: number,
-    contestedPlaced: number,
-    earlyCounts: number[],
-    earlyRadius: number,
-    capIndex: number,
-    needsNear: boolean,
-    ownershipPenalty: boolean,
-    rng: SeededRandom
-  ): number {
-    const band = bands[ring];
-    const center = (band.min + band.max) / 2;
-    const span = Math.max(1, band.max - band.min + 1);
-    const ringScore = 1 - Math.min(1, Math.abs(distanceToCapital - center) / span);
-
-    let contestedScore = 0;
-    if (this.isVillageContested(candidate, bands) && contestedTarget > 0) {
-      const contestedSpan = Math.max(1, bands.mid.max - bands.mid.min + 1);
-      const distanceBonus = Math.max(0, (bands.mid.max + 1 - candidate.secondDistance) / contestedSpan);
-      const ramp = Math.max(
-        0,
-        Math.min(1, (contestedTarget - contestedPlaced) / contestedTarget)
-      );
-      contestedScore = distanceBonus * ramp;
-    }
-
-    const radialDistance = Math.hypot(candidate.tile.coordinate.q, candidate.tile.coordinate.r);
-    const edgeRatio = Math.min(1, radialDistance / Math.max(1, mapRadius));
-    const edgePenalty = edgeRatio > 0.75 ? (edgeRatio - 0.75) / 0.25 : 0;
-
-    let clusterPenalty = 0;
-    if (placedVillages.length > 0) {
-      const nearest = Math.min(...placedVillages.map(pos => hexDistance(pos, candidate.tile.coordinate)));
-      const clusterRadius = MAP_GENERATION_CONSTANTS.VILLAGE_MIN_DISTANCE + 1;
-      if (nearest <= clusterRadius) {
-        clusterPenalty = 1 - nearest / clusterRadius;
-      }
-    }
-
-    let earlyPenalty = 0;
-    if (distanceToCapital <= earlyRadius && earlyCounts.length > 0) {
-      const currentMin = Math.min(...earlyCounts);
-      const currentMax = Math.max(...earlyCounts);
-      const currentSpread = currentMax - currentMin;
-      if (!needsNear && currentSpread >= 3 && earlyCounts[capIndex] > currentMin) {
-        return -Infinity;
-      }
-
-      const projected = earlyCounts.map((count, index) =>
-        candidate.distances[index] <= earlyRadius ? count + 1 : count
-      );
-      const minProjected = Math.min(...projected);
-      const maxProjected = Math.max(...projected);
-      const surplus = projected[capIndex] - minProjected;
-      if (surplus > 0) {
-        earlyPenalty += surplus;
-      }
-      const spread = maxProjected - minProjected;
-      if (spread > 3) {
-        earlyPenalty += (spread - 3) * 2;
-      }
-      if (currentSpread >= 3) {
-        earlyPenalty += 2;
-      }
-    }
-
-    const ownershipPenaltyValue = ownershipPenalty ? 0.4 : 0;
-
-    return (
-      ringScore * 1.2 +
-      contestedScore * 0.8 -
-      edgePenalty * 0.4 -
-      clusterPenalty * 0.5 -
-      earlyPenalty * 1.6 -
-      ownershipPenaltyValue +
-      rng.next() * 0.05
-    );
   }
 
   /**
