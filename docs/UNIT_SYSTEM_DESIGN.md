@@ -1,8 +1,10 @@
-# Unit System Design - Polytopia-Inspired
+# Unit System Design
+
+Source of truth: unit availability, stats, costs, requirements, abilities, tags, and passive effects are defined in `shared/data/units.ts`. This document is a compact design reference for the current roster.
 
 ## Design Philosophy
 
-Following The Battle of Polytopia's approach, our unit system now features:
+Following The Battle of Polytopia's approach, the unit system features:
 - **Common units** available to all factions (the backbone of gameplay)
 - **Special units** unique to specific factions (strategic differentiation)
 - **Balanced gameplay** where faction choice matters but doesn't lock out core functionality
@@ -18,7 +20,7 @@ These units form the foundation of every faction's army and ensure all players h
    - The backbone of any army
    - HP: 25, Attack: 6, Defense: 4, Movement: 3
 
-2. **Scout** (6 stars)
+2. **Scout** (6 stars, requires Hunting)
    - Fast reconnaissance with high vision
    - Essential for exploration and intelligence
    - HP: 12, Attack: 3, Defense: 2, Movement: 5, Vision: 4
@@ -27,7 +29,7 @@ These units form the foundation of every faction's army and ensure all players h
    - Light ranged unit for early skirmishes
    - HP: 16, Attack: 4, Defense: 2, Movement: 3, Range: 2
 
-4. **Worker** (5 stars)
+4. **Worker** (5 stars, requires Organization)
    - Non-combat unit for improvements and resources
    - Critical for economic development
    - HP: 10, Attack: 1, Defense: 1, Movement: 2
@@ -56,7 +58,7 @@ These units form the foundation of every faction's army and ensure all players h
 
 ### Faction-Specific Special Units
 
-Each faction gets 1-2 unique units that reflect their cultural identity and strategic focus:
+Each faction has unique or faction-locked units that reflect its cultural identity and strategic focus:
 
 #### Nephites
 - **Stripling Warrior** (12 stars, requires Faith: 70)
@@ -85,6 +87,8 @@ Each faction gets 1-2 unique units that reflect their cultural identity and stra
 - **Missionary** (8 stars, requires Faith: 60)
   - Peaceful conversion and healing specialist
   - Shared with Nephites due to religious connection
+- **Stripling Warrior** (12 stars, requires Faith: 70)
+  - Shared with Nephites as a faith-forward defensive infantry option
 - **Peacekeeping Guard** (16 stars, requires Faith: 80)
   - Ultimate defensive unit with pacifist principles
   - Extremely high defense, very low attack
@@ -95,6 +99,21 @@ Each faction gets 1-2 unique units that reflect their cultural identity and stra
   - Highest stats but very expensive
 - **Prophet** (12 stars, requires Spirituality tech)
   - Influence unit that reduces Dissent and (when Pride is high) Pride
+
+#### Hagoth's Mariners
+- **Voyager** (12 stars, requires Sailing)
+  - Maritime scout and expedition vessel
+  - Strong vision, coastal exploration, transport, and amphibious identity
+- **Shipwright** (14 stars, requires Seafaring tech)
+  - Influence unit that supports sea trade and shipbuilding capacity
+  - Generates Stars with a small Pride tradeoff
+
+#### Amulonites
+- **Taskmaster** (12 stars, requires Organization)
+  - Influence unit that extracts output at steep social and spiritual cost
+  - Generates Stars while increasing Pride/Dissent and reducing Faith
+- **Amulonite Enforcer** (15 stars, requires Bronze Working)
+  - Heavy infantry with fortified defense and intimidation identity
 
 ## Strategic Balance
 
@@ -133,6 +152,6 @@ The system is designed to easily accommodate:
 
 Items defined in data but not fully implemented in gameplay yet:
 
-- **Data-only unit abilities**: `FAITHFUL_DEFENSE`, `YOUNG_VIGOR`, `PROTECTIVE_STANCE`, `FOREST_STEALTH`, `INTELLIGENCE`, `GIANT_STRENGTH`, `INTIMIDATE`, `SIEGE_BREAKER`, `PACIFIST_DEFENSE`, `NON_VIOLENCE`, `RANGED_ATTACK`.
-- **Stubbed actions**: `COASTAL_EXPLORATION` is defined but does not currently reveal map tiles or grant rewards.
-- **Unit Production** (from Lighthouse/Fortress structures) has no gameplay effect yet (cost, build time, or unit stats).
+- **Ability identifiers that still need resolver/effect review before treating them as fully implemented**: `PROTECTIVE_STANCE`, `FOREST_STEALTH`, `INTELLIGENCE`, `GIANT_STRENGTH`, `SIEGE_BREAKER`, `PACIFIST_DEFENSE`, `PROTECTIVE_AURA`, `NON_VIOLENCE`, `RANGED_ATTACK`, `AMPHIBIOUS`, `LEADERSHIP`.
+- **Unit production modifiers** from structures such as Lighthouse/Fortress still need a clear gameplay contract for cost, build time, or unit-stat effects.
+- **Future faction/unit additions** should update `shared/data/units.ts`, `docs/PLAYER_REFERENCE.md`, and this design reference in the same change.

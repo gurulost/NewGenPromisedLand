@@ -1,32 +1,35 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. Keep it aligned with `AGENTS.md`; that file is the richer agent guidance source.
 
 ## Project Overview
 
-Chronicles of the Promised Land is a browser-first, 2.5D turn-based strategy game inspired by the Book of Mormon. Six factions (Nephites, Lamanites, Mulekites, Anti-Nephi-Lehies, Zoramites, Jaredites) compete through faith, warfare, and diplomacy. The project targets AAA-quality UI/UX with Polytopia/Civilization-style gameplay.
+Chronicles of the Promised Land is a browser-first, 2.5D turn-based strategy game inspired by the Book of Mormon. Eight factions (Nephites, Lamanites, Mulekites, Anti-Nephi-Lehies, Zoramites, Jaredites, Hagoth's Mariners, Amulonites) compete through faith, warfare, diplomacy, economy, and exploration. The project targets AAA-quality UI/UX with Polytopia/Civilization-style gameplay.
 
 ## Commands
 
 ```bash
 # Development
 npm run dev              # Start dev server (localhost:5000)
-npm run check            # TypeScript type checking
+npm run check            # TypeScript type checking + repo hygiene
 
 # Testing
+npm run test:all                      # Full Vitest suite with configured coverage
+npm run test:performance              # Performance guardrails
+npm run test:e2e:chromium             # Blocking Chromium E2E gate
+npm run test:e2e:matrix               # One-worker full Playwright project matrix
 npx vitest run test/unit              # Run unit tests
 npx vitest run test/unit --coverage   # Unit tests with coverage report
 npx vitest watch                      # Watch mode for development
 npx vitest run "CombatResolver"       # Run specific test file by name
 npx vitest run test/a11y              # Accessibility tests
-npx vitest run test/performance       # Performance tests
-npx playwright test                   # E2E tests (requires server running)
 
 # Linting
 npm run lint             # ESLint check
 npm run lint:hooks       # Strict React Hooks rule enforcement
 
 # Building & Production
+npm run assets:verify    # Verify public assets, GLB hydration, and LFS policy
 npm run build            # Build frontend (Vite) + backend (esbuild)
 npm run start            # Run production server
 
@@ -114,4 +117,7 @@ Tests require mocking for Three.js, Zustand, and browser APIs. The `test/setup.t
 - `shared/data/gameRules.ts` - Game balance configuration
 - `shared/utils/mapGenerator.ts` - Procedural map generation
 - `test/setup.ts` - Test mocking configuration
+- `README.md` - Current project overview and release gates
+- `TESTING.md` - Current local and CI validation policy
+- `docs/README.md` - Current documentation index
 - `replit.md` - Additional architecture documentation

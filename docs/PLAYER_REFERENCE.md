@@ -631,8 +631,7 @@ The game checks these conditions at end of turn:
 
 ## Implementation Status / Known Gaps (for developers)
 
-These items are visible in data or UI but are not fully wired into gameplay yet:
+These items are visible in data or design docs but still need implementation review before they should be treated as fully wired gameplay:
 
-- **Unit Production**: Lighthouse and Fortress list `unitProduction`, but it currently has no effect on unit cost, build time, or stats.
-- **Data-only unit abilities** (no gameplay effect yet): `FAITHFUL_DEFENSE`, `YOUNG_VIGOR`, `PROTECTIVE_STANCE`, `FOREST_STEALTH`, `INTELLIGENCE`, `GIANT_STRENGTH`, `INTIMIDATE`, `SIEGE_BREAKER`, `PACIFIST_DEFENSE`, `NON_VIOLENCE`, `RANGED_ATTACK`.
-- **Stubbed actions**: `COASTAL_EXPLORATION` is defined for boats but does not currently reveal map tiles or grant rewards.
+- **Unit Production**: Lighthouse and Fortress list `unitProduction`, but the gameplay contract for unit cost, build time, or stat effects is still not settled.
+- **Ability identifiers needing resolver/effect review**: `PROTECTIVE_STANCE`, `FOREST_STEALTH`, `INTELLIGENCE`, `GIANT_STRENGTH`, `SIEGE_BREAKER`, `PACIFIST_DEFENSE`, `PROTECTIVE_AURA`, `NON_VIOLENCE`, `RANGED_ATTACK`, `AMPHIBIOUS`, `LEADERSHIP`.

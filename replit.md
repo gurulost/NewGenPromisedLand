@@ -8,6 +8,12 @@ Chronicles of the Promised Land is a browser-first, 2.5D turn-based strategy gam
 
 Preferred communication style: Simple, everyday language.
 
+## Documentation Map
+
+- `README.md` is the starting point for current project status and release gates.
+- `docs/README.md` indexes active gameplay, analytics, UI, and operations references.
+- `docs/archive/` contains historical checklists, implementation reports, and old handoff notes. Treat archive files as context only.
+
 ## System Architecture
 
 The application uses a modern full-stack monorepo architecture with a clear separation of concerns.
