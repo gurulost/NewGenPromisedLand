@@ -26,6 +26,9 @@ npm run check
 # Unit/component/integration suite with configured coverage
 npm run test:all
 
+# Public asset and Git LFS hydration guard
+npm run assets:verify
+
 # Run a targeted Vitest file or set of files
 npx vitest run test/CityPanelIntegration.test.tsx
 npx vitest run test/CityPanelIntegration.test.tsx shared/components/VictoryScreen.test.tsx
@@ -35,7 +38,7 @@ npx vitest watch
 
 # Accessibility and performance subsets
 npx vitest run test/a11y
-npx vitest run test/performance
+npm run test:performance
 
 # E2E tests
 npm run test:e2e
@@ -70,7 +73,9 @@ The current coverage config excludes `server/`, `test/`, `dist/`, config files, 
 
 CI uses `npm run check`, not the narrower `npm run typecheck`, so type checks and repository hygiene run together.
 
-Asset-dependent CI jobs hydrate Git LFS assets during checkout and verify that `client/public` does not contain Git LFS pointer files before building, running Vitest, running E2E tests, or running Lighthouse. This prevents release artifacts and browser tests from silently using pointer files instead of real assets.
+CI has a dedicated `asset-integrity` merge gate. It checks out Git LFS assets, runs `git lfs fsck`, and runs `npm run assets:verify`. The asset verifier fails if any `client/public` file is still a Git LFS pointer, if any `.glb` file is not a hydrated GLB v2 binary with a matching header length, or if any public asset over 5 MiB is not covered by the Git LFS filter. Asset-dependent CI jobs also run the same verifier before building, running Vitest, running E2E tests, or running Lighthouse, which prevents release artifacts and browser tests from silently using pointer files instead of real assets.
+
+CI also has a dedicated `performance-tests` job for `npm run test:performance`, and Lighthouse remains part of the blocking PR merge gate. The performance job intentionally does not perform an LFS checkout; asset hydration confidence comes from `asset-integrity` and the jobs that actually need public assets.
 
 Playwright starts the app through the configured `webServer` using `npm run dev:e2e`, which avoids the `tsx` CLI IPC path used by the normal dev server. Its readiness probe targets the app shell by default instead of `__health`, because E2E runs disable the save API and should not require a local Postgres role just to start browser tests.
 

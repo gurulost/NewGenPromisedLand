@@ -4,7 +4,7 @@ Source of truth checklist for a large/intense task.
 
 ## Metadata
 - Created: 2026-03-02T00:45:52
-- Last Updated: 2026-03-02T01:30:55
+- Last Updated: 2026-04-30T13:45:26-04:00
 - Workspace: /Users/davedixon/Documents/GitHub/NewGenPromisedLand
 - Checklist Doc: /Users/davedixon/Documents/GitHub/NewGenPromisedLand/docs/exceptionally-safe-repo-size-cleanup-and-lfs-migration-production-checklist.md
 
@@ -55,6 +55,10 @@ Source of truth checklist for a large/intense task.
   - Evidence: Playwright failure with `Unexpected token 'v'` from `/models/city_level1.glb` pointer text before `git lfs pull`; rerun passed after hydration.
   - Owner: codex
   - Linked Fix: P-005
+- [x] F-006 [status:verified] [P1] [confidence:0.98] CI asset hydration checks were duplicated inline and only searched for pointer text, leaving large unfiltered public assets and malformed hydrated GLBs outside the guardrail.
+  - Evidence: April 30, 2026 CI review found five duplicated `grep -RIl "version https://git-lfs.github.com/spec/v1" client/public` steps across asset-dependent jobs; the local public asset set is 825.8 MiB with 67 GLBs and 36 public assets over 5 MiB.
+  - Owner: test-infra
+  - Linked Fix: P-006
 
 ## Fix Log
 - [x] P-001 [status:verified] Execute phased cleanup + LFS migration plan without deleting tracked assets.
@@ -72,6 +76,9 @@ Source of truth checklist for a large/intense task.
 - [x] P-005 [status:verified] Hydrate LFS objects in cutover/verify clones before runtime validation.
   - Addresses: F-005
   - Evidence: `git lfs pull` + `git lfs checkout` executed; E2E rerun passed (40 passed, 2 skipped).
+- [x] P-006 [status:verified] Add a reusable public asset verifier and make it part of the blocking CI pipeline.
+  - Addresses: F-005, F-006
+  - Evidence: `scripts/verify-public-assets.mjs` verifies no public LFS pointers, validates GLB v2 headers and declared lengths, and enforces Git LFS filtering for public assets over 5 MiB. `.github/workflows/ci.yml` adds a blocking `asset-integrity` job with `git lfs fsck` plus `npm run assets:verify`, replaces duplicated pointer-grep checks in asset-dependent jobs, and adds an explicit `performance-tests` job.
 
 ## Validation Log
 - [x] V-001 [status:verified] `npm run check`
@@ -104,12 +111,30 @@ Source of truth checklist for a large/intense task.
   - Evidence: 2026-03-02 01:04 EST core suite PASS (`/tmp/newgen-dryrun-*.log`), E2E had one failure (`/tmp/newgen-dryrun-playwright_e2e.log`), LHCI threshold FAIL (`/tmp/newgen-dryrun-lhci.log`)
 - [x] V-015 [status:verified] Post-cutover fresh-clone smoke (`npm ci && npm run build && npm run check`).
   - Evidence: 2026-03-02 01:22 EST PASS in fresh clone `/Users/davedixon/Documents/GitHub/NewGenPromisedLand-postcutover-verify-20260302-012208` (`/tmp/newgen-postcutover-*.log`)
+- [x] V-016 [status:verified] `git lfs status`
+  - Evidence: 2026-04-30 clean LFS object status; no GLB/model/audio objects pending commit or unstaged.
+- [x] V-017 [status:verified] `git lfs fsck`
+  - Evidence: 2026-04-30 pass (`Git LFS fsck OK`).
+- [x] V-018 [status:verified] `npm run assets:verify`
+  - Evidence: 2026-04-30 pass; 153 files scanned, 825.8 MiB total, 67 GLBs validated, 36 large LFS-filtered assets verified.
+- [x] V-019 [status:verified] `npm run test:performance`
+  - Evidence: 2026-04-30 pass (1 file, 12 tests).
+- [x] V-020 [status:verified] `npm run check`
+  - Evidence: 2026-04-30 pass; no repository hygiene regressions.
+- [x] V-021 [status:verified] `npm run lint`
+  - Evidence: 2026-04-30 pass.
+- [x] V-022 [status:verified] `npm run build`
+  - Evidence: 2026-04-30 pass; production build completed without stale Browserslist or chunk-size warnings.
 
 ## Residual Risks
 - [ ] R-001 [status:open] Force-push rewrite can disrupt collaborators with stale local histories.
   - Rationale: History rewrite is intentionally destructive to commit graph identity.
   - Owner: repository maintainers
   - Follow-up trigger/date: Publish recovery instructions immediately at cutover and keep rollback window open through one full CI cycle.
+- [x] R-002 [status:accepted_risk] GitHub LFS service availability and repository LFS quota remain external dependencies.
+  - Rationale: CI cannot prove hydration if checkout cannot fetch LFS objects; the policy is to fail the blocking `asset-integrity` gate and not ship until the LFS checkout and verifier pass.
+  - Owner: repository maintainers
+  - Follow-up trigger/date: Any failed `asset-integrity`, build, E2E, or Lighthouse checkout/asset verification run.
 
 ## Backup Notes
 - Local worktree backup directory: `/Users/davedixon/Documents/GitHub/NewGenPromisedLand-local-work-backups/local-worktree-backup-20260302-012941`
@@ -123,3 +148,4 @@ Source of truth checklist for a large/intense task.
 - 2026-03-02T00:58:54: Completed local cleanup and primary validation pass; recorded Docker limitation and Lighthouse assertion failures.
 - 2026-03-02T01:23:34: Completed dry-run migration, cutover force-push/LFS push, post-cutover fresh-clone verification, and final checklist reconciliation.
 - 2026-03-02T01:30:55: Captured and documented local worktree backup artifacts before moving forward.
+- 2026-04-30T13:45:26-04:00: Added blocking CI asset-integrity gate, reusable public asset verifier, explicit performance test job, and current local validation evidence for LFS/object hydration and build health.

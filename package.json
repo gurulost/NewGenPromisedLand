@@ -17,6 +17,8 @@
     "test:e2e": "node scripts/run-playwright-tests.mjs",
     "test:e2e:chromium": "node scripts/run-playwright-tests.mjs --project=chromium",
     "test:e2e:matrix": "node scripts/run-playwright-tests.mjs --workers=1",
+    "test:performance": "vitest run test/performance --reporter=verbose",
+    "assets:verify": "node scripts/verify-public-assets.mjs",
     "hygiene": "node scripts/check-repo-hygiene.mjs",
     "postinstall": "node scripts/fix-tldts.cjs",
     "ai:sim": "tsx scripts/run-ai-sim.ts",
