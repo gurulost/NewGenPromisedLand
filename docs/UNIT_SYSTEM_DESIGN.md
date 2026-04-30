@@ -152,6 +152,6 @@ The system is designed to easily accommodate:
 
 Items defined in data but not fully implemented in gameplay yet:
 
-- **Ability identifiers that still need resolver/effect review before treating them as fully implemented**: `PROTECTIVE_STANCE`, `FOREST_STEALTH`, `INTELLIGENCE`, `GIANT_STRENGTH`, `SIEGE_BREAKER`, `PACIFIST_DEFENSE`, `PROTECTIVE_AURA`, `NON_VIOLENCE`, `RANGED_ATTACK`, `AMPHIBIOUS`, `LEADERSHIP`.
+- **Ability identifiers that still need resolver/effect review before treating them as fully implemented**: `INTELLIGENCE`, `GIANT_STRENGTH`, `SIEGE_BREAKER`, `PACIFIST_DEFENSE`, `NON_VIOLENCE`.
 - **Unit production modifiers** from structures such as Lighthouse/Fortress still need a clear gameplay contract for cost, build time, or unit-stat effects.
 - **Future faction/unit additions** should update `shared/data/units.ts`, `docs/PLAYER_REFERENCE.md`, and this design reference in the same change.

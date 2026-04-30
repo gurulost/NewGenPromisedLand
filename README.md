@@ -21,10 +21,13 @@ npm run dev
 npm run check
 npm run lint
 npm run assets:verify
+npm run test:all
 npm run test:performance
 npm run test:e2e:chromium
 npm run build
 ```
+
+`npm run dev` and server-backed test flows require `DATABASE_URL`; CI uses PostgreSQL through the workflow service container.
 
 ## Current Release Gates
 

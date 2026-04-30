@@ -35,8 +35,8 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
 
 ### Backend
 - **Runtime**: Node.js with Express
-- **Storage**: In-memory storage with an interface for future database integration.
-- **Database**: Drizzle ORM for PostgreSQL (via Replit's built-in database).
+- **Storage**: Database-backed storage through `server/storage.ts`.
+- **Database**: Drizzle ORM for PostgreSQL. `DATABASE_URL` is required at server startup.
 - **Bug Reporting**: In-game bug report system with optional R2 screenshot upload, diagnostic payload collection, fingerprinting, 24h duplicate detection, offline queue with auto-retry, and optional webhook notification.
   - Client entry points: desktop utility dock ("Something not working?"), mobile HUD menu ("Report Issue"), and ErrorBoundary ("Report issue" button).
   - Shared types: `shared/types/bugReport.ts`; server logic: `server/bugReports.ts`; client util: `client/src/utils/bugReport.ts`.
@@ -75,7 +75,7 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
 - **3D Graphics**: Three.js
 - **UI Components**: Radix UI
 - **State Management**: Zustand
-- **Database**: Drizzle ORM (for PostgreSQL with Replit's built-in database)
+- **Database**: Drizzle ORM for PostgreSQL
 - **Build Tools**: Vite, TypeScript, ESBuild
 - **Styling**: Tailwind CSS, PostCSS
 - **Animation**: GSAP (for camera animations)

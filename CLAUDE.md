@@ -47,7 +47,7 @@ npm run ai:sim           # Run AI strategy simulator
 - `/client` - React 18 frontend with Three.js/React Three Fiber for 2.5D rendering
 - `/server` - Express backend on port 5000
 - `/shared` - Pure game logic, types, and utilities (imported by both client and server)
-- `/test` - Vitest test suite (unit, a11y, e2e, integration, performance)
+- `/test` - Vitest unit/a11y/integration/performance suites plus Playwright E2E tests
 
 ### Path Aliases
 

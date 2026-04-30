@@ -634,4 +634,4 @@ The game checks these conditions at end of turn:
 These items are visible in data or design docs but still need implementation review before they should be treated as fully wired gameplay:
 
 - **Unit Production**: Lighthouse and Fortress list `unitProduction`, but the gameplay contract for unit cost, build time, or stat effects is still not settled.
-- **Ability identifiers needing resolver/effect review**: `PROTECTIVE_STANCE`, `FOREST_STEALTH`, `INTELLIGENCE`, `GIANT_STRENGTH`, `SIEGE_BREAKER`, `PACIFIST_DEFENSE`, `PROTECTIVE_AURA`, `NON_VIOLENCE`, `RANGED_ATTACK`, `AMPHIBIOUS`, `LEADERSHIP`.
+- **Ability identifiers needing resolver/effect review**: `INTELLIGENCE`, `GIANT_STRENGTH`, `SIEGE_BREAKER`, `PACIFIST_DEFENSE`, `NON_VIOLENCE`.
