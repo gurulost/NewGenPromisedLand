@@ -94,11 +94,16 @@ describe('SaveLoadMenu', () => {
 
   it('displays save current game section when gameState exists', async () => {
     await renderMenu();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Cloud saves unavailable/i)).toBeInTheDocument();
+    });
     
     expect(screen.getByText('Save Current Game')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Enter save name...')).toBeInTheDocument();
-    expect(screen.getByText('Save to Cloud')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveTextContent('Save on This Device');
     expect(screen.getByText('Save on This Device')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save on this device' })).not.toBeInTheDocument();
   });
 
   it('does not display save section when gameState is null', async () => {
@@ -127,11 +132,15 @@ describe('SaveLoadMenu', () => {
 
   it('saves game to localStorage when save button is clicked', async () => {
     await renderMenu();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Cloud saves unavailable/i)).toBeInTheDocument();
+    });
     
     const nameInput = screen.getByPlaceholderText('Enter save name...');
     
     fireEvent.change(nameInput, { target: { value: 'Test Save' } });
-    const saveButton = screen.getByRole('button', { name: 'Save on this device' });
+    const saveButton = screen.getByRole('button', { name: 'Save' });
     fireEvent.click(saveButton);
     
     await waitFor(() => {
