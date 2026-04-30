@@ -2,6 +2,13 @@
 
 `shared/utils/mapGenerator.ts` is currently about 4,000 lines. The generator is gameplay-critical and reasonably well covered by invariant tests, so the right next step is a planned, behavior-preserving split rather than a casual refactor.
 
+## Current Status
+
+- Characterization guardrails are in place in `test/MapGeneratorCharacterization.test.ts`.
+- Internal generation, candidate, diagnostics, and report types now live in `shared/utils/mapGenerationTypes.ts`.
+- Debug logging, default diagnostics, water-repair reason defaults, and spread helpers now live in `shared/utils/mapGenerationDiagnostics.ts`.
+- `shared/utils/mapGenerator.ts` remains the public facade for `MapGenerator`, constants, size types, config, and report types.
+
 ## Goals
 
 - Preserve generated-map behavior unless a change is intentionally designed, reviewed, and covered by tests.
@@ -37,7 +44,7 @@ The first split pass should keep these exports and behaviors stable:
 - `mapGenerationConstants.ts`: existing size, spacing, count, and tuning constants.
 - `mapGenerationTypes.ts`: internal config, report, diagnostics, candidate, and subsystem context types.
 - `mapGenerationRandom.ts`: `SeededRandom`, derived stream names, deterministic shuffle/helpers.
-- `mapGenerationDiagnostics.ts`: report builders, spread summaries, diagnostics defaults, and debug logging helpers.
+- `mapGenerationDiagnostics.ts`: spread summaries, diagnostics defaults, water-repair defaults, and debug logging helpers.
 - `mapCapitalPlacement.ts`: capital candidate selection, fallback placement, spacing, land access, and per-capital reports.
 - `mapWaterGeneration.ts`: water motifs, water masks, body analysis, coastal/repair rules, and water resources.
 - `mapSettlementPlacement.ts`: neutral cities, expansion villages, contested villages, ring counts, and village diagnostics.

@@ -11,37 +11,42 @@ import {
   type MapSize,
   type MapSizeConfig,
 } from './mapGenerationConstants';
+import {
+  DEBUG_MAP_GENERATOR,
+  buildGenerationSpread,
+  createDefaultGenerationDiagnostics,
+  createWaterRepairReasonCounts,
+  debugMapGeneratorLog,
+} from './mapGenerationDiagnostics';
+import type {
+  CapitalCandidateAssignment,
+  CapitalGenerationReport,
+  GenerationDiagnostics,
+  LandResourceConstraintContext,
+  LandResourceType,
+  LandmassData,
+  MapGenerationConfig,
+  MapGenerationReport,
+  NeutralCityRejectionCounts,
+  PlacementContext,
+  ResourceCandidate,
+  ResourceSpawnRate,
+  TerrainProbabilities,
+  TribalSpawnModifiers,
+  VillageCandidateAssignment,
+  VillageCandidateEntry,
+  VillageRejectionCounts,
+  VillageRing,
+  VillageRingBand,
+  VillageRingBands,
+  VillageSpacingOverrides,
+  WaterBodyData,
+  WaterRepairReasonCounts,
+} from './mapGenerationTypes';
 
 export { MAP_GENERATION_CONSTANTS, MAP_SIZE_CONFIGS, CAPITAL_MIN_DISTANCE_BY_SIZE };
 export type { MapSize, MapSizeConfig };
-const DEBUG_MAP_GENERATOR =
-  typeof process !== 'undefined' &&
-  process.env.NODE_ENV !== 'production' &&
-  process.env.NEWGEN_MAP_GENERATOR_DEBUG === 'true';
-const debugMapGeneratorLog: ((...args: unknown[]) => void) | undefined = DEBUG_MAP_GENERATOR
-  ? (...args) => console.debug(...args)
-  : undefined;
-
-/**
- * Type definitions for map generation
- */
-interface TerrainProbabilities {
-  mountain: number;
-  forest: number;
-  plains: number;
-}
-
-interface WaterBodyData {
-  bodyByCoord: Map<string, number>;
-  bodySizes: number[];
-}
-
-interface LandmassData {
-  massByCoord: Map<string, number>;
-  massSizes: number[];
-}
-
-type LandResourceType = 'grain_patch' | 'wild_goats' | 'timber_grove' | 'ore_vein';
+export type { MapGenerationConfig, MapGenerationReport } from './mapGenerationTypes';
 
 const LAND_RESOURCE_TYPES: LandResourceType[] = [
   'grain_patch',
@@ -58,73 +63,6 @@ const LAND_RESOURCES_BY_TERRAIN: Record<TerrainType, LandResourceType[]> = {
   desert: [],
   swamp: [],
 };
-
-interface LandResourceConstraintDebug {
-  blockedBySpacing: number;
-  blockedByCap: number;
-  blockedByOccupied: number;
-  fallbackPlaced: number;
-  relaxSpacingUsed: number[];
-  relaxCapUsed: number[];
-  varietyExtraGranted: number[];
-  maxPerCapitalClamped: boolean;
-}
-
-interface LandResourceConstraintContext {
-  minDistance: number;
-  maxPerCapital: number;
-  homeRadius: number;
-  homeZoneByCoord: Map<string, number>;
-  homeCountByCapital: number[];
-  resourceCoordsByType: Map<LandResourceType, HexCoordinate[]>;
-  occupiedCoords: Set<string>;
-  tileIndex: Map<string, Tile>;
-  debug: LandResourceConstraintDebug;
-}
-
-interface ResourceCandidate {
-  tile: Tile;
-  resource: LandResourceType;
-  zone: 'inner' | 'outer' | 'wilderness';
-  distanceToNearestCity: number;
-  order: number;
-}
-
-interface VillageRingBand {
-  min: number;
-  max: number;
-}
-
-interface VillageRingBands {
-  near: VillageRingBand;
-  mid: VillageRingBand;
-  far: VillageRingBand;
-}
-
-type VillageRing = keyof VillageRingBands;
-
-interface VillageSpacingOverrides {
-  minVillageDistance?: number;
-  minDistanceFromCity?: number;
-}
-
-interface VillageCandidateEntry {
-  tile: Tile;
-  distances: number[];
-  nearestDistance: number;
-  secondDistance: number;
-}
-
-interface VillageCandidateAssignment {
-  entry: VillageCandidateEntry;
-  distanceToCapital: number;
-  ring: VillageRing;
-}
-
-interface CapitalCandidateAssignment {
-  coord: HexCoordinate;
-  score: number;
-}
 
 export class SeededRandom {
   private seed: number;
@@ -147,35 +85,11 @@ export class SeededRandom {
   }
 }
 
-interface MapGenerationConfig {
-  width: number;
-  height: number;
-  seed?: number;
-  playerCount: number;
-  mapSize: MapSize;
-  minResourceDistance?: number;
-  maxResourcesPerPlayer?: number;
-  debugDisableVillages?: boolean;
-  debugDisableNeutralCities?: boolean;
-}
-
-
 /**
  * Tribal Homeland Generation System
  * Each tribe begins on a procedurally generated homeland tilted toward their cultural resources
  * Uses Polytopia-style multipliers with proper order of operations for consistent tile mix
  */
-interface TribalSpawnModifiers {
-  mountain: number;    // Applied first - affects food tiles inversely
-  forest: number;      // Applied second - only affects remaining field share
-  grainField: number;  // Calculated automatically = 100% - mountain - forest
-  wildAnimal: number;  // Applied independently to overlay tiles
-  water: number;       // Applied independently to coast tiles
-  fish: number;        // Applied independently to water tiles
-  ruins: number;       // Legacy modifier (ruins are placed via dedicated pass)
-  lore: string;        // Cultural background for this tribe
-}
-
 export const TRIBAL_SPAWN_MODIFIERS: Record<FactionId, TribalSpawnModifiers> = {
   NEPHITES: {
     mountain: 0.8,      // 0.8× mountain
@@ -259,127 +173,6 @@ export const TRIBAL_SPAWN_MODIFIERS: Record<FactionId, TribalSpawnModifiers> = {
   }
 };
 
-interface ResourceSpawnRate {
-  // Unified World Elements System - All resources now provide moral choices
-  timber_grove: number;
-  wild_goats: number;
-  grain_patch: number;
-  ore_vein: number;         // Replaces stone + gold with unified ore system
-  fishing_shoal: number;
-  sea_beast: number;
-  jaredite_ruins: number;
-  empty: number;
-}
-
-interface GenerationSpread {
-  min: number;
-  max: number;
-}
-
-interface NeutralCityRejectionCounts {
-  landmassTooSmall: number;
-  landNeighbors: number;
-  workableTiles: number;
-  spacing: number;
-}
-
-interface VillageRejectionCounts {
-  water: number;
-  city: number;
-  existingVillage: number;
-  edge: number;
-  spacing: number;
-  cityDistance: number;
-}
-
-interface GenerationDiagnostics {
-  neutralCities: NeutralCityRejectionCounts;
-  villages: VillageRejectionCounts;
-}
-
-interface PlacementContext {
-  cityPositions: HexCoordinate[];
-  villagePositions: HexCoordinate[];
-  cityKeys: Set<string>;
-  villageKeys: Set<string>;
-}
-
-type WaterRepairReason =
-  | 'coastal_guarantee'
-  | 'no_path'
-  | 'budget_exceeded'
-  | 'blocked_tiles'
-  | 'min_land_neighbors';
-
-type WaterRepairReasonCounts = Record<WaterRepairReason, number>;
-
-interface CapitalGenerationReport {
-  index: number;
-  position: HexCoordinate;
-  harvestablesR2: number;
-  hasFood: boolean;
-  hasProd: boolean;
-  earlyVillages: number;
-  earlyNeutralCities: number;
-  water: {
-    adjacentWaterTiles: number;
-    connectedBodySize: number;
-    coastTilesWithinRadius: number;
-  };
-  homeLandResources: number;
-  guaranteeRelaxSpacingUsed: number;
-  guaranteeRelaxCapUsed: number;
-  varietyExtraGranted: number;
-  expansionVillageRelaxed: number;
-  expansionVillageFailed: number;
-  waterRepairTiles: number;
-}
-
-interface MapGenerationReport {
-  seed: number;
-  mapSize: MapSize;
-  playerCount: number;
-  water: {
-    motif: 'coastal' | 'inland_sea' | 'straits' | null;
-    ratio: number;
-    bodySizes: number[];
-    repairsByCapital: number[];
-    repairReasonsByCapital: WaterRepairReasonCounts[];
-  };
-  villages: {
-    placed: number;
-    target: number;
-    contested: number;
-    contestedTarget: number;
-    earlySpread: GenerationSpread;
-    earlyCounts: number[];
-    ringCounts: Array<{ near: number; mid: number; far: number }>;
-  };
-  neutralCities: {
-    placed: number;
-    target: number;
-    earlySpread: GenerationSpread;
-    earlyCounts: number[];
-  };
-  resources: {
-    homeCounts: number[];
-    blockedBySpacing: number;
-    blockedByCap: number;
-    blockedByOccupied: number;
-    fallbackPlaced: number;
-    relaxSpacingUsed: number[];
-    relaxCapUsed: number[];
-    varietyExtraGranted: number[];
-  };
-  ruins: {
-    placed: number;
-    target: number;
-    perCapital: number[];
-  };
-  diagnostics: GenerationDiagnostics;
-  capitals: CapitalGenerationReport[];
-}
-
 export class MapGenerator {
   private seed: number;
   private rngStreams: {
@@ -439,25 +232,10 @@ export class MapGenerator {
     this.lastWaterRepairByCapital = new Array(this.config.playerCount).fill(0);
     this.lastWaterRepairReasons = new Array(this.config.playerCount)
       .fill(0)
-      .map(() => this.buildWaterRepairReasonCounts());
+      .map(() => createWaterRepairReasonCounts());
     this.lastVillageGuaranteeRelaxed = new Array(this.config.playerCount).fill(0);
     this.lastVillageGuaranteeFailed = new Array(this.config.playerCount).fill(0);
-    this.lastDiagnostics = {
-      neutralCities: {
-        landmassTooSmall: 0,
-        landNeighbors: 0,
-        workableTiles: 0,
-        spacing: 0,
-      },
-      villages: {
-        water: 0,
-        city: 0,
-        existingVillage: 0,
-        edge: 0,
-        spacing: 0,
-        cityDistance: 0,
-      },
-    };
+    this.lastDiagnostics = createDefaultGenerationDiagnostics();
 
     // Step 1: Generate base hex grid
     for (let q = -mapRadius; q <= mapRadius; q++) {
@@ -616,14 +394,8 @@ export class MapGenerator {
       });
     }
 
-    const earlyVillageSpread = {
-      min: villageEarlyCounts.length ? Math.min(...villageEarlyCounts) : 0,
-      max: villageEarlyCounts.length ? Math.max(...villageEarlyCounts) : 0,
-    };
-    const earlyNeutralSpread = {
-      min: neutralEarlyCounts.length ? Math.min(...neutralEarlyCounts) : 0,
-      max: neutralEarlyCounts.length ? Math.max(...neutralEarlyCounts) : 0,
-    };
+    const earlyVillageSpread = buildGenerationSpread(villageEarlyCounts);
+    const earlyNeutralSpread = buildGenerationSpread(neutralEarlyCounts);
 
     const ruins = tiles.filter(tile => tile.resources.includes('jaredite_ruins'));
     const ruinsPerCapital = new Array(capitalPositions.length).fill(0);
@@ -719,22 +491,7 @@ export class MapGenerator {
         target: this.getRuinsTargetCount(tiles.length, capitalPositions.length),
         perCapital: ruinsPerCapital,
       },
-      diagnostics: this.lastDiagnostics ?? {
-        neutralCities: {
-          landmassTooSmall: 0,
-          landNeighbors: 0,
-          workableTiles: 0,
-          spacing: 0,
-        },
-        villages: {
-          water: 0,
-          city: 0,
-          existingVillage: 0,
-          edge: 0,
-          spacing: 0,
-          cityDistance: 0,
-        },
-      },
+      diagnostics: this.lastDiagnostics ?? createDefaultGenerationDiagnostics(),
       capitals: capitalReports,
     };
   }
@@ -1269,16 +1026,6 @@ export class MapGenerator {
     }
   }
 
-  private buildWaterRepairReasonCounts(): WaterRepairReasonCounts {
-    return {
-      coastal_guarantee: 0,
-      no_path: 0,
-      budget_exceeded: 0,
-      blocked_tiles: 0,
-      min_land_neighbors: 0,
-    };
-  }
-
   private repairCapitalWaterAccess(
     tiles: Tile[],
     capitalPositions: HexCoordinate[],
@@ -1289,7 +1036,7 @@ export class MapGenerator {
     const repairsByCapital = new Array(capitalPositions.length).fill(0);
     const repairReasons = new Array(capitalPositions.length)
       .fill(0)
-      .map(() => this.buildWaterRepairReasonCounts());
+      .map(() => createWaterRepairReasonCounts());
 
     for (let i = 0; i < capitalPositions.length; i++) {
       const factionId = this.normalizeFactionId(this.playerFactions[i]);
