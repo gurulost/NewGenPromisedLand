@@ -4,7 +4,7 @@ Source of truth checklist for a large/intense task.
 
 ## Metadata
 - Created: 2026-02-22T14:02:02
-- Last Updated: 2026-04-30T13:30:53-04:00
+- Last Updated: 2026-04-30T13:40:10-04:00
 - Workspace: /Users/davedixon/Documents/GitHub/NewGenPromisedLand
 - Checklist Doc: /Users/davedixon/Documents/GitHub/NewGenPromisedLand/docs/comprehensive-game-regression-audit-production-checklist.md
 
@@ -44,12 +44,12 @@ Source of truth checklist for a large/intense task.
   - Evidence: April 30, 2026 `npm run test:e2e` completed with 51 passed, 2 skipped, and 1 failed Firefox tutorial-overlay browser-channel close; `npm run test:e2e -- --project=firefox test/e2e/tutorial-overlay-input-blocking.spec.ts --workers=1 --retries=0` then passed 2/2. April 30, 2026 `npm run test:e2e -- --workers=1` completed with 51 passed, 2 skipped, and 1 failed mobile Safari handoff-button visibility timeout; `npm run test:e2e -- --project=mobile-safari test/e2e/in-game-regression.spec.ts:32 --workers=1 --retries=0` then passed 1/1.
   - Owner: test-infra
   - Linked Fix: P-002, P-005
-- [x] F-003 [status:accepted_risk] [P3] [confidence:0.95] Production bundle size is high (single chunk ~2.6MB minified), increasing startup/perf risk.
-  - Evidence: `npm run build` warning and artifact size output (`index-4zVOPprp.js` ~2,605.59kB) with chunk-size warning emitted; no chunking strategy configured in `vite.config.ts:24`.
+- [x] F-003 [status:verified] [P3] [confidence:0.95] Production bundle no longer emits the historical single-chunk size warning.
+  - Evidence: April 30, 2026 `npm run build` passed without stale Browserslist or chunk-size warnings after the `vite.config.ts` manual chunk policy; largest emitted JS chunks were `vendor-three` 688.10kB, `index` 519.74kB, and `GameUI` 431.69kB under the configured 700kB warning limit.
   - Owner: frontend-platform
   - Linked Fix: P-003
-- [x] F-004 [status:accepted_risk] [P3] [confidence:0.90] Unconditional runtime logging in hot gameplay paths can degrade runtime performance and pollute telemetry/noise in prod.
-  - Evidence: unguarded `console.log` calls in `client/src/components/game/HexGridInstanced.tsx:447`, `client/src/components/game/HexGridInstanced.tsx:790`, and map generation logs in `shared/utils/mapGenerator.ts:834`, `shared/utils/mapGenerator.ts:3403`.
+- [x] F-004 [status:verified] [P3] [confidence:0.90] Hot gameplay and map-generation logging is gated behind explicit debug flags and does not evaluate expensive debug arguments when disabled.
+  - Evidence: April 30, 2026 `rg -n "console\\.log" client/src/components/game/HexGridInstanced.tsx shared/utils/mapGenerator.ts` returned no matches; HexGrid and map-generator debug calls now use optional debug loggers, and production artifact grep found no hot debug message strings under `dist/public/assets`.
   - Owner: gameplay-client
   - Linked Fix: P-004
 
@@ -60,12 +60,12 @@ Source of truth checklist for a large/intense task.
 - [x] P-002 [status:verified] Harden tutorial overlay E2E readiness checks and cleanup safety (explicitly await playable readiness + guard cleanup if page closed).
   - Addresses: F-002
   - Evidence: April 30, 2026 targeted Firefox tutorial overlay rerun passed 2/2 with `--workers=1 --retries=0`; broad-matrix instability is now tracked as CI policy rather than an unresolved deterministic tutorial-overlay failure.
-- [x] P-003 [status:accepted_risk] Introduce code-splitting/manual chunks for heavy game modules to reduce first-load payload.
+- [x] P-003 [status:verified] Introduce code-splitting/manual chunks for heavy game modules to reduce first-load payload.
   - Addresses: F-003
-  - Evidence: remediation scoped to `vite.config.ts:24`.
-- [x] P-004 [status:accepted_risk] Gate/remove production-internal debug logs in gameplay/map-generation paths.
+  - Evidence: `vite.config.ts` defines manual chunks and a 700kB warning limit; April 30, 2026 `npm run build` completed without chunk-size warnings.
+- [x] P-004 [status:verified] Gate/remove production-internal debug logs in gameplay/map-generation paths.
   - Addresses: F-004
-  - Evidence: remediation scoped to `client/src/components/game/HexGridInstanced.tsx:447` and `shared/utils/mapGenerator.ts:834`.
+  - Evidence: `client/src/components/game/HexGridInstanced.tsx` and `shared/utils/mapGenerator.ts` route debug output through optional debug loggers; `test/MapGenerationVillages.test.ts` now asserts default map generation remains console-quiet.
 - [x] P-005 [status:verified] Codify E2E policy: Chromium is the blocking CI gate; full desktop/mobile/tablet matrix runs on scheduled/manual CI as a non-blocking release-confidence report.
   - Addresses: F-002, R-001
   - Evidence: `playwright.config.ts` supports `PLAYWRIGHT_FULL_MATRIX=true` and `PLAYWRIGHT_WORKERS`; `.github/workflows/ci.yml` runs `npm run test:e2e:chromium` for PR/push and adds a scheduled/manual full-matrix job; `TESTING.md` documents the split.
@@ -93,6 +93,18 @@ Source of truth checklist for a large/intense task.
   - Evidence: 2026-04-30 pass after sandbox-port escalation (9 passed in 1.1m); initial sandboxed attempt failed before tests with `listen EPERM: operation not permitted 0.0.0.0:5100`.
 - [x] V-011 [status:verified] Playwright CI project selection dry run.
   - Evidence: 2026-04-30 `env CI=true npx playwright test --list` listed 9 Chromium tests; `env CI=true PLAYWRIGHT_FULL_MATRIX=true PLAYWRIGHT_WORKERS=1 npx playwright test --list` listed 54 tests across Chromium, Firefox, WebKit, mobile Chrome, mobile Safari, and tablet.
+- [x] V-012 [status:verified] `npx vitest run test/MapGenerationVillages.test.ts test/MapGenerationStats.test.ts test/MapGenerationDeterminism.test.ts test/unit/RenderingVisibility.unit.test.ts client/src/components/game/HexGridInstanced.test.tsx`
+  - Evidence: 2026-04-30 pass (5 files, 33 tests).
+- [x] V-013 [status:verified] `npm run lint`
+  - Evidence: 2026-04-30 pass.
+- [x] V-014 [status:verified] `npm run check`
+  - Evidence: 2026-04-30 pass after keeping `shared/utils/mapGenerator.ts` at the 3995-line hygiene baseline.
+- [x] V-015 [status:verified] `npx vitest run test/unit`
+  - Evidence: 2026-04-30 pass (66 files, 270 tests); existing React/Three test-environment warnings in `test/UnitReachableTiles.test.tsx` were non-fatal.
+- [x] V-016 [status:verified] `npm run build`
+  - Evidence: 2026-04-30 pass without stale Browserslist or chunk-size warnings.
+- [x] V-017 [status:verified] Hot-path logging source and artifact grep.
+  - Evidence: 2026-04-30 `rg -n "console\\.log" client/src/components/game/HexGridInstanced.tsx shared/utils/mapGenerator.ts` returned no matches, and production artifact grep found no hot debug message strings under `dist/public/assets`.
 
 ## Residual Risks
 - [x] R-001 [status:accepted_risk] Full desktop/mobile/tablet E2E matrix is not the blocking PR/push gate until repeated clean scheduled runs are captured.
@@ -109,3 +121,4 @@ Source of truth checklist for a large/intense task.
 - 2026-02-22T14:09:35: V-003 completed (full Vitest pass); Q-005 started.
 - 2026-02-22T14:20:40: Completed E2E + manual subsystem review; findings, residual risks, and accepted-risk remediation items recorded.
 - 2026-04-30T13:30:53-04:00: Updated E2E evidence after full-matrix attempts, targeted reruns, Chromium gate pass, and Playwright project-selection dry runs; codified Chromium as the blocking E2E gate and full browser/mobile matrix as scheduled/manual release-confidence coverage.
+- 2026-04-30T13:40:10-04:00: Verified bundle chunk warning remediation and hardened hot-path gameplay/map-generator logging with lazy debug gates and paired tests.

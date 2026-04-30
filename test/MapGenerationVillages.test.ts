@@ -221,23 +221,22 @@ describe('Map Generation - Villages', () => {
     });
   });
 
-  describe('Village Console Logging', () => {
-    it('should log village generation count', () => {
-      // Capture console output
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      
-      const playerFactions: FactionId[] = ['nephites', 'lamanites'];
-      const mapGenerator = createMapGenerator(2, 10, playerFactions, 'log-test');
-      mapGenerator.generateMap();
-      
-      // Check if village count was logged
-      const villageLogCalls = consoleSpy.mock.calls.filter(call =>
-        call[0] && call[0].includes('villages on map')
-      );
-      
-      expect(villageLogCalls.length).toBeGreaterThan(0);
-      
-      consoleSpy.mockRestore();
+  describe('Village debug logging', () => {
+    it('does not emit map generation logs by default', () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+      try {
+        const playerFactions: FactionId[] = ['nephites', 'lamanites'];
+        const mapGenerator = createMapGenerator(2, 10, playerFactions, 'log-test');
+        mapGenerator.generateMap();
+
+        expect(logSpy).not.toHaveBeenCalled();
+        expect(debugSpy).not.toHaveBeenCalled();
+      } finally {
+        logSpy.mockRestore();
+        debugSpy.mockRestore();
+      }
     });
   });
 

@@ -12,8 +12,15 @@ import {
   type MapSizeConfig,
 } from './mapGenerationConstants';
 
-export { MAP_GENERATION_CONSTANTS, MAP_SIZE_CONFIGS, CAPITAL_MIN_DISTANCE_BY_SIZE }; export type { MapSize, MapSizeConfig };
-const debugMapGeneratorLog = (...args: unknown[]) => { if (typeof process !== 'undefined' && process.env.NEWGEN_MAP_GENERATOR_DEBUG === 'true') console.debug(...args); };
+export { MAP_GENERATION_CONSTANTS, MAP_SIZE_CONFIGS, CAPITAL_MIN_DISTANCE_BY_SIZE };
+export type { MapSize, MapSizeConfig };
+const DEBUG_MAP_GENERATOR =
+  typeof process !== 'undefined' &&
+  process.env.NODE_ENV !== 'production' &&
+  process.env.NEWGEN_MAP_GENERATOR_DEBUG === 'true';
+const debugMapGeneratorLog: ((...args: unknown[]) => void) | undefined = DEBUG_MAP_GENERATOR
+  ? (...args) => console.debug(...args)
+  : undefined;
 
 /**
  * Type definitions for map generation
@@ -513,10 +520,7 @@ export class MapGenerator {
       this.placeVillages(tiles, mapRadius, capitalPositions, this.lastDiagnostics?.villages);
     }
 
-    const villageCount = tiles.filter(tile => tile.feature === 'village').length;
-    if (process.env.NODE_ENV !== 'production') {
-      debugMapGeneratorLog(`Generated ${villageCount} villages on map`);
-    }
+    debugMapGeneratorLog?.(`Generated ${tiles.filter(tile => tile.feature === 'village').length} villages on map`);
     
     // Step 7: Place resources strategically (city zones + wilderness)
     const landResourceContext = this.placeResourcesStrategically(tiles, capitalPositions);
@@ -1087,9 +1091,7 @@ export class MapGenerator {
     }
     waterData = this.buildWaterBodyIndex(tiles);
 
-    if (process.env.NODE_ENV !== 'production') {
-      debugMapGeneratorLog(`Water motif: ${motif}, ratio: ${(tiles.filter(t => t.terrain === 'water').length / tiles.length).toFixed(2)}`);
-    }
+    debugMapGeneratorLog?.(`Water motif: ${motif}, ratio: ${(tiles.filter(t => t.terrain === 'water').length / tiles.length).toFixed(2)}`);
 
     this.lastWaterMotif = motif;
     return waterData;
@@ -2002,13 +2004,13 @@ export class MapGenerator {
       runPlacement(candidates, true);
     }
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (DEBUG_MAP_GENERATOR) {
       const earlyMin = Math.min(...earlyCounts);
       const earlyMax = Math.max(...earlyCounts);
       if (usedNearFallback) {
-        debugMapGeneratorLog('Neutral cities: near-ring fallback enabled to reach target count.');
+        debugMapGeneratorLog?.('Neutral cities: near-ring fallback enabled to reach target count.');
       }
-      debugMapGeneratorLog(
+      debugMapGeneratorLog?.(
         `Neutral cities: placed ${placed}/${additionalCities}, early spread ${earlyMin}-${earlyMax}`
       );
     }
@@ -2255,9 +2257,7 @@ export class MapGenerator {
     const targetTotal = Math.max(0, maxVillages);
     const targetPlacements = Math.max(0, targetTotal - placedVillages.length);
     if (targetPlacements <= 0) {
-      if (process.env.NODE_ENV !== 'production') {
-        debugMapGeneratorLog(`Villages: placed ${placedVillages.length}/${targetTotal}, no additional placement needed`);
-      }
+      debugMapGeneratorLog?.(`Villages: placed ${placedVillages.length}/${targetTotal}, no additional placement needed`);
       return;
     }
 
@@ -2551,17 +2551,17 @@ export class MapGenerator {
       if (!placed) break;
     }
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (DEBUG_MAP_GENERATOR) {
       const earlyMin = Math.min(...earlyCount);
       const earlyMax = Math.max(...earlyCount);
       const ringSummary = ringCount
         .map((counts, index) => `P${index + 1} N${counts.near}/M${counts.mid}/F${counts.far}`)
         .join(' | ');
-      debugMapGeneratorLog(
+      debugMapGeneratorLog?.(
         `Villages: placed ${placedVillages.length}/${targetTotal}, contested ${contestedPlaced}/${contestedTarget}, early spread ${earlyMin}-${earlyMax}`
       );
       if (ringSummary) {
-        debugMapGeneratorLog(`Villages: ring counts ${ringSummary}`);
+        debugMapGeneratorLog?.(`Villages: ring counts ${ringSummary}`);
       }
     }
   }
@@ -3337,8 +3337,8 @@ export class MapGenerator {
       if (varietyExtraAdded) {
         context.debug.varietyExtraGranted[capitalIndex] += 1;
       }
-      if (varietyExtraAdded && process.env.NODE_ENV !== 'production') {
-        debugMapGeneratorLog(`Capital ${capitalIndex + 1}: variety required extra resource placement.`);
+      if (varietyExtraAdded) {
+        debugMapGeneratorLog?.(`Capital ${capitalIndex + 1}: variety required extra resource placement.`);
       }
     }
   }
@@ -3657,11 +3657,11 @@ export class MapGenerator {
   }
 
   private logLandResourcePlacementSummary(context: LandResourceConstraintContext): void {
-    if (process.env.NODE_ENV === 'production') return;
+    if (!DEBUG_MAP_GENERATOR) return;
 
     const debug = context.debug;
     const clampNote = debug.maxPerCapitalClamped ? ' (clamped)' : '';
-    debugMapGeneratorLog(
+    debugMapGeneratorLog?.(
       `Land resources: blocked spacing ${debug.blockedBySpacing}, cap ${debug.blockedByCap}${clampNote}, occupied ${debug.blockedByOccupied}, fallback ${debug.fallbackPlaced}`
     );
 
@@ -3670,7 +3670,7 @@ export class MapGenerator {
       .filter(Boolean)
       .join(', ');
     if (relaxedSpacing) {
-      debugMapGeneratorLog(`Land resources: spacing relaxed for ${relaxedSpacing}`);
+      debugMapGeneratorLog?.(`Land resources: spacing relaxed for ${relaxedSpacing}`);
     }
 
     const relaxedCap = debug.relaxCapUsed
@@ -3678,14 +3678,14 @@ export class MapGenerator {
       .filter(Boolean)
       .join(', ');
     if (relaxedCap) {
-      debugMapGeneratorLog(`Land resources: cap relaxed for ${relaxedCap}`);
+      debugMapGeneratorLog?.(`Land resources: cap relaxed for ${relaxedCap}`);
     }
 
     const homeCounts = context.homeCountByCapital
       .map((count, index) => `P${index + 1}=${count}`)
       .join(', ');
     if (homeCounts) {
-      debugMapGeneratorLog(`Land resources: home-zone counts ${homeCounts}`);
+      debugMapGeneratorLog?.(`Land resources: home-zone counts ${homeCounts}`);
     }
   }
   
@@ -3921,8 +3921,8 @@ export class MapGenerator {
       remaining -= 1;
     }
 
-    if (process.env.NODE_ENV !== 'production' && ruinsPlaced.length < totalTarget) {
-      debugMapGeneratorLog(`Ruins placement capped at ${ruinsPlaced.length}/${totalTarget} due to spacing constraints.`);
+    if (ruinsPlaced.length < totalTarget) {
+      debugMapGeneratorLog?.(`Ruins placement capped at ${ruinsPlaced.length}/${totalTarget} due to spacing constraints.`);
     }
   }
 
