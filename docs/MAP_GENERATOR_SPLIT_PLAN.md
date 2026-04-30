@@ -12,6 +12,7 @@
 - Water body indexing/grouping, water ratio/body-size lookups, water-mask cleanup, capital water metrics, water-repair path search, and water resource placement now live in `shared/utils/mapGenerationWater.ts`.
 - Capital spawn search, distance relaxation, landmass ordering, candidate-pool construction, and fallback placement now live in `shared/utils/mapGenerationCapitals.ts`.
 - Neutral city placement, capital expansion-village guarantees, village placement, settlement ring bands, village location validation, neutral-city size lookups, contested-village detection, and village candidate scoring now live in `shared/utils/mapGenerationSettlements.ts`.
+- Land resource candidates, spacing/cap constraints, home-zone harvest guarantees, variety guarantees, and placement diagnostics now live in `shared/utils/mapGenerationLandResources.ts`.
 - `shared/utils/mapGenerator.ts` remains the public facade for `MapGenerator`, constants, size types, config, and report types.
 
 ## Goals
@@ -55,7 +56,7 @@ The first split pass should keep these exports and behaviors stable:
 - `mapGenerationWater.ts`: water motifs, water masks, body analysis, coastal/repair rules, and water resources.
 - `mapGenerationSettlements.ts`: neutral cities, expansion villages, contested villages, ring counts, and village diagnostics.
 - `mapTerrainGeneration.ts`: base terrain probabilities, noise classification, and faction terrain modifiers.
-- `mapLandResources.ts`: land resource candidates, spacing/cap constraints, home-zone guarantees, and variety guarantees.
+- `mapGenerationLandResources.ts`: land resource candidates, spacing/cap constraints, home-zone guarantees, variety guarantees, and placement diagnostics.
 - `mapRuins.ts`: ruins targets, placement candidates, spacing, and special feature assignment.
 
 ## Extraction Order
