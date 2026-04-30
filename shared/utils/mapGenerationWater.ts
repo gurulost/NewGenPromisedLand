@@ -3,7 +3,11 @@ import type { Tile } from '@shared/types/game';
 import { hexDistance, hexNeighbors, hexesInRange } from './hex';
 import { buildTileIndex, coordKey } from './mapGenerationGeometry';
 import { MAP_GENERATION_CONSTANTS, type MapSize } from './mapGenerationConstants';
-import type { WaterBodyData } from './mapGenerationTypes';
+import { createWaterRepairReasonCounts, debugMapGeneratorLog } from './mapGenerationDiagnostics';
+import { factionWantsWater } from './mapGenerationTerrain';
+import type { WaterBodyData, WaterRepairReasonCounts } from './mapGenerationTypes';
+
+export type WaterMotif = 'coastal' | 'inland_sea' | 'straits';
 
 interface WaterResourceRandom {
   next(): number;
@@ -211,6 +215,247 @@ export const getCapitalWaterMetrics = (
     connectedBodySize,
     coastTilesWithinRadius,
   };
+};
+
+export const generateWaterMask = ({
+  tiles,
+  mapRadius,
+  mapSize,
+  rng,
+  waterNoise2D,
+  hasWaterFaction,
+}: {
+  tiles: Tile[];
+  mapRadius: number;
+  mapSize: MapSize;
+  rng: WaterResourceRandom;
+  waterNoise2D: (x: number, y: number) => number;
+  hasWaterFaction: boolean;
+}): { waterData: WaterBodyData; motif: WaterMotif } => {
+  const motif = pickWaterMotif(rng, hasWaterFaction);
+  const { min, max } = getWaterRatioRange(mapSize);
+  const targetRatio = min + (max - min) * rng.next();
+  const targetCount = Math.round(tiles.length * targetRatio);
+  const scoreByKey = scoreWaterTiles({
+    tiles,
+    mapRadius,
+    motif,
+    rng,
+    waterNoise2D,
+  });
+
+  const sortedTiles = [...tiles].sort((a, b) => {
+    const scoreA = scoreByKey.get(coordKey(a.coordinate)) ?? 0;
+    const scoreB = scoreByKey.get(coordKey(b.coordinate)) ?? 0;
+    return scoreB - scoreA;
+  });
+
+  sortedTiles.forEach((tile, index) => {
+    tile.terrain = index < targetCount ? 'water' : 'plains';
+  });
+
+  for (let pass = 0; pass < MAP_GENERATION_CONSTANTS.WATER_SMOOTH_PASSES; pass++) {
+    smoothWaterMask(tiles);
+  }
+
+  let waterData = buildWaterBodyIndex(tiles);
+  removeSmallWaterBodies(tiles, waterData, getMinWaterBodySize(mapSize));
+
+  const waterCount = tiles.filter(tile => tile.terrain === 'water').length;
+  const minTarget = Math.round(tiles.length * min);
+  const maxTarget = Math.round(tiles.length * max);
+
+  if (waterCount < minTarget) {
+    fillWaterDeficit(tiles, scoreByKey, minTarget - waterCount);
+  } else if (waterCount > maxTarget) {
+    trimWaterSurplus(tiles, scoreByKey, waterCount - maxTarget);
+  }
+
+  waterData = buildWaterBodyIndex(tiles);
+  removeSmallWaterBodies(tiles, waterData, getMinWaterBodySize(mapSize));
+  const postTrimCount = tiles.filter(tile => tile.terrain === 'water').length;
+  if (postTrimCount < minTarget) {
+    fillWaterDeficit(tiles, scoreByKey, minTarget - postTrimCount);
+  }
+  waterData = buildWaterBodyIndex(tiles);
+
+  debugMapGeneratorLog?.(`Water motif: ${motif}, ratio: ${(tiles.filter(t => t.terrain === 'water').length / tiles.length).toFixed(2)}`);
+
+  return { waterData, motif };
+};
+
+export const repairCapitalWaterAccess = ({
+  tiles,
+  capitalPositions,
+  waterData,
+  mapRadius,
+  mapSize,
+  playerFactions,
+}: {
+  tiles: Tile[];
+  capitalPositions: HexCoordinate[];
+  waterData: WaterBodyData;
+  mapRadius: number;
+  mapSize: MapSize;
+  playerFactions: string[];
+}): {
+  waterData: WaterBodyData;
+  repairsByCapital: number[];
+  repairReasonsByCapital: WaterRepairReasonCounts[];
+} => {
+  let updatedWaterData = waterData;
+  const repairsByCapital = new Array(capitalPositions.length).fill(0);
+  const repairReasonsByCapital = new Array(capitalPositions.length)
+    .fill(0)
+    .map(() => createWaterRepairReasonCounts());
+
+  for (let i = 0; i < capitalPositions.length; i++) {
+    const wantsWater = factionWantsWater(playerFactions[i]);
+    if (!wantsWater) continue;
+
+    const capital = capitalPositions[i];
+    const metrics = getCapitalWaterMetrics(capital, tiles, updatedWaterData, mapRadius);
+    if (
+      metrics.adjacentWaterTiles > 0 &&
+      metrics.connectedBodySize >= getWaterFactionMinBodySize(mapSize) &&
+      metrics.coastTilesWithinRadius >= getWaterFactionMinCoastTiles(mapSize)
+    ) {
+      continue;
+    }
+
+    const tileIndex = buildTileIndex(tiles);
+    const minBodySize = getWaterFactionMinBodySize(mapSize);
+    const path = findPathToWater(capital, tileIndex, updatedWaterData, minBodySize);
+    if (path.length === 0) {
+      repairReasonsByCapital[i].no_path += 1;
+    } else if (path.length > MAP_GENERATION_CONSTANTS.WATER_REPAIR_BUDGET) {
+      repairReasonsByCapital[i].budget_exceeded += 1;
+    } else {
+      const neighbors = hexNeighbors(capital)
+        .map(coord => tileIndex.get(coordKey(coord)))
+        .filter((tile): tile is Tile => !!tile);
+      const landNeighbors = neighbors.filter(tile => tile.terrain !== 'water').length;
+      const adjacentPathTiles = path.filter(tile => hexDistance(tile.coordinate, capital) === 1);
+      const minLandNeighbors = wantsWater ? 2 : 3;
+      const canSpare = landNeighbors - adjacentPathTiles.length >= minLandNeighbors;
+      const canConvertAll = path.every(tile =>
+        !tile.hasCity && tile.feature !== 'village' && tile.resources.length === 0
+      );
+
+      if (!canSpare) {
+        repairReasonsByCapital[i].min_land_neighbors += 1;
+      } else if (!canConvertAll) {
+        repairReasonsByCapital[i].blocked_tiles += 1;
+      } else {
+        path.forEach(tile => {
+          tile.terrain = 'water';
+          repairsByCapital[i] += 1;
+        });
+        repairReasonsByCapital[i].coastal_guarantee += 1;
+      }
+    }
+
+    updatedWaterData = buildWaterBodyIndex(tiles);
+  }
+
+  return {
+    waterData: updatedWaterData,
+    repairsByCapital,
+    repairReasonsByCapital,
+  };
+};
+
+const pickWaterMotif = (rng: WaterResourceRandom, hasWaterFaction: boolean): WaterMotif => {
+  const weights = hasWaterFaction
+    ? [
+        { motif: 'coastal' as const, weight: 0.25 },
+        { motif: 'inland_sea' as const, weight: 0.4 },
+        { motif: 'straits' as const, weight: 0.35 },
+      ]
+    : [
+        { motif: 'coastal' as const, weight: 0.45 },
+        { motif: 'inland_sea' as const, weight: 0.3 },
+        { motif: 'straits' as const, weight: 0.25 },
+      ];
+
+  const totalWeight = weights.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = rng.next() * totalWeight;
+  for (const entry of weights) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.motif;
+  }
+  return weights[0].motif;
+};
+
+const scoreWaterTiles = ({
+  tiles,
+  mapRadius,
+  motif,
+  rng,
+  waterNoise2D,
+}: {
+  tiles: Tile[];
+  mapRadius: number;
+  motif: WaterMotif;
+  rng: WaterResourceRandom;
+  waterNoise2D: (x: number, y: number) => number;
+}): Map<string, number> => {
+  const scores = new Map<string, number>();
+  const center = { q: 0, r: 0, s: 0 };
+
+  let seaCenter = center;
+  let seaRadius = mapRadius * 0.5;
+  let straitAxis: 'q' | 'r' | 's' = 'q';
+  let straitOffset = 0;
+  let straitWidth = Math.max(2, Math.round(mapRadius * 0.18));
+
+  if (motif === 'inland_sea') {
+    const angle = rng.next() * Math.PI * 2;
+    const offsetRadius = mapRadius * 0.2;
+    const offsetQ = Math.round(offsetRadius * Math.cos(angle));
+    const offsetR = Math.round(offsetRadius * Math.sin(angle));
+    seaCenter = { q: offsetQ, r: offsetR, s: -offsetQ - offsetR };
+    seaRadius = mapRadius * (0.45 + rng.next() * 0.15);
+  }
+
+  if (motif === 'straits') {
+    const axisRoll = rng.next();
+    straitAxis = axisRoll < 0.33 ? 'q' : axisRoll < 0.66 ? 'r' : 's';
+    straitOffset = Math.round((rng.next() - 0.5) * mapRadius * 0.4);
+    straitWidth = Math.max(2, Math.round(mapRadius * 0.16));
+  }
+
+  tiles.forEach(tile => {
+    const noiseValue = waterNoise2D(tile.coordinate.q * 0.08, tile.coordinate.r * 0.08);
+    const distanceFromCenter = hexDistance(tile.coordinate, center) / mapRadius;
+    let score = 0;
+
+    if (motif === 'coastal') {
+      const edgeBias = Math.max(0, (distanceFromCenter - 0.3) / 0.7);
+      score = edgeBias + noiseValue * 0.25;
+    } else if (motif === 'inland_sea') {
+      const distToSea = hexDistance(tile.coordinate, seaCenter);
+      const seaBias = Math.max(0, 1 - distToSea / seaRadius);
+      const edgeBias = Math.max(0, (distanceFromCenter - 0.8) / 0.2);
+      score = seaBias + edgeBias * 0.2 + noiseValue * 0.2;
+    } else {
+      const axisValue =
+        straitAxis === 'q'
+          ? tile.coordinate.q
+          : straitAxis === 'r'
+            ? tile.coordinate.r
+            : tile.coordinate.s;
+      const distToStrait = Math.abs(axisValue - straitOffset);
+      const straitBias = Math.max(0, 1 - distToStrait / straitWidth);
+      const edgeBias = Math.max(0, (distanceFromCenter - 0.75) / 0.25);
+      score = straitBias + edgeBias * 0.25 + noiseValue * 0.2;
+    }
+
+    const jitter = rng.next() * 0.05;
+    scores.set(coordKey(tile.coordinate), score + jitter);
+  });
+
+  return scores;
 };
 
 export const findPathToWater = (

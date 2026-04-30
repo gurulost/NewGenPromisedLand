@@ -1,6 +1,6 @@
 # Map Generator Split Plan
 
-`shared/utils/mapGenerator.ts` is currently about 4,000 lines. The generator is gameplay-critical and reasonably well covered by invariant tests, so the right next step is a planned, behavior-preserving split rather than a casual refactor.
+`shared/utils/mapGenerator.ts` started at about 4,000 lines and is now under 700 lines after a behavior-preserving split. The generator is gameplay-critical and reasonably well covered by invariant tests, so future work should keep using planned responsibility-based moves rather than casual refactors.
 
 ## Current Status
 
@@ -9,10 +9,13 @@
 - Debug logging, default diagnostics, water-repair reason defaults, and spread helpers now live in `shared/utils/mapGenerationDiagnostics.ts`.
 - Coordinate keys, tile indexes, and mutable placement-context helpers now live in `shared/utils/mapGenerationGeometry.ts`.
 - Landmass indexing and early-passability helpers now live in `shared/utils/mapGenerationGeometry.ts`.
-- Water body indexing/grouping, water ratio/body-size lookups, water-mask cleanup, capital water metrics, water-repair path search, and water resource placement now live in `shared/utils/mapGenerationWater.ts`.
+- Water motif selection, water mask scoring/cleanup, water body indexing/grouping, water ratio/body-size lookups, capital water metrics, water-repair path search, and water resource placement now live in `shared/utils/mapGenerationWater.ts`.
 - Capital spawn search, distance relaxation, landmass ordering, candidate-pool construction, and fallback placement now live in `shared/utils/mapGenerationCapitals.ts`.
 - Neutral city placement, capital expansion-village guarantees, village placement, settlement ring bands, village location validation, neutral-city size lookups, contested-village detection, and village candidate scoring now live in `shared/utils/mapGenerationSettlements.ts`.
 - Land resource candidates, spacing/cap constraints, home-zone harvest guarantees, variety guarantees, and placement diagnostics now live in `shared/utils/mapGenerationLandResources.ts`.
+- Seeded random generation and derived stream seed helpers now live in `shared/utils/mapGenerationRandom.ts`.
+- Tribal spawn modifiers, faction-biased terrain generation, land-terrain selection, tribal resource spawn modifiers, and special-feature placeholders now live in `shared/utils/mapGenerationTerrain.ts`.
+- Ruin target counts, nearest-capital attribution, weighted ruin candidate selection, and strategic ruin placement now live in `shared/utils/mapGenerationRuins.ts`.
 - `shared/utils/mapGenerator.ts` remains the public facade for `MapGenerator`, constants, size types, config, and report types.
 
 ## Goals
@@ -49,15 +52,15 @@ The first split pass should keep these exports and behaviors stable:
 - `mapGenerator.ts`: public facade, orchestration, import compatibility, and high-level generation sequence.
 - `mapGenerationConstants.ts`: existing size, spacing, count, and tuning constants.
 - `mapGenerationTypes.ts`: internal config, report, diagnostics, candidate, and subsystem context types.
-- `mapGenerationRandom.ts`: `SeededRandom`, derived stream names, deterministic shuffle/helpers.
+- `mapGenerationRandom.ts`: `SeededRandom` and derived stream seed helpers.
 - `mapGenerationGeometry.ts`: coordinate keys, tile indexes, placement context mutation, and distance-to-context helpers.
 - `mapGenerationDiagnostics.ts`: spread summaries, diagnostics defaults, water-repair defaults, and debug logging helpers.
 - `mapGenerationCapitals.ts`: capital candidate selection, fallback placement, spacing, land access, and per-capital reports.
 - `mapGenerationWater.ts`: water motifs, water masks, body analysis, coastal/repair rules, and water resources.
 - `mapGenerationSettlements.ts`: neutral cities, expansion villages, contested villages, ring counts, and village diagnostics.
-- `mapTerrainGeneration.ts`: base terrain probabilities, noise classification, and faction terrain modifiers.
+- `mapGenerationTerrain.ts`: base terrain probabilities, noise classification, faction terrain modifiers, tribal resource modifiers, and special-feature placeholders.
 - `mapGenerationLandResources.ts`: land resource candidates, spacing/cap constraints, home-zone guarantees, variety guarantees, and placement diagnostics.
-- `mapRuins.ts`: ruins targets, placement candidates, spacing, and special feature assignment.
+- `mapGenerationRuins.ts`: ruins targets, placement candidates, spacing, and per-capital attribution helpers.
 
 ## Extraction Order
 
