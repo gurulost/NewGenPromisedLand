@@ -376,13 +376,10 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         actions.push({
           id: 'rally_troops',
           name: 'Rally Troops',
-          description: currentPlayer.stats.pride >= 5 ?
-            'Boost nearby friendly units' :
-            'Insufficient pride (need 5)',
+          description: actionAvailability.hasAbilities ? 'Boost nearby friendly military units (+1 Pride)' : actionAvailability.abilityReason,
           icon: <Crown className="w-4 h-4" />,
-          cost: '5 Pride',
-          prideCost: 5,
-          available: isPlayerTurn && actionsRemaining > 0 && currentPlayer.stats.pride >= 5,
+          cost: 'Gain +1 Pride',
+          available: isPlayerTurn && actionsRemaining > 0 && actionAvailability.hasAbilities,
           rangeType: 'ability',
           range: 2
         });
@@ -812,6 +809,9 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
               actions.map((action) => (
                 <div
                   key={action.id}
+                  role="button" tabIndex={action.available ? 0 : -1}
+                  aria-disabled={!action.available}
+                  aria-label={`${action.name}: ${action.description}`}
                   className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 min-h-[80px] touch-manipulation ${selectedAction === action.id
                     ? 'bg-amber-600/30 border-amber-500/70 ring-2 ring-amber-500/50'
                     : action.available
@@ -819,6 +819,13 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                       : 'bg-gray-800/20 border-gray-700/50 opacity-50 cursor-not-allowed grayscale'
                     }`}
                   onClick={() => action.available && handleActionSelect(action)}
+                  onKeyDown={(event) => {
+                    if (!action.available) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      handleActionSelect(action);
+                    }
+                  }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3 flex-1">
@@ -928,7 +935,10 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
                   {selectedAction === action.id && action.available && (
                     <div className="mt-4 pt-3 border-t border-purple-700">
                       <Button
-                        onClick={() => handleActionExecute(action)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleActionExecute(action);
+                        }}
                         className="w-full bg-purple-600 md:hover:bg-purple-700 active:bg-purple-800 text-white min-h-[44px] touch-manipulation"
                         size="sm"
                       >

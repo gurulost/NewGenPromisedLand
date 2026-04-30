@@ -1,6 +1,7 @@
 import { GameAction, GameState, PlayerState } from '../types/game';
 import { executeAITurn, AIDecision, AIDifficulty } from './aiEngine';
 import { getUnitSpawnCoordinate } from '../logic/actions/spawnUtils';
+import { getFactionAbilityAvailability } from '../logic/factionAbilityAvailability';
 import { resolveActionState } from '../logic/resolveAction';
 import type { HexCoordinate } from '../types/coordinates';
 import type { UnitType } from '../types/unit';
@@ -264,8 +265,13 @@ export class AITurnManager {
               cityId: string;
               category: 'improvements' | 'structures' | 'units';
               coordinate?: HexCoordinate;
+              builderUnitId?: string;
             },
           };
+
+          if (decision.builderUnitId) {
+            payload.payload.builderUnitId = decision.builderUnitId;
+          }
 
           if ((decision.constructionCategory === 'improvements' || decision.constructionCategory === 'structures') && decision.targetCoordinate) {
             payload.payload.coordinate = decision.targetCoordinate;
@@ -291,6 +297,9 @@ export class AITurnManager {
 
       case 'USE_ABILITY':
         if (decision.abilityId) {
+          const availability = getFactionAbilityAvailability(this.gameState, aiPlayer.id, decision.abilityId);
+          if (!availability.available) return null;
+
           return {
             type: 'USE_ABILITY',
             payload: {

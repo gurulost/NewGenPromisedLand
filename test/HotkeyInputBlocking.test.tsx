@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GameUI from '../client/src/components/game/GameUI';
 import { useLocalGame } from '../client/src/lib/stores/useLocalGame';
@@ -12,6 +12,20 @@ vi.mock('../client/src/lib/stores/useGameState');
 vi.mock('../client/src/components/ui/TurnTransition');
 
 const keyboardSubscribers: Array<(pressed: boolean) => void> = [];
+const tutorialState = vi.hoisted(() => ({
+  activeCardId: null as string | null,
+  isLibraryOpen: false,
+  openIfNeeded: vi.fn(),
+  setActiveProfile: vi.fn(),
+  closeCard: vi.fn(),
+  markSeen: vi.fn(),
+  dismissForGame: vi.fn(),
+  openLibrary: vi.fn(),
+  clearQueue: vi.fn(),
+  skipTutorialForGame: vi.fn(),
+  closeLibrary: vi.fn(),
+  openCard: vi.fn(),
+}));
 
 vi.mock('@react-three/drei', () => ({
   useKeyboardControls: () => [
@@ -21,6 +35,10 @@ vi.mock('@react-three/drei', () => ({
     },
     () => ({})
   ]
+}));
+
+vi.mock('../client/src/lib/stores/useTutorial', () => ({
+  useTutorialStore: (selector: (state: typeof tutorialState) => unknown) => selector(tutorialState),
 }));
 
 vi.mock('../client/src/components/ui/SaveLoadMenu', () => ({
@@ -71,7 +89,33 @@ describe('GameUI hotkeys while typing', () => {
   let mockSetSelectedUnit: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation(query => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+
     keyboardSubscribers.length = 0;
+    tutorialState.activeCardId = null;
+    tutorialState.isLibraryOpen = false;
+    tutorialState.openIfNeeded.mockReset();
+    tutorialState.setActiveProfile.mockReset();
+    tutorialState.closeCard.mockReset();
+    tutorialState.markSeen.mockReset();
+    tutorialState.dismissForGame.mockReset();
+    tutorialState.openLibrary.mockReset();
+    tutorialState.clearQueue.mockReset();
+    tutorialState.skipTutorialForGame.mockReset();
+    tutorialState.closeLibrary.mockReset();
+    tutorialState.openCard.mockReset();
 
     mockPlayer = {
       id: 'player1',
@@ -180,7 +224,23 @@ describe('GameUI hotkeys while typing', () => {
 
     // Simulate hotkey presses while input is focused.
     const timeoutSpy = vi.spyOn(window, 'setTimeout');
-    keyboardSubscribers.forEach((callback) => callback(true));
+    act(() => {
+      keyboardSubscribers.forEach((callback) => callback(true));
+    });
+
+    expect(mockEndTurn).not.toHaveBeenCalled();
+    expect(mockSetSelectedUnit).not.toHaveBeenCalled();
+    expect(timeoutSpy).not.toHaveBeenCalled();
+  });
+
+  it('ignores gameplay hotkeys while a tutorial modal is active', () => {
+    tutorialState.activeCardId = 'overview';
+    render(<GameUI />);
+
+    const timeoutSpy = vi.spyOn(window, 'setTimeout');
+    act(() => {
+      keyboardSubscribers.forEach((callback) => callback(true));
+    });
 
     expect(mockEndTurn).not.toHaveBeenCalled();
     expect(mockSetSelectedUnit).not.toHaveBeenCalled();

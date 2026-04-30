@@ -26,7 +26,9 @@ export function useAITurn() {
         setIsAIProcessing(true);
         setCurrentAIPlayer({ name: currentPlayer.name, factionId: currentPlayer.factionId });
 
+        let hasStarted = false;
         const timeoutId = setTimeout(() => {
+          hasStarted = true;
           try {
             dispatch({ type: 'END_TURN', payload: { playerId: currentPlayer.id } });
           } finally {
@@ -38,9 +40,11 @@ export function useAITurn() {
 
         return () => {
           clearTimeout(timeoutId);
-          isExecutingRef.current = false;
-          setIsAIProcessing(false);
-          setCurrentAIPlayer(null);
+          if (!hasStarted) {
+            isExecutingRef.current = false;
+            setIsAIProcessing(false);
+            setCurrentAIPlayer(null);
+          }
         };
       }
     }
@@ -60,7 +64,9 @@ export function useAITurn() {
       }
 
       // Execute AI turn with a small delay for visual feedback
+      let hasStarted = false;
       const executeAITurn = async () => {
+        hasStarted = true;
         try {
           await aiTurnManagerRef.current!.executeAIPlayerTurn();
         } catch (error) {
@@ -77,9 +83,11 @@ export function useAITurn() {
 
       return () => {
         clearTimeout(timeoutId);
-        isExecutingRef.current = false;
-        setIsAIProcessing(false);
-        setCurrentAIPlayer(null);
+        if (!hasStarted) {
+          isExecutingRef.current = false;
+          setIsAIProcessing(false);
+          setCurrentAIPlayer(null);
+        }
       };
     }
   }, [gameState, dispatch, onlineSession, gameMode]);

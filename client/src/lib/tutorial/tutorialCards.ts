@@ -90,7 +90,7 @@ export const TUTORIAL_CARDS: Record<TutorialCardId, TutorialCard> = {
     bullets: [
       'Movement reveals the map and uncovers resources.',
       'Terrain changes movement cost and combat defense.',
-      'Explored tiles remain visible after units move away.',
+      'Explored terrain remains dimmed as memory; only current sight is fully visible.',
     ],
     tryIt: 'Move a unit toward the edge of the fog.',
     summary: 'Explore, reveal, and respect terrain.',

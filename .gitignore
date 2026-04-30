@@ -9,6 +9,7 @@ vite.config.ts.*
 attached_assets/
 *.glb.bak
 coverage/
+playwright-report/
 test-results/
 test-results*.json
 full-test-results.json

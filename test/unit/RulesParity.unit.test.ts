@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { GAME_RULES } from '@shared/data/gameRules';
+import { FACTIONS } from '@shared/data/factions';
 
 const readDoc = () => {
   const docPath = path.resolve(__dirname, '../../docs/PLAYER_REFERENCE.md');
@@ -9,6 +10,29 @@ const readDoc = () => {
 };
 
 describe('Rules parity (docs vs logic)', () => {
+  it('lists every playable faction in PLAYER_REFERENCE', () => {
+    const doc = readDoc();
+
+    Object.values(FACTIONS).forEach((faction) => {
+      expect(doc).toContain(`### ${faction.name}`);
+    });
+  });
+
+  it('keeps terrain movement costs in sync with PLAYER_REFERENCE', () => {
+    const doc = readDoc();
+    const terrainCosts = Object.fromEntries(
+      Array.from(doc.matchAll(/- (Plains|Forest|Mountain|Desert|Swamp): (\d+)/g)).map((match) => [
+        match[1].toLowerCase(),
+        Number(match[2]),
+      ])
+    );
+
+    for (const terrain of ['plains', 'forest', 'mountain', 'desert', 'swamp']) {
+      expect(terrainCosts[terrain]).toBe(GAME_RULES.terrain.movementCosts[terrain]);
+    }
+    expect(doc).toMatch(/- Water: impassable to most land units/);
+  });
+
   it('keeps Missionary heal values in sync with PLAYER_REFERENCE', () => {
     const doc = readDoc();
     const healMatch = doc.match(/Heal nearby allies \(radius (\d+)\): costs (\d+) Faith, restores up to (\d+) HP/i);

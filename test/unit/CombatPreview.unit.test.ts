@@ -43,7 +43,10 @@ describe('combatPreview', () => {
     ({
       id: 'g',
       rngSeed: 1,
-      players: [mkPlayer('p1'), mkPlayer('p2')],
+      players: [
+        mkPlayer('p1', { atWarWith: ['p2'] }),
+        mkPlayer('p2', { atWarWith: ['p1'] }),
+      ],
       currentPlayerIndex: 0,
       turn: 1,
       phase: 'playing',
@@ -137,7 +140,10 @@ describe('combatPreview', () => {
     const attacker = mkUnit({ id: 'a', playerId: 'p1' });
     const defender = mkUnit({ id: 'd', playerId: 'p2', abilities: ['DIPLOMACY'], coordinate: { q: 1, r: 0, s: -1 } });
     const state = mkState({
-      players: [mkPlayer('p1'), mkPlayer('p2', { stats: { faith: 80, pride: 0, internalDissent: 0 } })],
+      players: [
+        mkPlayer('p1', { atWarWith: ['p2'] }),
+        mkPlayer('p2', { atWarWith: ['p1'], stats: { faith: 80, pride: 0, internalDissent: 0 } }),
+      ],
       units: [attacker, defender],
     });
     const preview = getCombatPreview(attacker as any, defender as any, state);

@@ -2,164 +2,83 @@
 
 ## Overview
 
-Chronicles of the Promised Land uses Vitest as its primary testing framework, providing comprehensive test coverage for the game logic, data structures, and utility functions.
+Chronicles of the Promised Land uses Vitest for unit, integration, component, accessibility, and performance tests, with Playwright for browser E2E coverage. GitHub Actions runs the repository checks, lint, build, Vitest coverage suite, Playwright E2E suite, and Lighthouse audit.
 
-## Test Structure
+## Configuration
 
-### Configuration
-- **Test Framework**: Vitest with JSdom environment
-- **Configuration File**: `vitest.config.ts`
-- **Setup File**: `test/setup.ts`
-- **Test Location**: `shared/**/*.{test,spec}.{ts,tsx}`
+- **Vitest config**: `vitest.config.ts`
+- **Vitest environment**: `jsdom`
+- **Vitest setup**: `test/setup.ts`
+- **Vitest include globs**:
+  - `test/**/*.{test,spec}.{js,ts,jsx,tsx}`
+  - `shared/**/*.{test,spec}.{js,ts,jsx,tsx}`
+  - `client/**/*.{test,spec}.{js,ts,jsx,tsx}`
+- **Vitest excludes**: `test/e2e/**/*` and `node_modules/**/*`
+- **Playwright config**: `playwright.config.ts`
+- **Playwright tests**: `test/e2e`
 
-### Test Categories
+## Commands
 
-#### 1. Data Layer Tests (`shared/data/`)
-- **Game Rules Tests** (`gameRules.test.ts`): Validates GAME_RULES configuration and helper functions
-- **Faction Tests** (`factions.test.ts`): Ensures faction definitions are complete and valid
-- **Unit Tests** (`units.test.ts`): Verifies unit definitions, stats, and availability
-
-#### 2. Logic Layer Tests (`shared/logic/`)
-- **Game Reducer Tests** (`gameReducer.test.ts`): Core game state mutations and action handling
-- **Unit Logic Tests** (`unitLogic.test.ts`): Movement, combat, and visibility calculations
-
-#### 3. Utility Tests (`shared/utils/`)
-- **Hex Coordinates Tests** (`hexCoordinates.test.ts`): Hexagonal grid mathematics and conversions
-
-## Test Coverage Areas
-
-### ✅ Successfully Tested
-1. **Game Rules Configuration**
-   - All configuration sections present
-   - Positive values for resources and stats
-   - Valid terrain and ability settings
-
-2. **Faction System**
-   - All eight factions defined with complete data
-   - Unique colors and abilities
-   - Proper faction structure validation
-
-3. **Unit Definitions**
-   - Complete stat definitions for all unit types
-   - Reasonable stat ranges
-   - Proper faction availability
-
-### 🔧 Areas Needing Refinement
-1. **Unit Movement Logic**
-   - Pathfinding algorithm validation
-   - Terrain passability rules
-   - Movement range calculations
-
-2. **Combat System**
-   - Attack range validation
-   - Damage calculation accuracy
-   - Unit elimination logic
-
-3. **Vision System**
-   - Line of sight calculations
-   - Fog of war mechanics
-   - Unit visibility rules
-
-## Running Tests
-
-### Basic Commands
 ```bash
-# Run all tests
-npx vitest run --config vitest.config.ts
+# Repository checks used by CI
+npm run check
 
-# Run tests in watch mode
-npx vitest --config vitest.config.ts
+# Unit/component/integration suite with configured coverage
+npm run test:all
 
-# Run with UI (if available)
-npx vitest --ui --config vitest.config.ts
+# Run a targeted Vitest file or set of files
+npx vitest run test/CityPanelIntegration.test.tsx
+npx vitest run test/CityPanelIntegration.test.tsx shared/components/VictoryScreen.test.tsx
 
-# Run specific test file
-npx vitest run shared/data/gameRules.test.ts
+# Watch mode for local development
+npx vitest watch
+
+# Accessibility and performance subsets
+npx vitest run test/a11y
+npx vitest run test/performance
+
+# E2E tests
+npx playwright test
+npx playwright test test/e2e --project=chromium
+npm run test:e2e -- test/e2e/main-menu-setup.spec.ts --project=mobile-chrome
 ```
 
-### Test Results Summary
-- **Total Test Files**: 5
-- **Passing Tests**: 38/51 (75%)
-- **Test Categories**: Data validation, logic verification, utility functions
+## Coverage
 
-## Benefits of Testing Framework
+Vitest coverage is configured with V8 and reports text, HTML, and JSON output.
 
-### 1. **Regression Prevention**
-- Catches breaking changes during refactoring
-- Validates data-driven configuration changes
-- Ensures game mechanics remain consistent
+Current global thresholds:
 
-### 2. **Code Quality Assurance**
-- Validates edge cases in game logic
-- Ensures proper error handling
-- Maintains type safety compliance
+- Branches: 80%
+- Functions: 80%
+- Lines: 90%
+- Statements: 90%
 
-### 3. **Development Confidence**
-- Safe refactoring with immediate feedback
-- Validates new feature implementations
-- Documents expected behavior
+The current coverage config excludes `server/`, `test/`, `dist/`, config files, declarations, `node_modules/`, and `public/`. Server coverage is not enabled in the current policy.
 
-### 4. **Performance Monitoring**
-- Identifies slow algorithms
-- Validates optimization improvements
-- Tracks computational complexity
+## Test Areas
 
-## Test Development Guidelines
+- **Shared data tests**: game rules, factions, units, technologies, abilities, and reference integrity.
+- **Shared logic tests**: reducer routing, action resolution, combat, movement, construction, effects, turn flow, AI rules, and multiplayer sync.
+- **Client component tests**: UI panels, overlays, HUD behavior, hotkey blocking, provider shell behavior, and store-connected components.
+- **Accessibility tests**: focused a11y checks under `test/a11y`.
+- **Performance tests**: guardrail benchmarks under `test/performance`.
+- **Playwright E2E tests**: browser-level flows under `test/e2e`.
 
-### Writing New Tests
-1. **Follow the AAA Pattern**: Arrange, Act, Assert
-2. **Use Descriptive Test Names**: Clearly state what is being tested
-3. **Test Edge Cases**: Include boundary conditions and error scenarios
-4. **Mock External Dependencies**: Isolate units under test
-5. **Keep Tests Independent**: Each test should run in isolation
+## CI and Release Guardrails
 
-### Test File Organization
-```
-shared/
-├── data/
-│   ├── gameRules.test.ts      # Configuration validation
-│   ├── factions.test.ts       # Faction data integrity
-│   └── units.test.ts          # Unit definition validation
-├── logic/
-│   ├── gameReducer.test.ts    # Core game state logic
-│   └── unitLogic.test.ts      # Movement and combat logic
-└── utils/
-    └── hexCoordinates.test.ts # Mathematical utilities
-```
+CI uses `npm run check`, not the narrower `npm run typecheck`, so type checks and repository hygiene run together.
 
-## Future Testing Enhancements
+Asset-dependent CI jobs hydrate Git LFS assets during checkout and verify that `client/public` does not contain Git LFS pointer files before building, running Vitest, running E2E tests, or running Lighthouse. This prevents release artifacts and browser tests from silently using pointer files instead of real assets.
 
-### Planned Improvements
-1. **Integration Tests**: Test complete game scenarios
-2. **Performance Tests**: Benchmark critical algorithms
-3. **Visual Tests**: Validate UI component rendering
-4. **E2E Tests**: Full gameplay scenario validation
+Playwright starts the app through the configured `webServer` using `npm run dev:e2e`, which avoids the `tsx` CLI IPC path used by the normal dev server. Its readiness probe targets the app shell by default instead of `__health`, because E2E runs disable the save API and should not require a local Postgres role just to start browser tests. CI currently runs the Chromium project only; local runs use the broader desktop, mobile, and tablet project matrix from `playwright.config.ts`.
 
-### Coverage Goals
-- **Target Coverage**: 90%+ for game logic
-- **Critical Path Testing**: 100% coverage for core mechanics
-- **Edge Case Testing**: Comprehensive boundary condition validation
+For local debugging against a server you already started, run `npm run dev:e2e` in one terminal and then run Playwright with either `PLAYWRIGHT_REUSE_SERVER=true` or `PLAYWRIGHT_SKIP_WEB_SERVER=true`. Reuse lets Playwright use the configured readiness URL and start the server only if needed; skip never starts a server and expects one to already be listening.
 
-## Debugging Failed Tests
+## Writing Tests
 
-### Common Issues
-1. **Type Mismatches**: Update type definitions when interfaces change
-2. **Mock Data**: Ensure test data matches actual data structures
-3. **Async Operations**: Handle promises and timing correctly
-4. **State Mutations**: Verify immutability in state updates
-
-### Debugging Strategies
-1. Use descriptive test names for easy identification
-2. Add console.log statements for complex calculations
-3. Run individual tests to isolate issues
-4. Check type definitions for recent changes
-
-## Impact on Development
-
-The testing framework provides a solid foundation for:
-- **Safe Refactoring**: Confidence when optimizing code
-- **Feature Development**: Validation of new implementations
-- **Bug Prevention**: Early detection of logic errors
-- **Documentation**: Tests serve as executable specifications
-
-This testing infrastructure significantly improves code quality and development velocity while ensuring the game mechanics remain robust and reliable.
+1. Keep game rules in shared logic tests when behavior is canonical.
+2. Use test fixtures that satisfy current shared validation rules instead of bypassing product behavior.
+3. Prefer accessible queries and scoped `within(...)` queries for UI assertions.
+4. Mock browser, Three.js, Zustand, and network boundaries through the existing setup utilities.
+5. Run the narrowest failing test first, then the relevant suite or repository check before handing off.

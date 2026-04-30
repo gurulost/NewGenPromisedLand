@@ -19,8 +19,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run typecheck
-        run: npm run typecheck
+      - name: Run repository checks
+        run: npm run check
 
   lint:
     runs-on: ubuntu-latest
@@ -41,6 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -48,6 +50,13 @@ jobs:
       
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify Git LFS assets hydrated
+        run: |
+          if grep -RIl "version https://git-lfs.github.com/spec/v1" client/public; then
+            echo "Found Git LFS pointer files in client/public. Ensure LFS assets are available before building release artifacts."
+            exit 1
+          fi
 
       - name: Run production build
         run: npm run build
@@ -56,6 +65,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -63,6 +74,13 @@ jobs:
       
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify Git LFS assets hydrated
+        run: |
+          if grep -RIl "version https://git-lfs.github.com/spec/v1" client/public; then
+            echo "Found Git LFS pointer files in client/public. Ensure LFS assets are available before running Vitest."
+            exit 1
+          fi
 
       - name: Run Vitest suite
         run: npm run test:all
@@ -88,6 +106,8 @@ jobs:
       SESSION_SECRET: ci-e2e-session-secret
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -95,6 +115,13 @@ jobs:
       
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify Git LFS assets hydrated
+        run: |
+          if grep -RIl "version https://git-lfs.github.com/spec/v1" client/public; then
+            echo "Found Git LFS pointer files in client/public. Ensure LFS assets are available before running E2E tests."
+            exit 1
+          fi
 
       - name: Apply database schema
         run: npm run db:push
@@ -133,6 +160,8 @@ jobs:
       SESSION_SECRET: ci-lighthouse-session-secret
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -140,6 +169,13 @@ jobs:
       
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify Git LFS assets hydrated
+        run: |
+          if grep -RIl "version https://git-lfs.github.com/spec/v1" client/public; then
+            echo "Found Git LFS pointer files in client/public. Ensure LFS assets are available before running Lighthouse."
+            exit 1
+          fi
 
       - name: Apply database schema
         run: npm run db:push

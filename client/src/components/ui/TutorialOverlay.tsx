@@ -14,6 +14,8 @@ export function TutorialOverlay() {
   const openLibrary = useTutorialStore((state) => state.openLibrary);
   const clearQueue = useTutorialStore((state) => state.clearQueue);
   const skipTutorialForGame = useTutorialStore((state) => state.skipTutorialForGame);
+  const titleId = React.useId();
+  const descriptionId = React.useId();
 
   const card = getTutorialCard(activeCardId);
 
@@ -47,6 +49,8 @@ export function TutorialOverlay() {
   return (
     <ModalLayer
       data-testid="tutorial-overlay-dialog"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
       className="fixed inset-0 z-[var(--z-tutorial)] pointer-events-auto flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
       onClick={handleClose}
     >
@@ -69,10 +73,10 @@ export function TutorialOverlay() {
             <div className="text-xs uppercase tracking-[0.2em] text-amber-300/70">
               Tutorial
             </div>
-            <h2 className="mt-2 font-cinzel text-2xl text-amber-100">
+            <h2 id={titleId} className="mt-2 font-cinzel text-2xl text-amber-100">
               {card.title}
             </h2>
-            <p className="mt-3 text-sm text-amber-200/80 italic">
+            <p id={descriptionId} className="mt-3 text-sm text-amber-200/80 italic">
               {card.lore}
             </p>
           </div>

@@ -3,13 +3,31 @@ import type { GameState } from '@shared/types/game';
 
 const memory = new Map<string, any>();
 const originalIndexedDB = (globalThis as any).indexedDB;
+type PendingOperation = {
+  kind: 'set' | 'del';
+  key: string;
+  value?: any;
+  resolve: () => void;
+};
+let holdStorageOperations = false;
+const pendingOperations: PendingOperation[] = [];
 
 vi.mock('idb-keyval', () => ({
   get: async (key: string) => memory.get(key),
   set: async (key: string, value: any) => {
+    if (holdStorageOperations) {
+      await new Promise<void>((resolve) => {
+        pendingOperations.push({ kind: 'set', key, value, resolve });
+      });
+    }
     memory.set(key, value);
   },
   del: async (key: string) => {
+    if (holdStorageOperations) {
+      await new Promise<void>((resolve) => {
+        pendingOperations.push({ kind: 'del', key, resolve });
+      });
+    }
     memory.delete(key);
   },
 }));
@@ -18,6 +36,8 @@ import { saveAutosave, loadAutosave, clearAutosave } from '../../client/src/lib/
 
 describe('autosaveStorage', () => {
   beforeEach(async () => {
+    holdStorageOperations = false;
+    pendingOperations.length = 0;
     memory.clear();
     (globalThis as any).indexedDB = {};
     await clearAutosave();
@@ -95,5 +115,50 @@ describe('autosaveStorage', () => {
 
     await clearAutosave();
     expect(await loadAutosave()).toBeNull();
+  });
+
+  it('serializes save and clear operations by call order', async () => {
+    const mockGameState: GameState = {
+      id: 'test-game',
+      players: [],
+      currentPlayerIndex: 0,
+      turn: 1,
+      phase: 'playing',
+      map: { width: 1, height: 1, tiles: [] },
+      units: [],
+      cities: [],
+      improvements: [],
+      structures: [],
+    };
+
+    holdStorageOperations = true;
+    const savePromise = saveAutosave(mockGameState);
+    await Promise.resolve();
+
+    expect(pendingOperations).toHaveLength(1);
+    expect(pendingOperations[0].kind).toBe('set');
+
+    const clearPromise = clearAutosave();
+    await Promise.resolve();
+    expect(pendingOperations).toHaveLength(1);
+
+    pendingOperations.shift()?.resolve();
+    await savePromise;
+    await Promise.resolve();
+
+    expect(pendingOperations).toHaveLength(1);
+    expect(pendingOperations[0].kind).toBe('del');
+
+    pendingOperations.shift()?.resolve();
+    await clearPromise;
+
+    holdStorageOperations = false;
+    expect(await loadAutosave()).toBeNull();
+  });
+
+  it('returns null instead of throwing for corrupt autosave payloads', async () => {
+    memory.set('cpl_autosave_v1', '{not-valid-json');
+
+    await expect(loadAutosave()).resolves.toBeNull();
   });
 });

@@ -89,6 +89,32 @@ export function handleConvertCity(
     isEliminated: p.citiesOwned.length === 0
   }));
 
+  let updatedStructures = state.structures || [];
+  if (GAME_RULES.capture.destroyAllStructures) {
+    updatedStructures = updatedStructures.filter(structure =>
+      structure.cityId !== cityId
+    );
+  } else if (GAME_RULES.capture.transferStructures) {
+    updatedStructures = updatedStructures.map(structure =>
+      structure.cityId === cityId
+        ? { ...structure, ownerId: playerId }
+        : structure
+    );
+  }
+
+  let updatedImprovements = state.improvements || [];
+  if (GAME_RULES.capture.destroyImprovements) {
+    updatedImprovements = updatedImprovements.filter(improvement =>
+      improvement.cityId !== cityId
+    );
+  } else if (GAME_RULES.capture.transferImprovements) {
+    updatedImprovements = updatedImprovements.map(improvement =>
+      improvement.cityId === cityId
+        ? { ...improvement, ownerId: playerId }
+        : improvement
+    );
+  }
+
   return {
     ...state,
     units: state.units.map(u =>
@@ -98,6 +124,8 @@ export function handleConvertCity(
     cities: (state.cities || []).map(c =>
       c.id === cityId ? { ...c, ownerId: playerId } : c
     ),
+    structures: updatedStructures,
+    improvements: updatedImprovements,
     map: {
       ...state.map,
       tiles: state.map.tiles.map(tile =>

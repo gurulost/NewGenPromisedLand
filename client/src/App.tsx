@@ -49,6 +49,31 @@ function TouchModeProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+function CanvasLoadingFallback() {
+  return (
+    <group>
+      <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.65, 0.8, 6]} />
+        <meshBasicMaterial
+          color="#94a3b8"
+          transparent
+          opacity={0.45}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.45, 6]} />
+        <meshBasicMaterial
+          color="#1e293b"
+          transparent
+          opacity={0.4}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+    </group>
+  );
+}
+
 // Define control keys for the game
 const controls = [
   { name: "select", keys: ["Enter", "Space"] },
@@ -117,7 +142,7 @@ function GameStage() {
             castShadow={allowShadows}
           />
 
-          <Suspense fallback={null}>
+          <Suspense fallback={<CanvasLoadingFallback />}>
             <GameCanvas />
           </Suspense>
         </>

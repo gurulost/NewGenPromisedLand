@@ -1,7 +1,20 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const appPort = Number(process.env.PLAYWRIGHT_APP_PORT ?? 5100);
+const parseAppPort = (value: string | undefined) => {
+  if (value == null || value.trim() === '') return 5100;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`PLAYWRIGHT_APP_PORT must be a positive integer, received: ${value}`);
+  }
+  return parsed;
+};
+
+const appPort = parseAppPort(process.env.PLAYWRIGHT_APP_PORT);
 const appBaseUrl = `http://localhost:${appPort}`;
+const skipWebServer = process.env.PLAYWRIGHT_SKIP_WEB_SERVER === 'true';
+const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_SERVER === 'true';
+const webServerCommand = process.env.PLAYWRIGHT_WEB_SERVER_COMMAND ?? 'npm run dev:e2e';
+const webServerReadyUrl = process.env.PLAYWRIGHT_WEB_SERVER_READY_URL ?? appBaseUrl;
 
 const desktopChromiumProject = {
   name: 'chromium',
@@ -49,19 +62,23 @@ export default defineConfig({
         }
       ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: `${appBaseUrl}/__health`,
-    env: {
-      ...process.env,
-      PORT: String(appPort),
-      REUSE_PORT: 'false',
-      DATABASE_URL: process.env.DATABASE_URL ?? 'postgresql://codex:codex@127.0.0.1:5432/codex',
-      DISABLE_SAVE_API: 'true',
-      DISABLE_VITE_RUNTIME_ERROR_OVERLAY: 'true',
-      VITE_E2E_MINIMAL_GAME_STAGE: process.env.CI ? 'true' : 'false',
-    },
-    reuseExistingServer: false,
-    timeout: 120 * 1000,
-  },
+  ...(skipWebServer
+    ? {}
+    : {
+        webServer: {
+          command: webServerCommand,
+          url: webServerReadyUrl,
+          env: {
+            ...process.env,
+            PORT: String(appPort),
+            REUSE_PORT: 'false',
+            DATABASE_URL: process.env.DATABASE_URL ?? 'postgresql://codex:codex@127.0.0.1:5432/codex',
+            DISABLE_SAVE_API: 'true',
+            DISABLE_VITE_RUNTIME_ERROR_OVERLAY: 'true',
+            VITE_E2E_MINIMAL_GAME_STAGE: process.env.CI ? 'true' : 'false',
+          },
+          reuseExistingServer,
+          timeout: 120 * 1000,
+        },
+      }),
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import VictoryScreen from '../../client/src/components/ui/VictoryScreen';
 import { useLocalGame } from '../../client/src/lib/stores/useLocalGame';
 import { GameState } from '../types/game';
@@ -10,6 +10,11 @@ vi.mock('../../client/src/lib/stores/useLocalGame');
 const mockUseLocalGame = useLocalGame as any;
 
 describe('VictoryScreen', () => {
+  const getFinalStat = (label: string) => {
+    const statsPanel = screen.getByText('Final Statistics').parentElement as HTMLElement;
+    return within(statsPanel).getByText(label).parentElement as HTMLElement;
+  };
+
   const mockGameState: GameState = {
     id: 'test-game',
     players: [
@@ -100,8 +105,8 @@ describe('VictoryScreen', () => {
     render(<VictoryScreen {...mockProps} />);
     
     expect(screen.getByText('Final Statistics')).toBeInTheDocument();
-    expect(screen.getByText('10')).toBeInTheDocument(); // Turn number
-    expect(screen.getByText('100')).toBeInTheDocument(); // Faith stat
+    expect(getFinalStat('Total Turns')).toHaveTextContent('10');
+    expect(getFinalStat('Faith')).toHaveTextContent('100');
   });
 
   it('calls onPlayAgain when Play Again button is clicked', () => {
@@ -153,8 +158,8 @@ describe('VictoryScreen', () => {
   it('displays winner stats correctly', () => {
     render(<VictoryScreen {...mockProps} />);
     
-    expect(screen.getByText('100')).toBeInTheDocument(); // Faith stat
-    expect(screen.getByText('25')).toBeInTheDocument(); // Stars
-    expect(screen.getByText('30')).toBeInTheDocument(); // Pride stat
+    expect(getFinalStat('Faith')).toHaveTextContent('100');
+    expect(getFinalStat('Stars')).toHaveTextContent('25');
+    expect(getFinalStat('Pride')).toHaveTextContent('30');
   });
 });

@@ -115,3 +115,58 @@ Tests require mocking for Three.js, Zustand, and browser APIs. The `test/setup.t
 - `shared/utils/mapGenerator.ts` - Procedural map generation
 - `test/setup.ts` - Test mocking configuration
 - `replit.md` - Additional architecture documentation
+
+## Recurring Bug Lessons (living memory)
+<!-- BUG-LESSONS:START -->
+<!-- BUG-LESSON:worktree-merges-require-paired-tests -->
+### Merge worktrees by surface, not mechanically
+- First seen: 2026-04-03
+- Last seen: 2026-04-03
+- Recurrence count: 1
+- Severity: high
+- Symptom: Consolidated branches look mostly correct but silently drop one half of a feature, especially lobby, turn, settings, or store plumbing.
+- Root cause: Worktree integration carried implementation without its paired tests or companion state and UI changes.
+- Why it recurred: This repo has had many dirty detached worktrees and consolidation branches; naive cherry-picks or file-level merges hide coupled regressions until targeted suites run.
+- Fix: Diff each surface against main, preserve snapshots, integrate implementation plus paired tests together, and rerun targeted suites before promotion.
+- Prevention rule: Before merging or cleaning up worktrees, inventory branches and worktrees, archive dirty snapshots, and validate by touched surface instead of trusting a generic green run.
+- Verification: `git worktree list --porcelain && git branch --no-merged main && npx vitest run test/LobbyRoomFactionSelection.test.tsx shared/logic/gameReducer.test.ts test/unit/HandoffScreen.unit.test.tsx test/server/lobbyRealtimeBroker.test.ts test/LobbyRoomClipboard.test.tsx`
+
+<!-- BUG-LESSON:overlay-provider-shell-must-be-explicit -->
+### Interactive overlays must opt into input and shared providers
+- First seen: 2026-04-03
+- Last seen: 2026-04-03
+- Recurrence count: 1
+- Severity: high
+- Symptom: Tutorials, fullscreen blockers, chat, or special routes click through to the map, miss context providers, or ignore hotkey blocking and mobile viewport limits.
+- Root cause: Interactive surfaces lived under GameUI or special routes but relied on implicit pointer-event inheritance or bypassed the shared provider shell.
+- Why it recurred: This repo has multiple overlays, portals, and special routes, so one surface often gets fixed while another keeps the old pattern.
+- Fix: Use shared modal/provider primitives, add explicit pointer-events-auto and data-ui-layer semantics, and keep special routes inside the shared provider shell.
+- Prevention rule: For overlay, modal, hotkey, or special-route changes, inspect App.tsx, GameUI.tsx, ModalLayer, and relevant CSS before editing; do not rely on implicit behavior.
+- Verification: `npx vitest run test/TutorialModalInputBlocking.test.tsx test/OverlayPointerEventsCanary.test.tsx test/AppProviders.test.tsx test/HotkeyInputBlocking.test.tsx`
+
+<!-- BUG-LESSON:lobby-multiplayer-edits-are-cross-layer -->
+### Treat lobby and multiplayer edits as cross-layer
+- First seen: 2026-04-03
+- Last seen: 2026-04-03
+- Recurrence count: 1
+- Severity: high
+- Symptom: Duplicate factions become selectable, wrong player gets authority or recovery UI, stale queued actions survive turn end, or eliminated-player handoff breaks.
+- Root cause: Lobby behavior is split across UI, client sync hooks, server policy/routes, and turn/store logic, but only one layer was edited or merged.
+- Why it recurred: The same feature spans LobbyRoom, GameUI, useOnlineGameSync, server/multiplayerPolicy.ts, and server/routes.ts, so partial fixes look plausible until targeted tests run.
+- Fix: Update all affected layers together and revalidate faction uniqueness, actor ownership, queue pruning, resync, and eliminated-player skipping.
+- Prevention rule: When touching lobby, online, or turn-authority code, inspect both client and server surfaces before editing and assume the change is cross-layer until proven otherwise.
+- Verification: `npx vitest run test/LobbyRoomFactionSelection.test.tsx test/LobbyRoomClipboard.test.tsx test/server/lobbyRealtimeBroker.test.ts test/server/multiplayerPolicy.test.ts client/src/hooks/onlineSyncUtils.test.ts shared/logic/multiplayerSync.test.ts`
+
+<!-- BUG-LESSON:canonical-rules-live-in-shared-resolver -->
+### Keep game rules in shared resolver
+- First seen: 2026-04-03
+- Last seen: 2026-04-03
+- Recurrence count: 1
+- Severity: high
+- Symptom: Research, ability, city-capture, diplomacy, save/load, or turn-flow behavior drifts between gameplay logic and the UI/store.
+- Root cause: Rules were changed in useLocalGame.ts, UI helpers, or legacy modules without the corresponding canonical shared logic moving with them.
+- Why it recurred: This repo still contains legacy handlers and client-side helpers near the canonical path, so it is easy to patch the nearest caller instead of resolveAction.ts or a shared predicate.
+- Fix: Route behavior through shared/logic/resolveAction.ts or a shared predicate in /shared, then update callers to consume that answer instead of keeping their own rule copy.
+- Prevention rule: Before editing action availability or outcomes, search shared/logic, client/src/lib/stores/useLocalGame.ts, and UI helpers for duplicate logic; change the canonical shared path first.
+- Verification: `npx vitest run shared/logic/gameReducer.test.ts shared/logic/resolveAction.guards.test.ts shared/logic/activeEffects.test.ts`
+<!-- BUG-LESSONS:END -->

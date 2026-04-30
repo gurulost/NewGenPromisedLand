@@ -4,7 +4,7 @@ import { OrbitControls } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
 import { getVisibleUnits } from "@shared/logic/unitLogic";
-import HexGridInstanced from "./HexGridInstanced";
+import HexGridInstanced, { resolveRenderingViewPlayer } from "./HexGridInstanced";
 import { getAttackableTargets } from "../../selectors/combat";
 
 import Unit from "./Unit";
@@ -23,7 +23,7 @@ import { useMobileUI } from "../../hooks/useMobileUI";
 import { initModelPreloading } from "../../utils/modelManager";
 
 export default function GameCanvas() {
-  const { gameState, dispatch } = useLocalGame();
+  const { gameState, dispatch, onlineSession } = useLocalGame();
   const { selectedUnit, hoveredTile, setSelectedUnit, isMovementMode, setMovementMode, reachableCoordinates, setReachableCoordinates, isAttackMode, attackableTargets, setAttackableTargets, setAttackMode } = useGameState();
   const { camera } = useThree();
   const controlsRef = useRef<any>();
@@ -33,9 +33,25 @@ export default function GameCanvas() {
   const spotlightTimelineRef = useRef<gsap.core.Timeline | null>(null);
   const cinematicTimelineRef = useRef<gsap.core.Timeline | null>(null);
   const preloadKeyRef = useRef<string | null>(null);
+  const cameraSetupKeyRef = useRef<string | null>(null);
   const performanceMode = usePerformanceMode();
   const reduceEffects = useShouldReduceEffects();
   const { isMobileUI } = useMobileUI();
+  const mapWidth = gameState?.map.width ?? 10;
+  const mapHeight = gameState?.map.height ?? 10;
+  const mapTileCount = gameState?.map.tiles.length ?? 0;
+  const mapSize = Math.max(mapWidth, mapHeight);
+  const viewPlayer = resolveRenderingViewPlayer(gameState, { myPlayerIds: onlineSession?.myPlayerIds });
+  const cameraSetupKey = useMemo(() => {
+    if (!gameState) return null;
+    return [
+      gameState.id ?? "default",
+      mapWidth,
+      mapHeight,
+      mapTileCount,
+      gameState.players.map(player => player.id).join(","),
+    ].join("|");
+  }, [gameState, mapWidth, mapHeight, mapTileCount]);
 
   // Enhanced selection and effects
   const {
@@ -96,36 +112,42 @@ export default function GameCanvas() {
 
   // Setup camera controls - Pure panning like RTS games
   useEffect(() => {
-    if (controlsRef.current && gameState) {
+    if (controlsRef.current && gameState && cameraSetupKey) {
+      const controls = controlsRef.current;
+
       // Enable smooth damping for responsive feel
-      controlsRef.current.enableDamping = true;
-      controlsRef.current.dampingFactor = 0.1;
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.1;
 
       // Disable rotation completely - only allow panning and zooming
-      controlsRef.current.enableRotate = false;
+      controls.enableRotate = false;
 
       // Enable panning (click and drag to move)
-      controlsRef.current.enablePan = true;
-      controlsRef.current.panSpeed = 1.0;
+      controls.enablePan = true;
+      controls.panSpeed = 1.0;
 
       // Enable zooming with mouse wheel
-      controlsRef.current.enableZoom = true;
-      controlsRef.current.zoomSpeed = 1.0;
+      controls.enableZoom = true;
+      controls.zoomSpeed = 1.0;
 
       // Set zoom limits based on map size - fix terrain disappearing
-      const mapSize = Math.max(gameState.map.width || 10, gameState.map.height || 10);
-      controlsRef.current.minDistance = 5; // Prevent getting too close to terrain
-      controlsRef.current.maxDistance = mapSize * 4; // Prevent too far zoom
+      controls.minDistance = 5; // Prevent getting too close to terrain
+      controls.maxDistance = mapSize * 4; // Prevent too far zoom
 
       // Fix camera clipping planes to prevent terrain disappearing
       camera.near = 0.5; // Increase near plane to prevent clipping
       camera.far = mapSize * 15; // Increase far plane for better coverage
       camera.updateProjectionMatrix();
 
-      // Position camera near current player's starting area
-      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+      if (cameraSetupKeyRef.current === cameraSetupKey) {
+        return;
+      }
+      cameraSetupKeyRef.current = cameraSetupKey;
+
+      // Position camera near the viewer's starting area once per map.
+      const currentPlayer = viewPlayer ?? gameState.players[gameState.currentPlayerIndex];
       const playerCity = gameState.cities?.find(city =>
-        currentPlayer.citiesOwned.includes(city.id)
+        currentPlayer?.citiesOwned.includes(city.id) || city.ownerId === currentPlayer?.id
       );
 
       let cameraTargetPosition = { x: 0, z: 0 }; // Default to center
@@ -146,9 +168,9 @@ export default function GameCanvas() {
       camera.lookAt(cameraTargetPosition.x, 0, cameraTargetPosition.z);
 
       // Set the orbit target to the player's starting area
-      controlsRef.current.target.set(cameraTargetPosition.x, 0, cameraTargetPosition.z);
+      controls.target.set(cameraTargetPosition.x, 0, cameraTargetPosition.z);
     }
-  }, [camera, gameState]);
+  }, [camera, cameraSetupKey, gameState, mapSize, viewPlayer]);
 
   // Disabled automatic camera repositioning when players change turns
   // Let players control camera position manually like in Polytopia
@@ -315,9 +337,6 @@ export default function GameCanvas() {
     return null;
   }
 
-  // Calculate map size for fog and lighting
-  const mapSize = Math.max(gameState.map.width || 10, gameState.map.height || 10);
-
   return (
     <>
       <OrbitControls
@@ -361,11 +380,12 @@ export default function GameCanvas() {
 
       {/* Units - using centralized vision system */}
       {(() => {
-        const visibleUnits = getVisibleUnits(gameState);
+        const visibleUnits = viewPlayer ? getVisibleUnits(gameState, viewPlayer.id) : [];
         debug.logRendering(`GameCanvas rendering ${visibleUnits.length} visible units`, {
           totalUnits: gameState.units.length,
           visibleUnits: visibleUnits.length,
           unitIds: visibleUnits.map(u => u.id),
+          viewPlayer: viewPlayer?.name ?? null,
           currentPlayer: gameState.players[gameState.currentPlayerIndex]?.name
         });
 

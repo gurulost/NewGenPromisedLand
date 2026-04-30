@@ -12,6 +12,7 @@ import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from '../types/city';
 import { TacticalEngine, TacticalTarget } from './aiTacticalEngine';
 import { FactionPersonalityEngine } from './aiFactionPersonality';
 import { SeededRNG, aiDebugOverlay } from './aiFoundation';
+import { evaluateAIFactionAbilityUsage } from './factionAbilityHeuristics';
 import { emitTelemetry } from '../logic/telemetry';
 import { getTechCostDetails } from '../logic/technologyHelpers';
 import { calculateReachableTiles, canUnitReachCoordinate, getUnitActionsRemaining, getUnitAttackRangeFromDefinition, isPassableForUnit } from '../logic/unitLogic';
@@ -51,6 +52,7 @@ export interface AIDecision {
   techId?: string;
   buildingType?: string;
   cityId?: string;
+  builderUnitId?: string;
   abilityId?: string;
   elementId?: string;
   constructionCategory?: 'improvements' | 'structures' | 'units';
@@ -498,7 +500,7 @@ export class AIEngine {
   private getEnemyUnitsInRange(): Unit[] {
     return this.gameState.units.filter(unit =>
       unit.playerId !== this.aiPlayer.id &&
-      this.aiPlayer.visibilityMask.includes(`${unit.coordinate.q},${unit.coordinate.r}`)
+      (this.aiPlayer.visibilityMask ?? []).includes(this.getCoordinateKey(unit.coordinate))
     );
   }
 
@@ -520,8 +522,7 @@ export class AIEngine {
   }
 
   private getNearbyEnemies(coordinate: HexCoordinate): Unit[] {
-    return this.gameState.units
-      .filter(unit => unit.playerId !== this.aiPlayer.id)
+    return this.getVisibleEnemyUnits()
       .filter(unit => hexDistance(coordinate, unit.coordinate) <= 3);
   }
 
@@ -616,6 +617,15 @@ export class AIEngine {
               targetId: target.unitId,
               priority: Math.max(10, basePriority * modifier),
             });
+          }
+        } else if (target.targetType === 'city' && target.cityId) {
+          if (canUnitCaptureCity(this.gameState, { playerId: this.aiPlayer.id, unitId: unit.id, cityId: target.cityId })) {
+            decisions.push({ type: 'CAPTURE_CITY', unitId: unit.id, cityId: target.cityId, priority: Math.max(90, target.priority + 40) });
+            continue;
+          }
+          const nextStep = this.getNextStepTowards(unit, target.coordinate);
+          if (nextStep && canUnitReachCoordinate(unit, nextStep, this.gameState)) {
+            decisions.push({ type: 'MOVE_UNIT', unitId: unit.id, targetCoordinate: nextStep, priority: Math.max(30, (target.priority - hexDistance(nextStep, target.coordinate) * 8) * this.personalityEngine.getDecisionModifier('attack')) });
           }
         }
       }
@@ -1146,6 +1156,8 @@ export class AIEngine {
       if (distance === 0) {
         decisions.push({
           type: 'START_CONSTRUCTION',
+          unitId: worker.id,
+          builderUnitId: worker.id,
           buildingType: job.improvementId,
           cityId: job.cityId,
           constructionCategory: 'improvements',
@@ -1372,11 +1384,8 @@ export class AIEngine {
     return decisions;
   }
 
-  /**
-   * Enhanced ability usage
-   */
   private evaluateAbilityUsage(): AIDecision[] {
-    const decisions: AIDecision[] = [];
+    const decisions: AIDecision[] = evaluateAIFactionAbilityUsage(this.gameState, this.aiPlayer);
     const myUnits = this.getMyUnits();
 
     for (const unit of myUnits) {
@@ -2238,6 +2247,7 @@ export class AIEngine {
   private calculateEnemyStrength(center: HexCoordinate, playerId: string, radius: number): number {
     return this.gameState.units.reduce((total, unit) => {
       if (unit.playerId === playerId) return total;
+      if (playerId === this.aiPlayer.id && !(this.aiPlayer.visibilityMask ?? []).includes(this.getCoordinateKey(unit.coordinate))) return total;
       if (hexDistance(unit.coordinate, center) > radius) return total;
       const healthFactor = unit.hp / Math.max(1, unit.maxHp);
       return total + unit.attack + unit.defense + healthFactor * 5;
@@ -2317,26 +2327,15 @@ export class AIEngine {
 
   private hasSiegeOpportunity(unit: Unit): boolean {
     const attackRange = unit.attackRange || 1;
-    const enemyUnitNearby = this.gameState.units.some(enemy =>
-      enemy.playerId !== unit.playerId &&
-      enemy.hp > 0 &&
-      hexDistance(unit.coordinate, enemy.coordinate) <= attackRange + 1
-    );
+    const enemyUnitNearby = this.getVisibleEnemyUnits().some(enemy => enemy.hp > 0 && hexDistance(unit.coordinate, enemy.coordinate) <= attackRange + 1);
     if (enemyUnitNearby) {
       return true;
     }
-    return (this.gameState.cities || []).some(city =>
-      city.ownerId &&
-      city.ownerId !== unit.playerId &&
-      hexDistance(unit.coordinate, city.coordinate) <= attackRange + 1
-    );
+    return (this.gameState.cities || []).some(city => city.ownerId && city.ownerId !== unit.playerId && isTileExploredByPlayer(this.gameState, this.aiPlayer.id, city.coordinate) && hexDistance(unit.coordinate, city.coordinate) <= attackRange + 1);
   }
 
   private shouldApplyStealth(unit: Unit): boolean {
-    const nearbyEnemy = this.gameState.units.some(enemy =>
-      enemy.playerId !== unit.playerId &&
-      hexDistance(unit.coordinate, enemy.coordinate) <= 3
-    );
+    const nearbyEnemy = this.getVisibleEnemyUnits().some(enemy => hexDistance(unit.coordinate, enemy.coordinate) <= 3);
     return nearbyEnemy || this.countUnexploredNeighbors(unit.coordinate) > 0;
   }
 
@@ -2570,8 +2569,7 @@ export class AIEngine {
   private getVisibleEnemyUnits(): Unit[] {
     return this.gameState.units.filter(unit => {
       if (unit.playerId === this.aiPlayer.id) return false; // Not our unit
-      const tileKey = `${unit.coordinate.q},${unit.coordinate.r}`;
-      return this.aiPlayer.visibilityMask.includes(tileKey); // Only if visible
+      return (this.aiPlayer.visibilityMask ?? []).includes(this.getCoordinateKey(unit.coordinate)); // Only if visible
     });
   }
 

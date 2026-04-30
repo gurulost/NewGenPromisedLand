@@ -52,9 +52,25 @@ const createUnit = (overrides: Partial<Unit>): Unit => ({
   ...overrides,
 });
 
+const withCombatRelations = (players: PlayerState[]): PlayerState[] =>
+  players.map(player => ({
+    ...player,
+    atWarWith: Array.isArray(player.atWarWith)
+      ? player.atWarWith
+      : players.filter(other => other.id !== player.id).map(other => other.id),
+    alliedWith: player.alliedWith ?? [],
+    tradeRoutes: player.tradeRoutes ?? [],
+    diplomaticCooldowns: player.diplomaticCooldowns ?? {
+      declareWar: 0,
+      formAlliance: 0,
+      breakAlliance: 0,
+      requestTrade: 0,
+    },
+  }));
+
 const baseState = (players: PlayerState[], units: Unit[]): GameState => ({
   id: 'combat-test',
-  players,
+  players: withCombatRelations(players),
   units,
   currentPlayerIndex: 0,
   turn: 1,
@@ -438,7 +454,7 @@ describe('Combat ability interactions', () => {
     expect(remainingWorker?.defense).toBe(getUnitDefinition('worker').baseStats.defense);
   });
 
-  it('resists missionary zeal conversions with Faithful Resistance', () => {
+  it('uses Missionary Zeal as a global pressure tool projected through missionaries', () => {
     const missionary = createUnit({
       id: 'missionary',
       type: 'missionary',
@@ -453,7 +469,8 @@ describe('Combat ability interactions', () => {
     });
 
     const player1 = createPlayer({
-      stats: { faith: 70, pride: 25, internalDissent: 10 },
+      factionId: 'ANTI_NEPHI_LEHIES',
+      stats: { faith: 90, pride: 10, internalDissent: 5 },
     });
     const player2 = createPlayer({
       id: 'player2',
@@ -471,6 +488,10 @@ describe('Combat ability interactions', () => {
 
     const survivingEnemy = abilityState.units.find(unit => unit.id === 'enemy');
     expect(survivingEnemy?.playerId).toBe('player2');
+    expect((survivingEnemy as any)?.statusEffects?.some((effect: any) => effect?.type === 'TESTIMONY_PRESSURE')).toBe(true);
+    expect((survivingEnemy as any)?.statusEffects?.find((effect: any) => effect?.type === 'TESTIMONY_PRESSURE')?.attackPenalty).toBe(1);
+    expect(abilityState.players.find(player => player.id === 'player1')?.stats.faith).toBe(50);
+    expect(abilityState.players.find(player => player.id === 'player1')?.abilityCooldowns?.MISSIONARY_ZEAL).toBe(7);
   });
 
   it('removes guerrilla bonus after leaving forest', () => {
@@ -525,13 +546,43 @@ describe('Combat ability interactions', () => {
     const buffedUnit = buffedState.units.find(u => u.id === 'hunter');
     expect(buffedUnit?.defense).toBeGreaterThan(unit.defense);
 
-    const movedState = resolveActionState(buffedState, {
+    const rebuffedState = resolveActionState(buffedState, {
+      type: 'USE_ABILITY',
+      payload: { playerId: 'player1', abilityId: 'lamanite_guerrilla_tactics' },
+    });
+
+    const rebuffedUnit = rebuffedState.units.find(u => u.id === 'hunter');
+    expect(rebuffedUnit?.defense).toBe(buffedUnit?.defense);
+
+    const movedState = resolveActionState(rebuffedState, {
       type: 'MOVE_UNIT',
       payload: { unitId: 'hunter', targetCoordinate: { q: 1, r: 0, s: -1 } },
     });
 
     const movedUnit = movedState.units.find(u => u.id === 'hunter');
     expect(movedUnit?.defense).toBe(getUnitDefinition('wilderness_hunter').baseStats.defense);
+  });
+
+  it('leaves guerrilla tactics as a true no-op when no owned unit is in forest', () => {
+    const lamaPlayer = createPlayer({
+      stats: { faith: 40, pride: 40, internalDissent: 20 },
+      factionId: 'LAMANITES',
+    });
+    const unit = createUnit({
+      id: 'hunter',
+      playerId: 'player1',
+      type: 'wilderness_hunter',
+      coordinate: { q: 0, r: 0, s: 0 },
+      defense: getUnitDefinition('wilderness_hunter').baseStats.defense,
+    });
+    const state = baseState([lamaPlayer], [unit]);
+
+    const result = resolveActionState(state, {
+      type: 'USE_ABILITY',
+      payload: { playerId: 'player1', abilityId: 'lamanite_guerrilla_tactics' },
+    });
+
+    expect(result).toBe(state);
   });
 
   it('applies anti-cavalry bonus against fast units', () => {

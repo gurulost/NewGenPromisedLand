@@ -241,6 +241,8 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     });
   };
 
+  const clearClientInteractionState = (): void => { useGameState.setState({ selectedUnit: null, hoveredTile: null, reachableTiles: [], reachableCoordinates: [], abilityTargetMode: { isActive: false, abilityId: null, title: null, instructions: null, eligibleUnitIds: [], selectedUnitId: null, onSelectUnit: undefined }, constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null }, spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [], onSelectTile: undefined }, isMovementMode: false, isAttackMode: false, attackableTargets: [], isRoadBuildMode: false, roadBuildUnitId: null, tileContextMenu: { isOpen: false, screenPosition: { x: 0, y: 0 }, tileCoordinate: null, options: [] } }); };
+
   const applyActionToState = (
     action: TrackedAction,
     actionSource: GameplayActionSource,
@@ -439,10 +441,13 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
   };
 
   let onlineActionChain = Promise.resolve();
+  const optimisticHostActionIds = new Set<string>();
 
   const enqueueOnlineRequest = (task: () => Promise<void>): void => {
     onlineActionChain = onlineActionChain.then(task).catch(() => undefined);
   };
+
+  const advanceOnlineActionVersion = (version: unknown): void => { if (typeof version !== "number" || !Number.isFinite(version)) return; set((state) => !state.onlineSession || version <= state.onlineSession.actionVersion ? {} : { onlineSession: { ...state.onlineSession, actionVersion: version } }); };
 
   const reportActionError = (message: string, level: ActionError['level'] = 'warning'): void => {
     set({
@@ -563,6 +568,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       if (action.type === 'END_TURN') {
         useGameState.getState().setSelectedUnit(null);
       }
+      optimisticHostActionIds.add(actionId);
 
       const lobbyCode = onlineSession.lobbyCode;
       const hostEpoch = onlineSession.hostEpoch;
@@ -582,10 +588,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
           }
 
           const data = await res.json();
-          set((state) => state.onlineSession
-            ? { onlineSession: { ...state.onlineSession, actionVersion: data.actionVersion } }
-            : {}
-          );
+          advanceOnlineActionVersion(data.actionVersion);
 
           if (action.type === "END_TURN" && snapshotState) {
             const snapshotRes = await fetch(`/api/lobbies/${lobbyCode}/state`, {
@@ -688,10 +691,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     },
 
     setOnlineSession: (session) => {
+      optimisticHostActionIds.clear();
       set({ onlineSession: session, hostLeaseExpired: false, hostLastSeen: null });
     },
 
     clearOnlineSession: () => {
+      optimisticHostActionIds.clear();
       set({
         onlineSession: null,
         hostLeaseExpired: false,
@@ -724,26 +729,11 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       set({ hostLastSeen: lastSeen, hostLeaseExpired: leaseExpired });
     },
 
-    setOnlineActionVersion: (version) => {
-      set((state) => state.onlineSession
-        ? { onlineSession: { ...state.onlineSession, actionVersion: version } }
-        : {}
-      );
-    },
+    setOnlineActionVersion: (version) => set((state) => state.onlineSession ? { onlineSession: { ...state.onlineSession, actionVersion: version } } : {}),
 
-    setOnlineQueueVersion: (version) => {
-      set((state) => state.onlineSession
-        ? { onlineSession: { ...state.onlineSession, queueVersion: version } }
-        : {}
-      );
-    },
+    setOnlineQueueVersion: (version) => set((state) => state.onlineSession ? { onlineSession: { ...state.onlineSession, queueVersion: version } } : {}),
 
-    requestOnlineResync: (reason) => {
-      set((state) => ({
-        onlineResyncRequestId: state.onlineResyncRequestId + 1,
-        onlineResyncReason: reason,
-      }));
-    },
+    requestOnlineResync: (reason) => set((state) => ({ onlineResyncRequestId: state.onlineResyncRequestId + 1, onlineResyncReason: reason })),
 
     clearOnlineResyncRequest: () => {
       set({ onlineResyncReason: null });
@@ -754,6 +744,9 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     },
 
     applyRemoteAction: (action, options) => {
+      const session = get().onlineSession;
+      if (session && typeof options?.actionVersion === "number" && options.actionVersion <= session.actionVersion) return true;
+      if (session && session.userId === session.hostUserId && typeof options?.actionId === "string" && optimisticHostActionIds.has(options.actionId)) { advanceOnlineActionVersion(options.actionVersion); return true; }
       const result = applyActionToState(action, 'online_remote', {
         actionId: options?.actionId ?? createActionId(),
         actionVersion: options?.actionVersion ?? null,
@@ -767,7 +760,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     startLocalGame: (playerSetup, mapSize = 'normal', seed) => {
       const resolvedSeed = seed ?? Date.now();
-      const isOnline = !!get().onlineSession;
+      const isOnline = !!get().onlineSession; optimisticHostActionIds.clear(); clearClientInteractionState();
       // Starting a new standard game always exits tutorial episode mode.
       set({ gameMode: 'standard' });
       // Starting a new game invalidates any previous autosave resume target.
@@ -1102,8 +1095,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     startTutorialEpisode: () => {
       const resolvedSeed = 613_031; // Fixed seed: deterministic scenario layout.
       const gameId = `tutorial-episode-v1-${Date.now()}`;
-      const mapSize: MapSize = 'small';
-
+      const mapSize: MapSize = 'small'; optimisticHostActionIds.clear(); clearClientInteractionState();
       // Starting a new game invalidates any previous autosave resume target.
       void clearAutosave().catch(() => undefined);
       resetCityNames(gameId);
@@ -1679,6 +1671,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       if (existingState && !existingState.winner) {
         trackGameEnded({ gameState: existingState, source: 'reset_to_menu' });
       }
+      optimisticHostActionIds.clear(); clearClientInteractionState();
       set({
         gamePhase: 'menu',
         gameMode: 'standard',
@@ -1697,6 +1690,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     },
 
     loadGameState: (state: GameState, options) => {
+      optimisticHostActionIds.clear(); clearClientInteractionState();
       const normalizedPlayers = state.players.map(applyPlayerDefaults);
       const normalizedState = normalizeGameStateTurnPlayer({
         ...state,

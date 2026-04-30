@@ -1178,6 +1178,7 @@ export default function GameUI() {
       !!selectedVillage ||
       !!ruinsReward ||
       !!activeTechReveal ||
+      !!activeTutorialCardId || isTutorialLibraryOpen ||
       isTransitioning ||
       isDesktopChatOpen ||
       showMobileChat
@@ -1204,7 +1205,8 @@ export default function GameUI() {
     selectedWorldElement,
     selectedVillage,
     ruinsReward,
-    activeTechReveal,
+    activeTechReveal, activeTutorialCardId,
+    isTutorialLibraryOpen,
     isTransitioning,
     isDesktopChatOpen,
     showMobileChat,
@@ -1989,7 +1991,6 @@ export default function GameUI() {
           reachableCount={reachableCoordinates.length}
         />
       )}
-
       {/* Player HUD */}
       {!isMobileUI && (
         <PlayerHUD
@@ -2002,6 +2003,7 @@ export default function GameUI() {
           gameLogEntryCount={gameLogEntries.length}
           isGameLogOpen={showGameLog}
           onEndTurn={handleEndTurn}
+          onUseFactionAbility={handleUseAbility}
         />
       )}
 
@@ -2020,7 +2022,7 @@ export default function GameUI() {
             onOpenGameLog={() => setShowGameLog(true)}
             onOpenChat={() => setShowMobileChat(true)}
             showChat={Boolean(chatIdentity)}
-            onOpenCities={handleShowCityPanel}
+            onOpenCities={handleShowCityPanel} onUseFactionAbility={handleUseAbility}
           />
           {gameState && (
             <BugReportStartHint

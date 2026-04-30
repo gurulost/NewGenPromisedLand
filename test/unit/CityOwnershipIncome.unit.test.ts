@@ -8,6 +8,7 @@ describe('City capture/conversion income', () => {
     const p2 = 'p2';
     const homeCityId = 'home';
     const cityId = 'c1';
+    const backupCityId = 'p2-backup';
 
     const state: GameState = {
       id: 'g1',
@@ -22,6 +23,7 @@ describe('City capture/conversion income', () => {
         tiles: [
           { coordinate: { q: -2, r: 0, s: 2 }, terrain: 'plains', resources: [], hasCity: true, cityOwner: p1, exploredBy: [p1, p2] },
           { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: true, cityOwner: p2, exploredBy: [p1, p2] },
+          { coordinate: { q: -1, r: 1, s: 0 }, terrain: 'plains', resources: [], hasCity: true, cityOwner: p2, exploredBy: [p1, p2] },
           { coordinate: { q: 1, r: 0, s: -1 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [p1, p2] },
         ],
       },
@@ -57,7 +59,7 @@ describe('City capture/conversion income', () => {
           visibilityMask: [],
           exploredTiles: [],
           researchProgress: 0,
-          citiesOwned: [cityId],
+          citiesOwned: [cityId, backupCityId],
           constructionQueue: [],
           atWarWith: [p1],
           alliedWith: [],
@@ -88,6 +90,19 @@ describe('City capture/conversion income', () => {
           maxPopulation: 4,
           level: 1,
           starProduction: 3,
+          improvements: [],
+          structures: [],
+          harvestedResources: [],
+        },
+        {
+          id: backupCityId,
+          name: 'Backup',
+          coordinate: { q: -1, r: 1, s: 0 },
+          ownerId: p2,
+          population: 1,
+          maxPopulation: 4,
+          level: 1,
+          starProduction: 0,
           improvements: [],
           structures: [],
           harvestedResources: [],
@@ -135,6 +150,7 @@ describe('City capture/conversion income', () => {
     const p2 = 'p2';
     const homeCityId = 'home';
     const cityId = 'c1';
+    const backupCityId = 'p2-backup';
 
     const state: GameState = {
       id: 'g1',
@@ -149,6 +165,7 @@ describe('City capture/conversion income', () => {
         tiles: [
           { coordinate: { q: -2, r: 0, s: 2 }, terrain: 'plains', resources: [], hasCity: true, cityOwner: p1, exploredBy: [p1, p2] },
           { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: true, cityOwner: p2, exploredBy: [p1, p2] },
+          { coordinate: { q: -1, r: 1, s: 0 }, terrain: 'plains', resources: [], hasCity: true, cityOwner: p2, exploredBy: [p1, p2] },
           { coordinate: { q: 1, r: 0, s: -1 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: [p1, p2] },
         ],
       },
@@ -184,7 +201,7 @@ describe('City capture/conversion income', () => {
           visibilityMask: [],
           exploredTiles: [],
           researchProgress: 0,
-          citiesOwned: [cityId],
+          citiesOwned: [cityId, backupCityId],
           constructionQueue: [],
           atWarWith: [],
           alliedWith: [],
@@ -215,6 +232,19 @@ describe('City capture/conversion income', () => {
           maxPopulation: 4,
           level: 1,
           starProduction: 3,
+          improvements: [],
+          structures: [],
+          harvestedResources: [],
+        },
+        {
+          id: backupCityId,
+          name: 'Backup',
+          coordinate: { q: -1, r: 1, s: 0 },
+          ownerId: p2,
+          population: 1,
+          maxPopulation: 4,
+          level: 1,
+          starProduction: 0,
           improvements: [],
           structures: [],
           harvestedResources: [],

@@ -69,9 +69,9 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
   MISSIONARY_ZEAL: {
     id: 'MISSIONARY_ZEAL',
     name: 'Missionary Zeal',
-    description: 'Spread faith to nearby tiles, pressuring neutral villages and weakening enemy resolve.',
+    description: 'Project testimony pressure through missionaries, weakening enemy military resolve in a wider area.',
     type: 'faction',
-    effect: 'SPREAD_FAITH',
+    effect: 'TESTIMONY_PRESSURE',
     cooldown: 7,
     requirements: { faith: 80 },
   },

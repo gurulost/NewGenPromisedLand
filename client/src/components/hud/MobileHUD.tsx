@@ -3,6 +3,7 @@ import { Star, BookOpen, Hammer, ScrollText, Settings, Save, ShieldHalf, Menu as
 import clsx from 'clsx';
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
+import { FactionAbilityButtons } from './FactionAbilityButtons';
 import { getPlayerStats } from '../../selectors/player';
 import { useMobileUI } from '../../hooks/useMobileUI';
 import { isBugReportingEnabled } from '../../utils/bugReport';
@@ -22,6 +23,7 @@ interface MobileHUDProps {
   onOpenChat: () => void;
   showChat?: boolean;
   onOpenCities?: () => void;
+  onUseFactionAbility?: (abilityId: string) => void;
 }
 
 export function MobileHUD({
@@ -38,6 +40,7 @@ export function MobileHUD({
   onOpenChat,
   showChat = true,
   onOpenCities,
+  onUseFactionAbility,
 }: MobileHUDProps) {
   const { isPortrait } = useMobileUI();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -127,6 +130,15 @@ export function MobileHUD({
           </SheetHeader>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
+            <FactionAbilityButtons
+              player={player}
+              gameState={gameState}
+              onUseFactionAbility={onUseFactionAbility
+                ? (abilityId) => handleMenuAction(() => onUseFactionAbility(abilityId))
+                : undefined}
+              variant="mobile-menu"
+            />
+
             <button
               onClick={() => handleMenuAction(onOpenTech)}
               className="min-h-[52px] rounded-lg border border-blue-500/40 bg-blue-900/30 text-blue-100 flex items-center justify-center gap-2"

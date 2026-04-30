@@ -14,6 +14,7 @@ import { createResolveResult, createVillageEncounterEvent, type ResolveResult } 
 import { emitTelemetry } from "../telemetry";
 import { resolveCombat } from "../combatResolver";
 import { applyStatusEffect } from "../statusEffects";
+import { getTurnPlayer } from "../turnOrder";
 
 function applyIntimidateToAdjacentEnemies(
   units: Unit[],
@@ -49,7 +50,10 @@ export function handleMoveUnit(
     return createResolveResult(state);
   }
 
-  const currentPlayer = state.players[state.currentPlayerIndex];
+  const currentPlayer = getTurnPlayer(state.players, state.currentPlayerIndex);
+  if (!currentPlayer) {
+    return createResolveResult(state);
+  }
   if (unit.playerId !== currentPlayer.id) {
     return createResolveResult(state);
   }
@@ -179,7 +183,8 @@ export function handleAttackUnit(
 
   if (!attacker || !target) return state;
 
-  const currentPlayer = state.players[state.currentPlayerIndex];
+  const currentPlayer = getTurnPlayer(state.players, state.currentPlayerIndex);
+  if (!currentPlayer) return state;
   if (attacker.playerId !== currentPlayer.id) return state;
 
   // Prevent friendly fire - cannot attack units from the same player

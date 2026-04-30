@@ -29,6 +29,11 @@ interface WaterBodyData {
   bodySizes: number[];
 }
 
+interface LandmassData {
+  massByCoord: Map<string, number>;
+  massSizes: number[];
+}
+
 type LandResourceType = 'grain_patch' | 'wild_goats' | 'timber_grove' | 'ore_vein';
 
 const LAND_RESOURCE_TYPES: LandResourceType[] = [
@@ -107,6 +112,11 @@ interface VillageCandidateAssignment {
   entry: VillageCandidateEntry;
   distanceToCapital: number;
   ring: VillageRing;
+}
+
+interface CapitalCandidateAssignment {
+  coord: HexCoordinate;
+  score: number;
 }
 
 export class SeededRandom {
@@ -739,52 +749,299 @@ export class MapGenerator {
     const { minRadius, maxRadius } = this.getCapitalSpawnRadiusBand(mapRadius);
     const angleStep = (2 * Math.PI) / Math.max(1, playerCount);
     const angleJitter = angleStep * 0.35;
+    const landmassData = this.buildLandmassData(tiles);
+    const landmassOrder = this.getCapitalLandmassOrder(landmassData);
+    const distanceSequence = this.getCapitalDistanceSequence(baseMinDistance, mapRadius);
+    const waterRelaxSequence = [0, 1, 2, 3];
 
-    const tryPlace = (minDistance: number, relax: number): HexCoordinate[] | null => {
-      const positions: HexCoordinate[] = [];
-      for (let i = 0; i < playerCount; i++) {
-        let placed = false;
-        for (let attempt = 0; attempt < 80; attempt++) {
-          const angle = (i * angleStep) + (rng.next() - 0.5) * angleJitter;
-          const radius = rng.nextInt(minRadius, maxRadius);
-          const q = Math.round(radius * Math.cos(angle));
-          const r = Math.round(radius * Math.sin(angle));
-          const s = -q - r;
-          const candidate: HexCoordinate = { q, r, s };
+    const tryPlace = (
+      minDistance: number,
+      waterRelax: number,
+      requiredLandmassId?: number
+    ): HexCoordinate[] | null => {
+      const pools = Array.from({ length: playerCount }, (_, playerIndex) =>
+        this.buildCapitalCandidatePool(
+          tiles,
+          waterData,
+          landmassData,
+          mapRadius,
+          playerIndex,
+          minRadius,
+          maxRadius,
+          angleStep,
+          angleJitter,
+          waterRelax,
+          rng,
+          requiredLandmassId
+        )
+      );
 
-          if (!this.isWithinMap(candidate, mapRadius)) continue;
-          if (hexDistance({ q: 0, r: 0, s: 0 }, candidate) > mapRadius - MAP_GENERATION_CONSTANTS.MAP_EDGE_BUFFER) continue;
-          if (positions.some(pos => hexDistance(pos, candidate) < minDistance)) continue;
-          if (!this.isValidCapitalCandidate(candidate, tiles, waterData, relax, i, mapRadius)) continue;
+      if (pools.some(pool => pool.length === 0)) return null;
 
-          positions.push(candidate);
-          placed = true;
-          break;
+      const positions: Array<HexCoordinate | null> = new Array(playerCount).fill(null);
+      const placementOrder = pools
+        .map((pool, index) => ({ index, count: pool.length }))
+        .sort((a, b) => (a.count - b.count) || (a.index - b.index));
+      let attempts = 0;
+      const maxAttempts = MAP_GENERATION_CONSTANTS.MAX_ATTEMPTS_PER_GUARANTEE * 10;
+
+      const search = (depth: number): HexCoordinate[] | null => {
+        if (depth >= placementOrder.length) {
+          return positions.map(position => ({ ...(position as HexCoordinate) }));
+        }
+        if (attempts >= maxAttempts) return null;
+
+        const playerIndex = placementOrder[depth].index;
+        for (const candidate of pools[playerIndex]) {
+          attempts += 1;
+          if (positions.some(position => position && hexDistance(position, candidate.coord) < minDistance)) {
+            continue;
+          }
+
+          positions[playerIndex] = candidate.coord;
+          const result = search(depth + 1);
+          if (result) return result;
+          positions[playerIndex] = null;
+
+          if (attempts >= maxAttempts) break;
         }
 
-        if (!placed) return null;
-      }
-      return positions;
+        return null;
+      };
+
+      return search(0);
     };
 
-    for (let relax = 0; relax < 4; relax++) {
-      const minDistance = Math.max(3, baseMinDistance - relax);
-      const positions = tryPlace(minDistance, relax);
-      if (positions) return positions;
+    for (const minDistance of distanceSequence) {
+      for (const waterRelax of waterRelaxSequence) {
+        for (const landmass of landmassOrder) {
+          const positions = tryPlace(minDistance, waterRelax, landmass.id);
+          if (positions) return positions;
+        }
+      }
     }
 
-    const fallbackRadius = Math.floor(mapRadius * MAP_GENERATION_CONSTANTS.CAPITAL_SPAWN_RADIUS_RATIO);
-    const fallback: HexCoordinate[] = [];
-    for (let i = 0; i < playerCount; i++) {
-      const angle = (i / playerCount) * 2 * Math.PI;
+    for (const minDistance of distanceSequence) {
+      for (const waterRelax of waterRelaxSequence) {
+        const positions = tryPlace(minDistance, waterRelax);
+        if (positions) return positions;
+      }
+    }
+
+    return this.generateCapitalFallback(
+      tiles,
+      waterData,
+      landmassData,
+      mapRadius,
+      minRadius,
+      maxRadius,
+      angleStep,
+      angleJitter,
+      distanceSequence[distanceSequence.length - 1] ?? baseMinDistance,
+      rng
+    );
+  }
+
+  private getCapitalLandmassOrder(landmassData: LandmassData): Array<{ id: number; size: number }> {
+    return landmassData.massSizes
+      .map((size, id) => ({ id, size }))
+      .filter(landmass => landmass.size >= Math.max(1, this.config.playerCount))
+      .sort((a, b) => (b.size - a.size) || (a.id - b.id));
+  }
+
+  private getCapitalDistanceSequence(baseMinDistance: number, mapRadius: number): number[] {
+    const fallbackMinDistance = this.getCapitalFallbackMinDistance(baseMinDistance, mapRadius);
+    const distances: number[] = [];
+    for (let distance = baseMinDistance; distance >= fallbackMinDistance; distance--) {
+      distances.push(distance);
+    }
+    return distances.length > 0 ? distances : [baseMinDistance];
+  }
+
+  private getCapitalFallbackMinDistance(baseMinDistance: number, mapRadius: number): number {
+    const edgeLimitedDistance = mapRadius - MAP_GENERATION_CONSTANTS.MAP_EDGE_BUFFER;
+    if (edgeLimitedDistance >= baseMinDistance) {
+      return baseMinDistance;
+    }
+    return Math.max(2, Math.min(baseMinDistance, edgeLimitedDistance));
+  }
+
+  private buildCapitalCandidatePool(
+    tiles: Tile[],
+    waterData: WaterBodyData,
+    landmassData: LandmassData,
+    mapRadius: number,
+    playerIndex: number,
+    minRadius: number,
+    maxRadius: number,
+    angleStep: number,
+    angleJitter: number,
+    waterRelax: number,
+    rng: SeededRandom,
+    requiredLandmassId?: number
+  ): CapitalCandidateAssignment[] {
+    const maxPoolSize = Math.max(48, this.config.playerCount * 16);
+    const candidates: CapitalCandidateAssignment[] = [];
+    const tileIndex = this.buildTileIndex(tiles);
+    const idealRadius = (minRadius + maxRadius) / 2;
+    const angle = (playerIndex * angleStep) + (rng.next() - 0.5) * angleJitter;
+    const target: HexCoordinate = {
+      q: Math.round(idealRadius * Math.cos(angle)),
+      r: Math.round(idealRadius * Math.sin(angle)),
+      s: 0,
+    };
+    target.s = -target.q - target.r;
+
+    for (const tile of tiles) {
+      const landmassId = landmassData.massByCoord.get(this.coordKey(tile.coordinate));
+      if (requiredLandmassId !== undefined && landmassId !== requiredLandmassId) continue;
+      if (!this.isCapitalBaseCandidate(tile.coordinate, mapRadius)) continue;
+      if (!this.isValidCapitalCandidate(tile.coordinate, tiles, waterData, waterRelax, playerIndex, mapRadius)) continue;
+
+      candidates.push({
+        coord: tile.coordinate,
+        score: this.scoreCapitalCandidate(
+          tile,
+          tiles,
+          tileIndex,
+          waterData,
+          mapRadius,
+          playerIndex,
+          idealRadius,
+          target,
+          rng
+        ),
+      });
+    }
+
+    return candidates
+      .sort((a, b) => (b.score - a.score) || this.coordKey(a.coord).localeCompare(this.coordKey(b.coord)))
+      .slice(0, maxPoolSize);
+  }
+
+  private isCapitalBaseCandidate(coord: HexCoordinate, mapRadius: number): boolean {
+    if (!this.isWithinMap(coord, mapRadius)) return false;
+    return hexDistance({ q: 0, r: 0, s: 0 }, coord) <= mapRadius - MAP_GENERATION_CONSTANTS.MAP_EDGE_BUFFER;
+  }
+
+  private scoreCapitalCandidate(
+    tile: Tile,
+    tiles: Tile[],
+    tileIndex: Map<string, Tile>,
+    waterData: WaterBodyData,
+    mapRadius: number,
+    playerIndex: number,
+    idealRadius: number,
+    target: HexCoordinate,
+    rng: SeededRandom
+  ): number {
+    const sectorDistance = hexDistance(tile.coordinate, target);
+    const radialDistance = hexDistance(tile.coordinate, { q: 0, r: 0, s: 0 });
+    const radialPenalty = Math.abs(radialDistance - idealRadius) * 0.5;
+    const neighborLandBonus = hexNeighbors(tile.coordinate)
+      .filter(coord => this.isWithinMap(coord, mapRadius))
+      .map(coord => tileIndex.get(this.coordKey(coord)))
+      .filter((neighbor): neighbor is Tile => !!neighbor && neighbor.terrain !== 'water').length * 0.05;
+
+    const factionId = this.normalizeFactionId(this.playerFactions[playerIndex]);
+    const modifiers = factionId ? TRIBAL_SPAWN_MODIFIERS[factionId] : null;
+    const wantsWater = !!modifiers && modifiers.water > 1;
+    const waterMetrics = wantsWater
+      ? this.getCapitalWaterMetrics(tile.coordinate, tiles, waterData, mapRadius)
+      : null;
+    const waterBonus = waterMetrics
+      ? waterMetrics.adjacentWaterTiles * 0.4 +
+        waterMetrics.coastTilesWithinRadius * 0.15 +
+        Math.min(1, waterMetrics.connectedBodySize / Math.max(1, this.getMulekiteMinBodySize())) * 0.4
+      : 0;
+
+    return -sectorDistance - radialPenalty + neighborLandBonus + waterBonus + rng.next() * 0.05;
+  }
+
+  private generateCapitalFallback(
+    tiles: Tile[],
+    waterData: WaterBodyData,
+    landmassData: LandmassData,
+    mapRadius: number,
+    minRadius: number,
+    maxRadius: number,
+    angleStep: number,
+    angleJitter: number,
+    minDistance: number,
+    rng: SeededRandom
+  ): HexCoordinate[] {
+    const positions: HexCoordinate[] = [];
+    const preferredLandmassId = this.getCapitalLandmassOrder(landmassData)[0]?.id;
+
+    for (let playerIndex = 0; playerIndex < this.config.playerCount; playerIndex++) {
+      const preferredPool = preferredLandmassId === undefined
+        ? []
+        : this.buildCapitalCandidatePool(
+            tiles,
+            waterData,
+            landmassData,
+            mapRadius,
+            playerIndex,
+            minRadius,
+            maxRadius,
+            angleStep,
+            angleJitter,
+            3,
+            rng,
+            preferredLandmassId
+          );
+      const anyPool = this.buildCapitalCandidatePool(
+        tiles,
+        waterData,
+        landmassData,
+        mapRadius,
+        playerIndex,
+        minRadius,
+        maxRadius,
+        angleStep,
+        angleJitter,
+        3,
+        rng
+      );
+      const pool = preferredPool.length > 0 ? preferredPool : anyPool;
+      const spacedPick = pool.find(candidate =>
+        positions.every(position => hexDistance(position, candidate.coord) >= minDistance)
+      );
+      const bestEffortPick = spacedPick ?? this.pickMostSeparatedCapitalCandidate(pool, positions);
+
+      if (bestEffortPick) {
+        positions.push(bestEffortPick.coord);
+        continue;
+      }
+
+      const fallbackRadius = Math.floor(mapRadius * MAP_GENERATION_CONSTANTS.CAPITAL_SPAWN_RADIUS_RATIO);
+      const angle = (playerIndex / Math.max(1, this.config.playerCount)) * 2 * Math.PI;
       const q = Math.round(fallbackRadius * Math.cos(angle));
       const r = Math.round(fallbackRadius * Math.sin(angle));
       const s = -q - r;
       const candidate = { q, r, s };
-      fallback.push(this.findNearestLandTile(candidate, tiles, mapRadius) ?? candidate);
+      positions.push(this.findNearestLandTile(candidate, tiles, mapRadius) ?? candidate);
     }
 
-    return fallback;
+    return positions;
+  }
+
+  private pickMostSeparatedCapitalCandidate(
+    pool: CapitalCandidateAssignment[],
+    positions: HexCoordinate[]
+  ): CapitalCandidateAssignment | null {
+    if (pool.length === 0) return null;
+    if (positions.length === 0) return pool[0];
+
+    return pool.reduce<CapitalCandidateAssignment | null>((best, candidate) => {
+      const minDistance = Math.min(...positions.map(position => hexDistance(position, candidate.coord)));
+      if (!best) return candidate;
+      const bestDistance = Math.min(...positions.map(position => hexDistance(position, best.coord)));
+      if (minDistance !== bestDistance) {
+        return minDistance > bestDistance ? candidate : best;
+      }
+      return candidate.score > best.score ? candidate : best;
+    }, null);
   }
 
   private generateWaterMask(tiles: Tile[], mapRadius: number): WaterBodyData {
@@ -1924,6 +2181,10 @@ export class MapGenerator {
       const capitalLandmass = landmassIndex.get(this.coordKey(capital));
       const hasVillage = villagePositions.some(village => {
         const dist = hexDistance(village, capital);
+        if (capitalLandmass !== undefined) {
+          const villageLandmass = landmassIndex.get(this.coordKey(village));
+          if (villageLandmass !== capitalLandmass) return false;
+        }
         return dist >= minDist && dist <= maxDist;
       });
       if (hasVillage) continue;
@@ -2428,7 +2689,7 @@ export class MapGenerator {
     return GameRuleHelpers.isTerrainPassable(tile.terrain);
   }
 
-  private buildLandmassData(tiles: Tile[]): { massByCoord: Map<string, number>; massSizes: number[] } {
+  private buildLandmassData(tiles: Tile[]): LandmassData {
     const tileIndex = this.buildTileIndex(tiles);
     const visited = new Set<string>();
     const massByCoord = new Map<string, number>();

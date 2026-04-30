@@ -26,6 +26,7 @@ export function handleConquerVillage(
 
   const unit = state.units.find(u => u.id === unitId);
   if (!unit || unit.playerId !== playerId) return state;
+  if (getUnitActionsRemaining(unit) <= 0) return state;
 
   const villageTile = state.map.tiles.find(tile =>
     tile.coordinate.q === unit.coordinate.q &&
@@ -117,6 +118,7 @@ export function handleConvertVillage(
 
   const unit = state.units.find(u => u.id === unitId);
   if (!unit || unit.playerId !== playerId) return state;
+  if (getUnitActionsRemaining(unit) <= 0) return state;
 
   const villageTile = state.map.tiles.find(tile =>
     tile.coordinate.q === unit.coordinate.q &&
@@ -210,6 +212,7 @@ export function handleExploreRuins(
 
   const unit = state.units.find(u => u.id === unitId);
   if (!unit || unit.playerId !== playerId) return createResolveResult(state);
+  if (getUnitActionsRemaining(unit) <= 0) return createResolveResult(state);
 
   const ruinsTile = state.map.tiles.find(tile =>
     tile.coordinate.q === coordinate.q &&

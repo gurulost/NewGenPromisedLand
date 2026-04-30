@@ -286,10 +286,9 @@ const getStaticUnitModelPath = (unitType: string): string | null => {
   return isModelAvailable(path) ? path : null;
 };
 
-const collectMatchModelPaths = (gameState: GameState): Set<string> => {
+export const collectMatchModelPaths = (gameState: GameState): Set<string> => {
   const paths = new Set<string>();
 
-  TERRAIN_MODEL_PATHS.forEach((path) => paths.add(path));
   if (isModelAvailable(MODEL_PATHS.village)) paths.add(MODEL_PATHS.village);
 
   const unitTypes = new Set(gameState.units.map((unit) => unit.type));

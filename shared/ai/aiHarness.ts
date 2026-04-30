@@ -1,5 +1,6 @@
 import { GameState, GameAction } from '../types/game';
 import { executeAITurn } from './aiEngine';
+import { getFactionAbilityAvailability } from '../logic/factionAbilityAvailability';
 import { resolveActionState } from '../logic/resolveAction';
 
 type SimulationResult = {
@@ -47,6 +48,7 @@ export function simulateAITurns(initialState: GameState, maxTurns = 10): Simulat
               cityId: decision.cityId,
               category: decision.constructionCategory ?? 'structures',
               ...(decision.targetCoordinate ? { coordinate: decision.targetCoordinate } : {}),
+              ...(decision.builderUnitId ? { builderUnitId: decision.builderUnitId } : {}),
             },
           };
         }
@@ -97,7 +99,35 @@ export function simulateAITurns(initialState: GameState, maxTurns = 10): Simulat
         break;
       case 'USE_ABILITY':
         if (decision.abilityId) {
-          action = { type: 'USE_ABILITY', payload: { playerId, abilityId: decision.abilityId } };
+          const availability = getFactionAbilityAvailability(state, playerId, decision.abilityId);
+          if (availability.available) {
+            action = { type: 'USE_ABILITY', payload: { playerId, abilityId: decision.abilityId } };
+          }
+        }
+        break;
+      case 'HEAL_UNIT':
+        if (decision.unitId) {
+          action = { type: 'HEAL_UNIT', payload: { unitId: decision.unitId, playerId } };
+        }
+        break;
+      case 'APPLY_STEALTH':
+        if (decision.unitId) {
+          action = { type: 'APPLY_STEALTH', payload: { unitId: decision.unitId, playerId } };
+        }
+        break;
+      case 'FORMATION_FIGHTING':
+        if (decision.unitId) {
+          action = { type: 'FORMATION_FIGHTING', payload: { unitId: decision.unitId, playerId } };
+        }
+        break;
+      case 'SIEGE_MODE':
+        if (decision.unitId) {
+          action = { type: 'SIEGE_MODE', payload: { unitId: decision.unitId, playerId } };
+        }
+        break;
+      case 'RALLY_TROOPS':
+        if (decision.unitId) {
+          action = { type: 'RALLY_TROOPS', payload: { unitId: decision.unitId, playerId } };
         }
         break;
       case 'RESEARCH_TECH':
@@ -109,7 +139,7 @@ export function simulateAITurns(initialState: GameState, maxTurns = 10): Simulat
         action = { type: 'END_TURN', payload: { playerId } };
         break;
       default:
-        // Unsupported actions (builds/abilities not in reducer) are skipped in the harness
+        // Unsupported actions are skipped in the harness.
         break;
     }
 

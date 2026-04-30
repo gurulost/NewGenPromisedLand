@@ -17,13 +17,14 @@ import { applyMoralDelta, clampStat, pickWeightedIndex } from "./helpers";
 import { applyYieldModifiers, getPlayerYieldModifiers, tickActiveEffectsForPlayer } from "../activeEffects";
 import { getUnitSpawnCoordinate } from "./spawnUtils";
 import { applyStatusEffect } from "../statusEffects";
+import { applyTestimonyPressureToTargets, getTestimonyPressureSelection } from "../testimonyPressure";
 import { onTurnStartUnit } from "../effects";
 import { getUnitAttackRangeFromDefinition, resetUnitActions, spendUnitActions } from "../unitLogic";
 import { findNextTurnPlayerIndex, normalizeTurnPlayerIndex } from "../turnOrder";
 
 
-type VictoryType = "faith" | "territorial" | "elimination" | "economic" | "cultural" | "domination";
-type VictoryResult = { winnerId: string; victoryType: VictoryType };
+export type VictoryType = "faith" | "territorial" | "elimination" | "economic" | "cultural" | "domination";
+export type VictoryResult = { winnerId: string; victoryType: VictoryType };
 type TradeRoute = NonNullable<PlayerState["tradeRoutes"]>[number];
 type UnitPassiveEffects = ReturnType<typeof computeUnitPassiveEffectsForPlayer>;
 
@@ -489,27 +490,6 @@ export function handleEndTurn(
         );
       }
 
-      // Apply population growth from structures (Temple, Granary, etc.)
-      updatedCities = updatedCities.map(city => {
-        if (city.ownerId !== player.id) return city;
-        
-        // Calculate population growth from structures in this city
-        const cityStructures = (state.structures || []).filter(
-          s => s.cityId === city.id && s.constructionTurns === 0
-        );
-        const populationGrowth = cityStructures.reduce((sum, s) => {
-          const def = STRUCTURE_DEFINITIONS[s.type as keyof typeof STRUCTURE_DEFINITIONS];
-          return sum + (s.effects?.populationGrowth ?? def?.effects?.populationGrowth ?? 0);
-        }, 0);
-        
-        if (populationGrowth <= 0) return city;
-        
-        return {
-          ...city,
-          population: (city.population || 0) + populationGrowth
-        };
-      });
-
       return {
         ...player,
         stats: updatedStats,
@@ -616,6 +596,7 @@ export function handleEndTurn(
             constructionTurns: 0,
           };
           updatedStructures.push(newStructure);
+          // Structure populationGrowth is a one-time completion grant, not an end-turn yield.
           const populationGain = structureDef?.effects?.populationGrowth ?? 0;
           if (populationGain > 0) {
             updatedCities = updatedCities.map(city =>
@@ -751,61 +732,34 @@ export function handleEndTurn(
   };
 
   if (isTestimonyFaction) {
-    const myMissionaries = updatedUnits.filter(u => u.playerId === currentPlayer.id && u.type === 'missionary');
-    const affectedUnitIds = new Set<string>();
-    myMissionaries.forEach(missionary => {
-      const adjacentEnemyUnits = updatedUnits.filter(u =>
-        u.playerId !== currentPlayer.id &&
-        isEligibleEnemyMilitaryUnit(u) &&
-        hexDistance(u.coordinate, missionary.coordinate) <= 1
-      );
+    const pressureSelection = getTestimonyPressureSelection(getEffectEvaluationState(), currentPlayer.id, 1);
 
-      adjacentEnemyUnits.forEach(enemyUnit => {
-        affectedUnitIds.add(enemyUnit.id);
-      });
-    });
-
-    if (affectedUnitIds.size > 0) {
+    if (pressureSelection.targetUnits.length > 0) {
       const penalty = GAME_RULES.influence.testimonyPressure.attackPenalty;
       const durationTurns = GAME_RULES.influence.testimonyPressure.durationTurns;
+      const pressureResult = applyTestimonyPressureToTargets(
+        getEffectEvaluationState(),
+        currentPlayer.id,
+        pressureSelection.targetUnits.map(unit => unit.id),
+        { attackPenalty: penalty, durationTurns }
+      );
 
-      const appliedByOwner: Record<string, Set<string>> = {};
-      updatedUnits = updatedUnits.map((u: any) => {
-        if (!affectedUnitIds.has(u.id)) return u;
+      updatedUnits = pressureResult.units;
 
-        const withEffect = applyStatusEffect(u, {
+      if (pressureResult.appliedCount > 0) {
+        endTurnEvents.push({
           type: 'TESTIMONY_PRESSURE',
-          turnsRemaining: durationTurns,
-          attackPenalty: penalty,
-          sourcePlayerId: currentPlayer.id
-        }, getEffectEvaluationState());
-
-        if (!withEffect) return u;
-
-        if (!appliedByOwner[u.playerId]) appliedByOwner[u.playerId] = new Set();
-        appliedByOwner[u.playerId].add(u.id);
-
-        return {
-          ...withEffect,
-          // Clear temporary command buffs.
-          status: withEffect.status === 'rallied' ? 'active' : withEffect.status,
-          rallyBuff: false,
-          tacticalCommand: false,
-        };
-      });
-
-      endTurnEvents.push({
-        type: 'TESTIMONY_PRESSURE',
-        payload: {
-          sourcePlayerId: currentPlayer.id,
-          attackPenalty: penalty,
-          durationTurns,
-          affected: Object.entries(appliedByOwner).map(([playerId, unitIds]) => ({
-            playerId,
-            unitIds: Array.from(unitIds),
-          })),
-        }
-      });
+          payload: {
+            sourcePlayerId: currentPlayer.id,
+            attackPenalty: penalty,
+            durationTurns,
+            affected: Object.entries(pressureResult.appliedByOwner).map(([playerId, unitIds]) => ({
+              playerId,
+              unitIds,
+            })),
+          }
+        });
+      }
     }
   }
 
@@ -899,7 +853,7 @@ export function handleEndTurn(
 
 
 
-function checkVictoryConditions(
+export function checkVictoryConditions(
   state: GameState,
   players: PlayerState[],
   context?: { turnOverride?: number }

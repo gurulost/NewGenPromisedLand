@@ -8,6 +8,7 @@ vi.mock('../../client/src/utils/telemetry/posthog', () => ({
 
 import type { GameState } from '@shared/types/game';
 import {
+  trackGameSaved,
   trackGameplayActionApplied,
   trackGameplayActionBlocked,
   trackPlayerSetupChoices,
@@ -250,6 +251,28 @@ describe('Gameplay analytics telemetry', () => {
       action_id: 'action-3',
       action_payload_summary: expect.objectContaining({ unitId: 'u1' }),
       action_payload_keys: expect.arrayContaining(['unitId']),
+    }));
+  });
+
+  it('redacts raw save names while preserving save telemetry fields', () => {
+    const state = createState();
+
+    trackGameSaved({
+      gameState: state,
+      source: 'manual',
+      saveId: 'save-1',
+      saveName: 'Dave private campaign notes',
+    });
+
+    expect(captureMock).toHaveBeenCalledWith('game_saved', expect.objectContaining({
+      save_source: 'manual',
+      save_id: 'save-1',
+      save_name: '[redacted]',
+      save_name_hash: expect.any(String),
+      save_name_length: 27,
+    }));
+    expect(captureMock.mock.calls[0][1]).not.toEqual(expect.objectContaining({
+      save_name: 'Dave private campaign notes',
     }));
   });
 });

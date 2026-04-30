@@ -512,7 +512,8 @@ export const VictoryTypeSchema = z.enum([
   'cultural',
   'faith',
   'economic',
-  'elimination'
+  'elimination',
+  'territorial'
 ]);
 
 export type VictoryType = z.infer<typeof VictoryTypeSchema>;

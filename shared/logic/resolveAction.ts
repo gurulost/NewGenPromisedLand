@@ -11,7 +11,7 @@ import {
   handleSiegeMode,
 } from "./unitActionHandlers";
 import { handleMoveUnit, handleAttackUnit } from "./actions/movementCombat";
-import { handleEndTurn } from "./actions/turns";
+import { checkVictoryConditions, handleEndTurn } from "./actions/turns";
 import { handleResearchTech, handleResearchTechnology } from "./actions/research";
 import {
   handleStartConstruction,
@@ -54,6 +54,9 @@ type ActionPayloadRecord = Record<string, unknown>;
 const withLastAction = (prev: GameState, next: GameState, action: GameAction): GameState => {
   if (next === prev) return prev;
   if (action.type === 'END_TURN') return next;
+  if (action.type === 'USE_ABILITY' && next.lastAction && next.lastAction !== prev.lastAction) {
+    return next;
+  }
   return {
     ...next,
     lastAction: { type: action.type as any, payload: (action as any).payload },
@@ -173,6 +176,20 @@ export function resolveAction(
     ...result,
     state: withLastAction(state, result.state, action),
   });
+  const applyImmediateVictory = (nextState: GameState): GameState => {
+    if (nextState === state || nextState.phase === "ended" || nextState.winner) return nextState;
+
+    const victory = checkVictoryConditions(nextState, nextState.players);
+    if (!victory) return nextState;
+
+    return {
+      ...nextState,
+      phase: "ended",
+      winner: victory.winnerId,
+      victoryType: victory.victoryType,
+    };
+  };
+
   switch (action.type) {
     case 'HEAL_UNIT':
       return createResolveResult(withLastAction(state, handleHealUnit(state, action.payload), action));
@@ -209,7 +226,7 @@ export function resolveAction(
     case 'START_CONSTRUCTION':
       return createResolveResult(withLastAction(state, handleStartConstruction(state, action.payload), action));
     case 'CAPTURE_CITY':
-      return createResolveResult(withLastAction(state, handleCaptureCity(state, action.payload), action));
+      return createResolveResult(withLastAction(state, applyImmediateVictory(handleCaptureCity(state, action.payload)), action));
     case 'CONQUER_VILLAGE':
       return createResolveResult(withLastAction(state, handleConquerVillage(state, action.payload), action));
     case 'CONVERT_VILLAGE':
@@ -231,7 +248,7 @@ export function resolveAction(
     case 'BREAK_ALLIANCE':
       return createResolveResult(withLastAction(state, handleBreakAlliance(state, action.payload), action));
     case 'CONVERT_CITY':
-      return createResolveResult(withLastAction(state, handleConvertCity(state, action.payload), action));
+      return createResolveResult(withLastAction(state, applyImmediateVictory(handleConvertCity(state, action.payload)), action));
     case 'CONVERT_UNIT':
       return createResolveResult(withLastAction(state, handleConvertUnit(state, action.payload), action));
     case 'RENAME_CITY':

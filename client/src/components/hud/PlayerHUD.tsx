@@ -15,6 +15,7 @@ import {
 import { HUDShell } from '../primitives/HUDShell';
 import { AvatarBadge } from '../primitives/AvatarBadge';
 import { GlowingButton } from '../primitives/GlowingButton';
+import { FactionAbilityButtons } from './FactionAbilityButtons';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Progress } from '../ui/progress';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
@@ -58,6 +59,7 @@ interface PlayerHUDProps {
   gameLogEntryCount?: number;
   isGameLogOpen?: boolean;
   onEndTurn?: () => void;
+  onUseFactionAbility?: (abilityId: string) => void;
 }
 
 type AuraSummary = {
@@ -109,6 +111,7 @@ export function PlayerHUD({
   gameLogEntryCount = 0,
   isGameLogOpen = false,
   onEndTurn,
+  onUseFactionAbility,
 }: PlayerHUDProps) {
   const faction = getFaction(coerceFactionId(player.factionId)!);
   const handleEndTurn = onEndTurn ?? (() => {});
@@ -275,6 +278,13 @@ export function PlayerHUD({
             playerStats={playerStats}
             isOpen={victoryOpen}
             onToggle={handleVictoryToggle}
+            compact={compactLayout}
+          />
+
+          <FactionAbilityButtons
+            player={player}
+            gameState={gameState}
+            onUseFactionAbility={onUseFactionAbility}
             compact={compactLayout}
           />
 

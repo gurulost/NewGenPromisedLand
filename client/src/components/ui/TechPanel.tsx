@@ -5,7 +5,8 @@ import { Badge } from "./badge";
 import { Progress } from "./progress";
 import { Input } from "./input";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
-import { TECHNOLOGIES, calculateResearchCost, getAvailableTechnologies, type Technology } from "@shared/data/technologies";
+import { TECHNOLOGIES, getAvailableTechnologies, type Technology } from "@shared/data/technologies";
+import { getTechCostDetails, playerHasTechPrerequisites } from "@shared/logic/technologyHelpers";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
 import { getFaction } from "@shared/data/factions";
 import { GAME_RULES } from "@shared/data/gameRules";
@@ -61,7 +62,6 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   }, [isMobileUI]);
 
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
-  const researchedCount = currentPlayer?.researchedTechs.length || 0;
   const normalizedSearch = search.trim().toLowerCase();
 
   const techStatuses = useMemo(() => {
@@ -121,9 +121,9 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     const tech = TECHNOLOGIES[techId];
     if (!tech || !currentPlayer) return;
     const status = techStatuses[techId] || "locked";
-    const cost = calculateResearchCost(tech, researchedCount);
-    const prerequisitesMet = tech.prerequisites.every(pr => currentPlayer.researchedTechs.includes(pr));
-    if (status === "available" && prerequisitesMet && currentPlayer.stars >= cost) {
+    const { finalCost } = getTechCostDetails(tech, currentPlayer);
+    const prerequisitesMet = playerHasTechPrerequisites(currentPlayer, tech);
+    if (status === "available" && prerequisitesMet && currentPlayer.stars >= finalCost) {
       vibrate('success');
       dispatch({
         type: "RESEARCH_TECHNOLOGY",
@@ -132,7 +132,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     } else {
       vibrate('error');
     }
-  }, [techStatuses, researchedCount, currentPlayer, vibrate, dispatch]);
+  }, [techStatuses, currentPlayer, vibrate, dispatch]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -141,6 +141,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     const techIds = Object.keys(TECH_LAYOUT);
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLElement && (e.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName))) return;
       // Escape closes the panel
       if (e.key === 'Escape') {
         onClose();
@@ -492,7 +493,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             <div className="flex items-center justify-between text-xs font-mono bg-black/20 rounded px-2 py-1">
               <span className="flex items-center gap-1">
                 <Star className="w-3 h-3 text-amber-400" />
-                {calculateResearchCost(tech, researchedCount)}
+                {getTechCostDetails(tech, currentPlayer).finalCost}
               </span>
               {status === 'researching' && <span className="text-amber-400 animate-pulse">Researching...</span>}
               {status === 'researched' && <span className="text-green-400">Acquired</span>}
@@ -774,18 +775,17 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             ))}
           </div>
 
-          {/* Search Input */}
           <div className={`${isMobileUI ? 'relative w-full max-w-xs' : 'relative w-64'}`}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <Input
               placeholder="Search technologies..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.stopPropagation()}
               className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 h-9"
             />
             {search && (
               <button
-                onClick={() => setSearch('')}
+                type="button" aria-label="Clear technology search" onClick={() => setSearch('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
               >
                 <XCircle className="w-4 h-4" />
@@ -958,7 +958,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                     <div className="p-3 bg-slate-800 rounded-lg border border-slate-700">
                       <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Cost</div>
                       <div className="flex items-center gap-2 text-amber-400 font-mono text-lg">
-                        <Star className="w-4 h-4" /> {calculateResearchCost(detailTech, researchedCount)}
+                        <Star className="w-4 h-4" /> {getTechCostDetails(detailTech, currentPlayer).finalCost}
                       </div>
                     </div>
                     <div className="p-3 bg-slate-800 rounded-lg border border-slate-700">

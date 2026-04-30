@@ -10,6 +10,8 @@ export function TutorialLibrary() {
   const closeLibrary = useTutorialStore((state) => state.closeLibrary);
   const openCard = useTutorialStore((state) => state.openCard);
   const skipTutorialForGame = useTutorialStore((state) => state.skipTutorialForGame);
+  const titleId = React.useId();
+  const descriptionId = React.useId();
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -26,6 +28,9 @@ export function TutorialLibrary() {
 
   return (
     <ModalLayer
+      data-testid="tutorial-library-dialog"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
       className="fixed inset-0 z-[var(--z-tutorial)] pointer-events-auto flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
       onClick={closeLibrary}
     >
@@ -45,8 +50,8 @@ export function TutorialLibrary() {
         <div className="space-y-4">
           <div>
             <div className="text-xs uppercase tracking-[0.2em] text-amber-300/70">Reference</div>
-            <h2 className="mt-2 font-cinzel text-2xl text-amber-100">Tutorial Guides</h2>
-            <p className="mt-2 text-sm text-amber-200/80">
+            <h2 id={titleId} className="mt-2 font-cinzel text-2xl text-amber-100">Tutorial Guides</h2>
+            <p id={descriptionId} className="mt-2 text-sm text-amber-200/80">
               Reopen any tutorial card at any time.
             </p>
           </div>

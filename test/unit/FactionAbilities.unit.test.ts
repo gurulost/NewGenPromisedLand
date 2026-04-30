@@ -237,6 +237,24 @@ describe('Faction ability cooldowns', () => {
     expect(result.players[0].abilityCooldowns?.TITLE_OF_LIBERTY).toBe(2);
   });
 
+  it('applies Warrior Rage through active effects and starts cooldown', () => {
+    const state = createBaseState();
+    state.players[0] = {
+      ...state.players[0],
+      factionId: 'LAMANITES',
+      stats: { faith: 30, pride: 70, internalDissent: 40 },
+    };
+
+    const result = resolveActionState(state, {
+      type: 'USE_ABILITY',
+      payload: { playerId: 'player1', abilityId: 'WARRIOR_RAGE' },
+    });
+
+    const player = result.players[0];
+    expect(player.abilityCooldowns?.WARRIOR_RAGE).toBe(6);
+    expect(result.activeEffects?.some(effect => effect.source.abilityId === 'WARRIOR_RAGE')).toBe(true);
+  });
+
   it('converts nearby enemy with Covenant of Peace', () => {
     const state = createAntiNephiState();
     const result = resolveActionState(state, {

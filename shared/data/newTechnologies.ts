@@ -1,113 +1,30 @@
 /**
- * New Technologies for World Elements System
- * Supporting Book of Mormon themed resource management
+ * Legacy compatibility exports for the world-elements technology grouping.
+ *
+ * Canonical technology definitions live in ./technologies. This module must not
+ * override costs, prerequisites, or unlocks with a second tech tree.
  */
 
-import { Technology } from './technologies';
+import { TECHNOLOGIES, type Technology } from './technologies';
 
-export const NEW_TECHNOLOGIES: Record<string, Technology> = {
-  woodcraft: {
-    id: 'woodcraft',
-    name: 'Woodcraft',
-    description: 'Master the art of timber harvesting and processing, unlocking the potential of sacred groves',
-    cost: 8,
-    prerequisites: [],
-    unlocks: {
-      improvements: ['sawmill'],
-      benefits: ['Sawmill (Timber Grove)']
-    },
-    category: 'economic'
+const WORLD_ELEMENT_TECH_IDS = [
+  'woodcraft',
+  'husbandry',
+  'agriculture',
+  'irrigation',
+  'seafaring',
+  'trade',
+  'navigation',
+] as const;
+
+export const NEW_TECHNOLOGIES = WORLD_ELEMENT_TECH_IDS.reduce<Record<string, Technology>>(
+  (acc, techId) => {
+    acc[techId] = TECHNOLOGIES[techId];
+    return acc;
   },
+  {}
+);
 
-  husbandry: {
-    id: 'husbandry',
-    name: 'Husbandry',
-    description: 'Learn to domesticate and care for wild animals, turning hunting into sustainable ranching',
-    cost: 12,
-    prerequisites: ['woodcraft'],
-    unlocks: {
-      improvements: ['corral'],
-      benefits: ['Corral (Wild Goats)']
-    },
-    category: 'economic'
-  },
-
-  agriculture: {
-    id: 'agriculture',
-    name: 'Agriculture',
-    description: 'Cultivate the earth and plant seeds, as taught in Mosiah 9:9',
-    cost: 10,
-    prerequisites: [],
-    unlocks: {
-      improvements: ['field'],
-      benefits: ['Field (Grain Patch)']
-    },
-    category: 'economic'
-  },
-
-  irrigation: {
-    id: 'irrigation',
-    name: 'Irrigation',
-    description: 'Channel water to nourish crops, multiplying the harvest through careful stewardship',
-    cost: 15,
-    prerequisites: ['agriculture'],
-    unlocks: {
-      improvements: ['windmill'],
-      benefits: ['Windmill (Grain Patch upgrade)']
-    },
-    category: 'economic'
-  },
-
-  seafaring: {
-    id: 'seafaring',
-    name: 'Seafaring',
-    description: 'Navigate coastal waters and harvest the bounty of the sea',
-    cost: 12,
-    prerequisites: [],
-    unlocks: {
-      improvements: ['fishing_jetty'],
-      units: ['boat'],
-      benefits: ['Fishing Jetty (Fishing Shoal)']
-    },
-    category: 'exploration'
-  },
-
-  trade: {
-    id: 'trade',
-    name: 'Trade',
-    description: 'Establish maritime trade routes, connecting distant lands through commerce',
-    cost: 18,
-    prerequisites: ['seafaring'],
-    unlocks: {
-      improvements: ['harbor'],
-      structures: ['marketplace'],
-      benefits: ['Trade Routes', 'Harbor Upgrade (Fishing Jetty)', 'Road Network bonus increased']
-    },
-    category: 'economic'
-  },
-
-  navigation: {
-    id: 'navigation',
-    name: 'Navigation',
-    description: 'Master the deep waters and discover the great creatures of the sea',
-    cost: 25,
-    prerequisites: ['seafaring', 'trade'],
-    unlocks: {
-      improvements: ['sea_platform'],
-      units: ['deep_water_vessel'],
-      benefits: ['Great Sea Beast Expeditions']
-    },
-    category: 'exploration'
-  }
-};
-
-// Merge with existing technologies
 export function getAllTechnologies(): Record<string, Technology> {
-  // Import existing technologies
-  const { TECHNOLOGIES } = require('./technologies');
-  
-  return {
-    ...TECHNOLOGIES,
-    ...NEW_TECHNOLOGIES
-  };
+  return TECHNOLOGIES;
 }

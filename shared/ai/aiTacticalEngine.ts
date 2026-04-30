@@ -7,7 +7,7 @@ import { GameState, PlayerState } from '../types/game';
 import { Unit } from '../types/unit';
 import { City } from '../types/city';
 import { HexCoordinate } from '../types/coordinates';
-import { hexDistance, hexNeighbors } from '../utils/hex';
+import { coordToKey, hexDistance, hexNeighbors } from '../utils/hex';
 import { getUnitDefinition } from '../data/units';
 import { getUnitAttackRangeFromDefinition } from '../logic/unitLogic';
 import { SeededRNG } from './aiFoundation';
@@ -53,6 +53,22 @@ export class TacticalEngine {
     this.rng = new SeededRNG(seed);
   }
 
+  private isCoordinateVisible(coordinate: HexCoordinate): boolean {
+    return (this.aiPlayer.visibilityMask ?? []).includes(coordToKey(coordinate));
+  }
+
+  private isCoordinateExplored(coordinate: HexCoordinate): boolean {
+    const key = coordToKey(coordinate);
+    if ((this.aiPlayer.exploredTiles ?? []).includes(key)) {
+      return true;
+    }
+
+    const tile = this.gameState.map.tiles.find(t =>
+      t.coordinate.q === coordinate.q && t.coordinate.r === coordinate.r
+    );
+    return tile?.exploredBy?.includes(this.aiPlayer.id) ?? false;
+  }
+
   /**
    * Generate influence map showing territorial control
    */
@@ -79,7 +95,7 @@ export class TacticalEngine {
           if (unit.playerId === this.aiPlayer.id || (this.aiPlayer.alliedWith || []).includes(unit.playerId)) {
             // Friendly or Allied influence
             totalInfluence += influence;
-          } else if ((this.aiPlayer.atWarWith || []).includes(unit.playerId)) {
+          } else if ((this.aiPlayer.atWarWith || []).includes(unit.playerId) && this.isCoordinateVisible(unit.coordinate)) {
             // Enemy influence
             totalInfluence -= influence;
           }
@@ -94,7 +110,7 @@ export class TacticalEngine {
           const influence = this.calculateCityInfluence(city, distance);
           if (city.ownerId === this.aiPlayer.id) {
             totalInfluence += influence;
-          } else {
+          } else if (this.isCoordinateExplored(city.coordinate)) {
             totalInfluence -= influence;
           }
         }
@@ -118,7 +134,8 @@ export class TacticalEngine {
 
     // Check enemy units that can attack this position (only those we are at war with)
     const enemyUnits = this.gameState.units.filter(u =>
-      (this.aiPlayer.atWarWith || []).includes(u.playerId)
+      (this.aiPlayer.atWarWith || []).includes(u.playerId) &&
+      this.isCoordinateVisible(u.coordinate)
     );
 
     for (const enemy of enemyUnits) {
@@ -168,6 +185,7 @@ export class TacticalEngine {
     // 1. Enemy units within range (only those we are at war with)
     const enemyUnits = this.gameState.units.filter(u =>
       (this.aiPlayer.atWarWith || []).includes(u.playerId) &&
+      this.isCoordinateVisible(u.coordinate) &&
       hexDistance(unit.coordinate, u.coordinate) <= maxRange
     );
 
@@ -187,6 +205,7 @@ export class TacticalEngine {
     // 2. Enemy cities within range (only those we are at war with)
     const enemyCities = this.gameState.cities.filter(c =>
       c.ownerId && (this.aiPlayer.atWarWith || []).includes(c.ownerId) &&
+      this.isCoordinateExplored(c.coordinate) &&
       hexDistance(unit.coordinate, c.coordinate) <= maxRange
     );
 
@@ -410,7 +429,10 @@ export class TacticalEngine {
 
     // 3. Avoid adjacent to visible enemies (don't retreat into danger)
     const neighbors = hexNeighbors(coord);
-    const enemyUnits = this.gameState.units.filter(u => (this.aiPlayer.atWarWith || []).includes(u.playerId));
+    const enemyUnits = this.gameState.units.filter(u =>
+      (this.aiPlayer.atWarWith || []).includes(u.playerId) &&
+      this.isCoordinateVisible(u.coordinate)
+    );
     for (const neighbor of neighbors) {
       const adjacentEnemy = enemyUnits.some(e =>
         e.coordinate.q === neighbor.q && e.coordinate.r === neighbor.r

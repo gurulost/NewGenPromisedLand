@@ -91,6 +91,16 @@ Note on “starting stats”: factions define intended starting Faith/Pride/Diss
 - Faction-locked units: Prophet, Ancient Giant
 - Strategy: ride high power safely; Prophets are a stability valve when Pride is high.
 
+### Hagoth's Mariners
+- Theme: coastal expansion, shipbuilding, and exploration
+- Faction-locked units: Voyager, Shipwright
+- Strategy: use ports, sea mobility, and shoreline scouting to build a flexible economy.
+
+### Amulonites
+- Theme: coercive economy, forced labor, and intimidation
+- Faction-locked units: Taskmaster, Amulonite Enforcer
+- Strategy: turn early output into pressure, but manage the high Faith and Dissent risk.
+
 ---
 
 ## 4) Terrain, Movement, and Visibility
@@ -98,13 +108,14 @@ Note on “starting stats”: factions define intended starting Faith/Pride/Diss
 ### Terrain movement costs (rules baseline)
 - Plains: 1
 - Forest: 2
-- Mountain: 3 (expensive)
+- Mountain: 2 (slow)
 - Desert: 2
 - Swamp: 3
 - Water: impassable to most land units
 
 ### Vision
 Units have a **vision radius** (varies by unit). Scouts and commanders tend to see farther.
+Explored terrain remains as dimmed map memory after units move away, but current unit visibility still determines what is fully visible.
 
 ---
 
@@ -439,6 +450,12 @@ Units are listed by role; each includes cost, unlock tech (if any), stat require
 - Base stats: HP 12, Atk 3, Def 2, Move 5, Vision 4
 - Actions: stealth/recon behaviors (visibility and targeting rules apply).
 
+#### Slinger
+- Cost: 8 Stars
+- Tech: Hunting
+- Role: light ranged skirmisher
+- Base stats: HP 16, Atk 4, Def 2, Move 3, Range 2
+
 #### Wilderness Hunter (Lamanites)
 - Cost: 13 Stars
 - Requirement: Pride 40+
@@ -452,6 +469,13 @@ Units are listed by role; each includes cost, unlock tech (if any), stat require
 - Tech: Sailing
 - Role: coastal transport/exploration
 - Base stats: HP 15, Atk 3, Def 2, Move 4, Range 1
+
+#### Voyager (Hagoth's Mariners)
+- Cost: 12 Stars
+- Tech: Sailing
+- Role: amphibious expedition vessel
+- Base stats: HP 18, Atk 5, Def 3, Move 4, Vision 4
+- Notes: carries naval transport/coastal exploration/amphibious tags.
 
 ### D) Civilians and infrastructure
 
@@ -498,6 +522,19 @@ Units are listed by role; each includes cost, unlock tech (if any), stat require
 - Passive (per turn): `+1 Faith`, `-1 Dissent`
 - Diplomacy passive: improves trade request tempo (cooldown reduction).
 
+#### Shipwright (Hagoth's Mariners)
+- Cost: 14 Stars
+- Tech: Seafaring
+- Tags: civilian, influence
+- Passive (per turn): `+1 Star`, `+1 Pride`
+
+#### Taskmaster (Amulonites)
+- Cost: 12 Stars
+- Tech: Organization
+- Tags: civilian, influence
+- Passive (per turn): `+1 Star`, `-1 Faith`, `+2 Pride`, `+2 Dissent`
+- End-turn pressure: adjacent enemy military units become Intimidated.
+
 #### Prophet (Jaredites)
 - Cost: 12 Stars
 - Tech: Spirituality
@@ -532,6 +569,12 @@ Units are listed by role; each includes cost, unlock tech (if any), stat require
 - Role: high HP bruiser
 - Base stats: HP 45, Atk 10, Def 5, Move 2
 
+#### Amulonite Enforcer (Amulonites)
+- Cost: 15 Stars
+- Tech: Bronze Working
+- Role: heavy intimidation infantry
+- Base stats: HP 24, Atk 7, Def 6, Move 2
+
 ---
 
 ## 15) Technology Tree (By Tier)
@@ -541,7 +584,7 @@ Tech costs scale by how many techs you already have (as shown in the Tech panel)
 ### Tier 1 (foundations)
 - Organization (workers, farms)
 - Forestry (lumber huts, clear forest)
-- Hunting (scouts)
+- Hunting (scouts, slingers)
 - Spirituality (shrines, temple, early religious powers)
 
 ### Tier 2 (expansion and specialization)

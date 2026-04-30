@@ -43,7 +43,7 @@ describe('CityPanel Integration Tests', () => {
       stats: { faith: 50, pride: 30, internalDissent: 10 },
       researchedTechs: ['organization'],
       citiesOwned: ['city1'],
-      exploredTiles: ['0,0'],
+      exploredTiles: ['0,0', '1,0'],
     };
 
     const mockCity: any = {
@@ -76,7 +76,8 @@ describe('CityPanel Integration Tests', () => {
       cities: [mockCity],
       map: {
         tiles: [
-          { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: true, exploredBy: [] }
+          { coordinate: { q: 0, r: 0, s: 0 }, terrain: 'plains', resources: [], hasCity: true, exploredBy: ['player1'] },
+          { coordinate: { q: 1, r: 0, s: -1 }, terrain: 'plains', resources: [], hasCity: false, exploredBy: ['player1'] }
         ],
         width: 10,
         height: 10
@@ -141,7 +142,9 @@ describe('CityPanel Integration Tests', () => {
     expect(mockStartSpawnSelection).toHaveBeenCalled();
     const selectionArgs = mockStartSpawnSelection.mock.calls[0][0];
     expect(selectionArgs.unitType).toBe('warrior');
-    selectionArgs.onSelectTile({ q: 0, r: 0, s: 0 });
+    expect(selectionArgs.validSpawnTiles).toContainEqual({ q: 1, r: 0, s: -1 });
+
+    selectionArgs.onSelectTile({ q: 1, r: 0, s: -1 });
 
     expect(mockDispatch).toHaveBeenCalledWith({
       type: 'START_CONSTRUCTION',
@@ -149,7 +152,7 @@ describe('CityPanel Integration Tests', () => {
         playerId: 'player1',
         buildingType: 'warrior',
         category: 'units',
-        coordinate: { q: 0, r: 0, s: 0 },
+        coordinate: { q: 1, r: 0, s: -1 },
         cityId: 'city1'
       }
     });

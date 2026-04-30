@@ -13,6 +13,7 @@ export type CombatBlockReason =
   | "out_of_range"
   | "stealthed_target"
   | "target_not_visible"
+  | "not_hostile"
   | "catapult_min_range"
   | "catapult_not_deployed"
   | "catapult_moved_this_turn"
@@ -44,6 +45,22 @@ const getAbilitySet = (unit: Unit) =>
 const hasAbility = (abilities: Set<string>, abilityId: string) =>
   abilities.has(normalizeAbility(abilityId));
 
+export function arePlayersHostile(
+  state: GameState,
+  attackerPlayerId: string,
+  defenderPlayerId: string
+): boolean {
+  if (attackerPlayerId === defenderPlayerId) return false;
+
+  const attackerPlayer = state.players.find(p => p.id === attackerPlayerId);
+  const defenderPlayer = state.players.find(p => p.id === defenderPlayerId);
+  if (!attackerPlayer || !defenderPlayer) return false;
+
+  return Boolean(
+    attackerPlayer.atWarWith?.includes(defenderPlayerId) ||
+    defenderPlayer.atWarWith?.includes(attackerPlayerId)
+  );
+}
 
 /**
  * Check if an attack is "ranged" - distance > 1 AND within attack range
@@ -107,6 +124,24 @@ export function resolveCombat(
       specialEffects: [],
       modifiers: { attacker: [], defender: [] },
       message: "Combat blocked: friendly fire"
+    };
+  }
+
+  if (!arePlayersHostile(state, attacker.playerId, defender.playerId)) {
+    return {
+      success: false,
+      canAttack: false,
+      reason: "Cannot attack non-hostile units",
+      reasonCode: "not_hostile",
+      attackerDamage: 0,
+      defenderDamage: 0,
+      attackerHp: attacker.hp,
+      defenderHp: defender.hp,
+      attackerKilled: false,
+      defenderKilled: false,
+      specialEffects: [],
+      modifiers: { attacker: [], defender: [] },
+      message: "Combat blocked: diplomacy"
     };
   }
 

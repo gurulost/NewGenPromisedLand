@@ -248,6 +248,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
               {isRenaming ? (
                 <div className="flex items-center gap-2">
                   <Input
+                    aria-label="City name"
                     value={tempName}
                     onChange={(e) => setTempName(e.target.value)}
                     className="h-8 w-48 bg-slate-900/50 border-amber-500/30 text-amber-100"
@@ -269,7 +270,9 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 text-green-400 hover:text-green-300 hover:bg-green-900/20"
+                    type="button"
+                    aria-label="Save city name"
+                    className="h-10 w-10 text-green-400 hover:text-green-300 hover:bg-green-900/20 md:h-8 md:w-8"
                     onClick={(e) => {
                       e.stopPropagation();
                       dispatch({
@@ -284,7 +287,9 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                    type="button"
+                    aria-label="Cancel city rename"
+                    className="h-10 w-10 text-red-400 hover:text-red-300 hover:bg-red-900/20 md:h-8 md:w-8"
                     onClick={(e) => {
                       e.stopPropagation();
                       setIsRenaming(false);
@@ -300,7 +305,9 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-amber-400 hover:text-amber-300 hover:bg-amber-900/20"
+                      type="button"
+                      aria-label={`Rename city ${city.name}`}
+                      className="h-10 w-10 opacity-100 transition-opacity text-amber-400 hover:text-amber-300 hover:bg-amber-900/20 focus-visible:opacity-100 md:h-8 md:w-8 md:opacity-0 md:group-hover:opacity-100"
                       onClick={(e) => {
                         e.stopPropagation();
                         setTempName(city.name);
@@ -308,7 +315,7 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
                       }}
                       title="Rename City"
                     >
-                      <Pencil className="w-3 h-3" />
+                      <Pencil className="w-4 h-4" />
                     </Button>
                   )}
                   <div className="text-sm text-amber-300/70 font-normal ml-2">— City of the Promised Land —</div>

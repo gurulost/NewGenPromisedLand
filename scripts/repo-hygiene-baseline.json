@@ -9,7 +9,7 @@
     "client/src/lib/stores/useLocalGame.ts": 1775,
     "server/routes.ts": 2747,
     "shared/ai/aiEngine.ts": 3498,
-    "shared/utils/mapGenerator.ts": 3734
+    "shared/utils/mapGenerator.ts": 3995
   },
   "explicitAny": {
     "total": 306,

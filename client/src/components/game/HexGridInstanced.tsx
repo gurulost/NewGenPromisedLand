@@ -2,7 +2,7 @@ import { useRef, useMemo, useEffect } from "react";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { TextureLoader } from "three";
 import * as THREE from "three";
-import { Tile, GameMap } from "@shared/types/game";
+import { Tile, GameMap, GameState, PlayerState } from "@shared/types/game";
 import { hexDistance, hexToPixel, pixelToHex } from "@shared/utils/hex";
 import { getUnitDefinition } from "@shared/data/units";
 import { WORLD_ELEMENTS } from "@shared/data/worldElements";
@@ -20,6 +20,50 @@ interface HexGridInstancedProps {
 }
 
 const HEX_SIZE = 1;
+
+type RenderingOnlineSession = {
+  myPlayerIds?: string[] | null;
+} | null | undefined;
+
+export function resolveRenderingViewPlayer(
+  gameState: GameState | null | undefined,
+  onlineSession?: RenderingOnlineSession
+): PlayerState | null {
+  if (!gameState || gameState.players.length === 0) return null;
+
+  const activePlayer = gameState.players[gameState.currentPlayerIndex] ?? gameState.players[0];
+  const onlinePlayerIds = Array.isArray(onlineSession?.myPlayerIds) ? onlineSession.myPlayerIds : [];
+  if (onlinePlayerIds.length > 0) {
+    return gameState.players.find(player => onlinePlayerIds.includes(player.id))
+      ?? activePlayer
+      ?? gameState.players[0];
+  }
+
+  const humanPlayers = gameState.players.filter(player => !player.isAI);
+  if (humanPlayers.length === 1) {
+    return humanPlayers[0];
+  }
+
+  return activePlayer ?? gameState.players[0];
+}
+
+export function getExploredTileKeysForPlayer(map: GameMap, playerId: string): Set<string> {
+  const explored = new Set<string>();
+  map.tiles.forEach(tile => {
+    if (tile.exploredBy.includes(playerId)) {
+      explored.add(`${tile.coordinate.q},${tile.coordinate.r}`);
+    }
+  });
+  return explored;
+}
+
+export function isTileInspectableForRendering(
+  tileKey: string,
+  visibleTileKeys: Set<string>,
+  exploredTileKeys: Set<string>
+): boolean {
+  return visibleTileKeys.has(tileKey) || exploredTileKeys.has(tileKey);
+}
 
 // Helper functions for construction validation
 function getValidConstructionTiles(gameState: any, buildingType: string, category: string, cityId: string) {
@@ -95,19 +139,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
   const woodTexture = useLoader(TextureLoader, "/textures/wood.jpg");
 
   const activePlayer = gameState?.players[gameState.currentPlayerIndex];
-  const viewPlayer = useMemo(() => {
-    if (!gameState) return null;
-    if (onlineSession?.myPlayerIds?.length) {
-      return gameState.players.find(player => onlineSession.myPlayerIds.includes(player.id))
-        ?? activePlayer
-        ?? gameState.players[0];
-    }
-    const humanPlayers = gameState.players.filter(player => !player.isAI);
-    if (humanPlayers.length === 1) {
-      return humanPlayers[0];
-    }
-    return activePlayer ?? gameState.players[0];
-  }, [gameState, onlineSession, activePlayer]);
+  const viewPlayer = resolveRenderingViewPlayer(gameState, { myPlayerIds: onlineSession?.myPlayerIds });
 
   // Memoized fog of war calculation with line-of-sight - massive CPU performance boost
   const { visibleTileKeys, exploredTileKeys, tileInstanceData } = useMemo(() => {
@@ -157,12 +189,8 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       unitVisibleTiles.forEach(tileKey => visible.add(tileKey));
     });
 
-    // Calculate explored tiles
-    map.tiles.forEach(tile => {
-      if (tile.exploredBy.includes(viewPlayer.id)) {
-        explored.add(`${tile.coordinate.q},${tile.coordinate.r}`);
-      }
-    });
+    // Calculate explored tiles from tile.exploredBy, matching the render-time fog state.
+    getExploredTileKeysForPlayer(map, viewPlayer.id).forEach(tileKey => explored.add(tileKey));
 
     // Generate instance data for all tiles with improved fog of war
     map.tiles.forEach((tile, index) => {
@@ -375,7 +403,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           return visibleTileKeys.has(tileKey);
         });
 
-        if (viewPlayer && !viewPlayer.exploredTiles?.includes(tileKey)) {
+        if (viewPlayer && !isTileInspectableForRendering(tileKey, visibleTileKeys, exploredTileKeys)) {
           closeTileContextMenu();
           return;
         }
@@ -758,7 +786,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         const hoveredTile = map.tiles[instanceId];
         const currentPlayer = viewPlayer;
         const tileKey = `${hoveredTile.coordinate.q},${hoveredTile.coordinate.r}`;
-        if (currentPlayer && !currentPlayer.exploredTiles?.includes(tileKey)) {
+        if (currentPlayer && !isTileInspectableForRendering(tileKey, visibleTileKeys, exploredTileKeys)) {
           setHoveredTile(null);
           return;
         }
@@ -801,8 +829,8 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           const currentPlayer = viewPlayer;
           const tileKey = `${hoveredTile.coordinate.q},${hoveredTile.coordinate.r}`;
 
-          // Only show preview for explored tiles
-          if (!currentPlayer || currentPlayer.exploredTiles?.includes(tileKey)) {
+          // Only show preview for tiles that render as visible or explored.
+          if (!currentPlayer || isTileInspectableForRendering(tileKey, visibleTileKeys, exploredTileKeys)) {
             const pixelPos = hexToPixel(hoveredTile.coordinate, HEX_SIZE);
             setHoveredTile({
               x: pixelPos.x,

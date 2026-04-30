@@ -6,10 +6,39 @@ import { GameStateSchema } from '@shared/types/game';
 const AUTOSAVE_KEY = 'cpl_autosave_v1';
 const AUTOSAVE_VERSION = 1 as const;
 
+let autosaveOperationChain: Promise<void> = Promise.resolve();
+
 export interface AutosavePayload {
   version: typeof AUTOSAVE_VERSION;
   timestamp: number;
   gameState: GameState;
+}
+
+function enqueueAutosaveOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = autosaveOperationChain.then(operation, operation);
+  autosaveOperationChain = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
+function parseStoredAutosave(stored: unknown): unknown | null {
+  if (typeof stored !== 'string') {
+    return stored;
+  }
+
+  try {
+    const decompressed = LZString.decompress(stored);
+    if (decompressed) {
+      return JSON.parse(decompressed);
+    }
+
+    // Legacy/edge: stored is already JSON.
+    return JSON.parse(stored);
+  } catch {
+    return null;
+  }
 }
 
 export async function saveAutosave(gameState: GameState): Promise<void> {
@@ -28,28 +57,17 @@ export async function saveAutosave(gameState: GameState): Promise<void> {
 
   const json = JSON.stringify(payload);
   const compressed = LZString.compress(json);
-  await set(AUTOSAVE_KEY, compressed);
+  await enqueueAutosaveOperation(() => set(AUTOSAVE_KEY, compressed));
 }
 
 export async function loadAutosave(): Promise<AutosavePayload | null> {
   if (typeof indexedDB === 'undefined') return null;
 
-  const stored = await get(AUTOSAVE_KEY);
+  const stored = await enqueueAutosaveOperation(() => get(AUTOSAVE_KEY));
   if (!stored) return null;
 
-  let data: unknown;
-  if (typeof stored === 'string') {
-    const decompressed = LZString.decompress(stored);
-    if (decompressed) {
-      data = JSON.parse(decompressed);
-    } else {
-      // Legacy/edge: stored is already JSON.
-      data = JSON.parse(stored);
-    }
-  } else {
-    // Legacy/edge: stored as object.
-    data = stored;
-  }
+  const data = parseStoredAutosave(stored);
+  if (!data) return null;
 
   // Legacy support: some callers may have stored the raw GameState.
   if (data && typeof data === 'object' && !('gameState' in (data as any))) {
@@ -78,5 +96,5 @@ export async function loadAutosave(): Promise<AutosavePayload | null> {
 export async function clearAutosave(): Promise<void> {
   if (typeof indexedDB === 'undefined') return;
 
-  await del(AUTOSAVE_KEY);
+  await enqueueAutosaveOperation(() => del(AUTOSAVE_KEY));
 }

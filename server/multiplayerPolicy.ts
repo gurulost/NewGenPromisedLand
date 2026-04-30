@@ -1,5 +1,8 @@
 import { GameActionSchema } from "@shared/types/game";
-import type { MultiplayerPlayerMeta } from "@shared/logic/multiplayerSync";
+import {
+  getNextExpectedActorId,
+  type MultiplayerPlayerMeta,
+} from "@shared/logic/multiplayerSync";
 
 type ActionValidationResult =
   | { valid: true }
@@ -112,8 +115,17 @@ export function getTurnRecoveryStatus({
   }
 
   const actorLastSeenAt = normalizeTimestamp(actorMeta.lastSeenAt);
-  const ageMs = actorLastSeenAt == null ? Number.POSITIVE_INFINITY : Math.max(0, now - actorLastSeenAt);
-  const msUntilEligible = Number.isFinite(ageMs) ? Math.max(0, timeoutMs - ageMs) : 0;
+  if (actorLastSeenAt == null) {
+    return {
+      canForceEndTurn: false,
+      actorId: expectedActorId,
+      msUntilEligible: timeoutMs,
+      actorLastSeenAt: null,
+    };
+  }
+
+  const ageMs = Math.max(0, now - actorLastSeenAt);
+  const msUntilEligible = Math.max(0, timeoutMs - ageMs);
   const canForceEndTurn = requesterUserId === hostUserId && msUntilEligible <= 0;
 
   return { canForceEndTurn, actorId: expectedActorId, msUntilEligible, actorLastSeenAt };
@@ -152,6 +164,59 @@ export function reconcilePendingActionsAfterCommit({
   return withoutCommitted.filter((entry) => entry.actorId !== actorId);
 }
 
+type ExpectedActorAfterCommitInput = {
+  lobbyState: unknown;
+  actorId: string;
+  action: unknown;
+  currentExpectedActorId: string | null;
+  isTurnCompleteAction: boolean;
+};
+
+export type ExpectedActorAfterCommitResult =
+  | { valid: true; expectedActorId: string | null; requiresSnapshot: boolean }
+  | { valid: false; error: string };
+
+export function getExpectedActorAfterCommit({
+  lobbyState,
+  actorId,
+  action,
+  currentExpectedActorId,
+  isTurnCompleteAction,
+}: ExpectedActorAfterCommitInput): ExpectedActorAfterCommitResult {
+  if (!isTurnCompleteAction) {
+    return {
+      valid: true,
+      expectedActorId: currentExpectedActorId,
+      requiresSnapshot: false,
+    };
+  }
+
+  if (isEndTurnResolutionAction(action)) {
+    if (action.payload.endingPlayerId !== actorId) {
+      return { valid: false, error: "Resolved turn actor does not match committed actor" };
+    }
+
+    const state = lobbyState && typeof lobbyState === "object" ? lobbyState as { players?: unknown } : null;
+    const playersMeta = (Array.isArray(state?.players) ? state.players : []) as MultiplayerPlayerMeta[];
+    const nextActorExists = playersMeta.some((entry) => entry.playerId === action.payload.nextPlayerId);
+    if (!nextActorExists) {
+      return { valid: false, error: "Resolved next actor is not in this lobby" };
+    }
+
+    return {
+      valid: true,
+      expectedActorId: action.payload.nextPlayerId,
+      requiresSnapshot: false,
+    };
+  }
+
+  return {
+    valid: true,
+    expectedActorId: getNextExpectedActorId(lobbyState, actorId) ?? currentExpectedActorId,
+    requiresSnapshot: true,
+  };
+}
+
 type ForcedTimeoutEndTurnInput = {
   action: unknown;
   actorId: string;
@@ -188,7 +253,5 @@ export function isForcedTimeoutEndTurnAllowed({
   if (!parsedAction.payload || parsedAction.payload.playerId !== actorId) return false;
 
   const actorLastSeenAt = normalizeTimestamp(playerMeta.lastSeenAt);
-  if (actorLastSeenAt == null) return true;
-
-  return now - actorLastSeenAt >= timeoutMs;
+  return actorLastSeenAt != null && now - actorLastSeenAt >= timeoutMs;
 }

@@ -29,6 +29,10 @@ vi.mock('../../client/src/hooks/useHaptic', () => ({
 describe('TechPanel', () => {
   beforeEach(() => {
     dispatch.mockClear();
+    mockGameState.players[0].stars = 100;
+    mockGameState.players[0].researchedTechs = [];
+    mockGameState.players[0].currentResearch = undefined;
+    mockGameState.players[0].researchInspiration = 0;
   });
 
   it('renders nothing when closed', () => {
@@ -58,5 +62,31 @@ describe('TechPanel', () => {
       payload: { playerId: 'player-1', technologyId: 'organization' },
     });
   });
-});
 
+  it('does not research the selected technology when pressing enter in search', async () => {
+    const user = userEvent.setup();
+    render(<TechPanel open onClose={vi.fn()} />);
+
+    await user.click(screen.getByText('Organization'));
+    await user.click(screen.getByPlaceholderText('Search technologies...'));
+    await user.keyboard('{Enter}');
+
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('uses canonical research inspiration discounts for affordability', async () => {
+    const user = userEvent.setup();
+    mockGameState.players[0].stars = 1;
+    mockGameState.players[0].researchInspiration = 10;
+
+    render(<TechPanel open onClose={vi.fn()} />);
+
+    await user.click(screen.getByText('Organization'));
+    await user.click(screen.getByRole('button', { name: 'Research Technology' }));
+
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'RESEARCH_TECHNOLOGY',
+      payload: { playerId: 'player-1', technologyId: 'organization' },
+    });
+  });
+});

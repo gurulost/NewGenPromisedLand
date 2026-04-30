@@ -16,7 +16,7 @@ export const FACTIONS: Record<FactionId, Faction> = {
       {
         id: 'TITLE_OF_LIBERTY',
         name: 'Title of Liberty',
-        description: 'Inspires all units within 3 tiles, increasing their attack and defense by 50% for 3 turns.',
+        description: 'Inspires all units within 3 tiles, increasing their attack and defense by 30% for 3 turns.',
         cost: 50,
         cooldown: 8,
         type: 'active',
@@ -138,7 +138,7 @@ export const FACTIONS: Record<FactionId, Faction> = {
       {
         id: 'MISSIONARY_ZEAL',
         name: 'Missionary Zeal',
-        description: 'Spread faith to all tiles within 4 hexes, converting neutral and enemy units.',
+        description: 'Project testimony pressure through missionaries, weakening enemy military resolve within 4 tiles.',
         cost: 40,
         cooldown: 7,
         type: 'active',

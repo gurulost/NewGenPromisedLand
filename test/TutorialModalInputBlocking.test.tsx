@@ -45,10 +45,11 @@ describe('Tutorial modal input blocking', () => {
       </div>,
     );
 
-    const dialog = screen.getByRole('dialog');
+    const dialog = screen.getByRole('dialog', { name: 'Chronicles of the Promised Land' });
     expect(dialog).toHaveClass('pointer-events-auto');
     expect(dialog).toHaveAttribute('data-ui-layer', 'modal');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAccessibleDescription(/Prosperity will test your covenant/i);
 
     fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
     expect(tutorialState.markSeen).toHaveBeenCalledWith('overview');
@@ -76,10 +77,12 @@ describe('Tutorial modal input blocking', () => {
       </div>,
     );
 
-    const dialog = screen.getByRole('dialog');
+    const dialog = screen.getByRole('dialog', { name: 'Tutorial Guides' });
     expect(dialog).toHaveClass('pointer-events-auto');
     expect(dialog).toHaveAttribute('data-ui-layer', 'modal');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAttribute('data-testid', 'tutorial-library-dialog');
+    expect(dialog).toHaveAccessibleDescription(/Reopen any tutorial card at any time/i);
 
     fireEvent.click(screen.getByText('Tutorial Guides'));
     expect(tutorialState.closeLibrary).not.toHaveBeenCalled();

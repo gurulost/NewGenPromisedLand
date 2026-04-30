@@ -195,6 +195,17 @@ describe('Game Reducer', () => {
 
   describe('ATTACK_UNIT action', () => {
     beforeEach(() => {
+      const enemyPlayer: PlayerState = {
+        ...mockPlayer,
+        id: 'player2',
+        name: 'Enemy Player',
+        turnOrder: 1,
+        atWarWith: ['player1'],
+        alliedWith: [],
+      };
+      mockPlayer.atWarWith = ['player2'];
+      mockGameState.players = [mockPlayer, enemyPlayer];
+
       // Add an enemy unit
       const enemyUnit: Unit = {
         id: 'enemy1',
@@ -1130,10 +1141,14 @@ describe('Game Reducer', () => {
         stars: 10,
         researchedTechs: [],
         researchProgress: 0,
-        citiesOwned: ['city2']
+        citiesOwned: ['city2'],
+        atWarWith: ['player1'],
+        alliedWith: [],
+        tradeRoutes: [],
+        diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 }
       };
       mockPlayer.citiesOwned = ['city1'];
-      mockGameState.players[0] = { ...mockPlayer };
+      mockGameState.players[0] = { ...mockPlayer, atWarWith: ['player2'] };
       
       const enemyUnit: Unit = {
         id: 'enemy-combat',
@@ -1293,6 +1308,17 @@ describe('Game Reducer', () => {
       
       const stateWithWeakEnemy = {
         ...mockGameState,
+        players: [
+          { ...mockPlayer, atWarWith: ['player2'] },
+          {
+            ...mockPlayer,
+            id: 'player2',
+            name: 'Enemy Player',
+            turnOrder: 1,
+            atWarWith: ['player1'],
+            alliedWith: [],
+          },
+        ],
         units: [...mockGameState.units, weakEnemy]
       };
       

@@ -1,4 +1,5 @@
 import {
+  getExpectedActorAfterCommit,
   getTurnRecoveryStatus,
   reconcilePendingActionsAfterCommit,
   isForcedTimeoutEndTurnAllowed,
@@ -73,6 +74,27 @@ describe("multiplayerPolicy", () => {
     expect(status.msUntilEligible).toBe(70_000);
   });
 
+  it("does not treat a missing heartbeat as immediately recoverable", () => {
+    const now = 100_000;
+    const status = getTurnRecoveryStatus({
+      playersMeta: [
+        { playerId: "player-1", userId: 10, isAI: false, lastSeenAt: now - 1000 },
+        { playerId: "player-2", userId: 11, isAI: false },
+      ],
+      expectedActorId: "player-2",
+      requesterUserId: 10,
+      hostUserId: 10,
+      now,
+      timeoutMs: 90_000,
+      recoveryEnabled: true,
+    });
+
+    expect(status.actorId).toBe("player-2");
+    expect(status.canForceEndTurn).toBe(false);
+    expect(status.msUntilEligible).toBe(90_000);
+    expect(status.actorLastSeenAt).toBeNull();
+  });
+
   it("hides turn recovery actor when host is the current actor", () => {
     const now = 100_000;
     const status = getTurnRecoveryStatus({
@@ -136,6 +158,98 @@ describe("multiplayerPolicy", () => {
 
     expect(allowed).toBe(true);
     expect(deniedWithQueueVersion).toBe(false);
+  });
+
+  it("denies forced timeout end turn when the actor has no heartbeat timestamp", () => {
+    const allowed = isForcedTimeoutEndTurnAllowed({
+      action: { type: "END_TURN", payload: { playerId: "player-2" } },
+      actorId: "player-2",
+      queueVersionProvided: false,
+      playerMeta: { playerId: "player-2", userId: 11, isAI: false },
+      expectedActorId: "player-2",
+      requesterUserId: 10,
+      hostUserId: 10,
+      now: 100_000,
+      timeoutMs: 90_000,
+      recoveryEnabled: true,
+    });
+
+    expect(allowed).toBe(false);
+  });
+
+  it("uses resolved end-turn nextPlayerId for server expected actor", () => {
+    const result = getExpectedActorAfterCommit({
+      lobbyState: {
+        players: [
+          { playerId: "player-1", turnOrder: 0 },
+          { playerId: "player-2", turnOrder: 1 },
+          { playerId: "player-3", turnOrder: 2 },
+        ],
+      },
+      actorId: "player-1",
+      action: {
+        type: "END_TURN_RESOLUTION",
+        payload: {
+          endingPlayerId: "player-1",
+          nextPlayerId: "player-3",
+          events: [],
+        },
+      },
+      currentExpectedActorId: "player-1",
+      isTurnCompleteAction: true,
+    });
+
+    expect(result).toEqual({
+      valid: true,
+      expectedActorId: "player-3",
+      requiresSnapshot: false,
+    });
+  });
+
+  it("requires snapshot repair after raw end-turn commits", () => {
+    const result = getExpectedActorAfterCommit({
+      lobbyState: {
+        players: [
+          { playerId: "player-1", turnOrder: 0 },
+          { playerId: "player-2", turnOrder: 1 },
+          { playerId: "player-3", turnOrder: 2 },
+        ],
+      },
+      actorId: "player-1",
+      action: { type: "END_TURN", payload: { playerId: "player-1" } },
+      currentExpectedActorId: "player-1",
+      isTurnCompleteAction: true,
+    });
+
+    expect(result).toEqual({
+      valid: true,
+      expectedActorId: "player-2",
+      requiresSnapshot: true,
+    });
+  });
+
+  it("rejects malformed resolved end-turn actor metadata", () => {
+    const result = getExpectedActorAfterCommit({
+      lobbyState: {
+        players: [
+          { playerId: "player-1", turnOrder: 0 },
+          { playerId: "player-2", turnOrder: 1 },
+        ],
+      },
+      actorId: "player-1",
+      action: {
+        type: "END_TURN_RESOLUTION",
+        payload: {
+          endingPlayerId: "player-2",
+          nextPlayerId: "player-2",
+          events: [],
+        },
+      },
+      currentExpectedActorId: "player-1",
+      isTurnCompleteAction: true,
+    });
+
+    expect(result.valid).toBe(false);
   });
 
   it("reconciles pending actions and clears actor queue on turn-complete", () => {

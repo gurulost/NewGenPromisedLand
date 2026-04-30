@@ -8,6 +8,46 @@ import {
   bugReports, type BugReport, type InsertBugReport
 } from "@shared/schema";
 
+export type LobbyRecord = GameLobby & { rowVersion?: string };
+
+type LobbyRow = GameLobby & { rowVersion: string | null };
+
+export type LobbyConcurrencyToken = {
+  updatedAt: Date;
+  rowVersion?: string | null;
+};
+
+export type SeatUpdateGuards = {
+  lobbyId: number;
+  expectedUserId?: number | null;
+  expectedIsAI?: boolean;
+  uniqueFactionId?: string | null;
+};
+
+const lobbyFields = {
+  id: gameLobbies.id,
+  code: gameLobbies.code,
+  name: gameLobbies.name,
+  hostUserId: gameLobbies.hostUserId,
+  maxPlayers: gameLobbies.maxPlayers,
+  mapSize: gameLobbies.mapSize,
+  status: gameLobbies.status,
+  gameState: gameLobbies.gameState,
+  createdAt: gameLobbies.createdAt,
+  updatedAt: gameLobbies.updatedAt,
+  rowVersion: sql<string>`xmin::text`,
+};
+
+function attachLobbyRowVersion(row: LobbyRow | undefined): LobbyRecord | undefined {
+  if (!row) return undefined;
+  const { rowVersion, ...lobby } = row;
+  Object.defineProperty(lobby, "rowVersion", {
+    value: rowVersion == null ? undefined : String(rowVersion),
+    enumerable: false,
+  });
+  return lobby as LobbyRecord;
+}
+
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -20,17 +60,17 @@ export interface IStorage {
   transferGameSaveOwnership(fromOwnerId: string, toOwnerId: string): Promise<number>;
   
   // Lobby methods
-  createLobby(lobby: InsertGameLobby): Promise<GameLobby>;
-  getLobbyByCode(code: string): Promise<GameLobby | undefined>;
-  getLobbyById(id: number): Promise<GameLobby | undefined>;
-  getOpenLobbies(): Promise<GameLobby[]>;
-  updateLobby(id: number, lobby: Partial<InsertGameLobby>): Promise<GameLobby | undefined>;
-  touchLobby(id: number): Promise<GameLobby | undefined>;
+  createLobby(lobby: InsertGameLobby): Promise<LobbyRecord>;
+  getLobbyByCode(code: string): Promise<LobbyRecord | undefined>;
+  getLobbyById(id: number): Promise<LobbyRecord | undefined>;
+  getOpenLobbies(): Promise<LobbyRecord[]>;
+  updateLobby(id: number, lobby: Partial<InsertGameLobby>): Promise<LobbyRecord | undefined>;
+  touchLobby(id: number): Promise<LobbyRecord | undefined>;
   updateLobbyIfUnchanged(
     id: number,
-    expectedUpdatedAt: Date,
+    expected: Date | LobbyConcurrencyToken,
     lobby: Partial<InsertGameLobby>
-  ): Promise<GameLobby | undefined>;
+  ): Promise<LobbyRecord | undefined>;
   deleteLobby(id: number): Promise<boolean>;
   
   // Seat methods
@@ -44,6 +84,11 @@ export interface IStorage {
     playerName: string
   ): Promise<PlayerSeat | undefined>;
   updateSeat(id: number, seat: Partial<InsertPlayerSeat>): Promise<PlayerSeat | undefined>;
+  updateSeatWithGuards(
+    id: number,
+    seat: Partial<InsertPlayerSeat>,
+    guards: SeatUpdateGuards
+  ): Promise<PlayerSeat | undefined>;
   deleteSeat(id: number): Promise<boolean>;
   deleteSeatsByUserId(lobbyId: number, userId: number): Promise<boolean>;
 
@@ -108,58 +153,64 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Lobby methods
-  async createLobby(lobby: InsertGameLobby): Promise<GameLobby> {
-    const [created] = await db.insert(gameLobbies).values(lobby).returning();
-    return created;
+  async createLobby(lobby: InsertGameLobby): Promise<LobbyRecord> {
+    const [created] = await db.insert(gameLobbies).values(lobby).returning(lobbyFields);
+    return attachLobbyRowVersion(created)!;
   }
 
-  async getLobbyByCode(code: string): Promise<GameLobby | undefined> {
-    const [lobby] = await db.select().from(gameLobbies).where(eq(gameLobbies.code, code));
-    return lobby;
+  async getLobbyByCode(code: string): Promise<LobbyRecord | undefined> {
+    const [lobby] = await db.select(lobbyFields).from(gameLobbies).where(eq(gameLobbies.code, code));
+    return attachLobbyRowVersion(lobby);
   }
 
-  async getLobbyById(id: number): Promise<GameLobby | undefined> {
-    const [lobby] = await db.select().from(gameLobbies).where(eq(gameLobbies.id, id));
-    return lobby;
+  async getLobbyById(id: number): Promise<LobbyRecord | undefined> {
+    const [lobby] = await db.select(lobbyFields).from(gameLobbies).where(eq(gameLobbies.id, id));
+    return attachLobbyRowVersion(lobby);
   }
 
-  async getOpenLobbies(): Promise<GameLobby[]> {
-    return db.select().from(gameLobbies)
+  async getOpenLobbies(): Promise<LobbyRecord[]> {
+    const lobbies = await db.select(lobbyFields).from(gameLobbies)
       .where(eq(gameLobbies.status, "waiting"))
       .orderBy(desc(gameLobbies.createdAt));
+    return lobbies.map((lobby) => attachLobbyRowVersion(lobby)!);
   }
 
-  async updateLobby(id: number, lobby: Partial<InsertGameLobby>): Promise<GameLobby | undefined> {
+  async updateLobby(id: number, lobby: Partial<InsertGameLobby>): Promise<LobbyRecord | undefined> {
     const [updated] = await db.update(gameLobbies)
       .set({ ...lobby, updatedAt: new Date() })
       .where(eq(gameLobbies.id, id))
-      .returning();
-    return updated;
+      .returning(lobbyFields);
+    return attachLobbyRowVersion(updated);
   }
 
-  async touchLobby(id: number): Promise<GameLobby | undefined> {
+  async touchLobby(id: number): Promise<LobbyRecord | undefined> {
     const [updated] = await db.update(gameLobbies)
       .set({ updatedAt: new Date() })
       .where(eq(gameLobbies.id, id))
-      .returning();
-    return updated;
+      .returning(lobbyFields);
+    return attachLobbyRowVersion(updated);
   }
 
   async updateLobbyIfUnchanged(
     id: number,
-    expectedUpdatedAt: Date,
+    expected: Date | LobbyConcurrencyToken,
     lobby: Partial<InsertGameLobby>
-  ): Promise<GameLobby | undefined> {
+  ): Promise<LobbyRecord | undefined> {
+    const expectedUpdatedAt = expected instanceof Date ? expected : expected.updatedAt;
+    const expectedRowVersion = expected instanceof Date ? null : expected.rowVersion;
+    const concurrencyGuard = expectedRowVersion
+      ? sql`xmin::text = ${String(expectedRowVersion)}`
+      : sql`date_trunc('milliseconds', ${gameLobbies.updatedAt}) = date_trunc('milliseconds', ${expectedUpdatedAt})`;
     const [updated] = await db.update(gameLobbies)
       .set({ ...lobby, updatedAt: new Date() })
       .where(
         and(
           eq(gameLobbies.id, id),
-          sql`date_trunc('milliseconds', ${gameLobbies.updatedAt}) = date_trunc('milliseconds', ${expectedUpdatedAt})`,
+          concurrencyGuard,
         ),
       )
-      .returning();
-    return updated;
+      .returning(lobbyFields);
+    return attachLobbyRowVersion(updated);
   }
 
   async deleteLobby(id: number): Promise<boolean> {
@@ -215,6 +266,55 @@ export class DatabaseStorage implements IStorage {
       .where(eq(playerSeats.id, id))
       .returning();
     return updated;
+  }
+
+  async updateSeatWithGuards(
+    id: number,
+    seat: Partial<InsertPlayerSeat>,
+    guards: SeatUpdateGuards
+  ): Promise<PlayerSeat | undefined> {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${guards.lobbyId}::bigint)`);
+      const [lockedLobby] = await tx.update(gameLobbies)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(gameLobbies.id, guards.lobbyId), eq(gameLobbies.status, "waiting")))
+        .returning({ id: gameLobbies.id });
+      if (!lockedLobby) return undefined;
+
+      const conditions = [
+        eq(playerSeats.id, id),
+        eq(playerSeats.lobbyId, guards.lobbyId),
+      ];
+
+      if (Object.prototype.hasOwnProperty.call(guards, "expectedUserId")) {
+        conditions.push(
+          guards.expectedUserId == null
+            ? isNull(playerSeats.userId)
+            : eq(playerSeats.userId, guards.expectedUserId),
+        );
+      }
+
+      if (typeof guards.expectedIsAI === "boolean") {
+        conditions.push(eq(playerSeats.isAI, guards.expectedIsAI));
+      }
+
+      if (guards.uniqueFactionId) {
+        conditions.push(sql`NOT EXISTS (
+          SELECT 1
+          FROM ${playerSeats} AS other
+          WHERE other.lobby_id = ${guards.lobbyId}
+            AND other.id <> ${id}
+            AND other.faction_id = ${guards.uniqueFactionId}
+            AND (other.user_id IS NOT NULL OR other.is_ai = true)
+        )`);
+      }
+
+      const [updated] = await tx.update(playerSeats)
+        .set(seat)
+        .where(and(...conditions))
+        .returning();
+      return updated;
+    });
   }
 
   async deleteSeat(id: number): Promise<boolean> {

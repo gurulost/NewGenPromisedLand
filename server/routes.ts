@@ -12,11 +12,11 @@ import { pool } from "./db";
 import {
   getExpectedActorId,
   getExpectedActorIdFromSnapshot,
-  getNextExpectedActorId,
   needsSnapshotCatchup,
   type MultiplayerPlayerMeta,
 } from "@shared/logic/multiplayerSync";
 import {
+  getExpectedActorAfterCommit,
   getTurnRecoveryStatus,
   isForcedTimeoutEndTurnAllowed,
   reconcilePendingActionsAfterCommit,
@@ -486,54 +486,25 @@ const authRateLimit = createRateLimitMiddleware({
   label: "auth",
 });
 
-const queueRateLimit = createRateLimitMiddleware({
-  windowMs: 60 * 1000,
-  maxHits: 240,
-  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:queue`,
-  label: "queue",
+const userRateLimit = (label: string, maxHits: number, windowMs = 60 * 1000) => createRateLimitMiddleware({
+  windowMs,
+  maxHits,
+  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:${label}`,
+  label,
 });
 
-const commitRateLimit = createRateLimitMiddleware({
-  windowMs: 60 * 1000,
-  maxHits: 240,
-  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:commit`,
-  label: "commit",
-});
-
-const chatWriteRateLimit = createRateLimitMiddleware({
-  windowMs: 60 * 1000,
-  maxHits: 180,
-  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:chat-write`,
-  label: "chat-write",
-});
-
-const chatTypingRateLimit = createRateLimitMiddleware({
-  windowMs: 60 * 1000,
-  maxHits: 300,
-  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:chat-typing`,
-  label: "chat-typing",
-});
-
-const chatVoiceUploadRateLimit = createRateLimitMiddleware({
-  windowMs: 60 * 1000,
-  maxHits: 20,
-  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:voice-upload`,
-  label: "voice-upload",
-});
-
-const bugReportRateLimit = createRateLimitMiddleware({
-  windowMs: 60 * 1000,
-  maxHits: 8,
-  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:bug-report`,
-  label: "bug-report",
-});
-
-const bugReportUploadRateLimit = createRateLimitMiddleware({
-  windowMs: 60 * 1000,
-  maxHits: 8,
-  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:bug-report-upload`,
-  label: "bug-report-upload",
-});
+const lobbyCreateRateLimit = userRateLimit("lobby-create", 20);
+const lobbySeatWriteRateLimit = userRateLimit("lobby-seat", 120);
+const queueRateLimit = userRateLimit("queue", 240);
+const commitRateLimit = userRateLimit("commit", 240);
+const hostHeartbeatRateLimit = userRateLimit("host-heartbeat", 120);
+const hostClaimRateLimit = userRateLimit("host-claim", 30);
+const playerHeartbeatRateLimit = userRateLimit("player-heartbeat", 240);
+const chatWriteRateLimit = userRateLimit("chat-write", 180);
+const chatTypingRateLimit = userRateLimit("chat-typing", 300);
+const chatVoiceUploadRateLimit = userRateLimit("voice-upload", 20);
+const bugReportRateLimit = userRateLimit("bug-report", 8);
+const bugReportUploadRateLimit = userRateLimit("bug-report-upload", 8);
 
 const bugReportReadRateLimit = createRateLimitMiddleware({
   windowMs: 60 * 1000,
@@ -542,12 +513,7 @@ const bugReportReadRateLimit = createRateLimitMiddleware({
   label: "bug-report-read",
 });
 
-const animationLabUnlockRateLimit = createRateLimitMiddleware({
-  windowMs: 10 * 60 * 1000,
-  maxHits: 10,
-  key: (req) => `${req.ip || "unknown"}:${req.session.userId ?? "anonymous"}:animation-lab-unlock`,
-  label: "animation-lab-unlock",
-});
+const animationLabUnlockRateLimit = userRateLimit("animation-lab-unlock", 10, 10 * 60 * 1000);
 
 const multiplayerTelemetry = {
   needsSnapshot: 0,
@@ -782,7 +748,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // === LOBBY ROUTES ===
 
   // Create a new lobby
-  app.post("/api/lobbies", requireAuth, async (req, res) => {
+  app.post("/api/lobbies", requireAuth, lobbyCreateRateLimit, async (req, res) => {
     try {
       const { name, maxPlayers = 8, mapSize = "normal" } = req.body;
       if (!name) {
@@ -906,7 +872,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Claim a seat in a lobby
-  app.post("/api/lobbies/:code/seats/:seatIndex/claim", requireAuth, async (req, res) => {
+  app.post("/api/lobbies/:code/seats/:seatIndex/claim", requireAuth, lobbySeatWriteRateLimit, async (req, res) => {
     try {
       const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
       if (!lobby) {
@@ -951,7 +917,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Release a seat
-  app.post("/api/lobbies/:code/seats/:seatIndex/release", requireAuth, async (req, res) => {
+  app.post("/api/lobbies/:code/seats/:seatIndex/release", requireAuth, lobbySeatWriteRateLimit, async (req, res) => {
     try {
       const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
       if (!lobby) {
@@ -975,13 +941,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Not your seat" });
       }
 
-      await storage.updateSeat(seat.id, {
-        userId: null,
-        playerName: null,
-        factionId: null,
-        isReady: false
+      const released = await storage.updateSeatWithGuards(seat.id, { userId: null, playerName: null, factionId: null, isReady: false }, {
+        lobbyId: lobby.id, expectedUserId: req.session.userId!, expectedIsAI: false,
       });
-      await storage.touchLobby(lobby.id);
+      if (!released) {
+        return res.status(409).json({ error: "Seat changed while releasing. Refresh and try again." });
+      }
       
       const updatedSeats = await storage.getSeatsByLobbyId(lobby.id);
       res.json({ ...lobby, seats: updatedSeats });
@@ -992,7 +957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update seat (faction, ready status, player name)
-  app.patch("/api/lobbies/:code/seats/:seatIndex", requireAuth, async (req, res) => {
+  app.patch("/api/lobbies/:code/seats/:seatIndex", requireAuth, lobbySeatWriteRateLimit, async (req, res) => {
     try {
       const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
       if (!lobby) {
@@ -1095,8 +1060,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.isReady = body.isReady;
       }
       
-      await storage.updateSeat(seat.id, updates);
-      await storage.touchLobby(lobby.id);
+      const uniqueFactionId = nextFactionId && (Object.prototype.hasOwnProperty.call(body, "factionId") || updates.isReady === true)
+        ? nextFactionId : null;
+      const updatedSeat = await storage.updateSeatWithGuards(seat.id, updates, {
+        lobbyId: lobby.id, expectedUserId: isHostManagingAI ? null : req.session.userId!, expectedIsAI: isHostManagingAI, uniqueFactionId,
+      });
+      if (!updatedSeat) {
+        return res.status(409).json({ error: "Seat changed or faction was claimed by another player. Refresh and try again." });
+      }
       
       const updatedSeats = await storage.getSeatsByLobbyId(lobby.id);
       res.json({ ...lobby, seats: updatedSeats });
@@ -1107,7 +1078,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Set a seat as AI
-  app.post("/api/lobbies/:code/seats/:seatIndex/ai", requireAuth, async (req, res) => {
+  app.post("/api/lobbies/:code/seats/:seatIndex/ai", requireAuth, lobbySeatWriteRateLimit, async (req, res) => {
     try {
       const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
       if (!lobby) {
@@ -1147,14 +1118,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(409).json({ error: "That faction is already claimed by another seat" });
       }
 
-      await storage.updateSeat(seat.id, { 
-        userId: null,
-        playerName: null,
-        isAI: true, 
-        factionId: canonicalFactionId,
-        isReady: true 
+      const updatedSeat = await storage.updateSeatWithGuards(seat.id, { userId: null, playerName: null, isAI: true, factionId: canonicalFactionId, isReady: true }, {
+        lobbyId: lobby.id, expectedUserId: null, expectedIsAI: false, uniqueFactionId: canonicalFactionId,
       });
-      await storage.touchLobby(lobby.id);
+      if (!updatedSeat) {
+        return res.status(409).json({ error: "Seat changed or faction was claimed by another player. Refresh and try again." });
+      }
       
       const updatedSeats = await storage.getSeatsByLobbyId(lobby.id);
       res.json({ ...lobby, seats: updatedSeats });
@@ -1165,7 +1134,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Remove AI from seat
-  app.delete("/api/lobbies/:code/seats/:seatIndex/ai", requireAuth, async (req, res) => {
+  app.delete("/api/lobbies/:code/seats/:seatIndex/ai", requireAuth, lobbySeatWriteRateLimit, async (req, res) => {
     try {
       const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
       if (!lobby) {
@@ -1192,14 +1161,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Seat is not AI" });
       }
       
-      await storage.updateSeat(seat.id, { 
-        userId: null,
-        playerName: null,
-        isAI: false, 
-        factionId: null,
-        isReady: false 
+      const updatedSeat = await storage.updateSeatWithGuards(seat.id, { userId: null, playerName: null, isAI: false, factionId: null, isReady: false }, {
+        lobbyId: lobby.id, expectedUserId: null, expectedIsAI: true,
       });
-      await storage.touchLobby(lobby.id);
+      if (!updatedSeat) {
+        return res.status(409).json({ error: "Seat changed while removing AI. Refresh and try again." });
+      }
       
       const updatedSeats = await storage.getSeatsByLobbyId(lobby.id);
       res.json({ ...lobby, seats: updatedSeats });
@@ -1327,7 +1294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const seed = Math.floor(Math.random() * 2 ** 32);
 
       // Update lobby status to playing and store player config (game state will be initialized client-side)
-      const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, { 
+      const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
         status: "playing",
         gameState: {
           players,
@@ -1613,7 +1580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
         const nextChat = appendMessage(chatState, payload);
 
-        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
           gameState: {
             ...lobbyState,
             chat: nextChat,
@@ -1694,7 +1661,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         const nextChat = appendTypingEvent(chatState, payload, isTyping);
-        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
           gameState: {
             ...lobbyState,
             chat: nextChat,
@@ -1754,7 +1721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           readAt,
         };
         const nextChat = appendReadEvent(chatState, payload);
-        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
           gameState: {
             ...lobbyState,
             chat: nextChat,
@@ -1817,7 +1784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Host heartbeat to keep lease active
-  app.post("/api/lobbies/:code/host/heartbeat", requireAuth, async (req, res) => {
+  app.post("/api/lobbies/:code/host/heartbeat", requireAuth, hostHeartbeatRateLimit, async (req, res) => {
     try {
       const { hostEpoch: bodyEpoch } = req.body || {};
       for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
@@ -1839,7 +1806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const hostLastSeen = Date.now();
-        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
           gameState: { ...lobbyState, hostLastSeen } as any,
         });
         if (updated) {
@@ -1855,7 +1822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Claim host role if lease expired
-  app.post("/api/lobbies/:code/host/claim", requireAuth, async (req, res) => {
+  app.post("/api/lobbies/:code/host/claim", requireAuth, hostClaimRateLimit, async (req, res) => {
     try {
       const requestedEpoch = req.body?.hostEpoch;
 
@@ -1883,7 +1850,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const hostLastSeen = Date.now();
         if (lobby.hostUserId === userId) {
-          const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+          const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
             gameState: { ...lobbyState, hostLastSeen } as any,
           });
           if (updated) {
@@ -1896,8 +1863,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(409).json({ error: "Host still active", hostUserId: lobby.hostUserId });
         }
 
+        const suggestedHostUserId = selectNextHost(lobbyState, lobby.hostUserId);
+        if (suggestedHostUserId !== null && suggestedHostUserId !== userId) {
+          return res.status(409).json({
+            error: "Another participant has priority to claim host",
+            suggestedHostUserId,
+          });
+        }
+
         const nextEpoch = hostEpoch + 1;
-        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
           hostUserId: userId,
           gameState: {
             ...lobbyState,
@@ -1927,7 +1902,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Player heartbeat to support timeout-based turn recovery
-  app.post("/api/lobbies/:code/players/heartbeat", requireAuth, async (req, res) => {
+  app.post("/api/lobbies/:code/players/heartbeat", requireAuth, playerHeartbeatRateLimit, async (req, res) => {
     try {
       const { playerId } = req.body || {};
       if (typeof playerId !== "string" || !playerId) {
@@ -1968,7 +1943,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastSeenAt,
         };
 
-        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
           gameState: {
             ...lobbyState,
             players: playersMeta,
@@ -2100,7 +2075,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? lobbyState.actions.filter((entry: any) => Number(entry?.version) > version)
           : [];
 
-        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
           gameState: {
             ...lobbyState,
             snapshot: state,
@@ -2108,6 +2083,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             actions,
             actionLogBaseVersion: version,
             expectedActorId: expectedActorId ?? getExpectedActorId(lobbyState),
+            turnResolutionPending: false,
             hostLastSeen: Date.now(),
           } as any,
         });
@@ -2156,6 +2132,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Not your player" });
         }
 
+        if (lobbyState.turnResolutionPending === true) {
+          return res.status(409).json({ error: "Waiting for host turn snapshot" });
+        }
+
         const expectedActorId = getExpectedActorId(lobbyState);
         if (expectedActorId && actorId !== expectedActorId) {
           return res.status(409).json({ error: "Not this player's turn", expectedActorId });
@@ -2183,7 +2163,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         }
 
-        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
           gameState: { ...lobbyState, pendingVersion, pendingActions, players: playersMeta } as any,
         });
         if (updated) {
@@ -2298,6 +2278,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (existingCommitted) {
           return res.json({ actionVersion: Number(existingCommitted.version ?? lobbyState.actionVersion ?? 0), duplicate: true });
         }
+        if (lobbyState.turnResolutionPending === true) {
+          return res.status(409).json({ error: "Waiting for host turn snapshot" });
+        }
 
         let pendingActions = Array.isArray(lobbyState.pendingActions) ? [...lobbyState.pendingActions] : [];
         if (queueVersionProvided) {
@@ -2314,6 +2297,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const isTurnCompleteAction =
           action?.type === "END_TURN" || action?.type === "END_TURN_RESOLUTION";
+        const expectedActorAfterCommit = getExpectedActorAfterCommit({
+          lobbyState,
+          actorId,
+          action,
+          currentExpectedActorId: expectedActorId,
+          isTurnCompleteAction,
+        });
+        if (!expectedActorAfterCommit.valid) {
+          return res.status(400).json({ error: expectedActorAfterCommit.error });
+        }
         pendingActions = reconcilePendingActionsAfterCommit({
           pendingActions,
           queueVersionProvided,
@@ -2334,17 +2327,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         }
 
-        const nextExpectedActorId = isTurnCompleteAction
-          ? (getNextExpectedActorId(lobbyState, actorId) ?? expectedActorId)
-          : expectedActorId;
-
-        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby.updatedAt, {
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
           gameState: {
             ...lobbyState,
             actionVersion: nextActionVersion,
             actions,
             pendingActions,
-            expectedActorId: nextExpectedActorId,
+            expectedActorId: expectedActorAfterCommit.expectedActorId,
+            turnResolutionPending: expectedActorAfterCommit.requiresSnapshot,
             players: playersMeta,
             hostLastSeen: Date.now(),
           } as any,

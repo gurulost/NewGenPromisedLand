@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { handleUseAbility } from "../../shared/logic/actions/abilities";
+import { getFactionAbilityAvailability } from "../../shared/logic/factionAbilityAvailability";
 import { resolveActionState } from "../../shared/logic/resolveAction";
 import { subscribeTelemetry } from "../../shared/logic/telemetry";
 import type { TelemetryEvent } from "../../shared/logic/telemetry";
@@ -146,6 +147,124 @@ describe("Ability ownership enforcement", () => {
           event.reason === "passive_only"
       )
     ).toBe(true);
+  });
+
+  it("blocks design-pending active faction abilities before resolver side effects", () => {
+    const player = createPlayer({
+      factionId: "MULEKITES",
+      stats: { faith: 90, pride: 10, internalDissent: 5 },
+    });
+    const state = createState([player], []);
+
+    const availability = getFactionAbilityAvailability(state, "player1", "CULTURAL_RECLAMATION");
+    expect(availability.available).toBe(false);
+    if (!availability.available) {
+      expect(availability.reason).toBe("design_pending");
+    }
+
+    const { result, events } = collectTelemetry(() =>
+      resolveActionState(state, {
+        type: "USE_ABILITY",
+        payload: { playerId: "player1", abilityId: "CULTURAL_RECLAMATION" },
+      })
+    );
+
+    expect(result).toBe(state);
+    expect(result.players[0].abilityCooldowns?.CULTURAL_RECLAMATION).toBeUndefined();
+    expect(
+      events.some(
+        (event) =>
+          event.channel === "ability" &&
+          event.status === "blocked" &&
+          event.abilityId === "CULTURAL_RECLAMATION" &&
+          event.reason === "design_pending"
+      )
+    ).toBe(true);
+  });
+
+  it("blocks Missionary Zeal until a missionary source and enemy military target exist", () => {
+    const player = createPlayer({
+      factionId: "ANTI_NEPHI_LEHIES",
+      stats: { faith: 90, pride: 10, internalDissent: 5 },
+    });
+
+    const noSourceState = createState([player], []);
+    const noSource = getFactionAbilityAvailability(noSourceState, "player1", "MISSIONARY_ZEAL");
+    expect(noSource.available).toBe(false);
+    if (!noSource.available) {
+      expect(noSource.reason).toBe("no_valid_source");
+    }
+
+    const noTargetState = createState([player], [createUnit({ id: "missionary1", type: "missionary" })]);
+    const noTarget = getFactionAbilityAvailability(noTargetState, "player1", "MISSIONARY_ZEAL");
+    expect(noTarget.available).toBe(false);
+    if (!noTarget.available) {
+      expect(noTarget.reason).toBe("no_valid_targets");
+    }
+
+    const hiddenTargetState = createState([
+      createPlayer({
+        factionId: "ANTI_NEPHI_LEHIES",
+        stats: { faith: 90, pride: 10, internalDissent: 5 },
+        visibilityMask: ["0,0"],
+      }),
+      createPlayer({
+        id: "player2",
+        name: "Player Two",
+        factionId: "LAMANITES",
+        turnOrder: 1,
+      }),
+    ], [
+      createUnit({ id: "missionary1", type: "missionary" }),
+      createUnit({ id: "enemy1", type: "warrior", playerId: "player2", coordinate: { q: 1, r: 0, s: -1 } }),
+    ]);
+    const hiddenTarget = getFactionAbilityAvailability(hiddenTargetState, "player1", "MISSIONARY_ZEAL");
+    expect(hiddenTarget.available).toBe(false);
+    if (!hiddenTarget.available) {
+      expect(hiddenTarget.reason).toBe("no_valid_targets");
+    }
+
+    const alliedTargetState = createState([
+      createPlayer({
+        factionId: "ANTI_NEPHI_LEHIES",
+        stats: { faith: 90, pride: 10, internalDissent: 5 },
+        alliedWith: ["player2"],
+      }),
+      createPlayer({
+        id: "player2",
+        name: "Player Two",
+        factionId: "LAMANITES",
+        turnOrder: 1,
+        alliedWith: ["player1"],
+      }),
+    ], [
+      createUnit({ id: "missionary1", type: "missionary" }),
+      createUnit({ id: "ally1", type: "warrior", playerId: "player2", coordinate: { q: 1, r: 0, s: -1 } }),
+    ]);
+    const alliedTarget = getFactionAbilityAvailability(alliedTargetState, "player1", "MISSIONARY_ZEAL");
+    expect(alliedTarget.available).toBe(false);
+    if (!alliedTarget.available) {
+      expect(alliedTarget.reason).toBe("no_valid_targets");
+    }
+  });
+
+  it("blocks active faction abilities outside the owning player's turn", () => {
+    const state = createState([
+      createPlayer({ id: "player1", turnOrder: 0 }),
+      createPlayer({
+        id: "player2",
+        name: "Player Two",
+        factionId: "ZORAMITES",
+        stats: { faith: 20, pride: 80, internalDissent: 5 },
+        turnOrder: 1,
+      }),
+    ], []);
+
+    const availability = getFactionAbilityAvailability(state, "player2", "RAMEUMPTOM");
+    expect(availability.available).toBe(false);
+    if (!availability.available) {
+      expect(availability.reason).toBe("not_current_turn");
+    }
   });
 
   it("blocks unit abilities that the acting unit does not own", () => {

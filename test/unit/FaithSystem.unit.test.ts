@@ -24,7 +24,11 @@ describe('Faith System', () => {
             visibilityMask: [],
             exploredTiles: [],
             researchProgress: 0,
-            citiesOwned: ['city1']
+            citiesOwned: ['city1'],
+            atWarWith: ['lamanite1'],
+            alliedWith: [],
+            tradeRoutes: [],
+            diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 }
         };
 
         lamanitePlayer = {
@@ -39,7 +43,11 @@ describe('Faith System', () => {
             visibilityMask: [],
             exploredTiles: [],
             researchProgress: 0,
-            citiesOwned: []
+            citiesOwned: [],
+            atWarWith: ['nephite1'],
+            alliedWith: [],
+            tradeRoutes: [],
+            diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 }
         };
 
         mockState = {

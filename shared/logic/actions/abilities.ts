@@ -1,12 +1,14 @@
 import { ActiveEffect, GameState, PlayerState } from "../../types/game";
 import { ABILITIES } from "../../data/abilities";
-import { FACTIONS } from "../../data/factions";
+import { getFactionAbilitySpec } from "../../data/factionAbilitySpecs";
 import { TECHNOLOGIES } from "../../data/technologies";
 import { GAME_RULES } from "../../data/gameRules";
 import { getUnitDefinition } from "../../data/units";
 import { hexDistance } from "../../utils/hex";
 import { upsertActiveEffect } from "../activeEffects";
+import { getFactionAbilityAvailability } from "../factionAbilityAvailability";
 import { nextInt } from "../rng";
+import { applyTestimonyPressureToTargets, getTestimonyPressureSelection } from "../testimonyPressure";
 import { emitTelemetry } from "../telemetry";
 import { getUnitActionsRemaining, spendUnitActions } from "../unitLogic";
 import { handleApplyStealth, handleHealUnit, handleReconnaissance } from "../unitActionHandlers";
@@ -50,15 +52,6 @@ function emitBlockedAbility(playerId: string, abilityId: string, reason: string)
   });
 }
 
-function getFactionAbilityEntry(player: PlayerState, abilityId: string) {
-  const faction = Object.values(FACTIONS).find(({ id }) => id === player.factionId);
-  if (!faction) return undefined;
-
-  return faction.abilities.find((factionAbility) =>
-    normalizeAbility(factionAbility.id) === normalizeAbility(abilityId)
-  );
-}
-
 function validateManualAbilityUse(
   state: GameState,
   player: PlayerState,
@@ -68,19 +61,8 @@ function validateManualAbilityUse(
   if (!ability) return { ok: false, reason: "unknown_ability" };
 
   if (ability.type === "faction") {
-    const factionAbility = getFactionAbilityEntry(player, payload.abilityId);
-    if (!factionAbility) {
-      return { ok: false, reason: "not_owned" };
-    }
-
-    if (factionAbility.type !== "active") {
-      return {
-        ok: false,
-        reason: factionAbility.type === "triggered" ? "triggered_only" : "passive_only",
-      };
-    }
-
-    return { ok: true };
+    const availability = getFactionAbilityAvailability(state, player.id, payload.abilityId);
+    return availability.available ? { ok: true } : { ok: false, reason: availability.reason };
   }
 
   if (ability.type === "unit") {
@@ -170,7 +152,7 @@ export function handleUseAbility(
     return state;
   }
 
-  if (ability.requirements) {
+  if (ability.type !== "faction" && ability.requirements) {
     if (ability.requirements.faith && player.stats.faith < ability.requirements.faith) return state;
     if (ability.requirements.pride && player.stats.pride < ability.requirements.pride) return state;
     if (ability.requirements.dissent && player.stats.internalDissent < ability.requirements.dissent) return state;
@@ -189,6 +171,9 @@ export function handleUseAbility(
       break;
     case "COVENANT_OF_PEACE":
       next = applyCovenantOfPeace(state, player);
+      break;
+    case "MISSIONARY_ZEAL":
+      next = applyMissionaryZeal(state, player);
       break;
 
     case "nephite_righteous_charge":
@@ -222,8 +207,8 @@ export function handleUseAbility(
       return applyMaritimeExpansion(state, payload);
 
     default:
-      console.warn(`Ability ${payload.abilityId} not implemented yet`);
-      next = state;
+      emitBlockedAbility(player.id, payload.abilityId, "not_implemented");
+      return state;
   }
 
   if (next === state) return state;
@@ -393,6 +378,56 @@ function applyCovenantOfPeace(state: GameState, player: PlayerState): GameState 
   };
 }
 
+function applyMissionaryZeal(state: GameState, player: PlayerState): GameState {
+  const spec = getFactionAbilitySpec("MISSIONARY_ZEAL");
+  const costFaith = spec?.cost.faith ?? 40;
+  const radius = spec?.target.range ?? 4;
+  if (player.stats.faith < costFaith) return state;
+
+  const selection = getTestimonyPressureSelection(state, player.id, radius, {
+    requireTargetVisibility: true,
+  });
+  if (selection.sourceUnits.length === 0 || selection.targetUnits.length === 0) {
+    return state;
+  }
+
+  const pressureResult = applyTestimonyPressureToTargets(
+    state,
+    player.id,
+    selection.targetUnits.map(unit => unit.id),
+    {
+      attackPenalty: GAME_RULES.influence.testimonyPressure.attackPenalty,
+      durationTurns: GAME_RULES.influence.testimonyPressure.durationTurns,
+    }
+  );
+
+  if (pressureResult.appliedCount === 0) return state;
+
+  const lastAction: GameState["lastAction"] = {
+    type: "TESTIMONY_PRESSURE",
+    payload: {
+      sourcePlayerId: player.id,
+      attackPenalty: GAME_RULES.influence.testimonyPressure.attackPenalty,
+      durationTurns: GAME_RULES.influence.testimonyPressure.durationTurns,
+      affected: Object.entries(pressureResult.appliedByOwner).map(([playerId, unitIds]) => ({
+        playerId,
+        unitIds,
+      })),
+    },
+  };
+
+  return {
+    ...state,
+    units: pressureResult.units,
+    players: state.players.map(p =>
+      p.id === player.id
+        ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - costFaith) } }
+        : p
+    ),
+    lastAction,
+  };
+}
+
 function applyRighteousCharge(state: GameState, payload: any): GameState {
   const unit = state.units.find(u => u.id === payload.unitId);
   if (!unit || !payload.targetUnitId) return state;
@@ -452,14 +487,19 @@ function applyGuerrillaTactics(state: GameState, payload: any): GameState {
   if (!player) return state;
 
   const bonus = GAME_RULES.abilities.attackBonuses.guerrillaBonus;
+  let changed = false;
   const updatedUnits = state.units.map(u => {
     if (u.playerId !== player.id) return u;
     const tile = state.map.tiles.find(t => t.coordinate.q === u.coordinate.q && t.coordinate.r === u.coordinate.r);
     if (tile?.terrain !== "forest") return u;
-    return { ...u, defense: u.defense + bonus };
+    const unitDef = getUnitDefinition(u.type);
+    const nextDefense = Math.max(u.defense, unitDef.baseStats.defense + bonus);
+    if (nextDefense === u.defense) return u;
+    changed = true;
+    return { ...u, defense: nextDefense };
   });
 
-  if (updatedUnits === state.units) return state;
+  if (!changed) return state;
   return { ...state, units: updatedUnits };
 }
 

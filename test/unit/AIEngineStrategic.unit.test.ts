@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import { AIEngine } from '../../shared/ai/aiEngine';
 import { simulateAITurns } from '../../shared/ai/aiHarness';
+import { TacticalEngine } from '../../shared/ai/aiTacticalEngine';
 import type { GameState, PlayerState } from '../../shared/types/game';
 import type { Unit } from '../../shared/types/unit';
 
@@ -311,6 +312,73 @@ describe('AIEngine automation loops', () => {
     expect(moveDecision?.targetCoordinate).toMatchObject({ q: 1, r: -1 });
   });
 
+  it('includes the builder unit when a worker builds on its own tile', () => {
+    const aiPlayer = createBaseAIPlayer({
+      stars: 40,
+      researchedTechs: ['organization'],
+      exploredTiles: ['0,0', '1,-1'],
+      visibilityMask: ['0,0', '1,-1'],
+    });
+
+    const worker: Unit = {
+      id: 'worker_build',
+      type: 'worker',
+      playerId: '1',
+      coordinate: { q: 1, r: -1, s: 0 },
+      hp: 10,
+      maxHp: 10,
+      attack: 1,
+      defense: 1,
+      movement: 2,
+      remainingMovement: 2,
+      visionRadius: 2,
+      attackRange: 1,
+      status: 'active',
+      experience: 0,
+      abilities: ['BUILD'],
+      level: 1,
+      temporaryEffects: [],
+    };
+
+    const tiles = [
+      makeTile(0, 0, 'plains', ['1'], { hasCity: true, cityOwner: '1' }),
+      makeTile(1, -1, 'plains', ['1']),
+    ];
+
+    const cities: GameState['cities'] = [
+      {
+        id: 'city1',
+        name: 'Capital',
+        coordinate: { q: 0, r: 0, s: 0 },
+        ownerId: '1',
+        population: 2,
+        maxPopulation: 4,
+        level: 1,
+        starProduction: 2,
+        improvements: [],
+        structures: [],
+      },
+    ];
+
+    const state = createGameState([aiPlayer], [worker], tiles, cities);
+    const decisions = new AIEngine(state, aiPlayer).makeDecision();
+    const buildDecision = decisions.find(decision =>
+      decision.type === 'START_CONSTRUCTION' &&
+      decision.unitId === 'worker_build' &&
+      decision.targetCoordinate?.q === 1 &&
+      decision.targetCoordinate?.r === -1
+    );
+
+    expect(buildDecision).toMatchObject({
+      builderUnitId: 'worker_build',
+      constructionCategory: 'improvements',
+    });
+
+    const result = simulateAITurns(state, 1);
+    expect(result.actionsApplied).toBeGreaterThan(0);
+    expect(result.errors).toHaveLength(0);
+  });
+
   it('directs scouts toward unexplored tiles', () => {
     const aiPlayer = createBaseAIPlayer({
       stars: 10,
@@ -364,6 +432,167 @@ describe('AIEngine automation loops', () => {
     const decisions = engine.makeDecision();
     const moveDecision = decisions.find(decision => decision.type === 'MOVE_UNIT' && decision.unitId === 'scout1');
     expect(moveDecision).toBeDefined();
+  });
+});
+
+describe('AI tactical visibility', () => {
+  it('does not target hidden enemy units or unexplored enemy cities', () => {
+    const aiPlayer = createBaseAIPlayer({
+      atWarWith: ['2'],
+      exploredTiles: ['0,0'],
+      visibilityMask: ['0,0'],
+    });
+    const enemyPlayer: PlayerState = {
+      ...createBaseAIPlayer({ id: '2', name: 'Enemy', factionId: 'LAMANITES' }),
+      isAI: false,
+      aiDifficulty: undefined,
+      atWarWith: ['1'],
+      citiesOwned: ['enemyCity'],
+      turnOrder: 1,
+    };
+
+    const warrior: Unit = {
+      id: 'warrior_visible',
+      type: 'warrior',
+      playerId: '1',
+      coordinate: { q: 0, r: 0, s: 0 },
+      hp: 25,
+      maxHp: 25,
+      attack: 6,
+      defense: 4,
+      movement: 3,
+      remainingMovement: 3,
+      visionRadius: 2,
+      attackRange: 1,
+      status: 'active',
+      experience: 0,
+      abilities: [],
+      level: 1,
+      temporaryEffects: [],
+    };
+    const hiddenEnemy: Unit = {
+      ...warrior,
+      id: 'hidden_enemy',
+      playerId: '2',
+      coordinate: { q: 1, r: -1, s: 0 },
+    };
+
+    const tiles = [
+      makeTile(0, 0, 'plains', ['1'], { hasCity: true, cityOwner: '1' }),
+      makeTile(1, -1, 'plains', []),
+      makeTile(2, -2, 'plains', ['2'], { hasCity: true, cityOwner: '2' }),
+    ];
+    const cities: GameState['cities'] = [
+      {
+        id: 'city1',
+        name: 'Capital',
+        coordinate: { q: 0, r: 0, s: 0 },
+        ownerId: '1',
+        population: 2,
+        maxPopulation: 4,
+        level: 1,
+        starProduction: 2,
+        improvements: [],
+        structures: [],
+      },
+      {
+        id: 'enemyCity',
+        name: 'Hidden City',
+        coordinate: { q: 2, r: -2, s: 0 },
+        ownerId: '2',
+        population: 2,
+        maxPopulation: 4,
+        level: 1,
+        starProduction: 2,
+        improvements: [],
+        structures: [],
+      },
+    ];
+
+    const state = createGameState([aiPlayer, enemyPlayer], [warrior, hiddenEnemy], tiles, cities);
+    const targets = new TacticalEngine(state, aiPlayer, 7).findTacticalTargets(warrior);
+
+    expect(targets.some(target => target.unitId === 'hidden_enemy')).toBe(false);
+    expect(targets.some(target => target.cityId === 'enemyCity')).toBe(false);
+  });
+
+  it('moves toward explored tactical city targets', () => {
+    const aiPlayer = createBaseAIPlayer({
+      stars: 0,
+      atWarWith: ['2'],
+      exploredTiles: ['0,0', '1,-1', '2,-2'],
+      visibilityMask: ['0,0', '1,-1'],
+    });
+    const enemyPlayer: PlayerState = {
+      ...createBaseAIPlayer({ id: '2', name: 'Enemy', factionId: 'LAMANITES' }),
+      isAI: false,
+      aiDifficulty: undefined,
+      atWarWith: ['1'],
+      citiesOwned: ['enemyCity'],
+      turnOrder: 1,
+    };
+
+    const warrior: Unit = {
+      id: 'city_hunter',
+      type: 'warrior',
+      playerId: '1',
+      coordinate: { q: 0, r: 0, s: 0 },
+      hp: 25,
+      maxHp: 25,
+      attack: 6,
+      defense: 4,
+      movement: 1,
+      remainingMovement: 1,
+      visionRadius: 2,
+      attackRange: 1,
+      status: 'active',
+      experience: 0,
+      abilities: [],
+      level: 1,
+      temporaryEffects: [],
+    };
+
+    const tiles = [
+      makeTile(0, 0, 'plains', ['1'], { hasCity: true, cityOwner: '1' }),
+      makeTile(1, -1, 'plains', ['1']),
+      makeTile(2, -2, 'plains', ['1'], { hasCity: true, cityOwner: '2' }),
+    ];
+    const cities: GameState['cities'] = [
+      {
+        id: 'city1',
+        name: 'Capital',
+        coordinate: { q: 0, r: 0, s: 0 },
+        ownerId: '1',
+        population: 2,
+        maxPopulation: 4,
+        level: 1,
+        starProduction: 2,
+        improvements: [],
+        structures: [],
+      },
+      {
+        id: 'enemyCity',
+        name: 'Outpost',
+        coordinate: { q: 2, r: -2, s: 0 },
+        ownerId: '2',
+        population: 2,
+        maxPopulation: 4,
+        level: 1,
+        starProduction: 2,
+        improvements: [],
+        structures: [],
+      },
+    ];
+
+    const state = createGameState([aiPlayer, enemyPlayer], [warrior], tiles, cities);
+    const decisions = new AIEngine(state, aiPlayer).makeDecision();
+
+    expect(decisions.some(decision =>
+      decision.type === 'MOVE_UNIT' &&
+      decision.unitId === 'city_hunter' &&
+      decision.targetCoordinate?.q === 1 &&
+      decision.targetCoordinate?.r === -1
+    )).toBe(true);
   });
 });
 
@@ -654,6 +883,82 @@ describe('AIEngine objective actions', () => {
 });
 
 describe('AI turn execution replanning', () => {
+  it('executes direct unit ability decisions in the harness', () => {
+    const aiPlayer = createBaseAIPlayer({
+      stars: 0,
+      exploredTiles: ['0,0', '2,-2'],
+      visibilityMask: ['0,0', '2,-2'],
+    });
+    const enemyPlayer: PlayerState = {
+      ...createBaseAIPlayer({ id: '2', name: 'Enemy', factionId: 'LAMANITES' }),
+      isAI: false,
+      aiDifficulty: undefined,
+      citiesOwned: ['enemyCity'],
+      turnOrder: 1,
+    };
+
+    const catapult: Unit = {
+      id: 'siege_harness',
+      type: 'catapult',
+      playerId: '1',
+      coordinate: { q: 0, r: 0, s: 0 },
+      hp: 12,
+      maxHp: 12,
+      attack: 15,
+      defense: 2,
+      movement: 1,
+      remainingMovement: 1,
+      maxActions: 1,
+      actionsRemaining: 1,
+      visionRadius: 2,
+      attackRange: 3,
+      status: 'active',
+      experience: 0,
+      abilities: ['siege'],
+      level: 1,
+      temporaryEffects: [],
+    };
+
+    const tiles = [
+      makeTile(0, 0, 'plains', ['1'], { hasCity: true, cityOwner: '1' }),
+      makeTile(2, -2, 'plains', ['1'], { hasCity: true, cityOwner: '2' }),
+    ];
+    const cities: GameState['cities'] = [
+      {
+        id: 'city1',
+        name: 'Capital',
+        coordinate: { q: 0, r: 0, s: 0 },
+        ownerId: '1',
+        population: 2,
+        maxPopulation: 4,
+        level: 1,
+        starProduction: 2,
+        improvements: [],
+        structures: [],
+      },
+      {
+        id: 'enemyCity',
+        name: 'Enemy Stronghold',
+        coordinate: { q: 2, r: -2, s: 0 },
+        ownerId: '2',
+        population: 2,
+        maxPopulation: 4,
+        level: 1,
+        starProduction: 2,
+        improvements: [],
+        structures: [],
+      },
+    ];
+
+    const state = createGameState([aiPlayer, enemyPlayer], [catapult], tiles, cities);
+    const result = simulateAITurns(state, 1);
+    const finalCatapult = result.finalState.units.find(unit => unit.id === 'siege_harness');
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.actionsApplied).toBeGreaterThan(0);
+    expect(finalCatapult?.status).toBe('siege_mode');
+  });
+
   it('moves onto nearby ruins and re-plans to harvest them in the same turn', () => {
     const aiPlayer = createBaseAIPlayer({
       stars: 0,

@@ -87,6 +87,32 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 };
 
+const hashTelemetryString = (value: string): string => {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+};
+
+const getSaveNameTelemetry = (saveName: string | undefined) => {
+  const normalized = typeof saveName === 'string' ? saveName.trim() : '';
+  if (!normalized) {
+    return {
+      save_name: null,
+      save_name_hash: null,
+      save_name_length: 0,
+    };
+  }
+
+  return {
+    save_name: '[redacted]',
+    save_name_hash: hashTelemetryString(normalized),
+    save_name_length: normalized.length,
+  };
+};
+
 const sanitizeValue = (value: unknown, depth = 0): AnalyticsValue => {
   if (value === null) return null;
   if (typeof value === 'string') return value.slice(0, 200);
@@ -579,7 +605,7 @@ export function trackGameSaved(context: GameSaveContext): void {
     ...getGameSnapshot(context.gameState),
     save_source: context.source,
     save_id: context.saveId ?? null,
-    save_name: context.saveName ?? null,
+    ...getSaveNameTelemetry(context.saveName),
   });
 }
 

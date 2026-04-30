@@ -91,6 +91,25 @@ describe('CityPanel Unit Tests', () => {
     expect(screen.getByText('Construction Hall')).toBeInTheDocument();
   });
 
+  it('exposes city rename controls to touch and assistive tech', () => {
+    render(
+      <CityPanel
+        open={true}
+        onClose={vi.fn()}
+        cityId={mockCity.id}
+      />
+    );
+
+    const renameButton = screen.getByRole('button', { name: 'Rename city Test City' });
+    expect(renameButton).toHaveClass('opacity-100');
+
+    fireEvent.click(renameButton);
+
+    expect(screen.getByRole('textbox', { name: 'City name' })).toHaveValue('Test City');
+    expect(screen.getByRole('button', { name: 'Save city name' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel city rename' })).toBeInTheDocument();
+  });
+
   it('shows structure requirements and disables unaffordable builds', () => {
     render(
       <CityPanel
