@@ -14,6 +14,7 @@ Historical checklists, implementation notes, backup records, and one-time audit 
 - [GAME_ANALYTICS.md](./GAME_ANALYTICS.md) - gameplay telemetry setup and event catalog
 - [POSTHOG_DASHBOARD_SPEC.md](./POSTHOG_DASHBOARD_SPEC.md) - dashboard configuration for gameplay tuning
 - [RULES_SINGLE_SOURCE_OF_TRUTH.md](./RULES_SINGLE_SOURCE_OF_TRUTH.md) - current rules ownership policy and remaining drift risks
+- [MAP_GENERATOR_SPLIT_PLAN.md](./MAP_GENERATOR_SPLIT_PLAN.md) - behavior-preserving plan for splitting the large procedural map generator
 
 ## Repo-Level References
 
