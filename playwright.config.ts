@@ -11,24 +11,59 @@ const parseAppPort = (value: string | undefined) => {
   return parsed;
 };
 
+const parseWorkers = (value: string | undefined) => {
+  if (value == null || value.trim() === '') return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`PLAYWRIGHT_WORKERS must be a positive integer, received: ${value}`);
+  }
+  return parsed;
+};
+
 const appPort = parseAppPort(process.env.PLAYWRIGHT_APP_PORT);
 const appBaseUrl = `http://localhost:${appPort}`;
 const skipWebServer = process.env.PLAYWRIGHT_SKIP_WEB_SERVER === 'true';
 const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_SERVER === 'true';
 const webServerCommand = process.env.PLAYWRIGHT_WEB_SERVER_COMMAND ?? 'npm run dev:e2e';
 const webServerReadyUrl = process.env.PLAYWRIGHT_WEB_SERVER_READY_URL ?? appBaseUrl;
+const runFullMatrix = process.env.PLAYWRIGHT_FULL_MATRIX === 'true';
+const configuredWorkers = parseWorkers(process.env.PLAYWRIGHT_WORKERS);
 
 const desktopChromiumProject = {
   name: 'chromium',
   use: { ...devices['Desktop Chrome'] },
 };
 
+const fullProjectMatrix = [
+  desktopChromiumProject,
+  {
+    name: 'firefox',
+    use: { ...devices['Desktop Firefox'] },
+  },
+  {
+    name: 'webkit',
+    use: { ...devices['Desktop Safari'] },
+  },
+  {
+    name: 'mobile-chrome',
+    use: { ...devices['Pixel 5'] },
+  },
+  {
+    name: 'mobile-safari',
+    use: { ...devices['iPhone 12'] },
+  },
+  {
+    name: 'tablet',
+    use: { ...devices['iPad Pro'] },
+  },
+];
+
 export default defineConfig({
   testDir: './test/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: configuredWorkers ?? (process.env.CI ? 1 : undefined),
   reporter: process.env.CI ? 'html' : 'list',
   
   use: {
@@ -38,31 +73,7 @@ export default defineConfig({
     video: process.env.CI ? 'off' : 'retain-on-failure'
   },
 
-  projects: process.env.CI
-    ? [desktopChromiumProject]
-    : [
-        desktopChromiumProject,
-        {
-          name: 'firefox',
-          use: { ...devices['Desktop Firefox'] },
-        },
-        {
-          name: 'webkit',
-          use: { ...devices['Desktop Safari'] },
-        },
-        {
-          name: 'mobile-chrome',
-          use: { ...devices['Pixel 5'] },
-        },
-        {
-          name: 'mobile-safari',
-          use: { ...devices['iPhone 12'] },
-        },
-        {
-          name: 'tablet',
-          use: { ...devices['iPad Pro'] },
-        }
-      ],
+  projects: process.env.CI && !runFullMatrix ? [desktopChromiumProject] : fullProjectMatrix,
 
   ...(skipWebServer
     ? {}

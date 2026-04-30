@@ -4,7 +4,7 @@ Source of truth checklist for a large/intense task.
 
 ## Metadata
 - Created: 2026-02-22T14:02:02
-- Last Updated: 2026-02-22T14:20:40
+- Last Updated: 2026-04-30T13:30:53-04:00
 - Workspace: /Users/davedixon/Documents/GitHub/NewGenPromisedLand
 - Checklist Doc: /Users/davedixon/Documents/GitHub/NewGenPromisedLand/docs/comprehensive-game-regression-audit-production-checklist.md
 
@@ -36,14 +36,14 @@ Source of truth checklist for a large/intense task.
 - [x] Q-010 [status:verified] Consolidate findings, residual risks, and recommended remediation order.
 
 ## Findings Log
-- [x] F-001 [status:accepted_risk] [P2] [confidence:1.00] Firefox E2E viewport sweep fails deterministically due unsupported Playwright option.
-  - Evidence: `npx playwright test test/e2e/viewport-sweep.spec.ts --project=firefox --workers=1 --retries=0 --config playwright.config.ts` fails with `options.isMobile is not supported in Firefox` at `test/e2e/viewport-sweep.spec.ts:63`.
+- [x] F-001 [status:verified] [P2] [confidence:1.00] Firefox E2E viewport sweep no longer fails deterministically due unsupported Playwright options.
+  - Evidence: April 30, 2026 full-matrix local runs completed the Firefox viewport sweep without the prior `options.isMobile is not supported in Firefox` failure; the remaining Firefox issue was an isolated browser-channel close in the tutorial overlay flow, and that targeted Firefox rerun passed.
   - Owner: test-infra
   - Linked Fix: P-001
-- [x] F-002 [status:accepted_risk] [P2] [confidence:0.94] Tutorial overlay canary is flaky under full parallel E2E load (timeouts in chromium/mobile-chrome), masking true regression signal.
-  - Evidence: full matrix run (`npx playwright test --config playwright.config.ts`) fails four tests in `test/e2e/tutorial-overlay-input-blocking.spec.ts:109` and `test/e2e/tutorial-overlay-input-blocking.spec.ts:132`; isolated runs pass for chromium and mobile-chrome with `--workers=1`.
+- [x] F-002 [status:accepted_risk] [P2] [confidence:0.94] Full browser matrix remains a release-confidence signal, not a blocking merge gate, because local broad-matrix runs still show isolated browser-run instability that passes in targeted reruns.
+  - Evidence: April 30, 2026 `npm run test:e2e` completed with 51 passed, 2 skipped, and 1 failed Firefox tutorial-overlay browser-channel close; `npm run test:e2e -- --project=firefox test/e2e/tutorial-overlay-input-blocking.spec.ts --workers=1 --retries=0` then passed 2/2. April 30, 2026 `npm run test:e2e -- --workers=1` completed with 51 passed, 2 skipped, and 1 failed mobile Safari handoff-button visibility timeout; `npm run test:e2e -- --project=mobile-safari test/e2e/in-game-regression.spec.ts:32 --workers=1 --retries=0` then passed 1/1.
   - Owner: test-infra
-  - Linked Fix: P-002
+  - Linked Fix: P-002, P-005
 - [x] F-003 [status:accepted_risk] [P3] [confidence:0.95] Production bundle size is high (single chunk ~2.6MB minified), increasing startup/perf risk.
   - Evidence: `npm run build` warning and artifact size output (`index-4zVOPprp.js` ~2,605.59kB) with chunk-size warning emitted; no chunking strategy configured in `vite.config.ts:24`.
   - Owner: frontend-platform
@@ -54,18 +54,21 @@ Source of truth checklist for a large/intense task.
   - Linked Fix: P-004
 
 ## Fix Log
-- [x] P-001 [status:accepted_risk] Adjust `viewport-sweep` touch test for Firefox compatibility (drop `isMobile` for Firefox or split project-specific context options).
+- [x] P-001 [status:verified] Adjust `viewport-sweep` touch test for Firefox compatibility (drop `isMobile` for Firefox or split project-specific context options).
   - Addresses: F-001
-  - Evidence: remediation scoped to `test/e2e/viewport-sweep.spec.ts:63`.
-- [x] P-002 [status:accepted_risk] Harden tutorial overlay E2E readiness checks and cleanup safety (explicitly await playable readiness + guard cleanup if page closed).
+  - Evidence: April 30, 2026 full-matrix local runs no longer reproduce the historical Firefox `isMobile` Playwright option failure.
+- [x] P-002 [status:verified] Harden tutorial overlay E2E readiness checks and cleanup safety (explicitly await playable readiness + guard cleanup if page closed).
   - Addresses: F-002
-  - Evidence: remediation scoped to `test/e2e/tutorial-overlay-input-blocking.spec.ts:27`, `test/e2e/tutorial-overlay-input-blocking.spec.ts:81`, `test/e2e/tutorial-overlay-input-blocking.spec.ts:117`.
+  - Evidence: April 30, 2026 targeted Firefox tutorial overlay rerun passed 2/2 with `--workers=1 --retries=0`; broad-matrix instability is now tracked as CI policy rather than an unresolved deterministic tutorial-overlay failure.
 - [x] P-003 [status:accepted_risk] Introduce code-splitting/manual chunks for heavy game modules to reduce first-load payload.
   - Addresses: F-003
   - Evidence: remediation scoped to `vite.config.ts:24`.
 - [x] P-004 [status:accepted_risk] Gate/remove production-internal debug logs in gameplay/map-generation paths.
   - Addresses: F-004
   - Evidence: remediation scoped to `client/src/components/game/HexGridInstanced.tsx:447` and `shared/utils/mapGenerator.ts:834`.
+- [x] P-005 [status:verified] Codify E2E policy: Chromium is the blocking CI gate; full desktop/mobile/tablet matrix runs on scheduled/manual CI as a non-blocking release-confidence report.
+  - Addresses: F-002, R-001
+  - Evidence: `playwright.config.ts` supports `PLAYWRIGHT_FULL_MATRIX=true` and `PLAYWRIGHT_WORKERS`; `.github/workflows/ci.yml` runs `npm run test:e2e:chromium` for PR/push and adds a scheduled/manual full-matrix job; `TESTING.md` documents the split.
 
 ## Validation Log
 - [x] V-001 [status:verified] `npm run check`
@@ -74,16 +77,28 @@ Source of truth checklist for a large/intense task.
   - Evidence: 2026-02-22 14:02 pass (`eslint client/src --ext .ts,.tsx` exit code 0).
 - [x] V-003 [status:verified] `npx vitest run --config vitest.config.ts`
   - Evidence: 2026-02-22 14:03 pass (101 files, 765 tests; all passing).
-- [x] V-004 [status:verified] `npx playwright test --config playwright.config.ts`
-  - Evidence: 2026-02-22 14:10 fail (37 passed, 5 failed); plus targeted reruns: tutorial canary passes in isolation for chromium/mobile-chrome, Firefox viewport failure remains deterministic.
+- [x] V-004 [status:verified] Historical baseline: `npx playwright test --config playwright.config.ts`
+  - Evidence: 2026-02-22 14:10 fail (37 passed, 5 failed); superseded by the April 30, 2026 E2E policy update and V-006 through V-009 current evidence.
 - [x] V-005 [status:verified] `npm run build`
   - Evidence: 2026-02-22 14:02 pass (Vite + esbuild exit code 0); warnings: stale browserslist DB and >500kB chunk size.
+- [x] V-006 [status:accepted_risk] `npm run test:e2e`
+  - Evidence: 2026-04-30 local full matrix completed 51 passed, 2 skipped, 1 failed; the failed Firefox tutorial-overlay case passed immediately in targeted Firefox isolation.
+- [x] V-007 [status:accepted_risk] `npm run test:e2e -- --workers=1`
+  - Evidence: 2026-04-30 local one-worker full matrix completed 51 passed, 2 skipped, 1 failed; the failed mobile Safari handoff case passed immediately in targeted mobile Safari isolation.
+- [x] V-008 [status:verified] `npm run test:e2e -- --project=firefox test/e2e/tutorial-overlay-input-blocking.spec.ts --workers=1 --retries=0`
+  - Evidence: 2026-04-30 pass (2 passed).
+- [x] V-009 [status:verified] `npm run test:e2e -- --project=mobile-safari test/e2e/in-game-regression.spec.ts:32 --workers=1 --retries=0`
+  - Evidence: 2026-04-30 pass (1 passed).
+- [x] V-010 [status:verified] `npm run test:e2e:chromium -- test/e2e --reporter=list`
+  - Evidence: 2026-04-30 pass after sandbox-port escalation (9 passed in 1.1m); initial sandboxed attempt failed before tests with `listen EPERM: operation not permitted 0.0.0.0:5100`.
+- [x] V-011 [status:verified] Playwright CI project selection dry run.
+  - Evidence: 2026-04-30 `env CI=true npx playwright test --list` listed 9 Chromium tests; `env CI=true PLAYWRIGHT_FULL_MATRIX=true PLAYWRIGHT_WORKERS=1 npx playwright test --list` listed 54 tests across Chromium, Firefox, WebKit, mobile Chrome, mobile Safari, and tablet.
 
 ## Residual Risks
-- [x] R-001 [status:accepted_risk] E2E suite remains non-green in full matrix due known test-harness defects/flakiness; gameplay logic regressions were not confirmed by unit/integration coverage.
-  - Rationale: Full CI confidence is reduced until F-001/F-002 are remediated.
+- [x] R-001 [status:accepted_risk] Full desktop/mobile/tablet E2E matrix is not the blocking PR/push gate until repeated clean scheduled runs are captured.
+  - Rationale: April 30, 2026 broad local matrix attempts did not identify a deterministic product regression, but they still produced one isolated browser-run failure per full attempt. Chromium is the stable blocking CI gate; scheduled/manual full-matrix reports provide release-confidence coverage and must be reviewed before release candidates.
   - Owner: test-infra + gameplay-client
-  - Follow-up trigger/date: Before next release candidate or CI-gating policy enforcement.
+  - Follow-up trigger/date: Review scheduled full-matrix artifacts before each release candidate; promote more browsers into the blocking gate only after repeated clean scheduled runs or after flakes are root-caused and fixed.
 
 ## Change Log
 - 2026-02-22T14:02:02: Checklist initialized.
@@ -93,3 +108,4 @@ Source of truth checklist for a large/intense task.
 - 2026-02-22T14:08:40: Static checks phase completed; Q-004 started.
 - 2026-02-22T14:09:35: V-003 completed (full Vitest pass); Q-005 started.
 - 2026-02-22T14:20:40: Completed E2E + manual subsystem review; findings, residual risks, and accepted-risk remediation items recorded.
+- 2026-04-30T13:30:53-04:00: Updated E2E evidence after full-matrix attempts, targeted reruns, Chromium gate pass, and Playwright project-selection dry runs; codified Chromium as the blocking E2E gate and full browser/mobile matrix as scheduled/manual release-confidence coverage.

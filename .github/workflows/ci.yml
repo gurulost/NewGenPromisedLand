@@ -5,6 +5,9 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 10 * * 1-5'
 
 jobs:
   typecheck:
@@ -129,14 +132,72 @@ jobs:
       - name: Install Playwright
         run: npx playwright install --with-deps
         
-      - name: Run E2E tests
-        run: npx playwright test test/e2e --reporter=html
+      - name: Run Chromium E2E gate
+        run: npm run test:e2e:chromium -- test/e2e --reporter=html
       
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-report
+          path: playwright-report/
+
+  e2e-full-matrix:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: newgen
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d newgen"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/newgen
+      SESSION_SECRET: ci-e2e-matrix-session-secret
+      PLAYWRIGHT_FULL_MATRIX: 'true'
+      PLAYWRIGHT_WORKERS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify Git LFS assets hydrated
+        run: |
+          if grep -RIl "version https://git-lfs.github.com/spec/v1" client/public; then
+            echo "Found Git LFS pointer files in client/public. Ensure LFS assets are available before running the full E2E matrix."
+            exit 1
+          fi
+
+      - name: Apply database schema
+        run: npm run db:push
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+
+      - name: Run full browser E2E matrix
+        continue-on-error: true
+        run: npm run test:e2e:matrix -- test/e2e --reporter=html
+
+      - name: Upload full matrix report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-full-matrix-report
           path: playwright-report/
 
   lighthouse-audit:

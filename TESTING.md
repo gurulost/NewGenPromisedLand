@@ -38,8 +38,9 @@ npx vitest run test/a11y
 npx vitest run test/performance
 
 # E2E tests
-npx playwright test
-npx playwright test test/e2e --project=chromium
+npm run test:e2e
+npm run test:e2e:chromium
+npm run test:e2e:matrix
 npm run test:e2e -- test/e2e/main-menu-setup.spec.ts --project=mobile-chrome
 ```
 
@@ -71,7 +72,13 @@ CI uses `npm run check`, not the narrower `npm run typecheck`, so type checks an
 
 Asset-dependent CI jobs hydrate Git LFS assets during checkout and verify that `client/public` does not contain Git LFS pointer files before building, running Vitest, running E2E tests, or running Lighthouse. This prevents release artifacts and browser tests from silently using pointer files instead of real assets.
 
-Playwright starts the app through the configured `webServer` using `npm run dev:e2e`, which avoids the `tsx` CLI IPC path used by the normal dev server. Its readiness probe targets the app shell by default instead of `__health`, because E2E runs disable the save API and should not require a local Postgres role just to start browser tests. CI currently runs the Chromium project only; local runs use the broader desktop, mobile, and tablet project matrix from `playwright.config.ts`.
+Playwright starts the app through the configured `webServer` using `npm run dev:e2e`, which avoids the `tsx` CLI IPC path used by the normal dev server. Its readiness probe targets the app shell by default instead of `__health`, because E2E runs disable the save API and should not require a local Postgres role just to start browser tests.
+
+The blocking pull request and push E2E gate is Chromium only: `npm run test:e2e:chromium -- test/e2e --reporter=html`. That is the required merge signal because it exercises the core browser gameplay flows with the most stable CI browser. A scheduled weekday job and manual `workflow_dispatch` job run the broader desktop/mobile/tablet matrix with `PLAYWRIGHT_FULL_MATRIX=true` and `PLAYWRIGHT_WORKERS=1`; that job uploads a Playwright report and is intentionally non-blocking. Full-matrix failures should be triaged before a release candidate, but they do not block routine PRs unless they reproduce in Chromium or in an isolated targeted rerun.
+
+Local `npm run test:e2e` uses the broader project matrix from `playwright.config.ts`. Use `npm run test:e2e:matrix` when you want the same one-worker shape as the scheduled full-matrix job, and use `npm run test:e2e:chromium` when you want the same blocking gate that CI enforces.
+
+Current E2E confidence note from April 30, 2026: the Chromium gate passed 9/9 after running outside the local sandbox so Playwright could bind its web server. Two local full-matrix attempts completed with 51 passing tests, 2 intentional mobile viewport skips, and 1 isolated browser-run failure each. The failed Firefox tutorial-overlay case passed immediately in a targeted Firefox rerun, and the failed mobile Safari handoff case passed immediately in a targeted mobile Safari rerun. No deterministic product regression was found in those attempts; until repeated clean full-matrix runs are captured, Chromium remains the blocking CI gate and the full matrix remains the scheduled release-confidence signal.
 
 For local debugging against a server you already started, run `npm run dev:e2e` in one terminal and then run Playwright with either `PLAYWRIGHT_REUSE_SERVER=true` or `PLAYWRIGHT_SKIP_WEB_SERVER=true`. Reuse lets Playwright use the configured readiness URL and start the server only if needed; skip never starts a server and expects one to already be listening.
 
