@@ -13,7 +13,7 @@ Historical checklists, implementation notes, backup records, and one-time audit 
 - [ERROR_LOGGING.md](./ERROR_LOGGING.md) - runtime error reporting, bug report intake, and monitoring setup
 - [GAME_ANALYTICS.md](./GAME_ANALYTICS.md) - gameplay telemetry setup and event catalog
 - [POSTHOG_DASHBOARD_SPEC.md](./POSTHOG_DASHBOARD_SPEC.md) - dashboard configuration for gameplay tuning
-- [SINGLE_SOURCE_OF_TRUTH_AUDIT.md](./SINGLE_SOURCE_OF_TRUTH_AUDIT.md) - current canonical-rules migration notes and remaining drift risks
+- [RULES_SINGLE_SOURCE_OF_TRUTH.md](./RULES_SINGLE_SOURCE_OF_TRUTH.md) - current rules ownership policy and remaining drift risks
 
 ## Repo-Level References
 

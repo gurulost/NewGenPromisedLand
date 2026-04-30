@@ -476,12 +476,7 @@ Future enhancements planned:
 
 ## Cost Management
 
-PostHog pricing (as of 2025):
-
-**Free Tier:**
-- 1 million events/month
-- 15,000 session recordings/month
-- 1 year data retention
+PostHog plan limits change over time. Check current PostHog pricing before enabling high-volume events, session recording, or long retention.
 
 **Tips to Stay Under Limits:**
 - Filter out noisy events in development
@@ -493,7 +488,7 @@ PostHog pricing (as of 2025):
 For analytics-related questions:
 
 1. Check [PostHog Documentation](https://posthog.com/docs)
-2. Review `client/src/utils/posthog.ts` for implementation details
+2. Review `client/src/utils/telemetry/posthog.ts` and `client/src/utils/telemetry/index.ts` for implementation details
 3. Search PostHog Community Slack
 4. Create an issue in the project repository
 

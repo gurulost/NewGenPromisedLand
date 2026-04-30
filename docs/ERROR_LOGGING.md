@@ -32,16 +32,16 @@ Chronicles of the Promised Land has a comprehensive error logging and monitoring
 
 ### Server-Side Logging
 
-**logger.ts** - Structured logging with Pino
-- Request/response logging
-- Correlation IDs for request tracing
-- JSON structured logs for production
-- Pretty-printed logs for development
-- Error stack trace capture
+**server/utils/logger.ts** and **server/ops.ts** - Server logging and operational health
+- Lightweight structured console logging helpers
+- Request ID propagation through `x-request-id`
+- `/__health` runtime and database dependency checks
+- Graceful shutdown state tracking
+- Error stack trace capture in the Express error handler
 
 ### Player Bug Reports
 
-**BugReportHost / BugReportDialog** - In-game issue intake
+**client/src/components/ui/BugReportHost.tsx / BugReportDialog.tsx** - In-game issue intake
 - Adds a low-friction `Something not working?` launcher in the desktop utility dock and mobile game menu
 - Supports one-click report entry from critical error dialogs and the React error boundary
 - Queues retryable submissions offline and automatically replays them when connectivity returns
@@ -61,7 +61,7 @@ Chronicles of the Promised Land has a comprehensive error logging and monitoring
 
 ### 1. Basic Setup (No External Services)
 
-The logging system works out of the box without any configuration:
+The logging system works without external monitoring services. The app still needs the normal server environment such as `DATABASE_URL`.
 
 ```bash
 npm run dev
@@ -239,16 +239,16 @@ logger.info('Server started');
 logger.warn('Deprecated API used');
 logger.error('Database connection failed', { error: err });
 
-// In route handlers (req.logger is automatically created)
 app.get('/api/game/:id', (req, res) => {
-  req.logger.info('Fetching game', { gameId: req.params.id });
+  const requestLogger = createRequestLogger(req);
+  requestLogger.info('Fetching game', { gameId: req.params.id });
   
   try {
     const game = getGame(req.params.id);
-    req.logger.info('Game fetched successfully');
+    requestLogger.info('Game fetched successfully');
     res.json(game);
   } catch (error) {
-    req.logger.error('Failed to fetch game', error, {
+    requestLogger.error('Failed to fetch game', error, {
       gameId: req.params.id,
     });
     res.status(500).json({ error: 'Internal server error' });
@@ -258,7 +258,8 @@ app.get('/api/game/:id', (req, res) => {
 
 **Creating Child Loggers**
 ```typescript
-const userLogger = req.logger.child({ userId: user.id });
+const requestLogger = createRequestLogger(req);
+const userLogger = requestLogger.child({ userId: user.id });
 userLogger.info('User action performed', { action: 'purchase' });
 ```
 
@@ -514,11 +515,9 @@ Replay user sessions leading to errors:
 
 ## Cost Optimization
 
-### Sentry Free Tier
+### Sentry Plan Limits
 
-- 5,000 errors/month
-- 500 replays/month
-- 10,000 performance transactions/month
+Check the current Sentry plan limits before enabling high-volume replay or performance sampling in production.
 
 ### Optimize Sample Rates
 
