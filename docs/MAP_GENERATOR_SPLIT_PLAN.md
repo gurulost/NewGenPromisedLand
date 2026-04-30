@@ -8,6 +8,7 @@
 - Internal generation, candidate, diagnostics, and report types now live in `shared/utils/mapGenerationTypes.ts`.
 - Debug logging, default diagnostics, water-repair reason defaults, and spread helpers now live in `shared/utils/mapGenerationDiagnostics.ts`.
 - Coordinate keys, tile indexes, and mutable placement-context helpers now live in `shared/utils/mapGenerationGeometry.ts`.
+- Water body indexing/grouping, water ratio/body-size lookups, water-mask cleanup, capital water metrics, and water-repair path search now live in `shared/utils/mapGenerationWater.ts`.
 - `shared/utils/mapGenerator.ts` remains the public facade for `MapGenerator`, constants, size types, config, and report types.
 
 ## Goals
@@ -48,7 +49,7 @@ The first split pass should keep these exports and behaviors stable:
 - `mapGenerationGeometry.ts`: coordinate keys, tile indexes, placement context mutation, and distance-to-context helpers.
 - `mapGenerationDiagnostics.ts`: spread summaries, diagnostics defaults, water-repair defaults, and debug logging helpers.
 - `mapCapitalPlacement.ts`: capital candidate selection, fallback placement, spacing, land access, and per-capital reports.
-- `mapWaterGeneration.ts`: water motifs, water masks, body analysis, coastal/repair rules, and water resources.
+- `mapGenerationWater.ts`: water motifs, water masks, body analysis, coastal/repair rules, and water resources.
 - `mapSettlementPlacement.ts`: neutral cities, expansion villages, contested villages, ring counts, and village diagnostics.
 - `mapTerrainGeneration.ts`: base terrain probabilities, noise classification, and faction terrain modifiers.
 - `mapLandResources.ts`: land resource candidates, spacing/cap constraints, home-zone guarantees, and variety guarantees.

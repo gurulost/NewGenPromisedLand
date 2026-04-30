@@ -16,6 +16,20 @@ import {
   minDistanceToVillage,
 } from './mapGenerationGeometry';
 import {
+  buildWaterBodyIndex,
+  fillWaterDeficit,
+  findPathToWater,
+  getCapitalWaterMetrics,
+  getMinWaterBodySize,
+  getWaterFactionMinBodySize,
+  getWaterFactionMinCoastTiles,
+  getWaterRatioRange,
+  groupWaterBodies,
+  removeSmallWaterBodies,
+  smoothWaterMask,
+  trimWaterSurplus,
+} from './mapGenerationWater';
+import {
   CAPITAL_MIN_DISTANCE_BY_SIZE,
   MAP_GENERATION_CONSTANTS,
   MAP_SIZE_CONFIGS,
@@ -297,7 +311,7 @@ export class MapGenerator {
     const repairedWaterData = this.repairCapitalWaterAccess(
       tiles,
       capitalPositions,
-      this.buildWaterBodyIndex(tiles),
+      buildWaterBodyIndex(tiles),
       mapRadius
     );
     
@@ -434,7 +448,12 @@ export class MapGenerator {
           this.isLandResourceType(resource) && this.getResourceCategory(resource) === 'prod'
         )
       );
-      const waterMetrics = this.getCapitalWaterMetrics(capital, tiles, waterData, Math.min(this.config.width, this.config.height));
+      const waterMetrics = getCapitalWaterMetrics(
+        capital,
+        tiles,
+        waterData,
+        Math.min(this.config.width, this.config.height)
+      );
 
       return {
         index,
@@ -719,12 +738,15 @@ export class MapGenerator {
     const modifiers = factionId ? TRIBAL_SPAWN_MODIFIERS[factionId] : null;
     const wantsWater = !!modifiers && modifiers.water > 1;
     const waterMetrics = wantsWater
-      ? this.getCapitalWaterMetrics(tile.coordinate, tiles, waterData, mapRadius)
+      ? getCapitalWaterMetrics(tile.coordinate, tiles, waterData, mapRadius)
       : null;
     const waterBonus = waterMetrics
       ? waterMetrics.adjacentWaterTiles * 0.4 +
         waterMetrics.coastTilesWithinRadius * 0.15 +
-        Math.min(1, waterMetrics.connectedBodySize / Math.max(1, this.getMulekiteMinBodySize())) * 0.4
+        Math.min(
+          1,
+          waterMetrics.connectedBodySize / Math.max(1, getWaterFactionMinBodySize(this.config.mapSize))
+        ) * 0.4
       : 0;
 
     return -sectorDistance - radialPenalty + neighborLandBonus + waterBonus + rng.next() * 0.05;
@@ -819,7 +841,7 @@ export class MapGenerator {
   private generateWaterMask(tiles: Tile[], mapRadius: number): WaterBodyData {
     const rng = this.rngStreams.water;
     const motif = this.pickWaterMotif();
-    const { min, max } = this.getWaterRatioRange();
+    const { min, max } = getWaterRatioRange(this.config.mapSize);
     const targetRatio = min + (max - min) * rng.next();
     const targetCount = Math.round(tiles.length * targetRatio);
     const scoreByKey = this.scoreWaterTiles(tiles, mapRadius, motif);
@@ -835,29 +857,29 @@ export class MapGenerator {
     });
 
     for (let pass = 0; pass < MAP_GENERATION_CONSTANTS.WATER_SMOOTH_PASSES; pass++) {
-      this.smoothWaterMask(tiles);
+      smoothWaterMask(tiles);
     }
 
-    let waterData = this.buildWaterBodyIndex(tiles);
-    this.removeSmallWaterBodies(tiles, waterData, this.getMinWaterBodySize());
+    let waterData = buildWaterBodyIndex(tiles);
+    removeSmallWaterBodies(tiles, waterData, getMinWaterBodySize(this.config.mapSize));
 
     const waterCount = tiles.filter(tile => tile.terrain === 'water').length;
     const minTarget = Math.round(tiles.length * min);
     const maxTarget = Math.round(tiles.length * max);
 
     if (waterCount < minTarget) {
-      this.fillWaterDeficit(tiles, scoreByKey, minTarget - waterCount);
+      fillWaterDeficit(tiles, scoreByKey, minTarget - waterCount);
     } else if (waterCount > maxTarget) {
-      this.trimWaterSurplus(tiles, scoreByKey, waterCount - maxTarget);
+      trimWaterSurplus(tiles, scoreByKey, waterCount - maxTarget);
     }
 
-    waterData = this.buildWaterBodyIndex(tiles);
-    this.removeSmallWaterBodies(tiles, waterData, this.getMinWaterBodySize());
+    waterData = buildWaterBodyIndex(tiles);
+    removeSmallWaterBodies(tiles, waterData, getMinWaterBodySize(this.config.mapSize));
     const postTrimCount = tiles.filter(tile => tile.terrain === 'water').length;
     if (postTrimCount < minTarget) {
-      this.fillWaterDeficit(tiles, scoreByKey, minTarget - postTrimCount);
+      fillWaterDeficit(tiles, scoreByKey, minTarget - postTrimCount);
     }
-    waterData = this.buildWaterBodyIndex(tiles);
+    waterData = buildWaterBodyIndex(tiles);
 
     debugMapGeneratorLog?.(`Water motif: ${motif}, ratio: ${(tiles.filter(t => t.terrain === 'water').length / tiles.length).toFixed(2)}`);
 
@@ -958,85 +980,6 @@ export class MapGenerator {
     return scores;
   }
 
-  private smoothWaterMask(tiles: Tile[]): void {
-    const tileIndex = buildTileIndex(tiles);
-    const toLand: Tile[] = [];
-    const toWater: Tile[] = [];
-
-    for (const tile of tiles) {
-      const waterNeighbors = hexNeighbors(tile.coordinate)
-        .map(coord => tileIndex.get(coordKey(coord)))
-        .filter((neighbor): neighbor is Tile => !!neighbor && neighbor.terrain === 'water').length;
-
-      if (tile.terrain === 'water' && waterNeighbors <= 1) {
-        toLand.push(tile);
-      } else if (tile.terrain !== 'water' && waterNeighbors >= 5) {
-        toWater.push(tile);
-      }
-    }
-
-    toLand.forEach(tile => {
-      tile.terrain = 'plains';
-    });
-    toWater.forEach(tile => {
-      tile.terrain = 'water';
-    });
-  }
-
-  private removeSmallWaterBodies(tiles: Tile[], waterData: WaterBodyData, minSize: number): void {
-    const waterBodies = this.groupWaterBodies(tiles, waterData);
-    waterBodies.forEach(body => {
-      if (body.length < minSize) {
-        body.forEach(tile => {
-          tile.terrain = 'plains';
-        });
-      }
-    });
-  }
-
-  private fillWaterDeficit(tiles: Tile[], scoreByKey: Map<string, number>, needed: number): void {
-    if (needed <= 0) return;
-    const tileIndex = buildTileIndex(tiles);
-    const candidates = tiles
-      .filter(tile => tile.terrain !== 'water')
-      .filter(tile => hexNeighbors(tile.coordinate)
-        .map(coord => tileIndex.get(coordKey(coord)))
-        .some(neighbor => neighbor?.terrain === 'water'))
-      .sort((a, b) => (scoreByKey.get(coordKey(b.coordinate)) ?? 0) - (scoreByKey.get(coordKey(a.coordinate)) ?? 0));
-
-    let remaining = needed;
-    for (const tile of candidates) {
-      if (remaining <= 0) break;
-      tile.terrain = 'water';
-      remaining -= 1;
-    }
-
-    if (remaining > 0) {
-      const fallback = tiles
-        .filter(tile => tile.terrain !== 'water')
-        .sort((a, b) => (scoreByKey.get(coordKey(b.coordinate)) ?? 0) - (scoreByKey.get(coordKey(a.coordinate)) ?? 0));
-      for (const tile of fallback) {
-        if (remaining <= 0) break;
-        tile.terrain = 'water';
-        remaining -= 1;
-      }
-    }
-  }
-
-  private trimWaterSurplus(tiles: Tile[], scoreByKey: Map<string, number>, surplus: number): void {
-    if (surplus <= 0) return;
-    const candidates = tiles
-      .filter(tile => tile.terrain === 'water')
-      .sort((a, b) => (scoreByKey.get(coordKey(a.coordinate)) ?? 0) - (scoreByKey.get(coordKey(b.coordinate)) ?? 0));
-
-    let remaining = surplus;
-    for (const tile of candidates) {
-      if (remaining <= 0) break;
-      tile.terrain = 'plains';
-      remaining -= 1;
-    }
-  }
-
   private repairCapitalWaterAccess(
     tiles: Tile[],
     capitalPositions: HexCoordinate[],
@@ -1056,18 +999,18 @@ export class MapGenerator {
       if (!wantsWater) continue;
 
       const capital = capitalPositions[i];
-      const metrics = this.getCapitalWaterMetrics(capital, tiles, updatedWaterData, mapRadius);
+      const metrics = getCapitalWaterMetrics(capital, tiles, updatedWaterData, mapRadius);
       if (
         metrics.adjacentWaterTiles > 0 &&
-        metrics.connectedBodySize >= this.getMulekiteMinBodySize() &&
-        metrics.coastTilesWithinRadius >= this.getMulekiteMinCoastTiles()
+        metrics.connectedBodySize >= getWaterFactionMinBodySize(this.config.mapSize) &&
+        metrics.coastTilesWithinRadius >= getWaterFactionMinCoastTiles(this.config.mapSize)
       ) {
         continue;
       }
 
       const tileIndex = buildTileIndex(tiles);
-      const minBodySize = this.getMulekiteMinBodySize();
-      const path = this.findPathToWater(capital, tileIndex, updatedWaterData, minBodySize);
+      const minBodySize = getWaterFactionMinBodySize(this.config.mapSize);
+      const path = findPathToWater(capital, tileIndex, updatedWaterData, minBodySize);
       if (path.length === 0) {
         repairReasons[i].no_path += 1;
       } else if (path.length > MAP_GENERATION_CONSTANTS.WATER_REPAIR_BUDGET) {
@@ -1097,117 +1040,12 @@ export class MapGenerator {
         }
       }
 
-      updatedWaterData = this.buildWaterBodyIndex(tiles);
+      updatedWaterData = buildWaterBodyIndex(tiles);
     }
 
     this.lastWaterRepairByCapital = repairsByCapital;
     this.lastWaterRepairReasons = repairReasons;
     return updatedWaterData;
-  }
-
-  private getWaterRatioRange(): { min: number; max: number } {
-    return MAP_GENERATION_CONSTANTS.WATER_RATIO_BY_SIZE[this.config.mapSize] ?? { min: 0.16, max: 0.24 };
-  }
-
-  private getMinWaterBodySize(): number {
-    return MAP_GENERATION_CONSTANTS.WATER_MIN_BODY_SIZE_BY_SIZE[this.config.mapSize] ?? 10;
-  }
-
-  private getMulekiteMinBodySize(): number {
-    return MAP_GENERATION_CONSTANTS.WATER_MULEKITE_MIN_BODY_SIZE_BY_SIZE[this.config.mapSize] ?? 12;
-  }
-
-  private getMulekiteMinCoastTiles(): number {
-    return MAP_GENERATION_CONSTANTS.WATER_MULEKITE_MIN_COAST_TILES_BY_SIZE[this.config.mapSize] ?? 3;
-  }
-
-  private getCapitalWaterMetrics(
-    coord: HexCoordinate,
-    tiles: Tile[],
-    waterData: WaterBodyData,
-    mapRadius: number
-  ): { adjacentWaterTiles: number; connectedBodySize: number; coastTilesWithinRadius: number } {
-    const tileIndex = buildTileIndex(tiles);
-    const adjacentWater = hexNeighbors(coord)
-      .map(neighbor => tileIndex.get(coordKey(neighbor)))
-      .filter((tile): tile is Tile => !!tile && tile.terrain === 'water');
-
-    const connectedBodySize = adjacentWater.reduce((best, tile) => {
-      const bodyId = waterData.bodyByCoord.get(coordKey(tile.coordinate));
-      if (bodyId === undefined) return best;
-      return Math.max(best, waterData.bodySizes[bodyId] ?? 0);
-    }, 0);
-
-    const coastTilesWithinRadius = hexesInRange(coord, Math.min(3, mapRadius))
-      .map(radiusCoord => tileIndex.get(coordKey(radiusCoord)))
-      .filter((tile): tile is Tile => !!tile && tile.terrain === 'water')
-      .reduce((count, tile) => {
-        const hasLandNeighbor = hexNeighbors(tile.coordinate)
-          .map(neighbor => tileIndex.get(coordKey(neighbor)))
-          .some(neighbor => neighbor && neighbor.terrain !== 'water');
-        return hasLandNeighbor ? count + 1 : count;
-      }, 0);
-
-    return {
-      adjacentWaterTiles: adjacentWater.length,
-      connectedBodySize,
-      coastTilesWithinRadius,
-    };
-  }
-
-  private findPathToWater(
-    start: HexCoordinate,
-    tileIndex: Map<string, Tile>,
-    waterData: WaterBodyData,
-    minBodySize: number
-  ): Tile[] {
-    const visited = new Set<string>([coordKey(start)]);
-    const queue: HexCoordinate[] = [start];
-    const parent = new Map<string, string>();
-    const maxDepth = MAP_GENERATION_CONSTANTS.WATER_REPAIR_SEARCH_RADIUS;
-
-    while (queue.length > 0) {
-      const current = queue.shift() as HexCoordinate;
-      const currentKey = coordKey(current);
-      const currentTile = tileIndex.get(currentKey);
-      if (!currentTile) continue;
-
-      const depth = hexDistance(start, current);
-      if (depth > maxDepth) continue;
-
-      if (currentTile.terrain === 'water') {
-        const bodyId = waterData.bodyByCoord.get(currentKey);
-        const bodySize = bodyId !== undefined ? (waterData.bodySizes[bodyId] ?? 0) : 0;
-        if (bodySize < minBodySize) {
-          continue;
-        }
-        const path: Tile[] = [];
-        let walkerKey = currentKey;
-        while (parent.has(walkerKey)) {
-          const parentKey = parent.get(walkerKey) as string;
-          const parentTile = tileIndex.get(parentKey);
-          if (parentTile && parentTile.terrain !== 'water') {
-            path.push(parentTile);
-          }
-          walkerKey = parentKey;
-        }
-        return path.reverse();
-      }
-
-      for (const neighbor of hexNeighbors(current)) {
-        const neighborKey = coordKey(neighbor);
-        if (visited.has(neighborKey)) continue;
-        const neighborTile = tileIndex.get(neighborKey);
-        if (!neighborTile) continue;
-        if (neighborTile.hasCity || neighborTile.feature === 'village') continue;
-        if (neighborTile.resources.length > 0 && neighborTile.terrain !== 'water') continue;
-        visited.add(neighborKey);
-        parent.set(neighborKey, currentKey);
-        queue.push(neighbor);
-      }
-    }
-
-    return [];
   }
 
   private placeWaterResources(
@@ -1216,7 +1054,7 @@ export class MapGenerator {
     waterData: WaterBodyData
   ): void {
     const rng = this.rngStreams.resourcesWater;
-    const waterBodies = this.groupWaterBodies(tiles, waterData);
+    const waterBodies = groupWaterBodies(tiles, waterData);
     const tileIndex = buildTileIndex(tiles);
 
     waterBodies.forEach(body => {
@@ -1335,7 +1173,7 @@ export class MapGenerator {
     waterData: WaterBodyData
   ): void {
     const tileIndex = buildTileIndex(tiles);
-    const waterBodies = this.groupWaterBodies(tiles, waterData);
+    const waterBodies = groupWaterBodies(tiles, waterData);
     const minFish = 2;
     const maxDistance = 6;
 
@@ -1371,7 +1209,7 @@ export class MapGenerator {
     rng: SeededRandom
   ): void {
     const tileIndex = buildTileIndex(tiles);
-    const waterBodies = this.groupWaterBodies(tiles, waterData);
+    const waterBodies = groupWaterBodies(tiles, waterData);
     const bodyAccessCounts = new Map<number, number>();
 
     capitalPositions.forEach(capital => {
@@ -1401,54 +1239,6 @@ export class MapGenerator {
         pick.resources.push('fishing_shoal');
       }
     }
-  }
-
-  private buildWaterBodyIndex(tiles: Tile[]): WaterBodyData {
-    const tileIndex = buildTileIndex(tiles);
-    const visited = new Set<string>();
-    const bodyByCoord = new Map<string, number>();
-    const bodySizes: number[] = [];
-
-    for (const tile of tiles) {
-      if (tile.terrain !== 'water') continue;
-      const key = coordKey(tile.coordinate);
-      if (visited.has(key)) continue;
-
-      const queue: Tile[] = [tile];
-      visited.add(key);
-      const bodyTiles: Tile[] = [];
-
-      while (queue.length > 0) {
-        const current = queue.shift() as Tile;
-        const currentKey = coordKey(current.coordinate);
-        bodyTiles.push(current);
-        bodyByCoord.set(currentKey, bodySizes.length);
-
-        for (const neighborCoord of hexNeighbors(current.coordinate)) {
-          const neighborKey = coordKey(neighborCoord);
-          if (visited.has(neighborKey)) continue;
-          const neighbor = tileIndex.get(neighborKey);
-          if (!neighbor || neighbor.terrain !== 'water') continue;
-          visited.add(neighborKey);
-          queue.push(neighbor);
-        }
-      }
-
-      bodySizes.push(bodyTiles.length);
-    }
-
-    return { bodyByCoord, bodySizes };
-  }
-
-  private groupWaterBodies(tiles: Tile[], waterData: WaterBodyData): Tile[][] {
-    const bodies: Tile[][] = Array.from({ length: waterData.bodySizes.length }, () => []);
-    tiles.forEach(tile => {
-      if (tile.terrain !== 'water') return;
-      const bodyId = waterData.bodyByCoord.get(coordKey(tile.coordinate));
-      if (bodyId === undefined) return;
-      bodies[bodyId].push(tile);
-    });
-    return bodies;
   }
 
   /**
@@ -1796,16 +1586,16 @@ export class MapGenerator {
 
     if (!wantsWater) return true;
 
-    const metrics = this.getCapitalWaterMetrics(coord, tiles, waterData, mapRadius);
+    const metrics = getCapitalWaterMetrics(coord, tiles, waterData, mapRadius);
     if (metrics.adjacentWaterTiles < 1) return false;
 
     const minBodySize = Math.max(
       4,
-      this.getMulekiteMinBodySize() - relax * 2
+      getWaterFactionMinBodySize(this.config.mapSize) - relax * 2
     );
     const minCoastTiles = Math.max(
       1,
-      this.getMulekiteMinCoastTiles() - relax
+      getWaterFactionMinCoastTiles(this.config.mapSize) - relax
     );
 
     if (metrics.connectedBodySize < minBodySize) return false;
