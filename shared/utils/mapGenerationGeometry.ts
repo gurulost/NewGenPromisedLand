@@ -7,6 +7,10 @@ export const coordKey = (coord: HexCoordinate): string => {
   return `${coord.q},${coord.r},${coord.s}`;
 };
 
+export const isWithinMap = (coord: HexCoordinate, mapRadius: number): boolean => {
+  return Math.max(Math.abs(coord.q), Math.abs(coord.r), Math.abs(coord.s)) <= mapRadius;
+};
+
 export const buildTileIndex = (tiles: Tile[]): Map<string, Tile> => {
   const index = new Map<string, Tile>();
   tiles.forEach(tile => {
