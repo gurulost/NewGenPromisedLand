@@ -1,182 +1,108 @@
-# Chronicles of the Promised Land - AAA UI Style Guide
+# UI Style Guide
 
-## 0 · Purpose
+Last reviewed: 2026-04-30
 
-> **Goal:** Every visible element of the Book‑of‑Mormon 4× game must look, feel, and behave like a modern AAA release while exposing *all* gameplay detail. These rules are mandatory for existing screens (PlayerHUD, WorldElementPanel, CityPanel, CombatPanel, TechPanel) and any new UI.
+This guide describes the current UI direction for Chronicles of the Promised Land. It is active guidance for new UI work and cleanup, not a completed migration checklist.
 
----
+## Current Foundations
 
-## 1 · Design‑system foundations
+- Theme tokens live in `client/src/theme/tokens.ts`.
+- Shared primitives live in `client/src/components/primitives/`.
+- Common selectors live in `client/src/selectors/`.
+- Resource delta badges currently live in `client/src/components/ui/WorldElementPanel.tsx` and are reused by `client/src/components/ui/VillageCapturePanel.tsx`.
+- Core game panels currently remain single files such as `client/src/components/ui/CityPanel.tsx`, `client/src/components/ui/CombatPanel.tsx`, `client/src/components/ui/TechPanel.tsx`, and `client/src/components/hud/PlayerHUD.tsx`.
 
-* **Central tokens (`/theme/tokens.ts`)**
-  * Colours, gradients, shadows, icons, spacing, z‑index tiers.
-  * Include extra tokens for `population` and `costStars` to restore the badges lost in the first refactor.
-  * No literal Tailwind utility strings (`text‑amber‑100`) outside token or component libs.
+## Design Direction
 
-* **Tailwind config**
-  * Breakpoints: `sm, md, lg, xl, 2xl(3840px)`.
-  * Variants: `motion-safe`, `motion-reduce`.
-  * Utilities: global keyframes (`sparkle-slow`, `pulse-glow`) and `bg-panel`, `text-gold‑100`, etc.
+- Use a restrained Mesoamerican scripture-fantasy look: stone, slate, amber/gold, parchment accents, and clear gameplay hierarchy.
+- Prefer dense, readable strategy UI over decorative marketing composition.
+- Keep cards and panels compact enough for repeated gameplay use.
+- Make the current faction, selected unit, selected city, resources, and available actions scannable without hidden rules.
+- Use tokens, primitives, and selectors before adding one-off Tailwind or inline logic.
 
-* **Typography**
-  * `Cinzel` → headings/titles; `Inter` (or system sans) → body. Imported once in the root layout.
+## Shared Primitives
 
-* **Visual language**
-  * Default panel backdrop: `bg-gradient-to-br from-slate‑900 via-slate‑800 to-slate‑900`.
-  * Accent colour: gold (amber‑500/amber‑600).
-  * Depth: dual shadows (outer black/60 %, inner accent/25 %).
-  * Subtle particle layer (`/assets/sparkle.png`) on motion‑safe screens.
+Use these before creating local variants:
 
----
+- `PanelShell`: modal/panel shell with shared motion, close behavior, and scroll handling.
+- `PanelHeader`: title, icon, scripture, description, and optional close affordance.
+- `GlowingButton`: standard command button with disabled state and optional sound.
+- `HUDShell`: anchored HUD container.
+- `AvatarBadge`: faction/player identity marker.
+- `InfoTooltip`: explanation surface for dense rules.
 
-## 2 · Shared primitives (import, don't reinvent)
+Expected hooks:
 
-| Primitive                  | Purpose                                                                                                                  |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **`<PanelShell>`**         | Focus‑trap, Esc/B‑button to close, Framer Motion enter/exit, `max-h‑[90vh]`, internal scroll; used by every modal panel. |
-| **`<PanelHeader>`**        | Props: `icon`, `title`, `scripture?`, `description?`, optional `onClose`.                                                |
-| **`<ResourceDeltaBadge>`** | Accepts `{ value, type, label? }`; handles all resource, cost and population chips.                                      |
-| **`<GlowingButton>`**      | Standard CTA: gradient, shadow, `whileTap` scale, disabled opacity, optional `useSfx`.                                   |
-| **Hooks**                  | `useHotkeys`, `useSfx`, `useReducedMotion`.                                                                              |
+- `client/src/hooks/useHotkeys.ts`
+- `client/src/hooks/useSfx.ts`
+- `client/src/hooks/useReducedMotion.ts`
 
----
+## Component Rules
 
-## 3 · Component architecture rules
+- Keep gameplay rules out of React components. Use `shared/logic/*`, `client/src/selectors/*`, or thin UI adapters.
+- Use `client/src/selectors/player.ts`, `client/src/selectors/city.ts`, `client/src/selectors/combat.ts`, and `client/src/selectors/tech.ts` for non-trivial derivations.
+- Use `useMemo` for expensive pure derivations keyed to narrow state slices.
+- Use `React.memo` only for leaf components that rerender often or appear in lists.
+- Hooks come first, guards/checks second, returns last.
+- Avoid nested cards; use sections, panels, rows, tabs, and lists instead.
 
-* **Keep logic out of UI**
-  * Expensive calculations live in selector / service files (`/selectors` or `/logic`).
-  * Example: star‑production logic was embedded directly in PlayerHUD; move to `selectors/player.ts`.
+## Gameplay Detail
 
-* **File structure**
-  ```
-  CityPanel/
-    index.tsx
-    CityTabOverview.tsx
-    CityTabStructures.tsx
-    CityTabUnits.tsx
-    hooks.ts
-  ```
+Panels should expose the information a strategy player needs to decide:
 
-* **Memoisation policy**
-  * `useMemo` for pure, non‑trivial derivations keyed to state slices.
-  * `React.memo` tiny leaf components used in lists (e.g. combat enemy buttons).
+- Action summary: what happens now.
+- Cost: Stars/Faith/Pride/Dissent with clear sign and label.
+- Requirements: visible when unmet.
+- Immediate effects and permanent effects as separate groups when both exist.
+- Population effects with the `population` token.
+- Star costs with the `costStars` token.
+- Consequences such as Pride/Dissent increases near the action button, not hidden in tooltips only.
 
-* **Early‑return rule**
-  * Hooks first, checks second, returns last (TechPanel already does this—copy the pattern).
+`WorldElementPanel` is the current best reference for action sections and resource deltas. Do not assume it is perfect; copy the useful shape and improve shared pieces when duplication appears.
 
----
+## Accessibility And Input
 
-## 4 · Restoring full gameplay detail
+- Interactive overlays should use shared modal/provider primitives or Radix/Headless UI dialog patterns.
+- Overlays must block map input explicitly and support keyboard close.
+- Icons without visible labels need `aria-label`.
+- Use accessible names for dialogs and major controls.
+- Respect `prefers-reduced-motion`; use opacity changes instead of scale/rotation for reduced-motion users.
+- Text must fit in controls at mobile and desktop sizes.
 
-*Apply these to every panel that lost information in the first pass.*
+## Responsive Layout
 
-1. **Action summaries** – each `ActionSection` shows a `summary` line (e.g. "Free +1 Pop now (Pride +1, Dissent +1)").
-2. **Cost box** – use `ResourceDeltaBadge` with `type:"costStars"` and *no* "+".
-3. **Immediate / permanent buckets** – render headings only when arrays are non‑empty.
-4. **Population badge** – `type:"population"` token (green).
-5. **Requirement banners** – show inside each action card when `!canExecute.canExecute`.
-6. **Flavour text** – `<PanelHeader description>` restores sub‑title copy.
+- HUD should respect safe-area insets.
+- Panels should cap height and scroll inside the content region, not the whole viewport.
+- Avoid viewport-width font scaling. Use normal responsive layout constraints instead.
+- Test compact mobile, tablet, laptop, and wide desktop sizes for overlap and clipped text.
 
-*WorldElementPanel is the template—other panels must follow the same data shape.*
+## Motion And Feedback
 
----
+- Use Framer Motion sparingly for panel entrance, exit, and small button feedback.
+- Keep gameplay feedback fast. Do not delay turn actions behind decorative animation.
+- Use sound through `useSfx`; do not call audio APIs directly from random components.
+- Avoid motion that moves important text while the player is trying to read.
 
-## 5 · Accessibility & input
+## Current Panel Notes
 
-* All overlays **must** be `@headlessui/react Dialog` or Radix `Dialog`.
-* Keyboard/game‑pad:
-  * `Esc` **and** `B` close.
-  * Arrow keys/tab cycle actionable items.
-* `prefers‑reduced‑motion` → opacity fades only (no scale/rotate).
-* Icons alone get `aria-label`. Combat odds icons are currently unlabeled.
+- `PlayerHUD`: should stay highly scannable and avoid expensive inline derivations.
+- `WorldElementPanel`: reference for resource deltas, requirements, and action summaries.
+- `CityPanel`: keep city growth, recruitment, and construction rules visible; move new rule derivations into selectors or shared logic.
+- `CombatPanel`: combat odds and modifiers must be readable and accessible.
+- `TechPanel`: keep tech prerequisites and effects visible without requiring hover-only discovery.
 
----
+## Future Refactors
 
-## 6 · Responsive & layout
+These are desired cleanup directions, not current file paths:
 
-* **Anchors**
-  * HUD: absolute `top‑4 left‑4`, etc., padded by `env(safe-area-inset-*)`.
-  * Panels: centred modal (`max‑w‑lg`, `max‑w‑4xl`, `max‑w‑7xl`) with 90 vh height cap.
-* **Scroll**
-  * Scroll **inside** content region, not the outer card (`overflow‑y‑auto max-h-[calc(90vh-HEADER)]`). CityPanel currently scrolls the whole card.
-* **4 K:** `@screen 2xl` → `p-10`, `text-xl`, icon `w-5`.
+- Split very large panels into folders only when the split reduces complexity and keeps tests nearby.
+- Extract `ResourceDeltaBadge` into a shared primitive if more panels need it.
+- Move any hard-coded tech node layout into a dedicated data/layout file if the graph grows.
+- Add more focused visual and accessibility tests around high-use panels.
 
----
+## Quality Gates
 
-## 7 · Motion & feedback
-
-* **Framer Motion defaults**
-  * Enter: `{ scale:0.85, opacity:0 } → { scale:1, opacity:1 }` spring.
-  * Exit: `{ scale:0.9, opacity:0 }`.
-* **Micro‑interactions**
-  * Buttons: `whileTap={{ scale:0.97 }}`.
-  * Hover cards (desktop): subtle parallax `rotateX`, `rotateY`.
-* **SFX**
-  * `panel-open`, `panel-close`, `cta-click`, `error`. Throttled via `useSfx`.
-
----
-
-## 8 · Component‑specific directives
-
-### 8.1 PlayerHUD 
-
-* Convert to `<HUDShell>` anchored top‑left.
-* Replace inline factions circle with `AvatarBadge` primitive.
-* Star‑production breakdown becomes `<HoverCard>` powered by tokens.
-
-### 8.2 WorldElementPanel
-
-* Already the visual reference implementation—use it as golden standard after applying "missing info" fixes above.
-
-### 8.3 CityPanel 
-
-* Use `<PanelShell>` instead of custom backdrop click‑handler.
-* Replace manual tab state with Radix `Tabs`.
-* `<StructureCard>`, `<UnitCard>` primitives replace inner grids.
-* Validation logic (`canAffordStructure`, etc.) moves to `/selectors/city.ts`.
-
-### 8.4 CombatPanel 
-
-* Wrap in `<HUDShell>` bottom‑right.
-* Enemy list → virtualised (`react‑window`) when > 20.
-* Standard odds colour tokens instead of local functions.
-
-### 8.5 TechPanel 
-
-* Replace `fixed inset‑0` div with `<PanelShell fullScreen>`.
-* `<TechNode>` & `<TechConnection>` extracted; positions moved to `/data/techLayout.ts`.
-* Add pinch‑zoom/pan via `useGesture`.
-* Tech modal uses same `<PanelHeader>`.
-
----
-
-## 9 · Testing & quality gates
-
-* **Storybook** for every primitive/panel in: light, dark, reduced motion.
-* **axe‑core** & Lighthouse: 0 critical a11y violations.
-* **React Profiler:** no idle re‑render > 1 per turn tick.
-* **Manual playtest matrix:** keyboard‑only, game‑pad, 4 K monitor, 13″ laptop, iPad portrait.
-
----
-
-## 10 · Migration timeline
-
-1. **Week 1:** Extract tokens + primitives, refactor WorldElementPanel (done).
-2. **Week 2:** PlayerHUD rewrite.
-3. **Week 3:** CityPanel tabs + cards.
-4. **Week 4:** CombatPanel + odds tokens.
-5. **Week 5:** TechPanel full rebuild.
-6. **Cleanup:** delete redundant styles, lock tokens.
-
----
-
-### Implementation Status
-
-✅ **Foundation Layer Complete**: Central tokens system with population/costStars support
-✅ **Primitive Components**: PanelShell, PanelHeader, GlowingButton, HUDShell, AvatarBadge, InfoTooltip
-✅ **Selector Architecture**: Moved expensive calculations to dedicated selectors (player.ts, city.ts, combat.ts, tech.ts)
-✅ **Component Modernization**: PlayerHUD, CityPanel, CombatPanel, TechPanel following AAA standards
-✅ **Accessibility Foundation**: Focus traps, keyboard navigation, reduced motion support, proper ARIA labels
-✅ **Performance Optimization**: Memoized components, selector-based calculations, efficient re-render patterns
-
-**Confidence: 0.95** – Comprehensive AAA-quality UI system implementation complete with production-ready components, unified theming, and professional interaction patterns matching industry standards.
+- Run focused component tests when changing a panel.
+- Run accessibility tests when changing overlays, dialogs, or control names.
+- Use Playwright or screenshots for layout-sensitive changes.
+- Keep `npm run check` green before handing off.

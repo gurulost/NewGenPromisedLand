@@ -87,7 +87,7 @@ npm run dev
 - Types:
   - `faction` - Faction selection (properties: player_slot, is_ai)
   - `map_size` - Map size selection (properties: player_count, ai_count)
-  - `difficulty` - AI difficulty selection (properties: ai_player_id) - *Note: UI not yet implemented*
+  - `difficulty` - AI difficulty selection for AI players (properties: ai_player_id)
 
 ### Gameplay Action Events
 

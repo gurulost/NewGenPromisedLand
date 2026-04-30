@@ -87,13 +87,15 @@ cp .env.example .env
 VITE_SENTRY_DSN=https://your-dsn@sentry.io/your-project-id
 ```
 
-**Step 3: (Optional) Enable Source Maps Upload**
+**Step 3: (Optional) Configure Source Maps Upload**
 ```bash
-# In .env, add:
+# These values are only useful after source-map generation/upload is configured:
 SENTRY_ORG=your-org
 SENTRY_PROJECT=your-project
 SENTRY_AUTH_TOKEN=your-auth-token
 ```
+
+Source-map upload is not automatic from environment variables alone. Configure Vite source-map generation and a Sentry upload step before relying on production stack trace de-minification.
 
 **Step 4: Rebuild for Production**
 ```bash
