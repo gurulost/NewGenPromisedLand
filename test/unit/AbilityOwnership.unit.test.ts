@@ -149,27 +149,50 @@ describe("Ability ownership enforcement", () => {
     ).toBe(true);
   });
 
-  it("blocks design-pending active faction abilities before resolver side effects", () => {
+  it("blocks Cultural Reclamation until a source and visible enemy target exist", () => {
     const player = createPlayer({
       factionId: "MULEKITES",
       stats: { faith: 90, pride: 10, internalDissent: 5 },
     });
-    const state = createState([player], []);
+    const noSourceState = createState([player], []);
 
-    const availability = getFactionAbilityAvailability(state, "player1", "CULTURAL_RECLAMATION");
-    expect(availability.available).toBe(false);
-    if (!availability.available) {
-      expect(availability.reason).toBe("design_pending");
+    const noSource = getFactionAbilityAvailability(noSourceState, "player1", "CULTURAL_RECLAMATION");
+    expect(noSource.available).toBe(false);
+    if (!noSource.available) {
+      expect(noSource.reason).toBe("no_valid_source");
+    }
+
+    const sourceOnlyState = {
+      ...noSourceState,
+      cities: [
+        {
+          id: "city1",
+          name: "Zarahemla",
+          coordinate: { q: 0, r: 0, s: 0 },
+          ownerId: "player1",
+          population: 1,
+          maxPopulation: 4,
+          level: 1,
+          starProduction: 2,
+          improvements: [],
+          structures: [],
+        },
+      ],
+    };
+    const noTarget = getFactionAbilityAvailability(sourceOnlyState, "player1", "CULTURAL_RECLAMATION");
+    expect(noTarget.available).toBe(false);
+    if (!noTarget.available) {
+      expect(noTarget.reason).toBe("no_valid_targets");
     }
 
     const { result, events } = collectTelemetry(() =>
-      resolveActionState(state, {
+      resolveActionState(sourceOnlyState, {
         type: "USE_ABILITY",
         payload: { playerId: "player1", abilityId: "CULTURAL_RECLAMATION" },
       })
     );
 
-    expect(result).toBe(state);
+    expect(result).toBe(sourceOnlyState);
     expect(result.players[0].abilityCooldowns?.CULTURAL_RECLAMATION).toBeUndefined();
     expect(
       events.some(
@@ -177,7 +200,7 @@ describe("Ability ownership enforcement", () => {
           event.channel === "ability" &&
           event.status === "blocked" &&
           event.abilityId === "CULTURAL_RECLAMATION" &&
-          event.reason === "design_pending"
+          event.reason === "no_valid_targets"
       )
     ).toBe(true);
   });

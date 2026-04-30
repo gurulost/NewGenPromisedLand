@@ -260,6 +260,26 @@ function pickWinnerByTiebreaker(state: GameState, candidates: PlayerState[]): Pl
   })[0];
 }
 
+function getActiveEffectSourceTurnMoralDelta(state: GameState, playerId: string) {
+  return (state.activeEffects || []).reduce(
+    (delta, effect) => {
+      if (effect.turnsRemaining <= 0) return delta;
+      if (effect.tickOn !== "source_turn_end" || effect.source.playerId !== playerId) return delta;
+
+      const sourceTurnStatDeltas = effect.metadata?.sourceTurnStatDeltas;
+      if (!sourceTurnStatDeltas || typeof sourceTurnStatDeltas !== "object") return delta;
+
+      const values = sourceTurnStatDeltas as Record<string, unknown>;
+      return {
+        faith: delta.faith + (typeof values.faith === "number" ? values.faith : 0),
+        pride: delta.pride + (typeof values.pride === "number" ? values.pride : 0),
+        dissent: delta.dissent + (typeof values.dissent === "number" ? values.dissent : 0),
+      };
+    },
+    { faith: 0, pride: 0, dissent: 0 }
+  );
+}
+
 
 // Start Construction Handler - adds to construction queue
 // Build Improvement Handler
@@ -308,6 +328,11 @@ export function handleEndTurn(
           }
         });
       });
+
+      const activeEffectMoralDelta = getActiveEffectSourceTurnMoralDelta(state, player.id);
+      if (activeEffectMoralDelta.faith || activeEffectMoralDelta.pride || activeEffectMoralDelta.dissent) {
+        updatedStats = applyMoralDelta(updatedStats, activeEffectMoralDelta);
+      }
 
       // Resource generation from cities and improvements using centralized rules
       const unitPassive = computeUnitPassiveEffectsForPlayer(state, player.id, updatedStats);

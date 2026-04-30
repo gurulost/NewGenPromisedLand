@@ -15,6 +15,7 @@ import type { GameState, PlayerState } from '../types/game';
 import type { Unit } from '../types/unit';
 import { GAME_RULES } from '../data/gameRules';
 import { hexDistance } from '../utils/hex';
+import { getStatusConversionChanceBonus } from './statusEffects';
 import { getUnitActionsRemaining, spendUnitActions } from './unitLogic';
 
 export type ConversionFailureReason =
@@ -80,11 +81,12 @@ export function computeUnitConversionChance(
   const woundFactor = 0.8 + 0.2 * (1 - targetUnit.hp / Math.max(1, targetUnit.maxHp)); // 0.8..1.0
   const prideFactor = 1 + (targetPride / 100) * 0.25;
   const dissentFactor = 1 + (targetDissent / 100) * 0.15;
+  const culturalPressureBonus = getStatusConversionChanceBonus(targetUnit, casterPlayer.id);
 
   const minChance = GAME_RULES.abilities.conversionResistance.minSuccessChance / 100;
   const maxChance = GAME_RULES.abilities.conversionResistance.maxSuccessChance / 100;
 
-  return clamp01(Math.max(minChance, Math.min(maxChance, (base + diffBonus) * woundFactor * prideFactor * dissentFactor)));
+  return clamp01(Math.max(minChance, Math.min(maxChance, ((base + diffBonus) * woundFactor * prideFactor * dissentFactor) + culturalPressureBonus)));
 }
 
 export function attemptUnitConversion(

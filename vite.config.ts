@@ -67,39 +67,130 @@ export default defineConfig({
     // Production artifacts must be self-contained.
     copyPublicDir: false,
     emptyOutDir: true,
+    // Three.js is intentionally isolated as a large 3D engine chunk.
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (!id.includes("node_modules")) return;
+          const normalizedId = id.split(path.sep).join("/");
+          if (!normalizedId.includes("/node_modules/")) return;
 
           if (
-            id.includes("three") ||
-            id.includes("@react-three") ||
-            id.includes("postprocessing")
+            normalizedId.includes("/node_modules/react/") ||
+            normalizedId.includes("/node_modules/react-dom/") ||
+            normalizedId.includes("/node_modules/scheduler/")
           ) {
-            return "vendor-3d";
+            return "vendor-react";
+          }
+
+          if (normalizedId.includes("/node_modules/three/examples/jsm/")) {
+            return "vendor-three-addons";
+          }
+
+          if (normalizedId.includes("/node_modules/three-stdlib/")) {
+            return "vendor-three-stdlib";
+          }
+
+          if (normalizedId.includes("/node_modules/three/")) {
+            return "vendor-three";
+          }
+
+          if (normalizedId.includes("/node_modules/@react-three/fiber/")) {
+            return "vendor-r3f";
           }
 
           if (
-            id.includes("@radix-ui") ||
-            id.includes("@headlessui") ||
-            id.includes("framer-motion") ||
-            id.includes("lucide-react")
+            normalizedId.includes("/node_modules/@react-three/drei/") ||
+            normalizedId.includes("/node_modules/maath/") ||
+            normalizedId.includes("/node_modules/troika") ||
+            normalizedId.includes("/node_modules/meshline/") ||
+            normalizedId.includes("/node_modules/camera-controls/") ||
+            normalizedId.includes("/node_modules/postprocessing/")
           ) {
-            return "vendor-ui";
+            return "vendor-r3f-extras";
+          }
+
+          if (normalizedId.includes("/node_modules/@radix-ui/")) {
+            return "vendor-radix";
+          }
+
+          if (normalizedId.includes("/node_modules/framer-motion/")) {
+            return "vendor-motion";
+          }
+
+          if (normalizedId.includes("/node_modules/lucide-react/")) {
+            return "vendor-icons";
+          }
+
+          if (normalizedId.includes("/node_modules/gsap/")) {
+            return "vendor-gsap";
+          }
+
+          if (normalizedId.includes("/node_modules/react-icons/")) {
+            return "vendor-react-icons";
           }
 
           if (
-            id.includes("@tanstack") ||
-            id.includes("zustand") ||
-            id.includes("react-router") ||
-            id.includes("wouter")
+            normalizedId.includes("/node_modules/@use-gesture/") ||
+            normalizedId.includes("/node_modules/react-use-gesture/")
+          ) {
+            return "vendor-gesture";
+          }
+
+          if (
+            normalizedId.includes("/node_modules/@headlessui/") ||
+            normalizedId.includes("/node_modules/sonner/") ||
+            normalizedId.includes("/node_modules/next-themes/") ||
+            normalizedId.includes("/node_modules/react-resizable-panels/") ||
+            normalizedId.includes("/node_modules/class-variance-authority/") ||
+            normalizedId.includes("/node_modules/clsx/") ||
+            normalizedId.includes("/node_modules/tailwind-merge/") ||
+            normalizedId.includes("/node_modules/tailwindcss-animate/")
+          ) {
+            return "vendor-ui-misc";
+          }
+
+          if (
+            normalizedId.includes("/node_modules/react-hook-form/") ||
+            normalizedId.includes("/node_modules/@hookform/")
+          ) {
+            return "vendor-forms";
+          }
+
+          if (normalizedId.includes("/node_modules/date-fns/")) {
+            return "vendor-date";
+          }
+
+          if (
+            normalizedId.includes("/node_modules/@tanstack/") ||
+            normalizedId.includes("/node_modules/zustand/") ||
+            normalizedId.includes("/node_modules/react-router/") ||
+            normalizedId.includes("/node_modules/wouter/")
           ) {
             return "vendor-state";
           }
 
-          if (id.includes("howler")) {
+          if (normalizedId.includes("/node_modules/howler/")) {
             return "vendor-audio";
+          }
+
+          if (
+            normalizedId.includes("/node_modules/@sentry/") ||
+            normalizedId.includes("/node_modules/posthog-js/") ||
+            normalizedId.includes("/node_modules/web-vitals/")
+          ) {
+            return "vendor-observability";
+          }
+
+          if (
+            normalizedId.includes("/node_modules/zod/") ||
+            normalizedId.includes("/node_modules/zod-validation-error/") ||
+            normalizedId.includes("/node_modules/drizzle") ||
+            normalizedId.includes("/node_modules/drizzle-zod/") ||
+            normalizedId.includes("/node_modules/idb-keyval/") ||
+            normalizedId.includes("/node_modules/lz-string/")
+          ) {
+            return "vendor-data";
           }
 
           return "vendor";

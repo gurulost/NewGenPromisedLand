@@ -23,6 +23,8 @@ interface GameSession {
   warnings: number;
 }
 
+const DEBUG_GAME_LOGS = import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === 'true';
+
 class GameDebugger {
   private logs: DebugInfo[] = [];
   private maxLogs = 200;
@@ -111,7 +113,9 @@ class GameDebugger {
                          severity === 'warning' ? 'color: orange; font-weight: bold;' :
                          'color: default;';
     
-    console.log(`%c${emoji} [${type}] ${severity.toUpperCase()}`, severityStyle, message, data || '');
+    if (DEBUG_GAME_LOGS) {
+      console.debug(`%c${emoji} [${type}] ${severity.toUpperCase()}`, severityStyle, message, data || '');
+    }
 
     // For critical errors, also show a user notification
     if (severity === 'critical') {
@@ -313,12 +317,14 @@ class GameDebugger {
   exportLogs() {
     const summary = this.getDebugSummary();
     
-    console.group('🎮 Game Debug Export');
-    console.log('Session Info:', summary.session);
-    console.log('Error Counts:', summary.errorCounts);
-    console.log('Severity Counts:', summary.severityCounts);
-    console.table(summary.recentLogs);
-    console.groupEnd();
+    if (DEBUG_GAME_LOGS) {
+      console.group('🎮 Game Debug Export');
+      console.debug('Session Info:', summary.session);
+      console.debug('Error Counts:', summary.errorCounts);
+      console.debug('Severity Counts:', summary.severityCounts);
+      console.table(summary.recentLogs);
+      console.groupEnd();
+    }
     
     return summary;
   }
@@ -335,7 +341,9 @@ class GameDebugger {
     a.click();
     URL.revokeObjectURL(url);
     
-    console.log('📋 Error report exported:', report.reportId);
+    if (DEBUG_GAME_LOGS) {
+      console.debug('📋 Error report exported:', report.reportId);
+    }
     return report;
   }
 
@@ -344,7 +352,9 @@ class GameDebugger {
     this.session.totalActions = 0;
     this.session.errors = 0;
     this.session.warnings = 0;
-    console.log('🧹 Debug logs cleared');
+    if (DEBUG_GAME_LOGS) {
+      console.debug('🧹 Debug logs cleared');
+    }
   }
 }
 

@@ -14,7 +14,7 @@
     "lint": "eslint client/src --ext .ts,.tsx",
     "lint:hooks": "eslint client/src --ext .ts,.tsx --rule 'react-hooks/rules-of-hooks: error'",
     "test:all": "vitest run --coverage --coverage.reporter=text --coverage.reporter=json-summary --reporter=verbose",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/run-playwright-tests.mjs",
     "hygiene": "node scripts/check-repo-hygiene.mjs",
     "postinstall": "node scripts/fix-tldts.cjs",
     "ai:sim": "tsx scripts/run-ai-sim.ts",

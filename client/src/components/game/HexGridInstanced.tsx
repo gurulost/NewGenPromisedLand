@@ -20,6 +20,12 @@ interface HexGridInstancedProps {
 }
 
 const HEX_SIZE = 1;
+const DEBUG_HEX_GRID = import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true";
+const debugHexGridLog = (...args: unknown[]) => {
+  if (DEBUG_HEX_GRID) {
+    console.debug(...args);
+  }
+};
 
 type RenderingOnlineSession = {
   myPlayerIds?: string[] | null;
@@ -373,7 +379,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
 
       if (instanceId !== undefined && instanceId < map.tiles.length) {
         const clickedTile = map.tiles[instanceId];
-        console.log('Tile clicked:', clickedTile.coordinate);
+        debugHexGridLog('Tile clicked:', clickedTile.coordinate);
 
         const currentPlayer = activePlayer;
         const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
@@ -410,7 +416,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
 
         // Handle spawn selection mode - tile selection for unit spawning
         if (spawnSelectionMode.isActive && currentPlayer) {
-          console.log('Spawn selection mode: selecting tile for', spawnSelectionMode.unitType);
+          debugHexGridLog('Spawn selection mode: selecting tile for', spawnSelectionMode.unitType);
           
           // Check if this tile is a valid spawn tile
           const isValidSpawnTile = spawnSelectionMode.validSpawnTiles.some(
@@ -418,14 +424,14 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           );
           
           if (isValidSpawnTile) {
-            console.log('Valid spawn tile selected:', clickedTile.coordinate);
+            debugHexGridLog('Valid spawn tile selected:', clickedTile.coordinate);
             // Call the callback with the selected coordinate
             if (spawnSelectionMode.onSelectTile) {
               spawnSelectionMode.onSelectTile(clickedTile.coordinate);
             }
             cancelSpawnSelection();
           } else {
-            console.log('Invalid spawn tile - cancelling selection');
+            debugHexGridLog('Invalid spawn tile - cancelling selection');
             cancelSpawnSelection();
           }
           return;
@@ -433,7 +439,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
 
         // Handle construction mode - tile selection for building
         if (constructionMode.isActive && currentPlayer) {
-          console.log('Construction mode: selecting tile for', constructionMode.buildingType);
+          debugHexGridLog('Construction mode: selecting tile for', constructionMode.buildingType);
 
           // Validate if this tile is valid for construction
           const isValidTile = isValidConstructionTile(
@@ -445,7 +451,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           );
 
           if (!isValidTile) {
-            console.log('Invalid construction tile selected');
+            debugHexGridLog('Invalid construction tile selected');
             return;
           }
 
@@ -521,7 +527,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           const isValidTerrain = clickedTile.terrain !== 'water' && clickedTile.terrain !== 'mountain';
 
           if (!isValidDistance || !isValidTerrain) {
-            console.log('Invalid road tile selected');
+            debugHexGridLog('Invalid road tile selected');
             return;
           }
 
@@ -627,7 +633,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             }
 
             if (menuOptions.length > 1) {
-              console.log('Tile has unit plus interactables - showing context menu');
+              debugHexGridLog('Tile has unit plus interactables - showing context menu');
               event.stopPropagation();
               openTileContextMenu(
                 { x: event.clientX, y: event.clientY },
@@ -638,7 +644,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
             }
 
             // Select own unit (but don't show movement tiles yet)
-            console.log('Unit clicked:', unitOnTile.id, 'Current player:', currentPlayer.id, 'Unit player:', unitOnTile.playerId);
+            debugHexGridLog('Unit clicked:', unitOnTile.id, 'Current player:', currentPlayer.id, 'Unit player:', unitOnTile.playerId);
             closeTileContextMenu();
             setSelectedUnit(unitOnTile);
             // Exit any previous modes
@@ -669,7 +675,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
                 }
               ];
 
-              console.log('Enemy unit on tile with resources - showing context menu');
+              debugHexGridLog('Enemy unit on tile with resources - showing context menu');
               event.stopPropagation();
               openTileContextMenu(
                 { x: event.clientX, y: event.clientY },
@@ -686,16 +692,16 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
               );
 
               if (isValidTarget) {
-                console.log('Attacking target:', unitOnTile.id);
+                debugHexGridLog('Attacking target:', unitOnTile.id);
                 closeTileContextMenu();
                 attackUnit(selectedUnit.id, unitOnTile.id);
                 setAttackMode(false);
               } else {
-                console.log('Target not in range');
+                debugHexGridLog('Target not in range');
                 closeTileContextMenu();
               }
             } else if (!isAttackMode) {
-              console.log('Attack target clicked (not in attack mode):', unitOnTile.id);
+              debugHexGridLog('Attack target clicked (not in attack mode):', unitOnTile.id);
               closeTileContextMenu();
             }
           }
@@ -704,20 +710,20 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           const tileKey = `${clickedTile.coordinate.q},${clickedTile.coordinate.r}`;
 
           if (reachableTiles.includes(tileKey)) {
-            console.log('Moving unit to:', clickedTile.coordinate);
+            debugHexGridLog('Moving unit to:', clickedTile.coordinate);
             closeTileContextMenu();
             moveUnit(selectedUnit.id, clickedTile.coordinate);
             // Exit movement mode after moving
             setMovementMode(false);
           } else {
-            console.log('Tile not reachable');
+            debugHexGridLog('Tile not reachable');
             closeTileContextMenu();
           }
         } else if (!unitOnTile) {
           // Check for world elements on this tile first
           if (hasWorldElement) {
-            console.log('🎯 Tile clicked with resources:', clickedTile.resources, 'at coordinate:', clickedTile.coordinate);
-            console.log('🔍 Tile terrain:', clickedTile.terrain, 'Tile details:', clickedTile);
+            debugHexGridLog('🎯 Tile clicked with resources:', clickedTile.resources, 'at coordinate:', clickedTile.coordinate);
+            debugHexGridLog('🔍 Tile terrain:', clickedTile.terrain, 'Tile details:', clickedTile);
 
             closeTileContextMenu();
             // Dispatch custom event for world element interaction
@@ -729,15 +735,15 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
               }
             });
 
-            console.log('📡 Dispatching worldElementClick event:', worldElementEvent.detail);
+            debugHexGridLog('📡 Dispatching worldElementClick event:', worldElementEvent.detail);
             window.dispatchEvent(worldElementEvent);
             return; // Don't deselect unit if clicking on world element
           } else {
-            console.log('🔍 Clicked tile has no resources:', clickedTile);
+            debugHexGridLog('🔍 Clicked tile has no resources:', clickedTile);
           }
 
           // Clicked on empty tile - exit movement mode and deselect
-          console.log('Clicked on empty tile - exiting movement mode');
+          debugHexGridLog('Clicked on empty tile - exiting movement mode');
           closeTileContextMenu();
           setMovementMode(false);
           if (!isMovementMode) {

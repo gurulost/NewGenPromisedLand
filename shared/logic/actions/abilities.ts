@@ -6,6 +6,7 @@ import { GAME_RULES } from "../../data/gameRules";
 import { getUnitDefinition } from "../../data/units";
 import { hexDistance } from "../../utils/hex";
 import { upsertActiveEffect } from "../activeEffects";
+import { applyCulturalPressureToTargets, getCulturalPressureSelection } from "../culturalPressure";
 import { getFactionAbilityAvailability } from "../factionAbilityAvailability";
 import { nextInt } from "../rng";
 import { applyTestimonyPressureToTargets, getTestimonyPressureSelection } from "../testimonyPressure";
@@ -174,6 +175,12 @@ export function handleUseAbility(
       break;
     case "MISSIONARY_ZEAL":
       next = applyMissionaryZeal(state, player);
+      break;
+    case "CULTURAL_RECLAMATION":
+      next = applyCulturalReclamation(state, player);
+      break;
+    case "ANCIENT_MIGHT":
+      next = applyAncientMight(state, player);
       break;
 
     case "nephite_righteous_charge":
@@ -353,19 +360,29 @@ function applyCovenantOfPeace(state: GameState, player: PlayerState): GameState 
   const range = GAME_RULES.conversion.covenantOfPeace.range;
   if (player.stats.faith < costFaith) return state;
 
+  const isExplicitAlly = (targetPlayerId: string): boolean => {
+    const targetPlayer = state.players.find(candidate => candidate.id === targetPlayerId);
+    return Boolean(
+      player.alliedWith?.includes(targetPlayerId) ||
+      targetPlayer?.alliedWith?.includes(player.id)
+    );
+  };
+
   const enemyCandidates = state.units
     .filter(u => u.playerId !== player.id)
     .filter(u => u.playerId !== undefined)
+    .filter(u => !isExplicitAlly(u.playerId))
+    .filter(u => {
+      const enemyPlayer = state.players.find(p => p.id === u.playerId);
+      const enemyFaith = enemyPlayer?.stats.faith ?? 0;
+      return player.stats.faith - enemyFaith >= requiredAdvantage;
+    })
     .filter(u => state.units.some(ally => ally.playerId === player.id && hexDistance(ally.coordinate, u.coordinate) <= range))
     .sort((a, b) => a.hp - b.hp);
 
   if (enemyCandidates.length === 0) return state;
 
   const chosen = enemyCandidates[0];
-  const enemyPlayer = state.players.find(p => p.id === chosen.playerId);
-  const enemyFaith = enemyPlayer?.stats.faith ?? 0;
-  const advantage = player.stats.faith - enemyFaith;
-  if (advantage < requiredAdvantage) return state;
 
   return {
     ...state,
@@ -425,6 +442,101 @@ function applyMissionaryZeal(state: GameState, player: PlayerState): GameState {
         : p
     ),
     lastAction,
+  };
+}
+
+function applyCulturalReclamation(state: GameState, player: PlayerState): GameState {
+  const spec = getFactionAbilitySpec("CULTURAL_RECLAMATION");
+  const rules = GAME_RULES.abilities.factionActive.culturalReclamation;
+  const costFaith = spec?.cost.faith ?? rules.faithCost;
+  const range = spec?.target.range ?? rules.range;
+  if (player.stats.faith < costFaith) return state;
+
+  const selection = getCulturalPressureSelection(state, player.id, range, {
+    requireTargetVisibility: true,
+  });
+  if (selection.sourceCoordinates.length === 0 || selection.targetUnits.length === 0) {
+    return state;
+  }
+
+  const pressureResult = applyCulturalPressureToTargets(
+    state,
+    player.id,
+    selection.targetUnits.map(unit => unit.id),
+    {
+      defensePenalty: rules.defensePenalty,
+      conversionChanceBonus: rules.conversionChanceBonus,
+      durationTurns: rules.durationTurns,
+    }
+  );
+
+  if (pressureResult.appliedCount === 0) return state;
+
+  const lastAction: GameState["lastAction"] = {
+    type: "CULTURAL_PRESSURE",
+    payload: {
+      sourcePlayerId: player.id,
+      defensePenalty: rules.defensePenalty,
+      conversionChanceBonus: rules.conversionChanceBonus,
+      durationTurns: rules.durationTurns,
+      affected: Object.entries(pressureResult.appliedByOwner).map(([playerId, unitIds]) => ({
+        playerId,
+        unitIds,
+      })),
+    },
+  };
+
+  return {
+    ...state,
+    units: pressureResult.units,
+    players: state.players.map(p =>
+      p.id === player.id
+        ? { ...p, stats: { ...p.stats, faith: Math.max(0, p.stats.faith - costFaith) } }
+        : p
+    ),
+    lastAction,
+  };
+}
+
+function applyAncientMight(state: GameState, player: PlayerState): GameState {
+  const rules = GAME_RULES.abilities.factionActive.ancientMight;
+  if (player.stats.pride < rules.activationPride) return state;
+  if (!state.units.some(unit => unit.playerId === player.id)) return state;
+
+  const buffedState = addActiveEffect(state, {
+    name: ABILITIES.ANCIENT_MIGHT.name,
+    source: {
+      playerId: player.id,
+      abilityId: "ANCIENT_MIGHT",
+    },
+    target: {
+      kind: "all_units",
+      playerId: player.id,
+    },
+    durationTurns: rules.durationTurns,
+    turnsRemaining: rules.durationTurns,
+    tickOn: "source_turn_end",
+    stackRule: "refresh",
+    unitStatModifiers: [
+      { stat: "attack", mode: "flat", value: rules.attackBonus },
+      { stat: "defense", mode: "flat", value: rules.defenseBonus },
+    ],
+    yieldModifiers: [],
+    flags: {},
+    metadata: {
+      sourceTurnStatDeltas: {
+        pride: rules.pridePerSourceTurn,
+      },
+    },
+  });
+
+  return {
+    ...buffedState,
+    players: buffedState.players.map(p =>
+      p.id === player.id
+        ? { ...p, stats: { ...p.stats, pride: Math.min(100, p.stats.pride + rules.immediatePride) } }
+        : p
+    ),
   };
 }
 
@@ -800,7 +912,6 @@ export function handleUnitAction(
       return handleReconnaissance(state, { unitId, playerId });
 
     default:
-      console.log(`Unit action ${actionType} not implemented yet`);
       break;
   }
 

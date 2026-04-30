@@ -102,8 +102,8 @@ export const FACTIONS: Record<FactionId, Faction> = {
       {
         id: 'CULTURAL_RECLAMATION',
         name: 'Cultural Reclamation',
-        description: 'Convert enemy units within 2 tiles to your faction.',
-        cost: 60,
+        description: 'Apply cultural pressure near cities and cultural units, weakening enemies and setting up conversion.',
+        cost: 30,
         cooldown: 10,
         type: 'active',
         requirements: { faith: 40 },
@@ -208,10 +208,11 @@ export const FACTIONS: Record<FactionId, Faction> = {
       {
         id: 'ANCIENT_MIGHT',
         name: 'Ancient Might',
-        description: 'All units gain +2 to all stats but pride increases by 10 each turn.',
-        cost: 70,
+        description: 'All units gain +2 attack and defense, but pride increases immediately and each turn while active.',
+        cost: 0,
         cooldown: 15,
         type: 'active',
+        requirements: { pride: 60 },
       }
     ],
     uniqueUnits: getFactionSpecificUnitTypes('JAREDITES'),

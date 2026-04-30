@@ -4,6 +4,7 @@ import { GAME_RULES } from "../data/gameRules";
 import { getActiveModifiers } from "../data/modifiers";
 import { hexDistance } from "../utils/hex";
 import { getUnitActiveEffects } from "./activeEffects";
+import { getStatusDefensePenalty } from "./statusEffects";
 
 export interface ComputeStatsContext {
   role: "attacker" | "defender";
@@ -156,6 +157,14 @@ export function onComputeStats(
   if (intimidated && !hasAbility(abilities, "YOUNG_VIGOR") && !hasNegativeStatusImmunity) {
     attack = Math.max(0, attack - 1);
     modifiers.push("-1 Attack (Intimidated)");
+  }
+
+  if (ctx.role === "defender" && !hasNegativeStatusImmunity) {
+    const culturalPenalty = getStatusDefensePenalty(unit);
+    if (culturalPenalty > 0) {
+      defense = Math.max(0, defense - culturalPenalty);
+      modifiers.push(`-${culturalPenalty} Defense (Cultural Pressure)`);
+    }
   }
 
   if (ctx.role === "attacker" && opponent && hasAbility(abilities, "ANTI_CAVALRY") && isFastUnit(opponent)) {

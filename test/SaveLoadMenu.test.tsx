@@ -49,6 +49,7 @@ vi.mock('../client/src/lib/saveApi', () => ({
   deleteSave: (...args: any[]) => mockDeleteSave(...args),
   deleteLocalSave: (...args: any[]) => mockDeleteLocalSave(...args),
   getLocalSavesSnapshot: (...args: any[]) => mockGetLocalSavesSnapshot(...args),
+  SaveApiError: class SaveApiError extends Error {},
 }));
 
 const mockUseLocalGame = useLocalGame as any;
@@ -169,6 +170,33 @@ describe('SaveLoadMenu', () => {
         }),
       );
     });
+  });
+
+  it('uses a local save as the primary action when cloud saves are unavailable', async () => {
+    const user = userEvent.setup();
+    mockListSaves.mockRejectedValueOnce(new Error('Request failed'));
+
+    render(<SaveLoadMenu {...mockProps} />);
+    await waitFor(() => expect(screen.getByText(/Cloud saves unavailable/i)).toBeInTheDocument());
+
+    const nameInput = screen.getByPlaceholderText('Enter save name...');
+    const saveButton = screen.getByRole('button', { name: 'Save' });
+
+    await user.click(nameInput);
+    await user.type(nameInput, 'Local Fallback Save');
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      expect(mockCreateLocalSave).toHaveBeenCalledWith(
+        'Local Fallback Save',
+        mockGameState,
+        expect.objectContaining({
+          currentPlayer: 'Alice',
+          turn: 5,
+        }),
+      );
+    });
+    expect(mockCreateSave).not.toHaveBeenCalled();
   });
 
   it('displays "No saved games found" when there are no saves', async () => {

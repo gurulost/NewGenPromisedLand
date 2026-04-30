@@ -17,6 +17,12 @@ export type FactionAbilityAIUseRule =
   | "manual_only"
   | "skip_design_pending"
   | "skip_disabled"
+  | "buff_when_combat_ready"
+  | "convert_when_pressure_available"
+  | "economy_when_stable"
+  | "forest_defense_when_available"
+  | "rage_when_engaged"
+  | "ancient_might_when_contested"
   | "pressure_when_targets_available";
 
 export interface FactionAbilityResourceCost {
@@ -68,8 +74,8 @@ export const FACTION_ABILITY_SPECS = {
     durationTurns: 3,
     stackingRule: "refresh",
     aiUse: {
-      rule: "manual_only",
-      notes: "AI timing is not yet tuned; resolver support is available but AI should not originate this ability casually.",
+      rule: "buff_when_combat_ready",
+      notes: "AI may activate when a friendly source can cover multiple units and combat is likely soon.",
     },
     ui: {
       ready: "Inspire nearby friendly units.",
@@ -91,8 +97,8 @@ export const FACTION_ABILITY_SPECS = {
     durationTurns: 4,
     stackingRule: "refresh",
     aiUse: {
-      rule: "manual_only",
-      notes: "AI should wait for an offensive timing rule before using this high-variance buff.",
+      rule: "rage_when_engaged",
+      notes: "AI may activate when several owned units are in or near combat and Pride is sufficient.",
     },
     ui: {
       ready: "Commit to an offensive rage.",
@@ -112,8 +118,8 @@ export const FACTION_ABILITY_SPECS = {
     effect: `Owned forest units gain +${GAME_RULES.abilities.attackBonuses.guerrillaBonus} defense until they leave forest terrain.`,
     stackingRule: "terrain_idempotent",
     aiUse: {
-      rule: "manual_only",
-      notes: "AI should not use this until it evaluates forest occupancy and upcoming enemy attacks.",
+      rule: "forest_defense_when_available",
+      notes: "AI may activate when owned units are standing on forest tiles.",
     },
     ui: {
       ready: "Prepare forest units for ambush defense.",
@@ -123,24 +129,25 @@ export const FACTION_ABILITY_SPECS = {
   CULTURAL_RECLAMATION: {
     id: "CULTURAL_RECLAMATION",
     owningFaction: "MULEKITES",
-    status: "design_pending",
-    cost: { faith: 60 },
-    activationRequirement: { faith: 40 },
-    cooldown: 10,
+    status: "implemented",
+    cost: { faith: GAME_RULES.abilities.factionActive.culturalReclamation.faithCost },
+    activationRequirement: { faith: GAME_RULES.abilities.factionActive.culturalReclamation.activationFaith },
+    cooldown: GAME_RULES.abilities.factionActive.culturalReclamation.cooldown,
     target: {
       type: "enemy_units_area",
-      range: 2,
-      rules: "Pending: define whether this targets one unit, all units in range, cities, or culture pressure over time.",
+      range: GAME_RULES.abilities.factionActive.culturalReclamation.range,
+      rules: "Global faction activation projected through owned cities, Scribe-Teachers, and Royal Envoys. Visible non-allied enemy units within 2 tiles receive cultural pressure.",
     },
-    effect: "Pending design decision before implementation.",
-    stackingRule: "pending",
+    effect: "Applies cultural pressure for 2 turns, reducing defense by 1 and increasing later unit conversion chance by 20 percentage points for the Mulekites.",
+    durationTurns: GAME_RULES.abilities.factionActive.culturalReclamation.durationTurns,
+    stackingRule: "refresh",
     aiUse: {
-      rule: "skip_design_pending",
-      notes: "No AI behavior until target rules and conversion math are specified.",
+      rule: "pressure_when_targets_available",
+      notes: "AI may activate when multiple visible enemy units are in cultural range, or one pressured target is valuable and Faith is abundant.",
     },
     ui: {
-      ready: "Design pending.",
-      blocked: "Cultural Reclamation is not implemented yet.",
+      ready: "Apply cultural pressure near cities and cultural units.",
+      blocked: "Requires 40 Faith and visible non-allied enemy units near a city, Scribe-Teacher, or Royal Envoy.",
     },
   },
   COVENANT_OF_PEACE: {
@@ -158,8 +165,8 @@ export const FACTION_ABILITY_SPECS = {
     effect: "Converts the selected enemy unit if the faith advantage requirement is met.",
     stackingRule: "single_resolution",
     aiUse: {
-      rule: "manual_only",
-      notes: "AI should wait for a conversion-value heuristic before activating.",
+      rule: "convert_when_pressure_available",
+      notes: "AI may activate when a valid nearby conversion target exists and the faith advantage requirement is met.",
     },
     ui: {
       ready: "Attempt a peaceful conversion.",
@@ -205,8 +212,8 @@ export const FACTION_ABILITY_SPECS = {
     durationTurns: 5,
     stackingRule: "refresh",
     aiUse: {
-      rule: "manual_only",
-      notes: "AI should wait for a risk/reward rule that accounts for dissent and economy timing.",
+      rule: "economy_when_stable",
+      notes: "AI may activate when Pride is high, dissent is not already critical, and the temporary economy burst is likely to matter.",
     },
     ui: {
       ready: "Convert pride into temporary economic power.",
@@ -216,22 +223,24 @@ export const FACTION_ABILITY_SPECS = {
   ANCIENT_MIGHT: {
     id: "ANCIENT_MIGHT",
     owningFaction: "JAREDITES",
-    status: "design_pending",
+    status: "implemented",
     cost: {},
-    cooldown: 15,
+    activationRequirement: { pride: GAME_RULES.abilities.factionActive.ancientMight.activationPride },
+    cooldown: GAME_RULES.abilities.factionActive.ancientMight.cooldown,
     target: {
       type: "player",
-      rules: "Pending: define duration, pride increase cadence, collapse interaction, and exact stat modifiers.",
+      rules: "Affects all units owned by the activating Jaredite player.",
     },
-    effect: "Pending design decision before implementation.",
-    stackingRule: "pending",
+    effect: "All owned units gain +2 attack and +2 defense for 4 turns. The activating player gains 10 Pride immediately and 10 Pride at each source turn end while the effect remains active, intentionally pushing toward existing pride-cycle instability.",
+    durationTurns: GAME_RULES.abilities.factionActive.ancientMight.durationTurns,
+    stackingRule: "refresh",
     aiUse: {
-      rule: "skip_design_pending",
-      notes: "No AI behavior until the pride/collapse tradeoff is specified.",
+      rule: "ancient_might_when_contested",
+      notes: "AI may activate when it has enough units to benefit and Pride has room before reaching the highest-risk band.",
     },
     ui: {
-      ready: "Design pending.",
-      blocked: "Ancient Might is not implemented yet.",
+      ready: "Awaken ancient strength at the cost of rising Pride.",
+      blocked: "Requires 60 Pride and at least one owned unit.",
     },
   },
 } satisfies Record<string, FactionAbilitySpec>;

@@ -10,6 +10,7 @@ import { hasUnitEffectFlag } from "./activeEffects";
 // Status effect types
 export type StatusEffectType =
     | 'TESTIMONY_PRESSURE'
+    | 'CULTURAL_PRESSURE'
     | 'INTIMIDATED'
     | 'RALLIED'
     | 'DIVINE_PROTECTION';
@@ -19,6 +20,7 @@ export interface StatusEffect {
     turnsRemaining?: number;
     attackPenalty?: number;
     defensePenalty?: number;
+    conversionChanceBonus?: number;
     attackBonus?: number;
     defenseBonus?: number;
     sourcePlayerId?: string;
@@ -26,7 +28,7 @@ export interface StatusEffect {
 
 // Negative statuses currently in the game ruleset. Keep centralized so
 // immunity effects do not need to know every call site that can apply them.
-export const NEGATIVE_STATUS_EFFECTS: StatusEffectType[] = ['INTIMIDATED', 'TESTIMONY_PRESSURE'];
+export const NEGATIVE_STATUS_EFFECTS: StatusEffectType[] = ['INTIMIDATED', 'TESTIMONY_PRESSURE', 'CULTURAL_PRESSURE'];
 export const MORALE_DEBUFFS: StatusEffectType[] = NEGATIVE_STATUS_EFFECTS;
 
 /**
@@ -99,6 +101,24 @@ export function getStatusAttackBonus(unit: Unit): number {
             return total + 2; // +2 Attack from rally
         }
         return total;
+    }, 0);
+}
+
+export function getStatusDefensePenalty(unit: Unit): number {
+    return getStatusEffects(unit).reduce((total, effect) => {
+        if (effect?.type === 'CULTURAL_PRESSURE' && typeof effect.defensePenalty === 'number') {
+            return total + effect.defensePenalty;
+        }
+        return total;
+    }, 0);
+}
+
+export function getStatusConversionChanceBonus(unit: Unit, sourcePlayerId?: string): number {
+    return getStatusEffects(unit).reduce((total, effect) => {
+        if (effect?.type !== 'CULTURAL_PRESSURE') return total;
+        if (sourcePlayerId && effect.sourcePlayerId && effect.sourcePlayerId !== sourcePlayerId) return total;
+        if (typeof effect.conversionChanceBonus !== 'number') return total;
+        return total + effect.conversionChanceBonus;
     }, 0);
 }
 

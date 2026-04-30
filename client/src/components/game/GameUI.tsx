@@ -1237,8 +1237,8 @@ export default function GameUI() {
     }
   }, [selectedUnit, setAttackMode, setMovementMode]);
 
-  if (isDev) {
-    console.log(
+  if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") {
+    console.debug(
       '[GameUI] Rendering, gameState exists:',
       !!gameState,
       'players:',
@@ -1423,22 +1423,22 @@ export default function GameUI() {
       if (!player) return;
 
       if (!event.detail?.coordinate || !Array.isArray(event.detail?.resources)) {
-        if (isDev) console.log('⚠️ Invalid world element click event:', event.detail);
+        if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('⚠️ Invalid world element click event:', event.detail);
         return;
       }
 
       const { coordinate, resources } = event.detail;
-      if (isDev) {
-        console.log('🌍 World element click detected:', { coordinate, resources, availableElements: Object.keys(WORLD_ELEMENTS) });
+      if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") {
+        console.debug('🌍 World element click detected:', { coordinate, resources, availableElements: Object.keys(WORLD_ELEMENTS) });
       }
 
       for (const resource of resources) {
         if (!WORLD_ELEMENTS[resource]) {
-          if (isDev) console.log('❌ Resource not in WORLD_ELEMENTS:', resource);
+          if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('❌ Resource not in WORLD_ELEMENTS:', resource);
           continue;
         }
 
-        if (isDev) console.log('✅ Setting selected world element:', resource, coordinate);
+        if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('✅ Setting selected world element:', resource, coordinate);
         const unitsOnTile =
           gs.units?.filter(u =>
             u.playerId === player.id &&
@@ -1465,7 +1465,7 @@ export default function GameUI() {
         return;
       }
 
-      if (isDev) console.log('⚠️ No world elements found in resources:', resources);
+      if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('⚠️ No world elements found in resources:', resources);
     };
 
     // Listen for world element clicks
@@ -1520,7 +1520,7 @@ export default function GameUI() {
       if (event.detail?.unitId && event.detail?.coordinate) {
         const { unitId, coordinate } = event.detail;
 
-        if (isDev) console.log('🏘 Village encounter detected:', { unitId, coordinate });
+        if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('🏘 Village encounter detected:', { unitId, coordinate });
 
         // Open village capture panel
         setSelectedVillage({
@@ -2073,7 +2073,7 @@ export default function GameUI() {
           gameState={gameState}
           onBuild={(optionId) => {
             // Handle construction logic
-            console.log('Starting construction:', optionId);
+            if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('Starting construction:', optionId);
             // Determine building category
             let category: 'improvements' | 'structures' | 'units';
 

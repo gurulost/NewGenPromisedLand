@@ -1,6 +1,8 @@
 import React from 'react';
 import { openBugReportDialog } from './bugReport';
 
+const DEBUG_ERROR_REPORTING = import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true";
+
 /**
  * Comprehensive Error Reporting and Debugging System
  * Inspired by client-side monitoring services but tailored for our game
@@ -97,7 +99,9 @@ class GameErrorReporter {
       this.userActions = this.userActions.slice(-this.maxActionsHistory);
     }
 
-    console.log('🎯 User action:', action);
+    if (DEBUG_ERROR_REPORTING) {
+      console.debug('User action:', action);
+    }
   }
 
   /**

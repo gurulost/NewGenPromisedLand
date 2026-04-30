@@ -28,6 +28,13 @@ import {
   trackMenuSelection,
 } from "../../utils/telemetry/gameplayAnalytics";
 
+const DEBUG_SAVE_LOAD = import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === 'true';
+const debugSaveLoadLog = (...args: unknown[]) => {
+  if (DEBUG_SAVE_LOAD) {
+    console.debug(...args);
+  }
+};
+
 interface SaveLoadMenuProps {
   onClose: () => void;
   onLoadFromMenu?: boolean;
@@ -50,6 +57,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
   const savedGames = [...cloudSaves, ...localSaves].sort((a, b) =>
     a.updatedAt < b.updatedAt ? 1 : -1
   );
+  const primarySaveStorage: ServerSave["storage"] = cloudStatus ? "local" : "server";
 
   const getSaveSelectionKey = (save: ServerSave) => `${save.storage}:${save.id}`;
 
@@ -119,7 +127,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
       });
       setSaveName("");
       await loadSavedGamesList();
-      console.log(`Game saved successfully (${storage}):`, saveName);
+      debugSaveLoadLog(`Game saved successfully (${storage}):`, saveName);
     } catch (err) {
       console.error('Failed to save game:', err);
       setError(
@@ -141,7 +149,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
         trackMenuSelection({ selection: 'load_autosave', location: onLoadFromMenu ? 'main_menu_load_menu' : 'in_game_load_menu' });
         loadGameState(autosaveData.gameState, { source: 'save_load_menu_autosave', saveId: 'autosave' });
         onClose();
-        console.log('Autosave loaded successfully');
+        debugSaveLoadLog('Autosave loaded successfully');
       } catch (err) {
         console.error('Failed to load autosave:', err);
         setError('Failed to load autosave');
@@ -157,7 +165,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
       trackMenuSelection({ selection: 'load_saved_game', location: onLoadFromMenu ? 'main_menu_load_menu' : 'in_game_load_menu' });
       loadGameState(save.gameState, { source: 'save_load_menu', saveId: save.id });
       onClose();
-      console.log('Game loaded successfully:', save.name);
+      debugSaveLoadLog('Game loaded successfully:', save.name);
     } catch (err) {
       console.error('Failed to load game:', err);
       setError('Failed to load game');
@@ -226,7 +234,7 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
             imported.metadata
           );
           await loadSavedGamesList();
-          console.log('Save imported successfully:', imported.name);
+          debugSaveLoadLog('Save imported successfully:', imported.name);
         }
       } catch (err) {
         console.error('Failed to import save:', err);
@@ -279,31 +287,33 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
                   value={saveName}
                   onChange={(e) => setSaveName(e.target.value)}
                   className="flex-1 bg-slate-800 border-slate-600 text-white"
-                  onKeyPress={(e) => e.key === 'Enter' && saveName.trim() && saveGame("server")}
+                  onKeyPress={(e) => e.key === 'Enter' && saveName.trim() && saveGame(primarySaveStorage)}
                   disabled={isSaving}
                 />
                 <GlowingButton
                   data-testid="save-load-save-button"
-                  onClick={() => saveGame("server")}
+                  onClick={() => saveGame(primarySaveStorage)}
                   disabled={!saveName.trim() || isSaving}
                   aria-label="Save"
                 >
                   <span className="flex items-center justify-center gap-2">
                     {isSaving ? <Loader2 className="animate-spin" /> : <Save />}
-                    {isSaving ? "Saving..." : "Save to Cloud"}
+                    {isSaving ? "Saving..." : primarySaveStorage === "server" ? "Save to Cloud" : "Save on This Device"}
                   </span>
                 </GlowingButton>
-                <GlowingButton
-                  variant="secondary"
-                  onClick={() => saveGame("local")}
-                  disabled={!saveName.trim() || isSaving}
-                  aria-label="Save on this device"
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    <Save />
-                    Save on This Device
-                  </span>
-                </GlowingButton>
+                {!cloudStatus && (
+                  <GlowingButton
+                    variant="secondary"
+                    onClick={() => saveGame("local")}
+                    disabled={!saveName.trim() || isSaving}
+                    aria-label="Save on this device"
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <Save />
+                      Save on This Device
+                    </span>
+                  </GlowingButton>
+                )}
               </div>
             </div>
           )}

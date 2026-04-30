@@ -42,7 +42,7 @@ export const emitTelemetry = (
     }
   });
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NEWGEN_TELEMETRY_DEBUG === 'true') {
     const scope = `[telemetry:${enriched.channel}:${enriched.status}]`;
     console.debug(scope, enriched);
   }

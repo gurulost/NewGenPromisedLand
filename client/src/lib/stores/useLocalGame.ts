@@ -1640,7 +1640,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     },
 
     moveUnit: (unitId, targetCoordinate) => {
-      if (import.meta.env.DEV) console.log('Moving unit:', unitId, 'to:', targetCoordinate);
+      if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('Moving unit:', unitId, 'to:', targetCoordinate);
       void submitAction({
         type: 'MOVE_UNIT' as const,
         payload: { unitId, targetCoordinate }
@@ -1648,7 +1648,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     },
 
     attackUnit: (attackerId: string, targetId: string) => {
-      if (import.meta.env.DEV) console.log('Unit attacking:', attackerId, 'target:', targetId);
+      if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('Unit attacking:', attackerId, 'target:', targetId);
       void submitAction({
         type: 'ATTACK_UNIT' as const,
         payload: { attackerId, targetId }
@@ -1737,7 +1737,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       const { gameState } = get();
       const playerId = resolveUiTurnPlayer(gameState)?.id;
       if (!playerId) return;
-      if (import.meta.env.DEV) console.log('🤝 Diplomacy: DECLARE_WAR', { playerId, targetPlayerId });
+      if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('🤝 Diplomacy: DECLARE_WAR', { playerId, targetPlayerId });
       void submitAction({ type: 'DECLARE_WAR', payload: { playerId, targetPlayerId } });
     },
 
@@ -1745,7 +1745,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       const { gameState } = get();
       const playerId = resolveUiTurnPlayer(gameState)?.id;
       if (!playerId) return;
-      if (import.meta.env.DEV) console.log('🤝 Diplomacy: FORM_ALLIANCE', { playerId, targetPlayerId });
+      if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('🤝 Diplomacy: FORM_ALLIANCE', { playerId, targetPlayerId });
       void submitAction({ type: 'FORM_ALLIANCE', payload: { playerId, targetPlayerId } });
     },
 
@@ -1753,7 +1753,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       const { gameState } = get();
       const playerId = resolveUiTurnPlayer(gameState)?.id;
       if (!playerId) return;
-      if (import.meta.env.DEV) console.log('🤝 Diplomacy: BREAK_ALLIANCE', { playerId, targetPlayerId });
+      if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('🤝 Diplomacy: BREAK_ALLIANCE', { playerId, targetPlayerId });
       void submitAction({ type: 'BREAK_ALLIANCE', payload: { playerId, targetPlayerId } });
     },
 
@@ -1761,7 +1761,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       const { gameState } = get();
       const playerId = resolveUiTurnPlayer(gameState)?.id;
       if (!playerId) return;
-      if (import.meta.env.DEV) console.log('🤝 Diplomacy: ESTABLISH_TRADE_ROUTE', { playerId, fromCityId, toCityId });
+      if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('🤝 Diplomacy: ESTABLISH_TRADE_ROUTE', { playerId, fromCityId, toCityId });
       void submitAction({ type: 'ESTABLISH_TRADE_ROUTE', payload: { playerId, fromCityId, toCityId } });
     },
   };

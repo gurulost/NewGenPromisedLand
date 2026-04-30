@@ -12,6 +12,7 @@ type WebVitalsCallback = (report: WebVitalsReport) => void;
 let sessionId: string = '';
 let gamePhase: string = 'menu';
 const callbacks: WebVitalsCallback[] = [];
+const DEBUG_WEB_VITALS = import.meta.env.DEV && import.meta.env.VITE_WEB_VITALS_DEBUG === 'true';
 
 export function initWebVitals(config?: { sessionId?: string; onReport?: WebVitalsCallback }) {
   sessionId = config?.sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -27,9 +28,8 @@ export function initWebVitals(config?: { sessionId?: string; onReport?: WebVital
       gamePhase,
     };
 
-    // Log to console in development
-    if ((import.meta as any).env?.DEV) {
-      console.log(`[Web Vitals] ${metric.name}:`, {
+    if (DEBUG_WEB_VITALS) {
+      console.debug(`[Web Vitals] ${metric.name}:`, {
         value: metric.value,
         rating: metric.rating,
         navigationType: metric.navigationType,

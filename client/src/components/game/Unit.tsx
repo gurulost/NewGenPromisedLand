@@ -145,9 +145,14 @@ interface UnitProps {
 
 const UNIT_HEIGHT = 0.2;
 const HEX_SIZE = 1;
+const DEBUG_UNITS = import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true";
+const debugUnitLog = (...args: unknown[]) => {
+  if (DEBUG_UNITS) {
+    console.debug(...args);
+  }
+};
 
 export default function Unit({ unit, isSelected }: UnitProps) {
-  const isDev = import.meta.env.DEV;
   const meshRef = useRef<THREE.Group>(null);
   const unitGroupRef = useRef<THREE.Group>(null);
   const lastPulseIndexRef = useRef<number>(-1);
@@ -164,25 +169,21 @@ export default function Unit({ unit, isSelected }: UnitProps) {
 
   const pixelPos = useMemo(() => hexToPixel(unit.coordinate, HEX_SIZE), [unit.coordinate]);
 
-  if (isDev) {
-    console.log(`🎨 Unit ${unit.id} rendering:`, {
-      coordinate: unit.coordinate,
-      pixelPos,
-      type: unit.type,
-      playerId: unit.playerId,
-      visionRadius: unit.visionRadius,
-      attackRange: unit.attackRange,
-      isSelected,
-    });
-  }
+  debugUnitLog(`Unit ${unit.id} rendering:`, {
+    coordinate: unit.coordinate,
+    pixelPos,
+    type: unit.type,
+    playerId: unit.playerId,
+    visionRadius: unit.visionRadius,
+    attackRange: unit.attackRange,
+    isSelected,
+  });
 
   const player = gameState?.players.find((p) => p.id === unit.playerId);
   const faction = player ? getFaction(player.factionId as any) : null;
   const currentPlayer = gameState?.players[gameState?.currentPlayerIndex || 0];
 
-  if (isDev) {
-    console.log(`✅ Unit ${unit.id} passed visibility filter and is rendering`);
-  }
+  debugUnitLog(`Unit ${unit.id} passed visibility filter and is rendering`);
 
   useEffect(() => {
     if (!isSelected) {
@@ -190,9 +191,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
     }
 
     if (isMovementMode && gameState) {
-      if (isDev) {
-        console.log("Calculating reachable tiles for unit:", unit.id, "Movement:", unit.remainingMovement);
-      }
+      debugUnitLog("Calculating reachable tiles for unit:", unit.id, "Movement:", unit.remainingMovement);
 
       const { passableTiles, tileCosts } = buildPathfindingInputs(gameState, unit);
 
@@ -210,9 +209,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
             (coord) => coord.q !== unit.coordinate.q || coord.r !== unit.coordinate.r
           );
           const reachableKeys = reachableMoves.map((coord) => `${coord.q},${coord.r}`);
-          if (isDev) {
-            console.log("Reachable tiles:", reachableKeys);
-          }
+          debugUnitLog("Reachable tiles:", reachableKeys);
           setReachableTiles(reachableKeys);
           setReachableCoordinates(reachableMoves);
         })
@@ -233,7 +230,6 @@ export default function Unit({ unit, isSelected }: UnitProps) {
     gameState,
     setReachableTiles,
     setReachableCoordinates,
-    isDev,
   ]);
 
   const perfMode = usePerformanceMode();
@@ -407,21 +403,19 @@ export default function Unit({ unit, isSelected }: UnitProps) {
   });
 
   const handleClick = () => {
-    if (isDev) {
-      console.log(
-        "Unit clicked:",
-        unit.id,
-        "Current player:",
-        gameState?.players[gameState.currentPlayerIndex]?.id,
-        "Unit player:",
-        unit.playerId
-      );
-    }
+    debugUnitLog(
+      "Unit clicked:",
+      unit.id,
+      "Current player:",
+      gameState?.players[gameState.currentPlayerIndex]?.id,
+      "Unit player:",
+      unit.playerId
+    );
 
     if (gameState && canSelectUnit(unit, gameState)) {
       setSelectedUnit(unit);
-    } else if (isDev) {
-      console.log("Cannot select unit - not current player's turn");
+    } else {
+      debugUnitLog("Cannot select unit - not current player's turn");
     }
   };
 
@@ -559,9 +553,6 @@ export default function Unit({ unit, isSelected }: UnitProps) {
           Move: {unit.remainingMovement}
         </Text>
       )}
-
-      {/* Keep reference to faction to avoid unused import churn in dev; also makes debugging easier */}
-      {isDev && faction ? null : null}
     </group>
   );
 }

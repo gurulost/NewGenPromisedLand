@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+delete process.env.NO_COLOR;
+
 const parseAppPort = (value: string | undefined) => {
   if (value == null || value.trim() === '') return 5100;
   const parsed = Number(value);

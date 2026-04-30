@@ -1,5 +1,7 @@
 import { useAudio } from '../lib/stores/useAudio';
 
+const DEBUG_AUDIO = import.meta.env.DEV && import.meta.env.VITE_AUDIO_DEBUG === 'true';
+
 /**
  * Pure AudioService class for use in non-React contexts like Zustand stores
  * Uses store.getState() instead of hooks to avoid violating Rules of Hooks
@@ -33,7 +35,9 @@ export class AudioService {
         soundMethod();
       }
     } catch (error) {
-      console.debug(`Audio playback failed for ${soundName}:`, error);
+      if (DEBUG_AUDIO) {
+        console.debug(`Audio playback failed for ${soundName}:`, error);
+      }
     }
   }
 

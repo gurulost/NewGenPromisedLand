@@ -12,8 +12,8 @@ import {
   type MapSizeConfig,
 } from './mapGenerationConstants';
 
-export { MAP_GENERATION_CONSTANTS, MAP_SIZE_CONFIGS, CAPITAL_MIN_DISTANCE_BY_SIZE };
-export type { MapSize, MapSizeConfig };
+export { MAP_GENERATION_CONSTANTS, MAP_SIZE_CONFIGS, CAPITAL_MIN_DISTANCE_BY_SIZE }; export type { MapSize, MapSizeConfig };
+const debugMapGeneratorLog = (...args: unknown[]) => { if (typeof process !== 'undefined' && process.env.NEWGEN_MAP_GENERATOR_DEBUG === 'true') console.debug(...args); };
 
 /**
  * Type definitions for map generation
@@ -515,7 +515,7 @@ export class MapGenerator {
 
     const villageCount = tiles.filter(tile => tile.feature === 'village').length;
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`Generated ${villageCount} villages on map`);
+      debugMapGeneratorLog(`Generated ${villageCount} villages on map`);
     }
     
     // Step 7: Place resources strategically (city zones + wilderness)
@@ -1088,7 +1088,7 @@ export class MapGenerator {
     waterData = this.buildWaterBodyIndex(tiles);
 
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`Water motif: ${motif}, ratio: ${(tiles.filter(t => t.terrain === 'water').length / tiles.length).toFixed(2)}`);
+      debugMapGeneratorLog(`Water motif: ${motif}, ratio: ${(tiles.filter(t => t.terrain === 'water').length / tiles.length).toFixed(2)}`);
     }
 
     this.lastWaterMotif = motif;
@@ -2006,9 +2006,9 @@ export class MapGenerator {
       const earlyMin = Math.min(...earlyCounts);
       const earlyMax = Math.max(...earlyCounts);
       if (usedNearFallback) {
-        console.log('Neutral cities: near-ring fallback enabled to reach target count.');
+        debugMapGeneratorLog('Neutral cities: near-ring fallback enabled to reach target count.');
       }
-      console.log(
+      debugMapGeneratorLog(
         `Neutral cities: placed ${placed}/${additionalCities}, early spread ${earlyMin}-${earlyMax}`
       );
     }
@@ -2256,7 +2256,7 @@ export class MapGenerator {
     const targetPlacements = Math.max(0, targetTotal - placedVillages.length);
     if (targetPlacements <= 0) {
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`Villages: placed ${placedVillages.length}/${targetTotal}, no additional placement needed`);
+        debugMapGeneratorLog(`Villages: placed ${placedVillages.length}/${targetTotal}, no additional placement needed`);
       }
       return;
     }
@@ -2557,11 +2557,11 @@ export class MapGenerator {
       const ringSummary = ringCount
         .map((counts, index) => `P${index + 1} N${counts.near}/M${counts.mid}/F${counts.far}`)
         .join(' | ');
-      console.log(
+      debugMapGeneratorLog(
         `Villages: placed ${placedVillages.length}/${targetTotal}, contested ${contestedPlaced}/${contestedTarget}, early spread ${earlyMin}-${earlyMax}`
       );
       if (ringSummary) {
-        console.log(`Villages: ring counts ${ringSummary}`);
+        debugMapGeneratorLog(`Villages: ring counts ${ringSummary}`);
       }
     }
   }
@@ -3338,7 +3338,7 @@ export class MapGenerator {
         context.debug.varietyExtraGranted[capitalIndex] += 1;
       }
       if (varietyExtraAdded && process.env.NODE_ENV !== 'production') {
-        console.log(`Capital ${capitalIndex + 1}: variety required extra resource placement.`);
+        debugMapGeneratorLog(`Capital ${capitalIndex + 1}: variety required extra resource placement.`);
       }
     }
   }
@@ -3661,7 +3661,7 @@ export class MapGenerator {
 
     const debug = context.debug;
     const clampNote = debug.maxPerCapitalClamped ? ' (clamped)' : '';
-    console.log(
+    debugMapGeneratorLog(
       `Land resources: blocked spacing ${debug.blockedBySpacing}, cap ${debug.blockedByCap}${clampNote}, occupied ${debug.blockedByOccupied}, fallback ${debug.fallbackPlaced}`
     );
 
@@ -3670,7 +3670,7 @@ export class MapGenerator {
       .filter(Boolean)
       .join(', ');
     if (relaxedSpacing) {
-      console.log(`Land resources: spacing relaxed for ${relaxedSpacing}`);
+      debugMapGeneratorLog(`Land resources: spacing relaxed for ${relaxedSpacing}`);
     }
 
     const relaxedCap = debug.relaxCapUsed
@@ -3678,14 +3678,14 @@ export class MapGenerator {
       .filter(Boolean)
       .join(', ');
     if (relaxedCap) {
-      console.log(`Land resources: cap relaxed for ${relaxedCap}`);
+      debugMapGeneratorLog(`Land resources: cap relaxed for ${relaxedCap}`);
     }
 
     const homeCounts = context.homeCountByCapital
       .map((count, index) => `P${index + 1}=${count}`)
       .join(', ');
     if (homeCounts) {
-      console.log(`Land resources: home-zone counts ${homeCounts}`);
+      debugMapGeneratorLog(`Land resources: home-zone counts ${homeCounts}`);
     }
   }
   
@@ -3922,7 +3922,7 @@ export class MapGenerator {
     }
 
     if (process.env.NODE_ENV !== 'production' && ruinsPlaced.length < totalTarget) {
-      console.log(`Ruins placement capped at ${ruinsPlaced.length}/${totalTarget} due to spacing constraints.`);
+      debugMapGeneratorLog(`Ruins placement capped at ${ruinsPlaced.length}/${totalTarget} due to spacing constraints.`);
     }
   }
 

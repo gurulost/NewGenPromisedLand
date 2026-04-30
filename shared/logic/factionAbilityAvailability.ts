@@ -1,5 +1,6 @@
 import { ABILITIES } from "../data/abilities";
 import { FACTIONS } from "../data/factions";
+import { GAME_RULES } from "../data/gameRules";
 import {
   getFactionAbilitySpec,
   type FactionAbilityResourceCost,
@@ -8,7 +9,9 @@ import {
 import type { AbilityDefinition } from "../data/abilities";
 import type { GameState, PlayerState } from "../types/game";
 import type { FactionAbility } from "../types/faction";
+import { hexDistance } from "../utils/hex";
 import { normalizeAbility } from "./actions/helpers";
+import { getCulturalPressureSelection } from "./culturalPressure";
 import { getTestimonyPressureSelection } from "./testimonyPressure";
 
 export type FactionAbilityAvailabilityReason =
@@ -73,6 +76,51 @@ function getRequirementFailures(player: PlayerState, ability: AbilityDefinition,
   }
 
   return unmet;
+}
+
+function hasOwnedUnit(state: GameState, playerId: string): boolean {
+  return (state.units ?? []).some(unit => unit.playerId === playerId);
+}
+
+function hasOwnedForestUnit(state: GameState, playerId: string): boolean {
+  return (state.units ?? []).some(unit => {
+    if (unit.playerId !== playerId) return false;
+    const tile = state.map.tiles.find(candidate =>
+      candidate.coordinate.q === unit.coordinate.q &&
+      candidate.coordinate.r === unit.coordinate.r
+    );
+    return tile?.terrain === "forest";
+  });
+}
+
+function isExplicitAlly(state: GameState, sourcePlayerId: string, targetPlayerId: string): boolean {
+  const sourcePlayer = state.players.find(candidate => candidate.id === sourcePlayerId);
+  const targetPlayer = state.players.find(candidate => candidate.id === targetPlayerId);
+
+  return Boolean(
+    sourcePlayer?.alliedWith?.includes(targetPlayerId) ||
+    targetPlayer?.alliedWith?.includes(sourcePlayerId)
+  );
+}
+
+function hasCovenantOfPeaceTarget(state: GameState, player: PlayerState): boolean {
+  const costFaith = GAME_RULES.abilities.resourceCosts.covenantOfPeace;
+  const requiredAdvantage = GAME_RULES.conversion.covenantOfPeace.requiredFaithAdvantage;
+  const range = GAME_RULES.conversion.covenantOfPeace.range;
+  if (player.stats.faith < costFaith) return false;
+
+  return (state.units ?? [])
+    .filter(unit => unit.playerId !== player.id && unit.playerId !== undefined)
+    .filter(unit => !isExplicitAlly(state, player.id, unit.playerId))
+    .some(unit => {
+      const enemyPlayer = state.players.find(candidate => candidate.id === unit.playerId);
+      const enemyFaith = enemyPlayer?.stats.faith ?? 0;
+      if (player.stats.faith - enemyFaith < requiredAdvantage) return false;
+      return (state.units ?? []).some(ally =>
+        ally.playerId === player.id &&
+        hexDistance(ally.coordinate, unit.coordinate) <= range
+      );
+    });
 }
 
 export function getFactionAbilityAvailability(
@@ -140,15 +188,51 @@ export function getFactionAbilityAvailability(
     return { available: false, reason: "requirements", ability, factionAbility, spec, unmetRequirements };
   }
 
-  if (spec.id === "MISSIONARY_ZEAL") {
-    const selection = getTestimonyPressureSelection(state, player.id, spec.target.range ?? 4, {
-      requireTargetVisibility: true,
-    });
-    if (selection.sourceUnits.length === 0) {
-      return { available: false, reason: "no_valid_source", ability, factionAbility, spec };
+  switch (spec.id) {
+    case "TITLE_OF_LIBERTY":
+      if (!hasOwnedUnit(state, player.id)) {
+        return { available: false, reason: "no_valid_source", ability, factionAbility, spec };
+      }
+      break;
+    case "WARRIOR_RAGE":
+    case "ANCIENT_MIGHT":
+      if (!hasOwnedUnit(state, player.id)) {
+        return { available: false, reason: "no_valid_targets", ability, factionAbility, spec };
+      }
+      break;
+    case "lamanite_guerrilla_tactics":
+      if (!hasOwnedForestUnit(state, player.id)) {
+        return { available: false, reason: "no_valid_targets", ability, factionAbility, spec };
+      }
+      break;
+    case "COVENANT_OF_PEACE":
+      if (!hasCovenantOfPeaceTarget(state, player)) {
+        return { available: false, reason: "no_valid_targets", ability, factionAbility, spec };
+      }
+      break;
+    case "CULTURAL_RECLAMATION": {
+      const selection = getCulturalPressureSelection(state, player.id, spec.target.range ?? GAME_RULES.abilities.factionActive.culturalReclamation.range, {
+        requireTargetVisibility: true,
+      });
+      if (selection.sourceCoordinates.length === 0) {
+        return { available: false, reason: "no_valid_source", ability, factionAbility, spec };
+      }
+      if (selection.targetUnits.length === 0) {
+        return { available: false, reason: "no_valid_targets", ability, factionAbility, spec };
+      }
+      break;
     }
-    if (selection.targetUnits.length === 0) {
-      return { available: false, reason: "no_valid_targets", ability, factionAbility, spec };
+    case "MISSIONARY_ZEAL": {
+      const selection = getTestimonyPressureSelection(state, player.id, spec.target.range ?? 4, {
+        requireTargetVisibility: true,
+      });
+      if (selection.sourceUnits.length === 0) {
+        return { available: false, reason: "no_valid_source", ability, factionAbility, spec };
+      }
+      if (selection.targetUnits.length === 0) {
+        return { available: false, reason: "no_valid_targets", ability, factionAbility, spec };
+      }
+      break;
     }
   }
 

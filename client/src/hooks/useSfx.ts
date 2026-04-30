@@ -6,6 +6,7 @@ export type SfxType = string;
 // Throttle map to prevent sound spam
 const throttleMap = new Map<SfxType, number>();
 const THROTTLE_DURATION = 150; // ms
+const DEBUG_AUDIO = import.meta.env.DEV && import.meta.env.VITE_AUDIO_DEBUG === 'true';
 
 export function useSfxEngine() {
   return useCallback((type: SfxType) => {
@@ -16,7 +17,9 @@ export function useSfxEngine() {
     try {
       useAudio.getState().playSfx(type);
     } catch (error) {
-      console.debug('SFX playback failed:', error);
+      if (DEBUG_AUDIO) {
+        console.debug('SFX playback failed:', error);
+      }
     }
   }, []);
 }

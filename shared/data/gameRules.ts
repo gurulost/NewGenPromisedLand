@@ -116,6 +116,26 @@ export interface GameRules {
       maxSuccessChance: number;
       minSuccessChance: number;
     };
+    factionActive: {
+      culturalReclamation: {
+        activationFaith: number;
+        faithCost: number;
+        cooldown: number;
+        range: number;
+        durationTurns: number;
+        defensePenalty: number;
+        conversionChanceBonus: number;
+      };
+      ancientMight: {
+        activationPride: number;
+        cooldown: number;
+        durationTurns: number;
+        attackBonus: number;
+        defenseBonus: number;
+        immediatePride: number;
+        pridePerSourceTurn: number;
+      };
+    };
   };
 
   // Combat Configuration
@@ -291,6 +311,26 @@ export const GAME_RULES: GameRules = {
       faithDifferentialWeight: 5, // Each point of faith difference adds/subtracts 5%
       maxSuccessChance: 90, // Cap at 90% success
       minSuccessChance: 10, // Minimum 10% chance even with massive faith disadvantage
+    },
+    factionActive: {
+      culturalReclamation: {
+        activationFaith: 40,
+        faithCost: 30,
+        cooldown: 10,
+        range: 2,
+        durationTurns: 2,
+        defensePenalty: 1,
+        conversionChanceBonus: 0.2,
+      },
+      ancientMight: {
+        activationPride: 60,
+        cooldown: 15,
+        durationTurns: 4,
+        attackBonus: 2,
+        defenseBonus: 2,
+        immediatePride: 10,
+        pridePerSourceTurn: 10,
+      },
     },
   },
 

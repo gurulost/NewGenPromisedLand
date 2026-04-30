@@ -87,11 +87,11 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
   CULTURAL_RECLAMATION: {
     id: 'CULTURAL_RECLAMATION',
     name: 'Cultural Reclamation',
-    description: 'Convert enemy units within 2 tiles through cultural influence.',
+    description: 'Apply cultural pressure near Mulekites cities and cultural units, weakening enemy defense and setting up later conversion.',
     type: 'faction',
-    effect: 'CONVERT_AREA',
-    cooldown: 10,
-    requirements: { faith: 40 },
+    effect: 'CULTURAL_PRESSURE',
+    cooldown: GAME_RULES.abilities.factionActive.culturalReclamation.cooldown,
+    requirements: { faith: GAME_RULES.abilities.factionActive.culturalReclamation.activationFaith },
   },
 
   RAMEUMPTOM: {
@@ -124,10 +124,12 @@ export const ABILITIES: Record<string, AbilityDefinition> = {
   ANCIENT_MIGHT: {
     id: 'ANCIENT_MIGHT',
     name: 'Ancient Might',
-    description: 'All units gain +2 to all stats for a time, but pride rises rapidly.',
+    description: 'All units gain +2 attack and defense for a time, but pride rises rapidly.',
     type: 'faction',
     effect: 'ANCIENT_MIGHT_BUFF',
-    cooldown: 15,
+    duration: GAME_RULES.abilities.factionActive.ancientMight.durationTurns,
+    cooldown: GAME_RULES.abilities.factionActive.ancientMight.cooldown,
+    requirements: { pride: GAME_RULES.abilities.factionActive.ancientMight.activationPride },
   },
 
   SHIPBUILDING_TRADITION: {

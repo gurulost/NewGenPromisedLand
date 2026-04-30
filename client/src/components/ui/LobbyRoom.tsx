@@ -22,6 +22,8 @@ import { ChatPanel } from "../chat/ChatPanel";
 import { useMobileUI } from "../../hooks/useMobileUI";
 import BugReportSupportCallout from "./BugReportSupportCallout";
 
+const DEBUG_LOBBY = import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true";
+
 type LobbySeat = {
   id: number;
   userId: number | null;
@@ -356,8 +358,8 @@ export default function LobbyRoom() {
     if (userId == null) return;
     if (lobbyStatus !== "playing") return;
 
-    if (import.meta.env.DEV) {
-      console.log("Lobby status changed to playing, initializing game...", lobbyGameState);
+    if (DEBUG_LOBBY) {
+      console.debug("Lobby status changed to playing, initializing game...", lobbyGameState);
     }
     const gameConfig = lobbyGameState as {
       players: Array<{ playerId?: string; userId?: number | null; name: string; factionId: string; isAI: boolean; turnOrder: number }>;

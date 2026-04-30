@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/react';
 
 const isDevelopment = import.meta.env.DEV;
 const isProduction = import.meta.env.PROD;
+const DEBUG_SENTRY = import.meta.env.VITE_SENTRY_DEBUG === 'true';
 
 export interface SentryConfig {
   dsn?: string;
@@ -22,7 +23,9 @@ export function initSentry(config: SentryConfig = {}) {
   const enabled = config.enabled ?? isProduction;
 
   if (!enabled) {
-    console.log('[Sentry] Disabled in development mode');
+    if (DEBUG_SENTRY) {
+      console.debug('[Sentry] Disabled in development mode');
+    }
     return;
   }
 
@@ -46,8 +49,8 @@ export function initSentry(config: SentryConfig = {}) {
       replaysOnErrorSampleRate: 1.0,
 
       beforeSend(event, hint) {
-        if (isDevelopment) {
-          console.log('[Sentry] Event captured:', event, hint);
+        if (DEBUG_SENTRY) {
+          console.debug('[Sentry] Event captured:', event, hint);
         }
 
         if (event.exception?.values?.[0]?.value?.includes('ResizeObserver')) {
@@ -72,7 +75,9 @@ export function initSentry(config: SentryConfig = {}) {
       ],
     });
 
-    console.log('[Sentry] Initialized successfully');
+    if (DEBUG_SENTRY) {
+      console.debug('[Sentry] Initialized successfully');
+    }
   } catch (error) {
     console.error('[Sentry] Failed to initialize:', error);
   }

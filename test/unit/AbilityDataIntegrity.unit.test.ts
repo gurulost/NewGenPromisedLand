@@ -51,10 +51,7 @@ describe('Ability data integrity', () => {
   it('keeps pending active faction abilities explicitly unavailable to AI and UI', () => {
     const pendingSpecs = Object.values(FACTION_ABILITY_SPECS).filter(spec => spec.status !== 'implemented');
 
-    expect(pendingSpecs.map(spec => spec.id).sort()).toEqual([
-      'ANCIENT_MIGHT',
-      'CULTURAL_RECLAMATION',
-    ]);
+    expect(pendingSpecs.map(spec => spec.id).sort()).toEqual([]);
 
     pendingSpecs.forEach(spec => {
       expect(spec.stackingRule).toBe('pending');
@@ -65,7 +62,9 @@ describe('Ability data integrity', () => {
 
   it('keeps the implemented active faction ability allowlist deliberate', () => {
     expect([...IMPLEMENTED_ACTIVE_FACTION_ABILITY_IDS].sort()).toEqual([
+      'ANCIENT_MIGHT',
       'COVENANT_OF_PEACE',
+      'CULTURAL_RECLAMATION',
       'MISSIONARY_ZEAL',
       'RAMEUMPTOM',
       'TITLE_OF_LIBERTY',
