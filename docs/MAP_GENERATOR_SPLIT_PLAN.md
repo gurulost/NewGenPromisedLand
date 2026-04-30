@@ -7,6 +7,7 @@
 - Characterization guardrails are in place in `test/MapGeneratorCharacterization.test.ts`.
 - Internal generation, candidate, diagnostics, and report types now live in `shared/utils/mapGenerationTypes.ts`.
 - Debug logging, default diagnostics, water-repair reason defaults, and spread helpers now live in `shared/utils/mapGenerationDiagnostics.ts`.
+- Coordinate keys, tile indexes, and mutable placement-context helpers now live in `shared/utils/mapGenerationGeometry.ts`.
 - `shared/utils/mapGenerator.ts` remains the public facade for `MapGenerator`, constants, size types, config, and report types.
 
 ## Goals
@@ -44,6 +45,7 @@ The first split pass should keep these exports and behaviors stable:
 - `mapGenerationConstants.ts`: existing size, spacing, count, and tuning constants.
 - `mapGenerationTypes.ts`: internal config, report, diagnostics, candidate, and subsystem context types.
 - `mapGenerationRandom.ts`: `SeededRandom`, derived stream names, deterministic shuffle/helpers.
+- `mapGenerationGeometry.ts`: coordinate keys, tile indexes, placement context mutation, and distance-to-context helpers.
 - `mapGenerationDiagnostics.ts`: spread summaries, diagnostics defaults, water-repair defaults, and debug logging helpers.
 - `mapCapitalPlacement.ts`: capital candidate selection, fallback placement, spacing, land access, and per-capital reports.
 - `mapWaterGeneration.ts`: water motifs, water masks, body analysis, coastal/repair rules, and water resources.
