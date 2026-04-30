@@ -8,7 +8,7 @@
 - Internal generation, candidate, diagnostics, and report types now live in `shared/utils/mapGenerationTypes.ts`.
 - Debug logging, default diagnostics, water-repair reason defaults, and spread helpers now live in `shared/utils/mapGenerationDiagnostics.ts`.
 - Coordinate keys, tile indexes, and mutable placement-context helpers now live in `shared/utils/mapGenerationGeometry.ts`.
-- Water body indexing/grouping, water ratio/body-size lookups, water-mask cleanup, capital water metrics, and water-repair path search now live in `shared/utils/mapGenerationWater.ts`.
+- Water body indexing/grouping, water ratio/body-size lookups, water-mask cleanup, capital water metrics, water-repair path search, and water resource placement now live in `shared/utils/mapGenerationWater.ts`.
 - `shared/utils/mapGenerator.ts` remains the public facade for `MapGenerator`, constants, size types, config, and report types.
 
 ## Goals

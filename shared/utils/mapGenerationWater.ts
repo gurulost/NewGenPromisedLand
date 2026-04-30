@@ -5,6 +5,19 @@ import { buildTileIndex, coordKey } from './mapGenerationGeometry';
 import { MAP_GENERATION_CONSTANTS, type MapSize } from './mapGenerationConstants';
 import type { WaterBodyData } from './mapGenerationTypes';
 
+interface WaterResourceRandom {
+  next(): number;
+  nextInt(min: number, max: number): number;
+}
+
+interface PlaceWaterResourcesOptions {
+  tiles: Tile[];
+  capitalPositions: HexCoordinate[];
+  waterData: WaterBodyData;
+  rng: WaterResourceRandom;
+  getFishModifier: (capitalIndex: number) => number;
+}
+
 export const buildWaterBodyIndex = (tiles: Tile[]): WaterBodyData => {
   const tileIndex = buildTileIndex(tiles);
   const visited = new Set<string>();
@@ -253,4 +266,200 @@ export const findPathToWater = (
   }
 
   return [];
+};
+
+export const placeWaterResources = ({
+  tiles,
+  capitalPositions,
+  waterData,
+  rng,
+  getFishModifier,
+}: PlaceWaterResourcesOptions): void => {
+  const waterBodies = groupWaterBodies(tiles, waterData);
+  const tileIndex = buildTileIndex(tiles);
+
+  waterBodies.forEach(body => {
+    const bodySize = body.length;
+    if (bodySize === 0) return;
+
+    const fishTarget = Math.max(1, Math.round(bodySize * 0.12));
+    placeResourceClusters(body, tileIndex, 'fishing_shoal', fishTarget, 2, 4, rng);
+
+    const seaBeastTarget = bodySize >= 12 ? Math.max(1, Math.floor(bodySize * 0.015)) : 0;
+    if (seaBeastTarget > 0) {
+      placeDeepWaterResources(body, tileIndex, 'sea_beast', seaBeastTarget, rng);
+    }
+  });
+
+  ensureCapitalFishAccess(tiles, capitalPositions, waterData, getFishModifier);
+  ensureSharedWaterOpportunities(tiles, capitalPositions, waterData, rng);
+};
+
+const placeResourceClusters = (
+  bodyTiles: Tile[],
+  tileIndex: Map<string, Tile>,
+  resource: string,
+  target: number,
+  minClusterSize: number,
+  maxClusterSize: number,
+  rng: WaterResourceRandom
+): void => {
+  let remaining = target;
+  const maxClusters = Math.max(1, Math.round(bodyTiles.length / 12));
+  let clusters = 0;
+
+  while (remaining > 0 && clusters < maxClusters) {
+    const seed = pickAvailableWaterTile(bodyTiles, rng);
+    if (!seed) break;
+
+    const clusterSize = Math.min(remaining, rng.nextInt(minClusterSize, maxClusterSize));
+    const clusterTiles = expandCluster(seed, tileIndex, clusterSize, rng);
+    clusterTiles.forEach(tile => {
+      if (!tile.resources.includes(resource)) {
+        tile.resources.push(resource);
+        remaining -= 1;
+      }
+    });
+    clusters += 1;
+  }
+
+  while (remaining > 0) {
+    const tile = pickAvailableWaterTile(bodyTiles, rng);
+    if (!tile) break;
+    tile.resources.push(resource);
+    remaining -= 1;
+  }
+};
+
+const placeDeepWaterResources = (
+  bodyTiles: Tile[],
+  tileIndex: Map<string, Tile>,
+  resource: string,
+  target: number,
+  rng: WaterResourceRandom
+): void => {
+  let remaining = target;
+  const deepTiles = bodyTiles.filter(tile => {
+    const waterNeighbors = hexNeighbors(tile.coordinate)
+      .map(coord => tileIndex.get(coordKey(coord)))
+      .filter((neighbor): neighbor is Tile => !!neighbor && neighbor.terrain === 'water').length;
+    return waterNeighbors >= 5;
+  });
+
+  while (remaining > 0 && deepTiles.length > 0) {
+    const pick = deepTiles[Math.floor(rng.next() * deepTiles.length)];
+    if (pick.resources.length === 0) {
+      pick.resources.push(resource);
+      remaining -= 1;
+    } else {
+      deepTiles.splice(deepTiles.indexOf(pick), 1);
+    }
+  }
+};
+
+const pickAvailableWaterTile = (
+  bodyTiles: Tile[],
+  rng: WaterResourceRandom
+): Tile | null => {
+  const candidates = bodyTiles.filter(tile => tile.resources.length === 0);
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(rng.next() * candidates.length)];
+};
+
+const expandCluster = (
+  seed: Tile,
+  tileIndex: Map<string, Tile>,
+  size: number,
+  rng: WaterResourceRandom
+): Tile[] => {
+  const cluster: Tile[] = [seed];
+  const visited = new Set<string>([coordKey(seed.coordinate)]);
+
+  while (cluster.length < size) {
+    const anchor = cluster[Math.floor(rng.next() * cluster.length)];
+    const neighbors = hexNeighbors(anchor.coordinate)
+      .map(coord => tileIndex.get(coordKey(coord)))
+      .filter((tile): tile is Tile => !!tile && tile.terrain === 'water' && tile.resources.length === 0)
+      .filter(tile => !visited.has(coordKey(tile.coordinate)));
+
+    if (neighbors.length === 0) break;
+    const next = neighbors[Math.floor(rng.next() * neighbors.length)];
+    cluster.push(next);
+    visited.add(coordKey(next.coordinate));
+  }
+
+  return cluster;
+};
+
+const ensureCapitalFishAccess = (
+  tiles: Tile[],
+  capitalPositions: HexCoordinate[],
+  waterData: WaterBodyData,
+  getFishModifier: (capitalIndex: number) => number
+): void => {
+  const tileIndex = buildTileIndex(tiles);
+  const waterBodies = groupWaterBodies(tiles, waterData);
+  const minFish = 2;
+  const maxDistance = 6;
+
+  capitalPositions.forEach((capital, index) => {
+    const adjacentWater = hexNeighbors(capital)
+      .map(coord => tileIndex.get(coordKey(coord)))
+      .find(tile => tile && tile.terrain === 'water');
+    if (!adjacentWater) return;
+
+    const bodyId = waterData.bodyByCoord.get(coordKey(adjacentWater.coordinate));
+    if (bodyId === undefined) return;
+
+    const bodyTiles = waterBodies[bodyId] || [];
+    const reachable = bodyTiles.filter(tile => hexDistance(capital, tile.coordinate) <= maxDistance);
+    const targetFish = minFish + Math.max(0, Math.round(getFishModifier(index) - 1));
+    let fishCount = reachable.filter(tile => tile.resources.includes('fishing_shoal')).length;
+
+    while (fishCount < targetFish) {
+      const candidate = reachable.find(tile => tile.resources.length === 0);
+      if (!candidate) break;
+      candidate.resources.push('fishing_shoal');
+      fishCount += 1;
+    }
+  });
+};
+
+const ensureSharedWaterOpportunities = (
+  tiles: Tile[],
+  capitalPositions: HexCoordinate[],
+  waterData: WaterBodyData,
+  rng: WaterResourceRandom
+): void => {
+  const tileIndex = buildTileIndex(tiles);
+  const waterBodies = groupWaterBodies(tiles, waterData);
+  const bodyAccessCounts = new Map<number, number>();
+
+  capitalPositions.forEach(capital => {
+    const adjacentWater = hexNeighbors(capital)
+      .map(coord => tileIndex.get(coordKey(coord)))
+      .find(tile => tile && tile.terrain === 'water');
+    if (!adjacentWater) return;
+    const bodyId = waterData.bodyByCoord.get(coordKey(adjacentWater.coordinate));
+    if (bodyId === undefined) return;
+    bodyAccessCounts.set(bodyId, (bodyAccessCounts.get(bodyId) ?? 0) + 1);
+  });
+
+  const sharedBodyIds = Array.from(bodyAccessCounts.entries())
+    .filter(([, count]) => count >= 2)
+    .map(([bodyId]) => bodyId);
+
+  for (const bodyId of sharedBodyIds) {
+    const bodyTiles = waterBodies[bodyId] || [];
+    const farTiles = bodyTiles.filter(tile => {
+      const minDistance = Math.min(...capitalPositions.map(cap => hexDistance(cap, tile.coordinate)));
+      return minDistance >= 4 && tile.resources.length === 0;
+    });
+    if (farTiles.length === 0) continue;
+    const hasFarFish = farTiles.some(tile => tile.resources.includes('fishing_shoal'));
+    if (!hasFarFish) {
+      const pick = farTiles[Math.floor(rng.next() * farTiles.length)];
+      pick.resources.push('fishing_shoal');
+    }
+  }
 };
