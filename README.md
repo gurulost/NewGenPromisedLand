@@ -21,6 +21,7 @@ npm run dev
 npm run check
 npm run lint
 npm run assets:verify
+npm run test:map
 npm run test:all
 npm run test:performance
 npm run test:e2e:chromium
@@ -31,7 +32,13 @@ npm run build
 
 ## Current Release Gates
 
-CI blocks merges on type/hygiene checks, lint, asset integrity, production build, Vitest coverage, performance tests, Chromium E2E, and Lighthouse.
+CI blocks merges on type/hygiene checks, lint, asset integrity, production build, Vitest coverage, focused map-generation coverage, performance tests, Chromium E2E, and Lighthouse.
+
+Map-generation policy:
+
+- `npm run test:map` is the focused gate for map characterization, determinism, stats, water, settlements, capitals, neutral cities, resources, ruins, and module-boundary coverage.
+- Any map-generator change must run `npm run test:map` plus `npm run check`; also run `npm run test:performance` and `npm run build` when touching tile-wide loops, water repair, resource placement, or candidate sorting.
+- Treat characterization digest changes as intentional gameplay or balance decisions, not casual snapshot churn.
 
 Playwright policy:
 

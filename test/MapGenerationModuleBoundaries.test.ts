@@ -8,6 +8,10 @@ import {
   MapGenerator,
   SeededRandom,
   TRIBAL_SPAWN_MODIFIERS,
+  type MapGenerationConfig,
+  type MapGenerationReport,
+  type MapSize,
+  type MapSizeConfig,
 } from '@shared/utils/mapGenerator';
 import {
   getLandResourceCategory,
@@ -54,28 +58,29 @@ describe('Map generation module boundaries', () => {
   it('keeps the public map generator facade import-compatible', () => {
     expect(typeof MapGenerator).toBe('function');
     expect(typeof SeededRandom).toBe('function');
-    expect(MAP_SIZE_CONFIGS.small.dimensions).toBeGreaterThan(0);
+    const mapSize: MapSize = 'small';
+    const mapSizeConfig: MapSizeConfig = MAP_SIZE_CONFIGS[mapSize];
+    expect(mapSizeConfig.dimensions).toBeGreaterThan(0);
     expect(MAP_GENERATION_CONSTANTS.MIN_HARVESTABLES_R2).toBeGreaterThan(0);
     expect(CAPITAL_MIN_DISTANCE_BY_SIZE.normal).toBeGreaterThan(0);
     expect(TRIBAL_SPAWN_MODIFIERS.MULEKITES.water).toBeGreaterThan(1);
 
-    const generator = new MapGenerator(
-      {
-        width: MAP_SIZE_CONFIGS.small.dimensions,
-        height: MAP_SIZE_CONFIGS.small.dimensions,
-        seed: 5101,
-        playerCount: 2,
-        mapSize: 'small',
-        minResourceDistance: 2,
-        maxResourcesPerPlayer: 3,
-      },
-      ['NEPHITES', 'MULEKITES']
-    );
+    const config: MapGenerationConfig = {
+      width: mapSizeConfig.dimensions,
+      height: mapSizeConfig.dimensions,
+      seed: 5101,
+      playerCount: 2,
+      mapSize,
+      minResourceDistance: 2,
+      maxResourcesPerPlayer: 3,
+    };
+    const generator = new MapGenerator(config, ['NEPHITES', 'MULEKITES']);
     const map = generator.generateMap();
+    const report: MapGenerationReport | null = generator.getGenerationReport();
 
     expect(map.tiles.length).toBeGreaterThan(0);
     expect(generator.getCapitalPositions()).toHaveLength(2);
-    expect(generator.getGenerationReport()?.playerCount).toBe(2);
+    expect(report?.playerCount).toBe(2);
   });
 
   it('keeps derived RNG streams deterministic and isolated by label', () => {
