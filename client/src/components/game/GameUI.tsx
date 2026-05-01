@@ -60,6 +60,7 @@ import { MobileHUD } from "../hud/MobileHUD";
 import { MobileActionBar } from "../hud/MobileActionBar";
 import { ChatDock } from "../chat/ChatDock";
 import { ChatPanel } from "../chat/ChatPanel";
+import { OnlineStatusBanners } from "./OnlineStatusBanners";
 import { useChatUIState } from "../../hooks/useChatUIState";
 import { useAuth } from "../../lib/stores/useAuth";
 import { isBugReportingEnabled, openBugReportDialog } from "../../utils/bugReport";
@@ -99,6 +100,7 @@ export default function GameUI() {
   const actionError = useLocalGame((state) => state.actionError);
   const clearActionError = useLocalGame((state) => state.clearActionError);
   const onlineSession = useLocalGame((state) => state.onlineSession);
+  const onlineResyncReason = useLocalGame((state) => state.onlineResyncReason);
   const onlineMyPlayerIds = useMemo(
     () => (Array.isArray(onlineSession?.myPlayerIds) ? onlineSession.myPlayerIds : []),
     [onlineSession?.myPlayerIds],
@@ -1051,6 +1053,10 @@ export default function GameUI() {
       turnRecoveryActor &&
       !turnRecoveryActor.isAI,
   );
+  const showHostTransferBanner = Boolean(
+    onlineSession && hostLeaseExpired && onlineSession.userId !== onlineSession.hostUserId,
+  );
+  const showResyncBanner = Boolean(onlineSession && onlineResyncReason && !hostLeaseExpired);
   const turnRecoverySeconds = Math.ceil(Math.max(0, (turnRecoveryStatus?.msUntilEligible ?? 0) / 1000));
   const mobileTopOverlayStyle = isMobileUI
     ? { top: 'calc(var(--mobile-hud-height, 0px) + 0.75rem)' }
@@ -1067,6 +1073,7 @@ export default function GameUI() {
       gameState?.phase === "ended" ||
       showTurnRecoveryBanner ||
       hostLeaseExpired ||
+      onlineResyncReason ||
       activeTechReveal ||
       activeTutorialCardId ||
       isTutorialLibraryOpen ||
@@ -1811,45 +1818,20 @@ export default function GameUI() {
         />
       )}
 
-      {onlineSession && hostLeaseExpired && onlineSession.userId !== onlineSession.hostUserId && (
-        <div
-          className={`absolute ${isMobileUI ? '' : 'top-4'} left-1/2 z-[var(--z-floating)] -translate-x-1/2 pointer-events-auto`}
-          style={mobileTopOverlayStyle}
-        >
-          <div className="flex items-center gap-3 rounded-lg border border-amber-400/50 bg-black/80 px-4 py-2 text-amber-100 shadow-lg backdrop-blur-sm">
-            <span className="text-sm">Host disconnected. Attempting transfer...</span>
-            <button
-              onClick={handleClaimHost}
-              className="rounded bg-amber-500 px-3 py-1 text-xs font-semibold text-black transition hover:bg-amber-400 disabled:opacity-60"
-              disabled={isClaimingHost}
-            >
-              {isClaimingHost ? "Claiming..." : "Take Host"}
-            </button>
-          </div>
-        </div>
-      )}
-      {showTurnRecoveryBanner && turnRecoveryStatus && (
-        <div
-          className={`absolute ${isMobileUI ? '' : 'top-16'} left-1/2 z-[var(--z-floating)] -translate-x-1/2 pointer-events-auto`}
-          style={mobileTopOverlayStyle}
-        >
-          <div className="flex items-center gap-3 rounded-lg border border-amber-400/50 bg-black/80 px-4 py-2 text-amber-100 shadow-lg backdrop-blur-sm">
-            <span className="text-sm">
-              {turnRecoveryActor?.name || "Remote player"} is inactive.
-              {turnRecoveryStatus.canForceEndTurn
-                ? " You can skip this turn."
-                : ` Recovery available in ${turnRecoverySeconds}s.`}
-            </span>
-            <button
-              onClick={handleForceTurnRecovery}
-              className="rounded bg-amber-500 px-3 py-1 text-xs font-semibold text-black transition hover:bg-amber-400 disabled:opacity-60"
-              disabled={!turnRecoveryStatus.canForceEndTurn || isForcingTurnRecovery}
-            >
-              {isForcingTurnRecovery ? "Skipping..." : "Skip Disconnected Turn"}
-            </button>
-          </div>
-        </div>
-      )}
+      <OnlineStatusBanners
+        isMobileUI={isMobileUI}
+        mobileTopOverlayStyle={mobileTopOverlayStyle}
+        showHostTransferBanner={showHostTransferBanner}
+        isClaimingHost={isClaimingHost}
+        onClaimHost={handleClaimHost}
+        showResyncBanner={showResyncBanner}
+        showTurnRecoveryBanner={showTurnRecoveryBanner}
+        turnRecoveryStatus={turnRecoveryStatus}
+        turnRecoveryActorName={turnRecoveryActor?.name || "Remote player"}
+        turnRecoverySeconds={turnRecoverySeconds}
+        isForcingTurnRecovery={isForcingTurnRecovery}
+        onForceTurnRecovery={handleForceTurnRecovery}
+      />
       {isDev && (
         <div className="fixed bottom-3 left-3 z-[var(--z-toast)] rounded-md border border-white/10 bg-black/60 px-3 py-2 text-[11px] text-white/80 backdrop-blur pointer-events-auto">
           <div className="font-semibold text-white/90">Dev Memory</div>

@@ -47,6 +47,16 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
 - **Required in production**
   - `DATABASE_URL`: PostgreSQL connection string (server fails startup if missing).
   - `SESSION_SECRET`: session signing secret (required when `NODE_ENV=production`).
+- **Current private/demo architecture**
+  - Online multiplayer remains host-driven. The server coordinates lobby state, queued actions, committed action metadata, canonical initial snapshots, and uploaded host snapshots, but it does not fully replay and authorize every game rule outcome yet.
+  - Lobby start persists a canonical initial game snapshot on the server. Online clients should load that snapshot instead of independently creating their own initial game state from the seed.
+  - Guest actions carry the action version they were based on. Stale queued actions are rejected/tombstoned so they do not keep reappearing in the host queue.
+  - Queue-backed host commits are tied to the server-stored queued action. A host cannot change the action payload while reusing the same queued-action identity.
+  - Host-uploaded snapshots are schema-validated and checked against lobby players, factions, current actor, action version, and committed action metadata. This is hardening, not a replacement for future server-authoritative resolution.
+- **Deployment topology**
+  - The realtime broker for lobby and multiplayer sync events is in-memory and process-local. Private/demo multiplayer currently assumes a single running Node process or sticky single-instance deployment.
+  - Polling catch-up still exists, but multi-instance autoscaling without Redis, Postgres LISTEN/NOTIFY, or a managed realtime adapter can delay or miss SSE push events between clients connected to different processes.
+  - Do not enable multiple active server processes for the private/demo multiplayer release unless traffic is pinned to one process or a shared realtime transport is added.
 - **Multiplayer runtime flags**
   - `MULTIPLAYER_TURN_RECOVERY` (default: `true`): enable host timeout recovery flow for disconnected remote turns.
   - `MULTIPLAYER_TURN_TIMEOUT_MS` (default: `90000`): inactivity threshold before host can force remote `END_TURN`.

@@ -204,6 +204,26 @@ describe("useLocalGame.loadGameState", () => {
     expect(store.turnPresentation.phase).toBe("idle");
   });
 
+  it("does not move the online queue cursor backwards", () => {
+    useLocalGame.setState({
+      onlineSession: {
+        lobbyCode: "ROOM",
+        userId: 1,
+        hostUserId: 1,
+        myPlayerIds: ["player-1"],
+        actionVersion: 0,
+        queueVersion: 5,
+        hostEpoch: 1,
+      },
+    });
+
+    useLocalGame.getState().setOnlineQueueVersion(3);
+    expect(useLocalGame.getState().onlineSession?.queueVersion).toBe(5);
+
+    useLocalGame.getState().setOnlineQueueVersion(6);
+    expect(useLocalGame.getState().onlineSession?.queueVersion).toBe(6);
+  });
+
   it("keeps active saves in the playing phase", () => {
     const activeState = makeGameState();
 

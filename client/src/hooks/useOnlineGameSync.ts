@@ -233,16 +233,76 @@ export function useOnlineGameSync() {
       if (pendingRes.ok) {
         const pendingData = await pendingRes.json();
         const pendingActions = Array.isArray(pendingData.actions) ? pendingData.actions : [];
+        const rejectPendingAction = async (entry: Record<string, unknown>, reason: string): Promise<boolean> => {
+          if (
+            typeof entry.queueVersion !== "number" ||
+            typeof entry.id !== "string" ||
+            typeof entry.actorId !== "string"
+          ) {
+            return false;
+          }
+
+          const rejectRes = await fetch(`/api/lobbies/${latestSession.lobbyCode}/actions/queue/reject`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              queueVersion: entry.queueVersion,
+              id: entry.id,
+              actorId: entry.actorId,
+              hostEpoch: latestSession.hostEpoch,
+              reason,
+            }),
+            credentials: "include",
+          });
+          if (!rejectRes.ok) return false;
+          const rejectData = await rejectRes.json().catch(() => null);
+          if (typeof rejectData?.pendingVersion === "number") {
+            setOnlineQueueVersion(rejectData.pendingVersion);
+          }
+          processedQueueRef.current.delete(entry.id);
+          return true;
+        };
+
+        if (!pendingActions.length && typeof pendingData.pendingVersion === "number") {
+          setOnlineQueueVersion(pendingData.pendingVersion);
+        }
 
         for (const entry of pendingActions) {
+          const pendingEntry = entry as Record<string, unknown>;
+          const currentActionVersion = useLocalGame.getState().onlineSession?.actionVersion ?? latestSession.actionVersion;
+          const baseActionVersion = typeof pendingEntry.baseActionVersion === "number"
+            ? pendingEntry.baseActionVersion
+            : null;
+          if (baseActionVersion == null || baseActionVersion !== currentActionVersion) {
+            const rejected = await rejectPendingAction(
+              pendingEntry,
+              baseActionVersion == null ? "missing_base_action_version" : "stale_pending_action",
+            );
+            if (!rejected) {
+              requestOnlineResync("stale_pending_reject_failed");
+              logTelemetry("queue_reject_failed", { actionId: pendingEntry.id });
+              break;
+            }
+            logTelemetry("queue_rejected_stale", { actionId: pendingEntry.id, baseActionVersion, currentActionVersion });
+            continue;
+          }
+
           const state = useLocalGame.getState().gameState;
           const currentPlayerId = state?.players?.[state.currentPlayerIndex]?.id;
           if (!currentPlayerId) {
+            requestOnlineResync("host_missing_current_actor");
+            logTelemetry("queue_missing_current_actor", { actionId: pendingEntry.id });
             break;
           }
 
           if (currentPlayerId !== entry.actorId) {
-            continue;
+            requestOnlineResync("host_queue_actor_mismatch");
+            logTelemetry("queue_actor_mismatch", {
+              actionId: pendingEntry.id,
+              currentPlayerId,
+              queuedActorId: pendingEntry.actorId,
+            });
+            break;
           }
 
           const processed = processedQueueRef.current.get(entry.id);
@@ -252,6 +312,7 @@ export function useOnlineGameSync() {
               queueVersion: typeof entry.queueVersion === "number" ? entry.queueVersion : undefined,
             });
             if (!applied) {
+              await rejectPendingAction(pendingEntry, "host_apply_failed");
               requestOnlineResync("queued_action_apply_failed");
               logTelemetry("queue_apply_failed", { actionId: entry.id });
               break;

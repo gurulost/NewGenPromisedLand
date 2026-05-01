@@ -1,6 +1,7 @@
-import { GameActionSchema } from "@shared/types/game";
+import { GameActionSchema, GameStateSchema, type GameState } from "@shared/types/game";
 import {
   getNextExpectedActorId,
+  getExpectedActorIdFromSnapshot,
   type MultiplayerPlayerMeta,
 } from "@shared/logic/multiplayerSync";
 
@@ -58,9 +59,6 @@ export function validateMultiplayerAction(
   }
 
   if (GameActionSchema.safeParse(action).success) {
-    return { valid: true };
-  }
-  if (isEndTurnResolutionAction(action)) {
     return { valid: true };
   }
 
@@ -135,7 +133,84 @@ type PendingActionEntry = {
   queueVersion?: number;
   id?: string;
   actorId?: string;
+  action?: unknown;
+  baseActionVersion?: number;
 };
+
+type CommittedActionEntry = {
+  version?: number;
+  id?: string;
+  actorId?: string;
+  action?: unknown;
+};
+
+export type FailedMultiplayerActionEntry = {
+  queueVersion?: number;
+  id: string;
+  actorId: string;
+  action?: unknown;
+  baseActionVersion?: number;
+  failedAt: number;
+  reason: string;
+  currentActionVersion?: number;
+};
+
+export function areMultiplayerActionsEquivalent(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (typeof left !== typeof right) return false;
+  if (left == null || right == null) return left === right;
+  if (typeof left !== "object" || typeof right !== "object") return false;
+
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right)) return false;
+    if (left.length !== right.length) return false;
+    return left.every((entry, index) => areMultiplayerActionsEquivalent(entry, right[index]));
+  }
+
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord).sort();
+  const rightKeys = Object.keys(rightRecord).sort();
+  if (leftKeys.length !== rightKeys.length) return false;
+  for (let i = 0; i < leftKeys.length; i += 1) {
+    if (leftKeys[i] !== rightKeys[i]) return false;
+    if (!areMultiplayerActionsEquivalent(leftRecord[leftKeys[i]], rightRecord[rightKeys[i]])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function buildFailedMultiplayerActionEntry({
+  pendingAction,
+  id,
+  actorId,
+  action,
+  baseActionVersion,
+  reason,
+  currentActionVersion,
+  failedAt,
+}: {
+  pendingAction?: PendingActionEntry;
+  id: string;
+  actorId: string;
+  action?: unknown;
+  baseActionVersion?: number;
+  reason: string;
+  currentActionVersion?: number;
+  failedAt: number;
+}): FailedMultiplayerActionEntry {
+  return {
+    queueVersion: pendingAction?.queueVersion,
+    id,
+    actorId,
+    action: pendingAction?.action ?? action,
+    baseActionVersion: pendingAction?.baseActionVersion ?? baseActionVersion,
+    reason,
+    currentActionVersion,
+    failedAt,
+  };
+}
 
 type ReconcilePendingActionsInput = {
   pendingActions: PendingActionEntry[];
@@ -210,11 +285,124 @@ export function getExpectedActorAfterCommit({
     };
   }
 
+  const endingActor = getCommittedEndingActor(action);
+  if (!endingActor || endingActor !== actorId) {
+    return { valid: false, error: "End turn actor does not match committed actor" };
+  }
+
   return {
     valid: true,
     expectedActorId: getNextExpectedActorId(lobbyState, actorId) ?? currentExpectedActorId,
     requiresSnapshot: true,
   };
+}
+
+export type SnapshotValidationResult =
+  | { valid: true; state: GameState; expectedActorId: string }
+  | { valid: false; error: string };
+
+function getCommittedEndingActor(action: unknown): string | null {
+  if (!action || typeof action !== "object") return null;
+  const entry = action as Record<string, unknown>;
+  const payload = entry.payload && typeof entry.payload === "object"
+    ? entry.payload as Record<string, unknown>
+    : null;
+
+  if (entry.type === "END_TURN") {
+    return typeof payload?.playerId === "string" ? payload.playerId : null;
+  }
+  if (entry.type === "END_TURN_RESOLUTION") {
+    return typeof payload?.endingPlayerId === "string" ? payload.endingPlayerId : null;
+  }
+  return null;
+}
+
+function getResolvedNextActor(action: unknown): string | null {
+  if (!action || typeof action !== "object") return null;
+  const entry = action as Record<string, unknown>;
+  if (entry.type !== "END_TURN_RESOLUTION") return null;
+  const payload = entry.payload && typeof entry.payload === "object"
+    ? entry.payload as Record<string, unknown>
+    : null;
+  return typeof payload?.nextPlayerId === "string" ? payload.nextPlayerId : null;
+}
+
+export function validateSnapshotUpload({
+  snapshot,
+  lobbyState,
+  version,
+}: {
+  snapshot: unknown;
+  lobbyState: unknown;
+  version: number;
+}): SnapshotValidationResult {
+  const parsed = GameStateSchema.safeParse(snapshot);
+  if (!parsed.success) {
+    return { valid: false, error: "Invalid game state snapshot" };
+  }
+
+  const state = parsed.data;
+  const stateRecord = lobbyState && typeof lobbyState === "object"
+    ? lobbyState as Record<string, unknown>
+    : {};
+  const playersMeta = Array.isArray(stateRecord.players)
+    ? stateRecord.players as MultiplayerPlayerMeta[]
+    : [];
+
+  if (state.players.length !== playersMeta.length) {
+    return { valid: false, error: "Snapshot player count does not match lobby" };
+  }
+
+  for (const meta of playersMeta) {
+    if (typeof meta.playerId !== "string" || !meta.playerId) {
+      return { valid: false, error: "Lobby player metadata is incomplete" };
+    }
+
+    const player = state.players.find((entry) => entry.id === meta.playerId);
+    if (!player) {
+      return { valid: false, error: "Snapshot is missing a lobby player" };
+    }
+    if (typeof meta.factionId === "string" && player.factionId !== meta.factionId) {
+      return { valid: false, error: "Snapshot faction assignment does not match lobby" };
+    }
+    if (Boolean(player.isAI) !== Boolean(meta.isAI)) {
+      return { valid: false, error: "Snapshot AI assignment does not match lobby" };
+    }
+  }
+
+  const expectedActorId = getExpectedActorIdFromSnapshot(state);
+  if (!expectedActorId || !playersMeta.some((entry) => entry.playerId === expectedActorId)) {
+    return { valid: false, error: "Snapshot current actor is not in this lobby" };
+  }
+
+  if (version === 0) {
+    if (state.lastAction !== undefined) {
+      return { valid: false, error: "Initial snapshot cannot include a committed action" };
+    }
+    return { valid: true, state, expectedActorId };
+  }
+
+  const actions = Array.isArray(stateRecord.actions) ? stateRecord.actions as CommittedActionEntry[] : [];
+  const committedAction = actions.find((entry) => Number(entry?.version) === version);
+  if (!committedAction) {
+    return { valid: false, error: "Snapshot version does not match a committed action" };
+  }
+
+  const committedEndingActor = getCommittedEndingActor(committedAction.action);
+  if (!committedEndingActor || committedEndingActor !== committedAction.actorId) {
+    return { valid: false, error: "Committed turn action is inconsistent" };
+  }
+
+  const snapshotEndingActor = getCommittedEndingActor(state.lastAction);
+  if (!snapshotEndingActor || snapshotEndingActor !== committedAction.actorId) {
+    return { valid: false, error: "Snapshot last action does not match committed turn" };
+  }
+  const snapshotNextActor = getResolvedNextActor(state.lastAction);
+  if (snapshotNextActor && snapshotNextActor !== expectedActorId) {
+    return { valid: false, error: "Snapshot resolved next actor does not match current actor" };
+  }
+
+  return { valid: true, state, expectedActorId };
 }
 
 type ForcedTimeoutEndTurnInput = {

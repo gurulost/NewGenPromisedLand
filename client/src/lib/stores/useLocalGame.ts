@@ -44,6 +44,11 @@ import {
   type GameplayActionSource,
 } from "../../utils/telemetry/gameplayAnalytics";
 import { normalizeTurnPlayerIndex } from "@shared/logic/turnOrder";
+import {
+  createInitialGameStateFromGeneratedMap,
+  generateInitialGameMap,
+  resolveInitialMapSize,
+} from "@shared/logic/initialGameState";
 
 const applyPlayerDefaults = (player: PlayerState): PlayerState => {
   const normalized: PlayerState = { ...player };
@@ -616,7 +621,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         const res = await fetch(`/api/lobbies/${lobbyCode}/actions/queue`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, actorId, id: actionId }),
+          body: JSON.stringify({ action, actorId, id: actionId, baseActionVersion: onlineSession.actionVersion }),
           credentials: "include",
         });
         if (!res.ok) {
@@ -627,7 +632,18 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
             gameState
           );
           reportActionError(await getResponseError(res), "error");
+          get().requestOnlineResync("queue_rejected");
+          return;
         }
+
+        const data = await res.json().catch(() => null);
+        if (typeof data?.queueVersion === "number") {
+          get().setOnlineQueueVersion(data.queueVersion);
+        }
+        reportActionError(
+          data?.duplicate ? "Action is already waiting for the host." : "Action queued. Waiting for host to apply it.",
+          "warning",
+        );
       } catch {
         trackGameplayActionBlocked(
           action,
@@ -731,7 +747,11 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
 
     setOnlineActionVersion: (version) => set((state) => state.onlineSession ? { onlineSession: { ...state.onlineSession, actionVersion: version } } : {}),
 
-    setOnlineQueueVersion: (version) => set((state) => state.onlineSession ? { onlineSession: { ...state.onlineSession, queueVersion: version } } : {}),
+    setOnlineQueueVersion: (version) => set((state) => (
+      !state.onlineSession || version <= state.onlineSession.queueVersion
+        ? {}
+        : { onlineSession: { ...state.onlineSession, queueVersion: version } }
+    )),
 
     requestOnlineResync: (reason) => set((state) => ({ onlineResyncRequestId: state.onlineResyncRequestId + 1, onlineResyncReason: reason })),
 
@@ -766,55 +786,13 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       // Starting a new game invalidates any previous autosave resume target.
       void clearAutosave().catch(() => undefined);
 
-      // Reset city name generator for fresh game
       const gameId = `local-${resolvedSeed}`;
-      resetCityNames(gameId);
-
-      // Create initial game state
-      const players: PlayerState[] = playerSetup.map(setup => {
-        // Canonicalize faction ids up front so all downstream faction checks are stable.
-        // Fallback remains Nephites for malformed external data.
-        const factionId = coerceFactionId(setup.factionId) ?? 'NEPHITES';
-
-        return applyPlayerDefaults({
-          // Faction defaults are authoritative for standard games.
-          id: setup.id,
-          name: setup.name,
-          factionId,
-          modifiers: [],
-          stats: { ...FACTIONS[factionId].startingStats },
-          visibilityMask: [],
-          exploredTiles: [],
-          isEliminated: false,
-          isAI: setup.isAI ?? false,
-          aiDifficulty: setup.aiDifficulty ?? 'normal',
-          turnOrder: setup.turnOrder,
-          stars: 10, // Starting currency
-          researchedTechs: [], // No starting technologies
-          researchProgress: 0,
-          researchInspiration: 0,
-          abilityCooldowns: {},
-          constructionQueue: [],
-          citiesOwned: [],
-          currentResearch: undefined,
-          // Diplomatic relations - start with none
-          atWarWith: [],
-          alliedWith: [],
-          tradeRoutes: [],
-          diplomaticCooldowns: { declareWar: 0, formAlliance: 0, breakAlliance: 0, requestTrade: 0 },
-        });
-      });
-
-      // Extract faction IDs for terrain generation
-      const playerFactions = players.map(p => p.factionId);
-
-      // Get map configuration based on selected size
-      const resolvedMapSize = MAP_SIZE_CONFIGS[mapSize] ? mapSize : "normal";
-      const mapConfig = MAP_SIZE_CONFIGS[resolvedMapSize];
+      const resolvedMapSize = resolveInitialMapSize(mapSize);
+      const playerFactions = playerSetup.map((player) => coerceFactionId(player.factionId) ?? "NEPHITES");
       trackPlayerSetupChoices(
-        players.map((player) => ({
+        playerSetup.map((player) => ({
           id: player.id,
-          factionId: player.factionId,
+          factionId: coerceFactionId(player.factionId) ?? "NEPHITES",
           isAI: Boolean(player.isAI),
           aiDifficulty: player.aiDifficulty,
         })),
@@ -822,169 +800,14 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       );
 
       const finalizeGame = (map: any, capitalPositions: HexCoordinate[]) => {
-        // Find city tiles from the generated map for player starting positions
-        const cityTiles = map.tiles.filter((tile: any) => tile.hasCity);
-        const capitalTiles = capitalPositions
-          .map(pos => map.tiles.find((tile: any) =>
-            tile.coordinate.q === pos.q &&
-            tile.coordinate.r === pos.r &&
-            tile.coordinate.s === pos.s
-          ))
-          .filter((tile: any): tile is typeof cityTiles[number] => !!tile);
-        const startTiles = capitalTiles.length === players.length ? capitalTiles : cityTiles;
-
-        // Assign cities to players (first cities generated are best positioned for players)
-        const cities = players.map((player, index) => {
-          const cityTile = startTiles[index] || cityTiles[index] || cityTiles[0]; // Fallback to first city if not enough
-
-          return {
-            id: `city-${player.id}`,
-            name: getRandomCityName(player.factionId as FactionId, gameId),
-            coordinate: cityTile.coordinate,
-            ownerId: player.id,
-            population: 1,
-            maxPopulation: 4, // Population needed to level up
-            level: 1,
-            starProduction: 2, // Base star production
-            unrestTurns: 0,
-            improvements: [],
-            structures: [],
-            harvestedResources: [], // Track harvested resource tiles
-          };
-        });
-
-        // Update player city ownership
-        const playersWithCities = players.map((player, index) => ({
-          ...player,
-          citiesOwned: [cities[index].id],
-        }));
-
-        // Mark starting areas around player cities as explored
-        const exploreAreaAroundCity = (cityCoord: HexCoordinate, playerId: string): void => {
-          const exploreRadius = 2;
-
-          for (const tile of map.tiles) {
-            const distance = hexDistance(tile.coordinate, cityCoord);
-            if (distance <= exploreRadius) {
-              tile.exploredBy = [...(tile.exploredBy || []), playerId];
-            }
-          }
-        };
-
-        // Explore areas around each player's starting city
-        cities.forEach((city, index) => {
-          if (index < players.length) {
-            exploreAreaAroundCity(city.coordinate, players[index].id);
-          }
-        });
-
-        // Generate starting units for each player near their cities
-        const units: any[] = players.flatMap((player, index) => {
-          const city = cities[index];
-          if (!city) return [];
-
-          // Find suitable spawn position near the city (not on the city tile itself)
-          const findUnitSpawnPosition = (cityCoord: HexCoordinate): HexCoordinate => {
-            const adjacentTiles = [
-              { q: cityCoord.q + 1, r: cityCoord.r, s: cityCoord.s - 1 },
-              { q: cityCoord.q + 1, r: cityCoord.r - 1, s: cityCoord.s },
-              { q: cityCoord.q, r: cityCoord.r - 1, s: cityCoord.s + 1 },
-              { q: cityCoord.q - 1, r: cityCoord.r, s: cityCoord.s + 1 },
-              { q: cityCoord.q - 1, r: cityCoord.r + 1, s: cityCoord.s },
-              { q: cityCoord.q, r: cityCoord.r + 1, s: cityCoord.s - 1 },
-            ];
-
-            for (const coord of adjacentTiles) {
-              const tile = map.tiles.find((t: any) =>
-                t.coordinate.q === coord.q && t.coordinate.r === coord.r
-              );
-              if (tile && tile.terrain !== 'water' && tile.terrain !== 'mountain' && !tile.hasCity) {
-                return coord;
-              }
-            }
-
-            // Fallback to city coordinate if no adjacent suitable tile found
-            return cityCoord;
-          };
-
-          const unitPosition = findUnitSpawnPosition(city.coordinate);
-
-          return [
-            {
-              id: `unit-${player.id}-1`,
-              type: 'warrior' as const,
-              playerId: player.id,
-              coordinate: unitPosition,
-              hp: 25,
-              maxHp: 25,
-              attack: 6,
-              defense: 4,
-              movement: 3,
-              remainingMovement: 3,
-              maxActions: 1,
-              actionsRemaining: 1,
-              status: 'active' as const,
-              abilities: [],
-              level: 1,
-              experience: 0,
-              visionRadius: 2,
-              attackRange: 1,
-              hasAttacked: false,
-            }
-          ];
-        });
-
-        // Set initial visibility for starting units - give vision radius around each unit
-        const getVisionTiles = (centerQ: number, centerR: number, radius: number = 2) => {
-          const tiles = [];
-          for (let q = centerQ - radius; q <= centerQ + radius; q++) {
-            for (let r = centerR - radius; r <= centerR + radius; r++) {
-              const s = -q - r;
-              const distance = Math.max(Math.abs(q - centerQ), Math.abs(r - centerR), Math.abs(s - (-centerQ - centerR)));
-              if (distance <= radius) {
-                tiles.push(`${q},${r}`);
-              }
-            }
-          }
-          return tiles;
-        };
-
-        const updatedPlayers = playersWithCities.map((player) => {
-          const playerUnits = units.filter(unit => unit.playerId === player.id);
-          const allVisibleTiles: string[] = [];
-
-          // Add vision around each unit for this player
-          playerUnits.forEach(unit => {
-            const visionTiles = getVisionTiles(unit.coordinate.q, unit.coordinate.r, 2);
-            allVisibleTiles.push(...visionTiles);
-          });
-
-          const uniqueVisibleTiles = Array.from(new Set(allVisibleTiles));
-
-          return {
-            ...player,
-            visibilityMask: uniqueVisibleTiles,
-            exploredTiles: uniqueVisibleTiles // Initially, explored tiles are the same as visible tiles
-          };
-        });
-
-        const gameState: GameState = {
-          id: `local-${resolvedSeed}`,
-          rngSeed: resolvedSeed >>> 0,
-          players: updatedPlayers,
-          currentPlayerIndex: 0,
-          turn: 1,
-          phase: 'playing',
+        const { gameState } = createInitialGameStateFromGeneratedMap({
+          playerSetup,
+          mapSize: resolvedMapSize,
+          seed: resolvedSeed,
+          gameId,
           map,
-          units,
-          cities,
-          improvements: [],
-          structures: [],
-          activeEffects: [],
-          lastAction: undefined,
-          winner: undefined,
-          victoryType: undefined,
-        };
+          capitalPositions,
+        });
 
         const gamePhase: GamePhase = isOnline ? 'playing' : 'handoff';
         set({
@@ -1013,20 +836,12 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       set({ isGeneratingMap: true });
 
       const generateMapSync = () => {
-        const mapGenerator = new MapGenerator({
-          width: mapConfig.dimensions,
-          height: mapConfig.dimensions,
-          seed: resolvedSeed,
-          playerCount: players.length,
+        return generateInitialGameMap({
           mapSize: resolvedMapSize,
-          minResourceDistance: 2,
-          maxResourcesPerPlayer: 3
-        }, playerFactions);
-
-        return {
-          map: mapGenerator.generateMap(),
-          capitalPositions: mapGenerator.getCapitalPositions(),
-        };
+          seed: resolvedSeed,
+          playerCount: playerSetup.length,
+          playerFactions,
+        });
       };
 
       const requestId = ++mapRequestId;
@@ -1081,7 +896,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
           requestId,
           mapSize: resolvedMapSize,
           seed: resolvedSeed,
-          playerCount: players.length,
+          playerCount: playerSetup.length,
           playerFactions,
         });
 

@@ -21,6 +21,18 @@ describe("multiplayerPolicy", () => {
     expect(invalid.valid).toBe(false);
   });
 
+  it("does not accept resolved turn metadata as a committed multiplayer action", () => {
+    const result = validateMultiplayerAction(
+      {
+        type: "END_TURN_RESOLUTION",
+        payload: { endingPlayerId: "player-1", nextPlayerId: "player-2", events: [] },
+      },
+      1024,
+    );
+
+    expect(result.valid).toBe(false);
+  });
+
   it("enforces action size in UTF-8 bytes", () => {
     const oversizedUnicodeAction = {
       type: "END_TURN",
@@ -226,6 +238,23 @@ describe("multiplayerPolicy", () => {
       expectedActorId: "player-2",
       requiresSnapshot: true,
     });
+  });
+
+  it("rejects raw end-turn commits whose payload actor differs from the committed actor", () => {
+    const result = getExpectedActorAfterCommit({
+      lobbyState: {
+        players: [
+          { playerId: "player-1", turnOrder: 0 },
+          { playerId: "player-2", turnOrder: 1 },
+        ],
+      },
+      actorId: "player-1",
+      action: { type: "END_TURN", payload: { playerId: "player-2" } },
+      currentExpectedActorId: "player-1",
+      isTurnCompleteAction: true,
+    });
+
+    expect(result.valid).toBe(false);
   });
 
   it("rejects malformed resolved end-turn actor metadata", () => {

@@ -12,16 +12,9 @@ import { pool } from "./db";
 import {
   getExpectedActorId,
   getExpectedActorIdFromSnapshot,
-  needsSnapshotCatchup,
   type MultiplayerPlayerMeta,
 } from "@shared/logic/multiplayerSync";
-import {
-  getExpectedActorAfterCommit,
-  getTurnRecoveryStatus,
-  isForcedTimeoutEndTurnAllowed,
-  reconcilePendingActionsAfterCommit,
-  validateMultiplayerAction,
-} from "./multiplayerPolicy";
+import { getTurnRecoveryStatus } from "./multiplayerPolicy";
 import {
   appendMessage,
   appendReadEvent,
@@ -76,17 +69,15 @@ import {
   isFactionTakenByAnotherEntry,
 } from "@shared/utils/factionAssignments";
 import { openLobbyRealtimeStream, publishLobbyRealtimeEvent } from "./lobbyRealtimeBroker";
-import { GameStateSchema } from "@shared/types/game";
 import { SaveWriteRequestSchema } from "@shared/types/save";
+import { createInitialGameState } from "@shared/logic/initialGameState";
+import { registerMultiplayerActionRoutes } from "./multiplayerActionRoutes";
 
 const MemoryStoreSession = MemoryStore(session);
 const PgSessionStore = connectPgSimple(session);
 const VALID_MAP_SIZES = new Set(["tiny", "small", "normal", "large", "huge"]);
 const HOST_LEASE_MS = 30000;
 const MAX_MULTIPLAYER_UPDATE_RETRIES = 5;
-const parsedActionBytes = Number.parseInt(process.env.MULTIPLAYER_MAX_ACTION_BYTES ?? "32768", 10);
-const MAX_MULTIPLAYER_ACTION_BYTES =
-  Number.isFinite(parsedActionBytes) && parsedActionBytes > 0 ? parsedActionBytes : 32768;
 const parsedTurnTimeoutMs = Number.parseInt(process.env.MULTIPLAYER_TURN_TIMEOUT_MS ?? "90000", 10);
 const MULTIPLAYER_TURN_TIMEOUT_MS =
   Number.isFinite(parsedTurnTimeoutMs) && parsedTurnTimeoutMs > 0 ? parsedTurnTimeoutMs : 90000;
@@ -1292,8 +1283,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
 
       const seed = Math.floor(Math.random() * 2 ** 32);
+      const { gameState: initialSnapshot } = createInitialGameState({
+        playerSetup: players.map((player) => ({
+          id: player.playerId,
+          name: player.name,
+          factionId: player.factionId,
+          turnOrder: player.turnOrder,
+          isAI: player.isAI,
+          aiDifficulty: "normal",
+        })),
+        mapSize: lobby.mapSize,
+        seed,
+        gameId: `online-${lobby.code}-${seed}`,
+      });
+      const expectedActorId = getExpectedActorIdFromSnapshot(initialSnapshot) ?? players[0]?.playerId ?? null;
 
-      // Update lobby status to playing and store player config (game state will be initialized client-side)
+      // Update lobby status to playing with a server-created canonical initial snapshot.
       const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
         status: "playing",
         gameState: {
@@ -1307,9 +1312,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           actionLogBaseVersion: 0,
           pendingVersion: 0,
           pendingActions: [],
+          failedActions: [],
           snapshotVersion: 0,
-          snapshot: null,
-          expectedActorId: players[0]?.playerId ?? null,
+          snapshot: initialSnapshot,
+          expectedActorId,
+          turnResolutionPending: false,
           chat: existingChatState,
         } as any,
       });
@@ -2000,424 +2007,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get latest game state snapshot for a lobby
-  app.get("/api/lobbies/:code/state", requireAuth, async (req, res) => {
-    try {
-      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
-      if (!lobby) {
-        return res.status(404).json({ error: "Lobby not found" });
-      }
-      if (lobby.status !== "playing") {
-        return res.status(409).json({ error: "Game not in progress" });
-      }
-
-      const seats = await storage.getSeatsByLobbyId(lobby.id);
-      const userId = req.session.userId!;
-      const isParticipant = lobby.hostUserId === userId || seats.some((seat) => seat.userId === userId);
-      if (!isParticipant) {
-        return res.status(403).json({ error: "Not a participant" });
-      }
-
-      const lobbyState = (lobby.gameState as any) || {};
-      const snapshotVersion = Number(lobbyState.snapshotVersion ?? 0);
-      const actionVersion = Number(lobbyState.actionVersion ?? 0);
-      const since = Number(req.query.since ?? 0);
-
-      if (Number.isFinite(since) && since >= snapshotVersion) {
-        return res.json({ snapshotVersion, actionVersion, state: null });
-      }
-
-      res.json({ snapshotVersion, actionVersion, state: lobbyState.snapshot ?? null });
-    } catch (error) {
-      console.error("Failed to get game state:", error);
-      res.status(500).json({ error: "Failed to get game state" });
-    }
-  });
-
-  // Update game state snapshot (host only, end-of-turn only)
-  app.put("/api/lobbies/:code/state", requireAuth, async (req, res) => {
-    try {
-      const { state, version, hostEpoch } = req.body;
-      if (!state || typeof version !== "number" || typeof hostEpoch !== "number") {
-        return res.status(400).json({ error: "State, version, and hostEpoch required" });
-      }
-
-      const lastAction = state.lastAction;
-      if (!lastAction || (lastAction.type !== "END_TURN" && lastAction.type !== "END_TURN_RESOLUTION")) {
-        return res.status(400).json({ error: "Only end-of-turn updates allowed" });
-      }
-
-      const expectedActorId = getExpectedActorIdFromSnapshot(state);
-      for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
-        const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
-        if (!lobby) {
-          return res.status(404).json({ error: "Lobby not found" });
-        }
-        if (lobby.status !== "playing") {
-          return res.status(409).json({ error: "Game not in progress" });
-        }
-        if (lobby.hostUserId !== req.session.userId) {
-          return res.status(403).json({ error: "Only host can update snapshots" });
-        }
-
-        const lobbyState = (lobby.gameState as any) || {};
-        const { hostEpoch: currentHostEpoch } = getHostMeta(lobbyState);
-        if (hostEpoch !== currentHostEpoch) {
-          return res.status(409).json({ error: "Host epoch mismatch", hostEpoch: currentHostEpoch });
-        }
-
-        const currentActionVersion = Number(lobbyState.actionVersion ?? 0);
-        if (version !== currentActionVersion) {
-          return res.status(409).json({ error: "Out of date", version: currentActionVersion });
-        }
-
-        const actions = Array.isArray(lobbyState.actions)
-          ? lobbyState.actions.filter((entry: any) => Number(entry?.version) > version)
-          : [];
-
-        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
-          gameState: {
-            ...lobbyState,
-            snapshot: state,
-            snapshotVersion: version,
-            actions,
-            actionLogBaseVersion: version,
-            expectedActorId: expectedActorId ?? getExpectedActorId(lobbyState),
-            turnResolutionPending: false,
-            hostLastSeen: Date.now(),
-          } as any,
-        });
-        if (updated) {
-          return res.json({ snapshotVersion: version, actionVersion: currentActionVersion });
-        }
-      }
-
-      return res.status(409).json({ error: "Concurrent lobby update. Retry snapshot upload." });
-    } catch (error) {
-      console.error("Failed to update game state:", error);
-      res.status(500).json({ error: "Failed to update game state" });
-    }
-  });
-
-  // Queue player action for host processing
-  app.post("/api/lobbies/:code/actions/queue", requireAuth, queueRateLimit, async (req, res) => {
-    try {
-      const { action, actorId, id } = req.body;
-      if (!action || typeof actorId !== "string" || typeof id !== "string" || !actorId || !id) {
-        return res.status(400).json({ error: "Action, actorId, and id required" });
-      }
-      const actionValidation = validateMultiplayerAction(action, MAX_MULTIPLAYER_ACTION_BYTES);
-      if (!actionValidation.valid) {
-        return res.status(400).json({ error: actionValidation.error });
-      }
-
-      for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
-        const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
-        if (!lobby) {
-          return res.status(404).json({ error: "Lobby not found" });
-        }
-        if (lobby.status !== "playing") {
-          return res.status(409).json({ error: "Game not in progress" });
-        }
-
-        const lobbyState = (lobby.gameState as any) || {};
-        const playerMeta = (lobbyState.players || []).find((player: any) => player.playerId === actorId);
-        if (!playerMeta) {
-          return res.status(400).json({ error: "Unknown player" });
-        }
-        if (playerMeta.isAI) {
-          return res.status(403).json({ error: "AI actions must be submitted by host" });
-        }
-        if (playerMeta.userId !== req.session.userId) {
-          return res.status(403).json({ error: "Not your player" });
-        }
-
-        if (lobbyState.turnResolutionPending === true) {
-          return res.status(409).json({ error: "Waiting for host turn snapshot" });
-        }
-
-        const expectedActorId = getExpectedActorId(lobbyState);
-        if (expectedActorId && actorId !== expectedActorId) {
-          return res.status(409).json({ error: "Not this player's turn", expectedActorId });
-        }
-
-        const pendingActions = Array.isArray(lobbyState.pendingActions) ? [...lobbyState.pendingActions] : [];
-        const existingPending = pendingActions.find((entry: any) => entry.id === id);
-        if (existingPending) {
-          return res.json({ queueVersion: existingPending.queueVersion, duplicate: true });
-        }
-        const committedActions = Array.isArray(lobbyState.actions) ? lobbyState.actions : [];
-        const existingCommitted = committedActions.find((entry: any) => entry.id === id);
-        if (existingCommitted) {
-          return res.status(409).json({ error: "Action already committed", actionVersion: existingCommitted.version });
-        }
-
-        const pendingVersion = Number(lobbyState.pendingVersion ?? 0) + 1;
-        pendingActions.push({ queueVersion: pendingVersion, id, actorId, action });
-        const playersMeta = Array.isArray(lobbyState.players) ? [...lobbyState.players] : [];
-        const playerIndex = playersMeta.findIndex((entry: any) => entry?.playerId === actorId);
-        if (playerIndex >= 0) {
-          playersMeta[playerIndex] = {
-            ...playersMeta[playerIndex],
-            lastSeenAt: Date.now(),
-          };
-        }
-
-        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
-          gameState: { ...lobbyState, pendingVersion, pendingActions, players: playersMeta } as any,
-        });
-        if (updated) {
-          publishMultiplayerSyncEvent(lobby.code, "queue-updated");
-          return res.json({ queueVersion: pendingVersion });
-        }
-      }
-
-      return res.status(409).json({ error: "Concurrent lobby update. Retry queue request." });
-    } catch (error) {
-      console.error("Failed to queue action:", error);
-      res.status(500).json({ error: "Failed to queue action" });
-    }
-  });
-
-  // Host fetches pending actions
-  app.get("/api/lobbies/:code/actions/queue", requireAuth, async (req, res) => {
-    try {
-      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
-      if (!lobby) {
-        return res.status(404).json({ error: "Lobby not found" });
-      }
-      if (lobby.status !== "playing") {
-        return res.status(409).json({ error: "Game not in progress" });
-      }
-      if (lobby.hostUserId !== req.session.userId) {
-        return res.status(403).json({ error: "Only host can fetch pending actions" });
-      }
-
-      const lobbyState = (lobby.gameState as any) || {};
-      const pendingActions = Array.isArray(lobbyState.pendingActions) ? lobbyState.pendingActions : [];
-      const pendingVersion = Number(lobbyState.pendingVersion ?? 0);
-      const since = Number(req.query.since ?? 0);
-
-      if (Number.isFinite(since) && since >= pendingVersion) {
-        return res.json({ pendingVersion, actions: [] });
-      }
-
-      const actions = Number.isFinite(since)
-        ? pendingActions.filter((entry: any) => entry.queueVersion > since)
-        : pendingActions;
-
-      res.json({ pendingVersion, actions });
-    } catch (error) {
-      console.error("Failed to fetch pending actions:", error);
-      res.status(500).json({ error: "Failed to fetch pending actions" });
-    }
-  });
-
-  // Host commits an action to the log
-  app.post("/api/lobbies/:code/actions/commit", requireAuth, commitRateLimit, async (req, res) => {
-    try {
-      const { action, actorId, id, queueVersion, hostEpoch } = req.body;
-      if (!action || typeof actorId !== "string" || typeof id !== "string" || !actorId || !id || typeof hostEpoch !== "number") {
-        return res.status(400).json({ error: "Action, actorId, id, and hostEpoch required" });
-      }
-      if (queueVersion !== undefined && typeof queueVersion !== "number") {
-        return res.status(400).json({ error: "queueVersion must be a number when provided" });
-      }
-      const actionValidation = validateMultiplayerAction(action, MAX_MULTIPLAYER_ACTION_BYTES);
-      if (!actionValidation.valid) {
-        return res.status(400).json({ error: actionValidation.error });
-      }
-
-      for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
-        const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
-        if (!lobby) {
-          return res.status(404).json({ error: "Lobby not found" });
-        }
-        if (lobby.status !== "playing") {
-          return res.status(409).json({ error: "Game not in progress" });
-        }
-        if (lobby.hostUserId !== req.session.userId) {
-          return res.status(403).json({ error: "Only host can commit actions" });
-        }
-
-        const lobbyState = (lobby.gameState as any) || {};
-        const { hostEpoch: currentHostEpoch } = getHostMeta(lobbyState);
-        if (hostEpoch !== currentHostEpoch) {
-          return res.status(409).json({ error: "Host epoch mismatch", hostEpoch: currentHostEpoch });
-        }
-
-        const playerMeta = (lobbyState.players || []).find((player: any) => player.playerId === actorId);
-        if (!playerMeta) {
-          return res.status(400).json({ error: "Unknown player" });
-        }
-        const queueVersionProvided = queueVersion !== undefined;
-        const requiresQueueProof = !playerMeta.isAI && playerMeta.userId !== req.session.userId;
-        const forcedTimeoutEndTurnAllowed = isForcedTimeoutEndTurnAllowed({
-          action,
-          actorId,
-          queueVersionProvided,
-          playerMeta,
-          expectedActorId: getExpectedActorId(lobbyState),
-          requesterUserId: req.session.userId!,
-          hostUserId: lobby.hostUserId,
-          now: Date.now(),
-          timeoutMs: MULTIPLAYER_TURN_TIMEOUT_MS,
-          recoveryEnabled: MULTIPLAYER_TURN_RECOVERY_ENABLED,
-        });
-        if (requiresQueueProof && !queueVersionProvided && !forcedTimeoutEndTurnAllowed) {
-          return res.status(409).json({ error: "Remote player actions must be queue-backed." });
-        }
-
-        const expectedActorId = getExpectedActorId(lobbyState);
-        if (expectedActorId && actorId !== expectedActorId) {
-          return res.status(409).json({ error: "Not this player's turn", expectedActorId });
-        }
-
-        const actions = Array.isArray(lobbyState.actions) ? [...lobbyState.actions] : [];
-        const existingCommitted = actions.find((entry: any) => entry.id === id);
-        if (existingCommitted) {
-          return res.json({ actionVersion: Number(existingCommitted.version ?? lobbyState.actionVersion ?? 0), duplicate: true });
-        }
-        if (lobbyState.turnResolutionPending === true) {
-          return res.status(409).json({ error: "Waiting for host turn snapshot" });
-        }
-
-        let pendingActions = Array.isArray(lobbyState.pendingActions) ? [...lobbyState.pendingActions] : [];
-        if (queueVersionProvided) {
-          const queueMatch = pendingActions.some(
-            (entry: any) =>
-              entry.queueVersion === queueVersion &&
-              entry.id === id &&
-              entry.actorId === actorId
-          );
-          if (!queueMatch) {
-            return res.status(409).json({ error: "Pending action mismatch. Refresh pending queue." });
-          }
-        }
-
-        const isTurnCompleteAction =
-          action?.type === "END_TURN" || action?.type === "END_TURN_RESOLUTION";
-        const expectedActorAfterCommit = getExpectedActorAfterCommit({
-          lobbyState,
-          actorId,
-          action,
-          currentExpectedActorId: expectedActorId,
-          isTurnCompleteAction,
-        });
-        if (!expectedActorAfterCommit.valid) {
-          return res.status(400).json({ error: expectedActorAfterCommit.error });
-        }
-        pendingActions = reconcilePendingActionsAfterCommit({
-          pendingActions,
-          queueVersionProvided,
-          queueVersion,
-          id,
-          actorId,
-          isTurnCompleteAction,
-        });
-
-        const nextActionVersion = Number(lobbyState.actionVersion ?? 0) + 1;
-        actions.push({ version: nextActionVersion, id, actorId, action });
-        const playersMeta = Array.isArray(lobbyState.players) ? [...lobbyState.players] : [];
-        const playerIndex = playersMeta.findIndex((entry: any) => entry?.playerId === actorId);
-        if (playerIndex >= 0) {
-          playersMeta[playerIndex] = {
-            ...playersMeta[playerIndex],
-            lastSeenAt: Date.now(),
-          };
-        }
-
-        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
-          gameState: {
-            ...lobbyState,
-            actionVersion: nextActionVersion,
-            actions,
-            pendingActions,
-            expectedActorId: expectedActorAfterCommit.expectedActorId,
-            turnResolutionPending: expectedActorAfterCommit.requiresSnapshot,
-            players: playersMeta,
-            hostLastSeen: Date.now(),
-          } as any,
-        });
-        if (updated) {
-          if (forcedTimeoutEndTurnAllowed) {
-            logMultiplayerTelemetry("forcedTimeoutEndTurn", {
-              lobbyCode: lobby.code,
-              actorId,
-              hostUserId: lobby.hostUserId,
-            });
-          }
-          publishMultiplayerSyncEvent(lobby.code, "action-committed");
-          return res.json({ actionVersion: nextActionVersion });
-        }
-      }
-
-      return res.status(409).json({ error: "Concurrent lobby update. Retry commit." });
-    } catch (error) {
-      console.error("Failed to commit action:", error);
-      res.status(500).json({ error: "Failed to commit action" });
-    }
-  });
-
-  // Fetch committed actions
-  app.get("/api/lobbies/:code/actions", requireAuth, async (req, res) => {
-    try {
-      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
-      if (!lobby) {
-        return res.status(404).json({ error: "Lobby not found" });
-      }
-      if (lobby.status !== "playing") {
-        return res.status(409).json({ error: "Game not in progress" });
-      }
-
-      const seats = await storage.getSeatsByLobbyId(lobby.id);
-      const userId = req.session.userId!;
-      const isParticipant = lobby.hostUserId === userId || seats.some((seat) => seat.userId === userId);
-      if (!isParticipant) {
-        return res.status(403).json({ error: "Not a participant" });
-      }
-
-      const lobbyState = (lobby.gameState as any) || {};
-      const actionVersion = Number(lobbyState.actionVersion ?? 0);
-      const actions = Array.isArray(lobbyState.actions) ? lobbyState.actions : [];
-      const actionLogBaseVersion = Number(lobbyState.actionLogBaseVersion ?? 0);
-      const snapshotVersion = Number(lobbyState.snapshotVersion ?? 0);
-      const since = Number(req.query.since ?? 0);
-
-      if (Number.isFinite(since) && since >= actionVersion) {
-        return res.json({ actionVersion, actions: [] });
-      }
-      if (needsSnapshotCatchup(since, actionLogBaseVersion)) {
-        logMultiplayerTelemetry("needsSnapshot", {
-          lobbyCode: lobby.code,
-          since,
-          actionVersion,
-          actionLogBaseVersion,
-        });
-        return res.json({
-          actionVersion,
-          actions: [],
-          needsSnapshot: true,
-          snapshotVersion,
-          actionLogBaseVersion,
-        });
-      }
-
-      const newActions = Number.isFinite(since)
-        ? actions.filter((entry: any) => entry.version > since)
-        : actions;
-
-      res.json({
-        actionVersion,
-        actions: newActions,
-        needsSnapshot: false,
-        snapshotVersion,
-        actionLogBaseVersion,
-      });
-    } catch (error) {
-      console.error("Failed to fetch actions:", error);
-      res.status(500).json({ error: "Failed to fetch actions" });
-    }
+  registerMultiplayerActionRoutes(app, {
+    requireAuth,
+    queueRateLimit,
+    commitRateLimit,
   });
 
   // === GAME SAVES ROUTES ===

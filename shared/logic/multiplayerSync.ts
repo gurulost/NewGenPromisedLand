@@ -1,6 +1,7 @@
 export type MultiplayerPlayerMeta = {
   playerId?: string;
   userId?: number | null;
+  factionId?: string | null;
   isAI?: boolean;
   turnOrder?: number;
   lastSeenAt?: number;

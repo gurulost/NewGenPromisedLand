@@ -10,7 +10,7 @@ import { useToastContext } from "./ToastProvider";
 import { ArrowLeft, Users, Copy, Check, UserPlus, Bot, RefreshCw, Loader2, MessageSquare, AlertTriangle, X } from "lucide-react";
 import { FACTIONS } from "@shared/data/factions";
 import { coerceFactionId, type FactionId } from "@shared/types/factionId";
-import type { MapSize } from "@shared/utils/mapGenerator";
+import type { GameState } from "@shared/types/game";
 import {
   getDuplicateFactionIds,
   getTakenFactionIds,
@@ -281,7 +281,7 @@ function SeatSlot({
 }
 
 export default function LobbyRoom() {
-  const { setGamePhase, setOnlineSession, clearOnlineSession, startLocalGame, loadGameState } = useLocalGame();
+  const { setGamePhase, setOnlineSession, clearOnlineSession, loadGameState } = useLocalGame();
   const { user } = useAuth();
   const { currentLobby, leaveLobby, fetchLobby, startGame, error, clearError } = useLobby();
   const { isMobileUI } = useMobileUI();
@@ -299,6 +299,7 @@ export default function LobbyRoom() {
   const roomCodeRef = useRef<HTMLSpanElement | null>(null);
   const copiedResetTimeoutRef = useRef<number | null>(null);
   const lastToastedErrorRef = useRef<string | null>(null);
+  const missingSnapshotToastRef = useRef(false);
   const chatIdentity = useMemo(() => {
     if (!currentLobby || !user) return null;
     const mySeat = currentLobby.seats.find((seat) => seat.userId === user.id);
@@ -363,24 +364,12 @@ export default function LobbyRoom() {
     }
     const gameConfig = lobbyGameState as {
       players: Array<{ playerId?: string; userId?: number | null; name: string; factionId: string; isAI: boolean; turnOrder: number }>;
-      mapSize?: string;
-      seed?: number;
       hostEpoch?: number;
       actionVersion?: number;
       pendingVersion?: number;
       snapshotVersion?: number;
       snapshot?: unknown;
     };
-    const playerSetup = gameConfig.players.map((p, i) => ({
-      id: p.playerId || `player-${i + 1}`,
-      name: p.name,
-      factionId: p.factionId,
-      turnOrder: p.turnOrder,
-      isAI: p.isAI,
-      aiDifficulty: 'normal' as const,
-    }));
-    const rawMapSize = gameConfig.mapSize || "normal";
-    const mapSize = (rawMapSize === "medium" ? "normal" : rawMapSize) as MapSize;
     const assignments = gameConfig.players.map((p, i) => ({
       playerId: p.playerId || `player-${i + 1}`,
       userId: p.userId ?? null,
@@ -392,6 +381,21 @@ export default function LobbyRoom() {
     const initialActionVersion = getInitialActionVersionFromLobbyConfig(gameConfig);
     const isHostSession = lobbyHostUserId === userId;
 
+    if (!gameConfig.snapshot) {
+      if (!missingSnapshotToastRef.current) {
+        showErrorToast(
+          "Waiting for game state",
+          "The server has not provided the canonical match snapshot yet.",
+        );
+        missingSnapshotToastRef.current = true;
+      }
+      if (lobbyId != null) {
+        void fetchLobby(lobbyId);
+      }
+      return;
+    }
+    missingSnapshotToastRef.current = false;
+
     setOnlineSession({
       lobbyCode,
       userId,
@@ -402,19 +406,17 @@ export default function LobbyRoom() {
       hostEpoch: gameConfig.hostEpoch ?? 0,
     });
 
-    if (gameConfig.snapshot) {
-      loadGameState(gameConfig.snapshot as any, { source: 'online_lobby_snapshot' });
-    } else {
-      startLocalGame(playerSetup, mapSize, gameConfig.seed);
-    }
+    loadGameState(gameConfig.snapshot as GameState, { source: 'online_lobby_snapshot' });
   }, [
+    fetchLobby,
     lobbyCode,
     lobbyGameState,
     lobbyHostUserId,
+    lobbyId,
     lobbyStatus,
     loadGameState,
     setOnlineSession,
-    startLocalGame,
+    showErrorToast,
     userId,
   ]);
 
