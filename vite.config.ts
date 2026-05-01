@@ -73,12 +73,19 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           const normalizedId = id.split(path.sep).join("/");
+          if (normalizedId.includes("commonjsHelpers")) {
+            return "vendor-react";
+          }
+
           if (!normalizedId.includes("/node_modules/")) return;
 
           if (
             normalizedId.includes("/node_modules/react/") ||
             normalizedId.includes("/node_modules/react-dom/") ||
-            normalizedId.includes("/node_modules/scheduler/")
+            normalizedId.includes("/node_modules/scheduler/") ||
+            normalizedId.includes("/node_modules/react-is/") ||
+            normalizedId.includes("/node_modules/react-reconciler/") ||
+            normalizedId.includes("/node_modules/use-sync-external-store/")
           ) {
             return "vendor-react";
           }
@@ -175,11 +182,10 @@ export default defineConfig({
           }
 
           if (
-            normalizedId.includes("/node_modules/@sentry/") ||
             normalizedId.includes("/node_modules/posthog-js/") ||
             normalizedId.includes("/node_modules/web-vitals/")
           ) {
-            return "vendor-observability";
+            return "vendor-analytics";
           }
 
           if (

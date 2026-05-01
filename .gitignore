@@ -11,6 +11,7 @@ attached_assets/
 coverage/
 playwright-report/
 test-results/
+output/playwright/
 test-results*.json
 full-test-results.json
 complete-test-output.txt

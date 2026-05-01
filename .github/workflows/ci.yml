@@ -270,12 +270,7 @@ jobs:
       
       - name: Build application
         run: npm run build
-      
-      - name: Start production server
-        run: |
-          npm start > /tmp/lighthouse-server.log 2>&1 &
-          npx wait-on http://localhost:5000 --timeout 120000
-      
+
       - name: Run Lighthouse audit
         run: |
           npm install -g @lhci/cli
