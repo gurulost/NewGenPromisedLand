@@ -80,6 +80,9 @@ vi.mock('../client/src/components/ui/CombatPanel', () => ({
 vi.mock('../client/src/components/ui/AbilitiesPanel', () => ({
   AbilitiesPanel: () => null
 }));
+vi.mock('../client/src/components/ui/SettingsMenu', () => ({
+  SettingsMenu: () => null,
+}));
 
 describe('GameUI hotkeys while typing', () => {
   let mockGameState: GameState;
