@@ -80,7 +80,7 @@ The first split pass should keep these exports and behaviors stable:
 Run the focused map suite after every extraction:
 
 ```bash
-npx vitest run test/MapGeneratorCharacterization.test.ts test/MapGenerationDeterminism.test.ts test/MapGenerationStats.test.ts test/MapGenerationWater.test.ts test/MapGenerationVillages.test.ts test/MapGenerationCapitals.test.ts test/MapGenerationNeutralCities.test.ts test/MapGenerationResourceControls.test.ts test/MapGenerationRuins.test.ts
+npm run test:map
 ```
 
 Also run the repo hygiene gate:
@@ -104,6 +104,7 @@ When a digest changes, treat it as a review checkpoint. Update it only when the 
 ## Review Checklist
 
 - Public imports still work from `@shared/utils/mapGenerator`.
+- The public facade and helper module boundaries stay covered by `test/MapGenerationModuleBoundaries.test.ts`.
 - The worker still receives the same map, capital positions, and generation report shape.
 - Seeded maps remain deterministic.
 - Capital count, uniqueness, land access, and configured spacing remain covered.

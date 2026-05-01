@@ -26,6 +26,9 @@ npm run check
 # Unit/component/integration suite with configured coverage
 npm run test:all
 
+# Focused map-generation regression and module-boundary suite
+npm run test:map
+
 # Public asset and Git LFS hydration guard
 npm run assets:verify
 
@@ -67,11 +70,14 @@ The current coverage config excludes `server/`, `test/`, `dist/`, config files, 
 - **Client component tests**: UI panels, overlays, HUD behavior, hotkey blocking, provider shell behavior, and store-connected components.
 - **Accessibility tests**: focused a11y checks under `test/a11y`.
 - **Performance tests**: guardrail benchmarks under `test/performance`.
+- **Map generation tests**: deterministic characterization, capitals, water, settlements, resources, ruins, statistical fairness, and module-boundary coverage through `npm run test:map`.
 - **Playwright E2E tests**: browser-level flows under `test/e2e`.
 
 ## CI and Release Guardrails
 
 CI uses `npm run check`, not the narrower `npm run typecheck`, so type checks and repository hygiene run together.
+
+CI has a dedicated `map-generator-suite` merge gate for `npm run test:map`. It intentionally duplicates the map tests that are also covered by the full Vitest suite so map-generation regressions are visible as a focused failure. Any change to `shared/utils/mapGenerator.ts`, `shared/utils/mapGeneration*.ts`, `client/src/workers/mapGeneratorWorker.ts`, or map-generation report semantics should run this suite locally before handoff. Run `npm run test:performance` and `npm run build` as well when a map change touches tile-wide loops, water repair, pathfinding-style searches, resource placement, candidate sorting, or worker import/export shape.
 
 CI has a dedicated `asset-integrity` merge gate. It checks out Git LFS assets, runs `git lfs fsck`, and runs `npm run assets:verify`. The asset verifier fails if any `client/public` file is still a Git LFS pointer, if any `.glb` file is not a hydrated GLB v2 binary with a matching header length, or if any public asset over 5 MiB is not covered by the Git LFS filter. Asset-dependent CI jobs also run the same verifier before building, running Vitest, running E2E tests, or running Lighthouse, which prevents release artifacts and browser tests from silently using pointer files instead of real assets.
 

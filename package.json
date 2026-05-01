@@ -14,6 +14,7 @@
     "lint": "eslint client/src --ext .ts,.tsx",
     "lint:hooks": "eslint client/src --ext .ts,.tsx --rule 'react-hooks/rules-of-hooks: error'",
     "test:all": "vitest run --coverage --coverage.reporter=text --coverage.reporter=json-summary --reporter=verbose",
+    "test:map": "vitest run test/MapGeneratorCharacterization.test.ts test/MapGenerationDeterminism.test.ts test/MapGenerationStats.test.ts test/MapGenerationWater.test.ts test/MapGenerationVillages.test.ts test/MapGenerationCapitals.test.ts test/MapGenerationNeutralCities.test.ts test/MapGenerationResourceControls.test.ts test/MapGenerationRuins.test.ts test/MapGenerationModuleBoundaries.test.ts",
     "test:e2e": "node scripts/run-playwright-tests.mjs",
     "test:e2e:chromium": "node scripts/run-playwright-tests.mjs --project=chromium",
     "test:e2e:matrix": "node scripts/run-playwright-tests.mjs --workers=1",
