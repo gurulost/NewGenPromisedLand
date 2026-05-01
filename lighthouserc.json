@@ -3,7 +3,12 @@
     "collect": {
       "url": ["http://localhost:5000"],
       "startServerCommand": "npm start",
-      "numberOfRuns": 3
+      "startServerReadyPattern": "serving on port",
+      "startServerReadyTimeout": 30000,
+      "numberOfRuns": 3,
+      "settings": {
+        "preset": "desktop"
+      }
     },
     "assert": {
       "assertions": {

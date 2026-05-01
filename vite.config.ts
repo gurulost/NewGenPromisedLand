@@ -73,7 +73,10 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           const normalizedId = id.split(path.sep).join("/");
-          if (normalizedId.includes("commonjsHelpers")) {
+          if (
+            normalizedId.includes("commonjsHelpers") ||
+            normalizedId.includes("preload-helper")
+          ) {
             return "vendor-react";
           }
 

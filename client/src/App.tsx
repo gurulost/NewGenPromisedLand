@@ -1,9 +1,6 @@
 import { Suspense, lazy, useEffect } from "react";
-import { Canvas } from "@react-three/fiber";
-import { KeyboardControls } from "@react-three/drei";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocalGame } from "./lib/stores/useLocalGame";
-import * as THREE from "three";
 import MainMenu from "./components/ui/MainMenu";
 import PlayerSetup from "./components/ui/PlayerSetup";
 import HandoffScreen from "./components/ui/HandoffScreen";
@@ -13,11 +10,8 @@ import LobbyRoom from "./components/ui/LobbyRoom";
 import { VisualFeedbackProvider } from "./components/ui/VisualFeedback";
 import { FloatingTextManager } from "./components/ui/FloatingText";
 import { AudioProvider } from "./components/ui/AudioProvider";
-import { WorldBuildLoader } from "./components/ui/WorldBuildLoader";
 import { MapGenerationOverlay } from "./components/ui/MapGenerationOverlay";
 import { useTouchModeProvider } from "./hooks/useTouchMode";
-import { useMobileUI } from "./hooks/useMobileUI";
-import { usePerformanceMode } from "./hooks/usePerformanceMode";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import BugReportHost from "./components/ui/BugReportHost";
 import AnimationLabGate from "./components/ui/AnimationLabGate";
@@ -25,16 +19,13 @@ import { useAnimationLabAccess } from "./lib/stores/useAnimationLabAccess";
 import "@fontsource/inter";
 
 const queryClient = new QueryClient();
-const GameCanvas = lazy(() => import("./components/game/GameCanvas"));
-const GameUI = lazy(() => import("./components/game/GameUI"));
+const PlayingScene = lazy(() => import("./components/game/PlayingScene"));
 const CombatEffectsDemo = lazy(async () => ({
   default: (await import("./components/effects/CombatEffectsDemo")).CombatEffectsDemo,
 }));
 const AnimationLab = lazy(async () => ({
   default: (await import("./components/ui/AnimationLab")).AnimationLab,
 }));
-const minimalGameStageEnabled =
-  (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_E2E_MINIMAL_GAME_STAGE === "true";
 
 function TouchModeProvider({ children }: { children: React.ReactNode }) {
   const touchMode = useTouchModeProvider();
@@ -46,108 +37,6 @@ function TouchModeProvider({ children }: { children: React.ReactNode }) {
     }}>
       {children}
     </touchMode.TouchModeContext.Provider>
-  );
-}
-
-function CanvasLoadingFallback() {
-  return (
-    <group>
-      <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.65, 0.8, 6]} />
-        <meshBasicMaterial
-          color="#94a3b8"
-          transparent
-          opacity={0.45}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-      <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.45, 6]} />
-        <meshBasicMaterial
-          color="#1e293b"
-          transparent
-          opacity={0.4}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-    </group>
-  );
-}
-
-// Define control keys for the game
-const controls = [
-  { name: "select", keys: ["Enter", "Space"] },
-  { name: "cancel", keys: ["Escape"] },
-  { name: "endTurn", keys: ["KeyT"] },
-  { name: "save", keys: ["KeyS"] },
-  { name: "load", keys: ["KeyL"] },
-  { name: "diplomacy", keys: ["KeyD"] },
-  { name: "chat", keys: ["KeyC"] },
-  { name: "attack", keys: ["KeyA"] },
-  { name: "move", keys: ["KeyM"] },
-  { name: "ability", keys: ["KeyQ"] },
-];
-
-function GameStage() {
-  const { isMobileUI } = useMobileUI();
-  const perfMode = usePerformanceMode();
-  const allowShadows = perfMode === 'high' && !isMobileUI;
-  const dpr = isMobileUI ? ([1, 1.5] as [number, number]) : undefined;
-
-  return (
-    <Canvas
-      shadows={allowShadows}
-      dpr={dpr}
-      camera={{
-        position: [0, 8, 8],
-        fov: 45,
-        near: 0.5,
-        far: 1000
-      }}
-      gl={{
-        antialias: perfMode === 'high' && !isMobileUI,
-        powerPreference: "high-performance",
-        toneMapping: THREE.ACESFilmicToneMapping,
-        toneMappingExposure: 1.3,
-      }}
-      className="absolute inset-0"
-    >
-      <color attach="background" args={["#0f172a"]} />
-
-      {minimalGameStageEnabled ? (
-        // Playwright only needs a live canvas surface; skip GLTF-heavy scene loading in CI.
-        <ambientLight intensity={0.35} color="#ffffff" />
-      ) : (
-        <>
-          {/* Lighting - Much brighter for better tile visibility */}
-          <ambientLight intensity={1.15} color="#ffffff" />
-          <hemisphereLight
-            color="#ffffff"
-            groundColor="#6b7280"
-            intensity={0.65}
-          />
-          <directionalLight
-            position={[10, 10, 5]}
-            intensity={3.0}
-            color="#fff3d6"
-            castShadow={allowShadows}
-            shadow-mapSize-width={2048}
-            shadow-mapSize-height={2048}
-          />
-          {/* Additional light for better coverage */}
-          <directionalLight
-            position={[-10, 10, -5]}
-            intensity={1.8}
-            color="#e0f2fe"
-            castShadow={allowShadows}
-          />
-
-          <Suspense fallback={<CanvasLoadingFallback />}>
-            <GameCanvas />
-          </Suspense>
-        </>
-      )}
-    </Canvas>
   );
 }
 
@@ -183,29 +72,25 @@ function App() {
   } else {
     routeContent = (
       <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
-        <KeyboardControls map={controls}>
-          {gamePhase === 'menu' && <MainMenu />}
+        {gamePhase === 'menu' && <MainMenu />}
 
-          {gamePhase === 'tutorialEpisodeIntro' && <TutorialEpisodeIntro />}
+        {gamePhase === 'tutorialEpisodeIntro' && <TutorialEpisodeIntro />}
 
-          {gamePhase === 'playerSetup' && <PlayerSetup />}
+        {gamePhase === 'playerSetup' && <PlayerSetup />}
 
-          {gamePhase === 'handoff' && <HandoffScreen />}
+        {gamePhase === 'handoff' && <HandoffScreen />}
 
-          {gamePhase === 'lobbies' && <LobbyList />}
+        {gamePhase === 'lobbies' && <LobbyList />}
 
-          {gamePhase === 'lobbyRoom' && <LobbyRoom />}
+        {gamePhase === 'lobbyRoom' && <LobbyRoom />}
 
-          {(gamePhase === 'playing' || gamePhase === 'gameOver') && (
-            <ErrorBoundary>
-              <GameStage />
-              <Suspense fallback={null}>
-                <GameUI />
-              </Suspense>
-              <WorldBuildLoader enabled />
-            </ErrorBoundary>
-          )}
-        </KeyboardControls>
+        {(gamePhase === 'playing' || gamePhase === 'gameOver') && (
+          <ErrorBoundary>
+            <Suspense fallback={null}>
+              <PlayingScene />
+            </Suspense>
+          </ErrorBoundary>
+        )}
         <BugReportHost />
         <MapGenerationOverlay />
       </div>
