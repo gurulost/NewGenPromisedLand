@@ -6,7 +6,7 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 channel = "stable-24_05"
 
 [deployment]
-deploymentTarget = "autoscale"
+deploymentTarget = "vm"
 build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
 
@@ -40,3 +40,6 @@ waitForPort = 5000
 [userenv.shared]
 ANIMATION_LAB_ACCESS_QUESTION = "Who was the queen of all cats, born in a garage?"
 ANIMATION_LAB_ACCESS_TTL_HOURS = "12"
+MULTIPLAYER_STRICT_RESYNC = "true"
+VITE_MULTIPLAYER_STRICT_RESYNC = "true"
+MULTIPLAYER_TURN_RECOVERY = "true"
