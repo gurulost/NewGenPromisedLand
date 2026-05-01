@@ -187,7 +187,6 @@ export class MapGenerator {
     // Step 5: Generate terrain with faction-specific modifiers (BEFORE villages)
     generateFactionBiasedTerrainOnMap({
       tiles,
-      mapRadius,
       capitalPositions,
       playerFactions: this.playerFactions,
       terrainRng: this.rngStreams.terrain,
@@ -295,11 +294,7 @@ export class MapGenerator {
     });
     
     // Step 8: Place special features
-    placeSpecialFeaturesOnMap({
-      tiles,
-      capitalPositions,
-      playerFactions: this.playerFactions,
-    });
+    placeSpecialFeaturesOnMap();
 
     this.lastReport = this.buildGenerationReport(
       tiles,

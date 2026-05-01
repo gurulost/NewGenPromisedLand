@@ -17,11 +17,7 @@ import type {
   ResourceCandidate,
   ResourceSpawnRate,
 } from './mapGenerationTypes';
-
-interface RandomSource {
-  next(): number;
-  nextInt(min: number, max: number): number;
-}
+import type { RandomSource } from './mapGenerationRandom';
 
 type ApplyTribalResourceModifiersForTile = (
   baseRates: ResourceSpawnRate,

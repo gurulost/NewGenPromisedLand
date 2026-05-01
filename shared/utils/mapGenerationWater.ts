@@ -4,21 +4,17 @@ import { hexDistance, hexNeighbors, hexesInRange } from './hex';
 import { buildTileIndex, coordKey } from './mapGenerationGeometry';
 import { MAP_GENERATION_CONSTANTS, type MapSize } from './mapGenerationConstants';
 import { createWaterRepairReasonCounts, debugMapGeneratorLog } from './mapGenerationDiagnostics';
+import type { RandomSource } from './mapGenerationRandom';
 import { factionWantsWater } from './mapGenerationTerrain';
 import type { WaterBodyData, WaterRepairReasonCounts } from './mapGenerationTypes';
 
 export type WaterMotif = 'coastal' | 'inland_sea' | 'straits';
 
-interface WaterResourceRandom {
-  next(): number;
-  nextInt(min: number, max: number): number;
-}
-
 interface PlaceWaterResourcesOptions {
   tiles: Tile[];
   capitalPositions: HexCoordinate[];
   waterData: WaterBodyData;
-  rng: WaterResourceRandom;
+  rng: RandomSource;
   getFishModifier: (capitalIndex: number) => number;
 }
 
@@ -228,7 +224,7 @@ export const generateWaterMask = ({
   tiles: Tile[];
   mapRadius: number;
   mapSize: MapSize;
-  rng: WaterResourceRandom;
+  rng: RandomSource;
   waterNoise2D: (x: number, y: number) => number;
   hasWaterFaction: boolean;
 }): { waterData: WaterBodyData; motif: WaterMotif } => {
@@ -365,7 +361,7 @@ export const repairCapitalWaterAccess = ({
   };
 };
 
-const pickWaterMotif = (rng: WaterResourceRandom, hasWaterFaction: boolean): WaterMotif => {
+const pickWaterMotif = (rng: RandomSource, hasWaterFaction: boolean): WaterMotif => {
   const weights = hasWaterFaction
     ? [
         { motif: 'coastal' as const, weight: 0.25 },
@@ -397,7 +393,7 @@ const scoreWaterTiles = ({
   tiles: Tile[];
   mapRadius: number;
   motif: WaterMotif;
-  rng: WaterResourceRandom;
+  rng: RandomSource;
   waterNoise2D: (x: number, y: number) => number;
 }): Map<string, number> => {
   const scores = new Map<string, number>();
@@ -547,7 +543,7 @@ const placeResourceClusters = (
   target: number,
   minClusterSize: number,
   maxClusterSize: number,
-  rng: WaterResourceRandom
+  rng: RandomSource
 ): void => {
   let remaining = target;
   const maxClusters = Math.max(1, Math.round(bodyTiles.length / 12));
@@ -581,7 +577,7 @@ const placeDeepWaterResources = (
   tileIndex: Map<string, Tile>,
   resource: string,
   target: number,
-  rng: WaterResourceRandom
+  rng: RandomSource
 ): void => {
   let remaining = target;
   const deepTiles = bodyTiles.filter(tile => {
@@ -604,7 +600,7 @@ const placeDeepWaterResources = (
 
 const pickAvailableWaterTile = (
   bodyTiles: Tile[],
-  rng: WaterResourceRandom
+  rng: RandomSource
 ): Tile | null => {
   const candidates = bodyTiles.filter(tile => tile.resources.length === 0);
   if (candidates.length === 0) return null;
@@ -615,7 +611,7 @@ const expandCluster = (
   seed: Tile,
   tileIndex: Map<string, Tile>,
   size: number,
-  rng: WaterResourceRandom
+  rng: RandomSource
 ): Tile[] => {
   const cluster: Tile[] = [seed];
   const visited = new Set<string>([coordKey(seed.coordinate)]);
@@ -674,7 +670,7 @@ const ensureSharedWaterOpportunities = (
   tiles: Tile[],
   capitalPositions: HexCoordinate[],
   waterData: WaterBodyData,
-  rng: WaterResourceRandom
+  rng: RandomSource
 ): void => {
   const tileIndex = buildTileIndex(tiles);
   const waterBodies = groupWaterBodies(tiles, waterData);

@@ -127,7 +127,6 @@ export const generateFactionBiasedTerrain = ({
   terrainNoise2D,
 }: {
   tiles: Tile[];
-  mapRadius: number;
   capitalPositions: HexCoordinate[];
   playerFactions: string[];
   terrainRng: RandomSource;
@@ -254,15 +253,6 @@ export const applyTribalModifiersForTile = ({
   return modified;
 };
 
-export const placeSpecialFeatures = ({
-  capitalPositions,
-  playerFactions,
-}: {
-  tiles: Tile[];
-  capitalPositions: HexCoordinate[];
-  playerFactions: string[];
-}): void => {
-  for (let i = 0; i < capitalPositions.length; i++) {
-    getTribalSpawnModifiers(playerFactions[i]);
-  }
+export const placeSpecialFeatures = (): void => {
+  // No generated tribal special features are defined yet; faction identity is handled by terrain and resource modifiers.
 };
