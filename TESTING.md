@@ -71,6 +71,7 @@ The current coverage config excludes `server/`, `test/`, `dist/`, config files, 
 - **Accessibility tests**: focused a11y checks under `test/a11y`.
 - **Performance tests**: guardrail benchmarks under `test/performance`.
 - **Map generation tests**: deterministic characterization, capitals, water, settlements, resources, ruins, statistical fairness, and module-boundary coverage through `npm run test:map`.
+- **Active faction ability tests**: data contract, shared availability, resolver effects, UI gating, AI use/skip heuristics, and deterministic ideal/blocked/marginal balance scenarios.
 - **Playwright E2E tests**: browser-level flows under `test/e2e`.
 
 ## CI and Release Guardrails
@@ -82,6 +83,15 @@ CI has a dedicated `map-generator-suite` merge gate for `npm run test:map`. It i
 CI has a dedicated `asset-integrity` merge gate. It checks out Git LFS assets, runs `git lfs fsck`, and runs `npm run assets:verify`. The asset verifier fails if any `client/public` file is still a Git LFS pointer, if any `.glb` file is not a hydrated GLB v2 binary with a matching header length, or if any public asset over 5 MiB is not covered by the Git LFS filter. Asset-dependent CI jobs also run the same verifier before building, running Vitest, running E2E tests, or running Lighthouse, which prevents release artifacts and browser tests from silently using pointer files instead of real assets.
 
 CI also has a dedicated `performance-tests` job for `npm run test:performance`, and Lighthouse remains part of the blocking PR merge gate. The performance job intentionally does not perform an LFS checkout; asset hydration confidence comes from `asset-integrity` and the jobs that actually need public assets.
+
+Active faction ability changes must treat `shared/data/factionAbilitySpecs.ts`, `shared/logic/factionAbilityAvailability.ts`, resolver behavior, UI availability, and AI heuristics as one coupled surface. Any ability marked `active` must have a canonical spec, shared availability gate, resolver effect, UI ready/blocked text, AI rule, and tests.
+
+Run this focused active-ability gate for ability contract or tuning work:
+
+```bash
+npx vitest run test/unit/AbilityDataIntegrity.unit.test.ts test/unit/FactionAbilityHeuristics.unit.test.ts test/unit/FactionAbilityBalanceScenarios.unit.test.ts test/unit/FactionAbilities.unit.test.ts test/unit/AbilityOwnership.unit.test.ts test/unit/FactionAbilityButtons.unit.test.tsx test/unit/CombatAbilities.unit.test.ts shared/logic/activeEffects.test.ts
+npm run check
+```
 
 Playwright starts the app through the configured `webServer` using `npm run dev:e2e`, which avoids the `tsx` CLI IPC path used by the normal dev server. Its readiness probe targets the app shell by default instead of `__health`, because E2E runs disable the save API and should not require a local Postgres role just to start browser tests.
 

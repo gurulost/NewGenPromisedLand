@@ -60,6 +60,21 @@ describe('Ability data integrity', () => {
     });
   });
 
+  it('keeps implemented active faction ability specs actionable for resolver, UI, and AI coverage', () => {
+    const implementedSpecs = Object.values(FACTION_ABILITY_SPECS).filter(spec => spec.status === 'implemented');
+
+    implementedSpecs.forEach(spec => {
+      expect(spec.effect.trim(), `${spec.id} needs a concrete effect summary`).not.toHaveLength(0);
+      expect(spec.target.rules.trim(), `${spec.id} needs target rules`).not.toHaveLength(0);
+      expect(spec.ui.ready.trim(), `${spec.id} needs ready UI text`).not.toHaveLength(0);
+      expect(spec.ui.blocked.trim(), `${spec.id} needs blocked UI text`).not.toHaveLength(0);
+      expect(spec.aiUse.notes.trim(), `${spec.id} needs AI usage notes`).not.toHaveLength(0);
+      expect(spec.aiUse.rule, `${spec.id} must be available to AI when humans can use it`).not.toMatch(/^skip_|manual_only/);
+      expect(spec.stackingRule, `${spec.id} must not use pending stacking semantics`).not.toBe('pending');
+      expect(spec.cooldown, `${spec.id} cooldown must be explicit`).toBeGreaterThanOrEqual(0);
+    });
+  });
+
   it('keeps the implemented active faction ability allowlist deliberate', () => {
     expect([...IMPLEMENTED_ACTIVE_FACTION_ABILITY_IDS].sort()).toEqual([
       'ANCIENT_MIGHT',
