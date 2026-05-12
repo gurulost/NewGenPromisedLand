@@ -891,13 +891,15 @@ export function checkVictoryConditions(
   const totalOwnedCities = players.reduce((sum, p) => sum + p.citiesOwned.length, 0);
   const turn = context?.turnOverride ?? state.turn;
 
-  const faithCandidates = activePlayers.filter(player =>
-    GameRuleHelpers.hasFaithVictory(player.stats.faith) &&
-    player.stats.internalDissent <= GAME_RULES.victory.faithDissentMax
-  );
-  const faithWinner = pickWinnerByTiebreaker(state, faithCandidates);
-  if (faithWinner) {
-    return { winnerId: faithWinner.id, victoryType: "faith" };
+  if (GAME_RULES.victory.faithEnabled) {
+    const faithCandidates = activePlayers.filter(player =>
+      GameRuleHelpers.hasFaithVictory(player.stats.faith) &&
+      player.stats.internalDissent <= GAME_RULES.victory.faithDissentMax
+    );
+    const faithWinner = pickWinnerByTiebreaker(state, faithCandidates);
+    if (faithWinner) {
+      return { winnerId: faithWinner.id, victoryType: "faith" };
+    }
   }
 
   const economicCandidates = activePlayers.filter(player => {

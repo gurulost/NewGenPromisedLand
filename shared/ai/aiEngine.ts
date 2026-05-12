@@ -2594,6 +2594,8 @@ export class AIEngine {
       : 50;
 
     // --- Faith Progress ---
+    // When faith victory is disabled, treat faith progress as 0 so the AI pivots
+    // away from a win path that can't actually trigger.
     const faithTarget = GAME_RULES.victory.faithThreshold;
     const faithDissentMax = GAME_RULES.victory.faithDissentMax;
     const faithBase = Math.min(100, (this.aiPlayer.stats.faith / faithTarget) * 100);
@@ -2602,7 +2604,9 @@ export class AIEngine {
     const dissentFactor = faithDissent <= faithDissentMax
       ? 1
       : Math.max(0, 1 - ((faithDissent - faithDissentMax) / dissentClamp));
-    const faithProgress = Math.min(100, faithBase * dissentFactor);
+    const faithProgress = GAME_RULES.victory.faithEnabled
+      ? Math.min(100, faithBase * dissentFactor)
+      : 0;
 
     // --- Economic Progress ---
     const techCount = this.aiPlayer.researchedTechs.length;
@@ -2636,17 +2640,34 @@ export class AIEngine {
     const progressMap = { conquest: conquestProgress, faith: faithProgress, economic: economicProgress, cultural: culturalProgress };
     const currentProgress = progressMap[preferredType];
 
-    // Find best alternative
+    // Find best alternative — exclude faith as a candidate when faith victory is disabled
     let bestAlt: typeof preferredType = preferredType;
     let bestAltProgress = currentProgress;
     for (const [type, progress] of Object.entries(progressMap) as [typeof preferredType, number][]) {
+      if (type === 'faith' && !GAME_RULES.victory.faithEnabled) continue;
       if (type !== preferredType && progress > bestAltProgress + 20) {
         bestAlt = type;
         bestAltProgress = progress;
       }
     }
 
-    const shouldPivot = bestAlt !== preferredType && bestAltProgress > currentProgress + 20;
+    // If the AI's preferred path is faith but faith is disabled, force a pivot to
+    // the best non-faith alternative so it doesn't pursue an unreachable win.
+    const preferredFaithBlocked = preferredType === 'faith' && !GAME_RULES.victory.faithEnabled;
+    if (preferredFaithBlocked) {
+      bestAlt = preferredType;
+      bestAltProgress = -1;
+      for (const [type, progress] of Object.entries(progressMap) as [typeof preferredType, number][]) {
+        if (type === 'faith') continue;
+        if (progress > bestAltProgress) {
+          bestAlt = type;
+          bestAltProgress = progress;
+        }
+      }
+    }
+
+    const shouldPivot = preferredFaithBlocked
+      || (bestAlt !== preferredType && bestAltProgress > currentProgress + 20);
 
     return {
       conquest: conquestProgress,

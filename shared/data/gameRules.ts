@@ -6,6 +6,7 @@
 export interface GameRules {
   // Victory Conditions
   victory: {
+    faithEnabled: boolean;
     faithThreshold: number;
     faithDissentMax: number;
     territoryControlThreshold: number; // Percentage of cities needed for territorial victory
@@ -196,6 +197,8 @@ export interface GameRules {
 
 export const GAME_RULES: GameRules = {
   victory: {
+    // TEMP: faith victory disabled until balance pass — diplomacy makes 90 too easy.
+    faithEnabled: false,
     faithThreshold: 90,
     faithDissentMax: 10,
     territoryControlThreshold: 0.8, // 80% of cities

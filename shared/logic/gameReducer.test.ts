@@ -503,10 +503,46 @@ describe('Game Reducer', () => {
         makeCity('city1', 'player1', { q: 0, r: 0, s: 0 }),
         makeCity('city2', 'player2', { q: 1, r: 0, s: -1 })
       ]);
-      const result = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
-      expect(result.phase).toBe('ended');
-      expect(result.winner).toBe('player1');
-      expect(result.victoryType).toBe('faith');
+      // Faith victory is currently disabled in GAME_RULES (balance pass pending).
+      // Temporarily re-enable for this test so the faith mechanism stays covered
+      // and this test continues to validate behavior once it's turned back on.
+      const previouslyEnabled = GAME_RULES.victory.faithEnabled;
+      GAME_RULES.victory.faithEnabled = true;
+      try {
+        const result = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+        expect(result.phase).toBe('ended');
+        expect(result.winner).toBe('player1');
+        expect(result.victoryType).toBe('faith');
+      } finally {
+        GAME_RULES.victory.faithEnabled = previouslyEnabled;
+      }
+    });
+
+    it('does not award faith victory while the faith win condition is disabled', () => {
+      const previouslyEnabled = GAME_RULES.victory.faithEnabled;
+      GAME_RULES.victory.faithEnabled = false;
+      try {
+        const player1 = makePlayer({
+          id: 'player1',
+          stats: { faith: 99, pride: 0, internalDissent: 0 },
+          citiesOwned: ['city1']
+        });
+        const player2 = makePlayer({
+          id: 'player2',
+          turnOrder: 1,
+          stats: { faith: 10, pride: 0, internalDissent: 0 },
+          citiesOwned: ['city2']
+        });
+        const state = makeState([player1, player2], [
+          makeCity('city1', 'player1', { q: 0, r: 0, s: 0 }),
+          makeCity('city2', 'player2', { q: 1, r: 0, s: -1 })
+        ]);
+        const result = resolveActionState(state, { type: 'END_TURN', payload: { playerId: 'player1' } });
+        expect(result.winner).toBeUndefined();
+        expect(result.victoryType).toBeUndefined();
+      } finally {
+        GAME_RULES.victory.faithEnabled = previouslyEnabled;
+      }
     });
 
     it('awards economic victory when income, treasury, and techs meet thresholds', () => {

@@ -568,13 +568,15 @@ const VictoryProgressSection = React.memo(
     const turnLabel = maxTurns > 0 ? `${gameState.turn}/${maxTurns}` : `${gameState.turn}/no cap`;
 
     const summaryTiles = [
-      {
-        key: 'faith',
-        label: 'Faith',
-        value: `${player.stats.faith}/${GAME_RULES.victory.faithThreshold}`,
-        tone: 'border-sky-400/20 bg-sky-500/10 text-sky-50',
-        detail: `Reach ${GAME_RULES.victory.faithThreshold} Faith while keeping Dissent at ${GAME_RULES.victory.faithDissentMax} or lower.`,
-      },
+      ...(GAME_RULES.victory.faithEnabled
+        ? [{
+            key: 'faith',
+            label: 'Faith',
+            value: `${player.stats.faith}/${GAME_RULES.victory.faithThreshold}`,
+            tone: 'border-sky-400/20 bg-sky-500/10 text-sky-50',
+            detail: `Reach ${GAME_RULES.victory.faithThreshold} Faith while keeping Dissent at ${GAME_RULES.victory.faithDissentMax} or lower.`,
+          }]
+        : []),
       {
         key: 'economy',
         label: 'Income',
@@ -621,7 +623,9 @@ const VictoryProgressSection = React.memo(
                     ariaLabel="Victory conditions"
                     content={
                       <div className="space-y-1 text-xs">
-                        <div>Faith: reach threshold with low dissent.</div>
+                        {GAME_RULES.victory.faithEnabled && (
+                          <div>Faith: reach threshold with low dissent.</div>
+                        )}
                         <div>Economic: income + treasury + tech percent.</div>
                         <div>Cultural: population + cultural sites + low dissent.</div>
                         <div>Territory: share of owned cities.</div>
