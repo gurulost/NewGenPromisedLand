@@ -85,6 +85,7 @@ These are intentional non-default rule overrides currently in `shared/data/gameR
 - **Technology Tree**: Comprehensive technology tree with prerequisites, cost validation, and themed descriptions.
 - **Unit System**: Comprehensive unit abilities (e.g., Worker construction, Scout stealth, Missionary healing) with visual indicators and status effects.
 - **City Management**: Full-featured city panel for construction, unit recruitment, and resource generation.
+- **Builder Range**: When `validateConstructionRequest` receives a `builderUnitId`, the worker no longer has to occupy the exact build coordinate — it just has to be within `BUILDER_WORK_RADIUS` (currently 2 hexes) of the target tile (and the tile must still be inside the city work radius). This unblocks water improvements like port from any worker-driven flow; constant lives in `shared/logic/constructionValidation.ts`. The city-panel construction mode (`client/src/components/game/HexGridInstanced.tsx`) currently dispatches without a `builderUnitId`, so it bypasses worker gating entirely — that pre-existing inconsistency is unrelated to this radius change but worth threading a worker through eventually.
 - **Performance**: Instanced rendering for hex grid, React memoization, and optimized data processing.
 - **Testing**: Extensive Vitest-based testing suite covering core game mechanics, UI components, and edge cases.
 
