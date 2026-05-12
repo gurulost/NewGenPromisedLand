@@ -121,7 +121,7 @@ export const FACTIONS: Record<FactionId, Faction> = {
     description: 'A peaceful covenant people who have sworn off warfare, focusing on conversion and cultural influence.',
     color: '#f59e0b',
     startingStats: {
-      faith: 90,
+      faith: 85,
       pride: 10,
       internalDissent: 5,
     },
