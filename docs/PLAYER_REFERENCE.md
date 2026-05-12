@@ -611,7 +611,7 @@ Each tech unlocks specific units/improvements/structures/abilities; use the tech
 ## 16) Victory Conditions
 
 The game checks these conditions at end of turn:
-- Faith Victory: reach Faith threshold (90+) while keeping Dissent low (under 10).
+- Faith Victory: **currently disabled for balance reasons.** When re-enabled: reach Faith threshold (90+) while keeping Dissent low (under 10). See `replit.md` → "Active Balance Toggles" for status and how to turn it back on.
 - Economic Victory: income >= 15 + 3x players, treasury >= 60 + 15x players, tech >= 75%.
 - Cultural Victory: population >= 20 + 6x players, cultural sites (temple/shrine/library/academy/cathedral) >= 3 + players, Dissent <= 10.
 - Territorial Victory: control most owned cities (about 80%; neutral cities do not count).

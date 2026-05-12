@@ -67,6 +67,15 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
   - Production sessions use `connect-pg-simple` with `createTableIfMissing: true`.
   - Session cookies use `secure: true` in production, so HTTPS + correct proxy forwarding are required.
 
+### Active Balance Toggles (TEMPORARY)
+
+These are intentional non-default rule overrides currently in `shared/data/gameRules.ts`. When fixing or rebalancing the underlying system, flip the listed flag and remove the entry here.
+
+- **Faith victory: DISABLED** — `GAME_RULES.victory.faithEnabled = false` in `shared/data/gameRules.ts`. Reason: faith=90 is too easy to reach via diplomacy and was producing instant/cheap wins.
+  - **To re-enable:** set `faithEnabled: true` in `shared/data/gameRules.ts` (single-line change). The faith branch in `checkVictoryConditions` (`shared/logic/actions/turns.ts`), the AI's pivot logic in `calculateVictoryProgress` (`shared/ai/aiEngine.ts`), and the Faith tile + tooltip line in `client/src/components/hud/PlayerHUD.tsx` are all already gated on this flag and will light back up automatically.
+  - **Tests covering both states:** `shared/logic/gameReducer.test.ts` — "awards faith victory when threshold and dissent are met" (temporarily flips flag on) and "does not award faith victory while the faith win condition is disabled" (verifies disabled state).
+  - **Player-facing docs to update on re-enable:** `docs/PLAYER_REFERENCE.md` section 16 (Victory Conditions).
+
 ### Core Game Mechanics
 - **Data-Driven**: All game rules, including abilities, costs, and terrain effects, are centrally configured.
 - **Game Logic**: Pure functions for movement, combat, pathfinding, and resource management within `/shared`.

@@ -33,6 +33,17 @@ Keep gameplay rules from splitting across reducers, UI helpers, legacy modules, 
 - `shared/logic/abilitySystem.ts` still contains direct tech ability logic and is the biggest remaining drift risk. New ability behavior should go through `shared/logic/actions/abilities.ts` or shared helpers first.
 - `shared/logic/unitActionHandlers.ts` still owns several unit tactical handlers. It is acceptable current code, but new broad action domains should prefer `shared/logic/actions/*`.
 
+## Active Balance Toggles (TEMPORARY)
+
+Intentional non-default rule overrides live as flags on `GAME_RULES` in `shared/data/gameRules.ts`. Each entry below must list how to re-enable and which downstream surfaces are already gated. Remove the entry when the toggle is reverted.
+
+- **Faith victory: DISABLED** (`GAME_RULES.victory.faithEnabled = false`).
+  - Reason: faith=90 reachable trivially through diplomacy; produced instant or near-instant wins.
+  - Re-enable: set `faithEnabled: true` in `shared/data/gameRules.ts`. No other code change required.
+  - Already gated on the flag: faith branch in `checkVictoryConditions` (`shared/logic/actions/turns.ts`), AI progress/pivot logic in `calculateVictoryProgress` (`shared/ai/aiEngine.ts`), Faith tile + tooltip in `client/src/components/hud/PlayerHUD.tsx`.
+  - Tests: `shared/logic/gameReducer.test.ts` covers both enabled and disabled paths.
+  - Update on re-enable: `docs/PLAYER_REFERENCE.md` section 16, and remove this entry plus the matching one in `replit.md`.
+
 ## Open Hardening Work
 
 - Retire or wrap remaining `abilitySystem.ts` behavior so `USE_ABILITY` cannot drift from resolver behavior.
