@@ -16,6 +16,7 @@ import {
 } from "./constructionRules";
 
 export const CITY_WORK_RADIUS = 2;
+export const BUILDER_WORK_RADIUS = 2;
 
 export type ConstructionCategory = "improvements" | "structures" | "units";
 
@@ -121,7 +122,7 @@ export function validateConstructionRequest(
       if (!builder || builder.playerId !== playerId) return null;
       if (builder.type !== "worker") return null;
       if (getUnitActionsRemaining(builder) <= 0) return null;
-      if (builder.coordinate.q !== coordinate.q || builder.coordinate.r !== coordinate.r) return null;
+      if (hexDistance(builder.coordinate, coordinate) > BUILDER_WORK_RADIUS) return null;
     }
 
     if (hasBlockingUnit(state, coordinate, builderUnitId)) return null;

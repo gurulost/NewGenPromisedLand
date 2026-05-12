@@ -198,6 +198,87 @@ describe("construction action canonicalization", () => {
     expect(after.players[0].stars).toBe(state.players[0].stars - 5);
   });
 
+  it("allows a worker on a coastal land tile to queue a port on an adjacent water tile (within builder radius)", () => {
+    const workerCoordinate = { q: 1, r: 0, s: -1 };
+    const portCoordinate = { q: 2, r: 0, s: -2 };
+    const state = makeState({
+      players: [makePlayer({ researchedTechs: ["organization", "sailing"] })],
+      map: {
+        width: 6,
+        height: 6,
+        tiles: [
+          makeTile({ q: 0, r: 0, s: 0 }, "plains", { hasCity: true, cityOwner: "p1" }),
+          makeTile(workerCoordinate, "plains"),
+          makeTile(portCoordinate, "water"),
+          makeTile({ q: 3, r: 0, s: -3 }, "water"),
+        ],
+      },
+      units: [makeWorker(workerCoordinate)],
+    });
+
+    const after = resolveActionState(
+      state,
+      {
+        type: "START_CONSTRUCTION",
+        payload: {
+          playerId: "p1",
+          buildingType: "port",
+          category: "improvements",
+          coordinate: portCoordinate,
+          cityId: "c1",
+          builderUnitId: "w1",
+        },
+      } as any
+    );
+
+    expect(after.players[0].constructionQueue).toHaveLength(1);
+    expect(after.players[0].constructionQueue[0]).toEqual(
+      expect.objectContaining({
+        type: "port",
+        category: "improvements",
+        cityId: "c1",
+        coordinate: portCoordinate,
+      })
+    );
+  });
+
+  it("rejects queueing a port when the worker is farther than the builder radius (3+ tiles away)", () => {
+    const workerCoordinate = { q: 0, r: 0, s: 0 };
+    const portCoordinate = { q: 3, r: 0, s: -3 };
+    const state = makeState({
+      players: [makePlayer({ researchedTechs: ["organization", "sailing"] })],
+      map: {
+        width: 6,
+        height: 6,
+        tiles: [
+          makeTile({ q: 0, r: 0, s: 0 }, "plains", { hasCity: true, cityOwner: "p1" }),
+          makeTile({ q: 1, r: 0, s: -1 }, "plains"),
+          makeTile({ q: 2, r: 0, s: -2 }, "water"),
+          makeTile(portCoordinate, "water"),
+        ],
+      },
+      units: [makeWorker(workerCoordinate)],
+    });
+
+    const after = resolveActionState(
+      state,
+      {
+        type: "START_CONSTRUCTION",
+        payload: {
+          playerId: "p1",
+          buildingType: "port",
+          category: "improvements",
+          coordinate: portCoordinate,
+          cityId: "c1",
+          builderUnitId: "w1",
+        },
+      } as any
+    );
+
+    expect(after).toBe(state);
+    expect(after.players[0].constructionQueue).toHaveLength(0);
+  });
+
   it("rejects queued improvements whose coordinate is not legitimately tied to the provided city", () => {
     const state = makeState({
       players: [makePlayer({ citiesOwned: ["c1", "c2"] })],
