@@ -1,0 +1,14 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "1g3NI4ORy5QLeLWEtxyqb"
+uri = "file://handoffs/worker-build-radius-ux.md"
+type = "text"
+title = "Worker Build Radius UX — Handoff"
+
+[[outputs]]
+id = "GRVlktdyCZjmMYgbA-yle"
+uri = "file://handoffs/faith-victory-imbalance.md"
+type = "text"
+title = "Faith Victory Imbalance — Handoff"
