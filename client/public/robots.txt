@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://chronicles-of-the-promised-land.replit.app/sitemap.xml
