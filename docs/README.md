@@ -1,6 +1,6 @@
 # Documentation Index
 
-This directory contains current reference documentation for Chronicles of the Promised Land.
+This directory contains current reference documentation for Covenant Legends.
 
 Historical checklists, implementation notes, backup records, and one-time audit artifacts are archived under [docs/archive](./archive/README.md). They are useful for forensic context, but they are not active guidance.
 

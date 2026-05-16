@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-04-30
 
-This guide describes the current UI direction for Chronicles of the Promised Land. It is active guidance for new UI work and cleanup, not a completed migration checklist.
+This guide describes the current UI direction for Covenant Legends. It is active guidance for new UI work and cleanup, not a completed migration checklist.
 
 ## Current Foundations
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Chronicles of the Promised Land is a browser-first, 2.5D turn-based strategy game inspired by the Book of Mormon. Eight factions (Nephites, Lamanites, Mulekites, Anti-Nephi-Lehies, Zoramites, Jaredites, Hagoth's Mariners, Amulonites) compete through faith, warfare, diplomacy, economy, and exploration. The project targets AAA-quality UI/UX with Polytopia/Civilization-style gameplay.
+Covenant Legends is a browser-first, 2.5D turn-based strategy game inspired by the Book of Mormon. Eight factions (Nephites, Lamanites, Mulekites, Anti-Nephi-Lehies, Zoramites, Jaredites, Hagoth's Mariners, Amulonites) compete through faith, warfare, diplomacy, economy, and exploration. The project targets AAA-quality UI/UX with Polytopia/Civilization-style gameplay.
 
 ## Commands
 

@@ -1,6 +1,6 @@
 # Error Logging & Monitoring System
 
-Chronicles of the Promised Land has a comprehensive error logging and monitoring system designed to catch bugs in development and production.
+Covenant Legends has a comprehensive error logging and monitoring system designed to catch bugs in development and production.
 
 ## Architecture Overview
 

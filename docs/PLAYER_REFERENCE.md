@@ -1,4 +1,4 @@
-# Chronicles of the Promised Land — Player Reference
+# Covenant Legends — Player Reference
 
 This reference is written to match the game’s current rules and data (units, techs, buildings, and core systems). It’s organized from “most foundational” to “most situational,” so you can learn in the order you’ll actually use things.
 

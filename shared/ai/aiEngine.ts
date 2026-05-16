@@ -142,7 +142,7 @@ interface AIStrategicPlan {
 const CITY_WORK_RADIUS = 2;
 
 /**
- * Core AI Engine for Chronicles of the Promised Land
+ * Core AI Engine for Covenant Legends
  * Provides strategic decision-making for AI players
  */
 export class AIEngine {

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chronicles of the Promised Land uses Vitest for unit, integration, component, accessibility, and performance tests, with Playwright for browser E2E coverage. GitHub Actions runs the repository checks, lint, build, Vitest coverage suite, Playwright E2E suite, and Lighthouse audit.
+Covenant Legends uses Vitest for unit, integration, component, accessibility, and performance tests, with Playwright for browser E2E coverage. GitHub Actions runs the repository checks, lint, build, Vitest coverage suite, Playwright E2E suite, and Lighthouse audit.
 
 ## Configuration
 

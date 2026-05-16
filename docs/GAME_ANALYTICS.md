@@ -1,6 +1,6 @@
 # Game Analytics System
 
-Chronicles of the Promised Land uses PostHog to track game metrics, player behavior, and performance. This comprehensive analytics system helps us understand how players engage with the game and identify areas for improvement.
+Covenant Legends uses PostHog to track game metrics, player behavior, and performance. This comprehensive analytics system helps us understand how players engage with the game and identify areas for improvement.
 
 ## Overview
 

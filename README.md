@@ -1,4 +1,4 @@
-# Chronicles of the Promised Land
+# Covenant Legends
 
 Browser-first 2.5D turn-based strategy game inspired by the Book of Mormon. The project uses React, Three.js / React Three Fiber, Zustand, Tailwind, Express, Drizzle, Vitest, and Playwright.
 
