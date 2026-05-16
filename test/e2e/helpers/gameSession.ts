@@ -14,7 +14,7 @@ export function attachExpectedPageErrorFilter(page: Page) {
 
 export async function gotoMainMenu(page: Page) {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /Chronicles of the Promised Land/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Covenant Legends/i })).toBeVisible();
 }
 
 export async function openSinglePlayerSetup(page: Page) {

@@ -36,7 +36,7 @@ export const TUTORIAL_CARD_ORDER: TutorialCardId[] = [
 export const TUTORIAL_CARDS: Record<TutorialCardId, TutorialCard> = {
   overview: {
     id: 'overview',
-    title: 'Chronicles of the Promised Land',
+    title: 'Covenant Legends',
     lore: 'You have led your people into the Promised Land. Prosperity will test your covenant. Grow wisely, or pride will unmake what faith has built.',
     bullets: [
       'You lead a people: grow, survive, and endure.',

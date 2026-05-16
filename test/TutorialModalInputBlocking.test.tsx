@@ -45,7 +45,7 @@ describe('Tutorial modal input blocking', () => {
       </div>,
     );
 
-    const dialog = screen.getByRole('dialog', { name: 'Chronicles of the Promised Land' });
+    const dialog = screen.getByRole('dialog', { name: 'Covenant Legends' });
     expect(dialog).toHaveClass('pointer-events-auto');
     expect(dialog).toHaveAttribute('data-ui-layer', 'modal');
     expect(dialog).toHaveAttribute('aria-modal', 'true');

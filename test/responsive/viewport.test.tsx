@@ -106,7 +106,7 @@ describe('Responsive Regression Tests', () => {
         className="w-full h-screen overflow-hidden"
       >
         <header className="w-full h-16 bg-stone-900 flex items-center justify-between px-4">
-          <h1 className="text-amber-200 text-xl truncate">Chronicles of the Promised Land</h1>
+          <h1 className="text-amber-200 text-xl truncate">Covenant Legends</h1>
           <div className="flex gap-2">
             <button className="px-3 py-1 bg-amber-600 text-white rounded">Menu</button>
             <button className="px-3 py-1 bg-amber-600 text-white rounded">Settings</button>

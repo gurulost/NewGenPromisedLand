@@ -87,7 +87,7 @@ export default function MainMenu() {
           <div className="p-6 space-y-6">
             <PanelHeader
               icon={<HeaddressIcon size="lg" />}
-              title="Chronicles of the Promised Land"
+              title="Covenant Legends"
               description="A Book of Mormon Strategy Game"
               animated
             />
