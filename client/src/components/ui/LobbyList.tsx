@@ -76,7 +76,9 @@ function CreateLobbyForm({ onCreated }: { onCreated: (id: number) => void }) {
   const [name, setName] = useState("");
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [mapSize, setMapSize] = useState("normal");
+  const [authorityMode, setAuthorityMode] = useState<"private_demo_hosted" | "public_authoritative">("private_demo_hosted");
   const [loading, setLoading] = useState(false);
+  const publicMultiplayerEnabled = import.meta.env.VITE_PUBLIC_MULTIPLAYER_ENABLED === "true";
 
   useEffect(() => {
     clearError();
@@ -85,7 +87,7 @@ function CreateLobbyForm({ onCreated }: { onCreated: (id: number) => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const lobby = await createLobby(name, maxPlayers, mapSize);
+    const lobby = await createLobby(name, maxPlayers, mapSize, authorityMode);
     setLoading(false);
     if (lobby) {
       onCreated(lobby.id);
@@ -130,6 +132,19 @@ function CreateLobbyForm({ onCreated }: { onCreated: (id: number) => void }) {
           <option value="large">Large (32x20)</option>
         </select>
       </div>
+      {publicMultiplayerEnabled && (
+        <div>
+          <label className="block text-sm text-amber-200 mb-1">Multiplayer Mode</label>
+          <select
+            value={authorityMode}
+            onChange={(e) => setAuthorityMode(e.target.value as "private_demo_hosted" | "public_authoritative")}
+            className="w-full px-3 py-2 bg-slate-800 border border-amber-500/30 rounded text-amber-100 focus:outline-none focus:border-amber-500"
+          >
+            <option value="private_demo_hosted">Private Demo (trusted host)</option>
+            <option value="public_authoritative">Public Unranked (server authoritative)</option>
+          </select>
+        </div>
+      )}
       <GlowingButton type="submit" className="w-full" disabled={loading}>
         {loading ? "Creating..." : "Create Game"}
       </GlowingButton>

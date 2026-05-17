@@ -79,6 +79,7 @@ interface OnlineSession {
   userId: number;
   hostUserId: number;
   myPlayerIds: string[];
+  authorityMode?: "private_demo_hosted" | "public_authoritative";
   // Last committed action version that this client has successfully applied.
   actionVersion: number;
   queueVersion: number;
@@ -97,6 +98,9 @@ const canAct = (gameState: GameState | null, onlineSession: OnlineSession | null
   if (gameState.phase === 'ended' || gameState.winner) return false;
   const currentPlayer = resolveUiTurnPlayer(gameState);
   if (!currentPlayer) return false;
+  if (onlineSession.authorityMode === "public_authoritative") {
+    return !currentPlayer.isAI && onlineSession.myPlayerIds.includes(currentPlayer.id);
+  }
   if (currentPlayer.isAI) {
     return onlineSession.userId === onlineSession.hostUserId;
   }
@@ -560,6 +564,54 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         buildActionContext(onlineActionSource, { actionId, gameState }),
         gameState
       );
+      return;
+    }
+
+    if (onlineSession.authorityMode === "public_authoritative") {
+      const lobbyCode = onlineSession.lobbyCode;
+      const baseActionVersion = onlineSession.actionVersion;
+      enqueueOnlineRequest(async () => {
+        try {
+          const res = await fetch(`/api/lobbies/${lobbyCode}/actions/submit`, {
+            method: "POST",
+            headers: multiplayerJsonHeaders(),
+            body: JSON.stringify({ action, clientActionId: actionId, baseActionVersion }),
+            credentials: "include",
+          });
+          const data = await res.json().catch(() => null);
+          if (!res.ok) {
+            trackGameplayActionBlocked(
+              action,
+              typeof data?.reason === "string" ? data.reason : 'submit_rejected',
+              buildActionContext(onlineActionSource, { actionId, gameState }),
+              gameState
+            );
+            if (data?.state) {
+              get().loadGameState(data.state, { source: 'online_public_rejection_resync', saveId: `snapshot:${data.snapshotVersion ?? baseActionVersion}` });
+            }
+            if (typeof data?.actionVersion === "number") {
+              advanceOnlineActionVersion(data.actionVersion);
+            }
+            reportActionError(typeof data?.error === "string" ? data.error : "Action rejected by server.", "warning");
+            return;
+          }
+
+          if (data?.state) {
+            get().loadGameState(data.state, { source: 'online_public_submit', saveId: `snapshot:${data.snapshotVersion ?? data.actionVersion ?? baseActionVersion}` });
+          }
+          if (typeof data?.actionVersion === "number") {
+            advanceOnlineActionVersion(data.actionVersion);
+          }
+        } catch {
+          trackGameplayActionBlocked(
+            action,
+            'submit_network_error',
+            buildActionContext(onlineActionSource, { actionId, gameState }),
+            gameState
+          );
+          reportActionError("Network error while sending action.", "error");
+        }
+      });
       return;
     }
 

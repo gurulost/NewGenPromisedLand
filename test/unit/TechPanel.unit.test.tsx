@@ -7,11 +7,15 @@ const dispatch = vi.fn();
 
 const mockGameState: any = {
   id: 'game-1',
+  phase: 'playing',
   currentPlayerIndex: 0,
   players: [
     {
       id: 'player-1',
       stars: 100,
+      citiesOwned: ['city-1'],
+      isEliminated: false,
+      turnOrder: 0,
       researchedTechs: [],
       currentResearch: undefined,
     },
@@ -33,6 +37,7 @@ describe('TechPanel', () => {
     mockGameState.players[0].researchedTechs = [];
     mockGameState.players[0].currentResearch = undefined;
     mockGameState.players[0].researchInspiration = 0;
+    mockGameState.phase = 'playing';
   });
 
   it('renders nothing when closed', () => {

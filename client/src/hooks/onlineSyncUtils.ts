@@ -1,6 +1,7 @@
 export type LobbyGameConfigLike = {
   snapshot?: unknown;
   snapshotVersion?: number;
+  actionVersion?: number;
 };
 
 export type CommittedActionLike = {
@@ -18,8 +19,8 @@ export type ApplyCommittedEntriesResult = {
 
 export function getInitialActionVersionFromLobbyConfig(config: LobbyGameConfigLike): number {
   if (config.snapshot) {
-    const snapshotVersion = Number(config.snapshotVersion ?? 0);
-    return Number.isFinite(snapshotVersion) && snapshotVersion >= 0 ? snapshotVersion : 0;
+    const actionVersion = Number(config.actionVersion ?? config.snapshotVersion ?? 0);
+    return Number.isFinite(actionVersion) && actionVersion >= 0 ? actionVersion : 0;
   }
   return 0;
 }

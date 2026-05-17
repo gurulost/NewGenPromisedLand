@@ -203,6 +203,7 @@ export default function GameUI() {
       prevHostRef.current = null;
       return;
     }
+    if (onlineSession.authorityMode === "public_authoritative") { prevHostRef.current = null; return; }
 
     const nextHostId = onlineSession.hostUserId;
     if (!nextHostId) return;
@@ -220,7 +221,7 @@ export default function GameUI() {
       showToast("Pending actions were cleared after host transfer. Re-submit if needed.", "warning");
       prevHostRef.current = nextHostId;
     }
-  }, [onlineSession?.hostUserId, onlineSession?.userId, onlineSession, showToast]);
+  }, [onlineSession?.hostUserId, onlineSession?.userId, onlineSession?.authorityMode, onlineSession, showToast]);
 
   useEffect(() => {
     if (activeTechReveal || techRevealQueue.length === 0) return;
@@ -310,7 +311,7 @@ export default function GameUI() {
   const setChatLobbyOpen = useChatUIState((state) => state.setLobbyOpen);
 
   useEffect(() => {
-    if (!recoveryLobbyCode || recoveryUserId !== recoveryHostUserId) {
+    if (!recoveryLobbyCode || recoveryUserId !== recoveryHostUserId || onlineSession?.authorityMode === "public_authoritative") {
       setTurnRecoveryStatus(null);
       return;
     }
@@ -341,7 +342,7 @@ export default function GameUI() {
       isActive = false;
       window.clearInterval(interval);
     };
-  }, [recoveryLobbyCode, recoveryHostUserId, recoveryUserId]);
+  }, [onlineSession?.authorityMode, recoveryLobbyCode, recoveryHostUserId, recoveryUserId]);
 
   const handleForceTurnRecovery = async () => {
     if (!onlineSession || isForcingTurnRecovery) return;
@@ -1047,7 +1048,7 @@ export default function GameUI() {
     ? gameState?.players?.find((player) => player.id === turnRecoveryStatus.actorId) ?? null
     : null;
   const showTurnRecoveryBanner = Boolean(
-    onlineSession &&
+    onlineSession && onlineSession.authorityMode !== "public_authoritative" &&
       onlineSession.userId === onlineSession.hostUserId &&
       turnRecoveryStatus?.actorId &&
       currentPlayer?.id === turnRecoveryStatus.actorId &&
@@ -1055,7 +1056,7 @@ export default function GameUI() {
       !turnRecoveryActor.isAI,
   );
   const showHostTransferBanner = Boolean(
-    onlineSession && hostLeaseExpired && onlineSession.userId !== onlineSession.hostUserId,
+    onlineSession && onlineSession.authorityMode !== "public_authoritative" && hostLeaseExpired && onlineSession.userId !== onlineSession.hostUserId,
   );
   const showResyncBanner = Boolean(onlineSession && onlineResyncReason && !hostLeaseExpired);
   const turnRecoverySeconds = Math.ceil(Math.max(0, (turnRecoveryStatus?.msUntilEligible ?? 0) / 1000));

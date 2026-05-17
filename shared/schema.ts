@@ -96,6 +96,39 @@ export const playerSeats = pgTable("player_seats", {
   lobbySeatUnique: uniqueIndex("lobby_seat_unique_idx").on(table.lobbyId, table.seatIndex),
 }));
 
+export const multiplayerActionAudits = pgTable("multiplayer_action_audits", {
+  id: serial("id").primaryKey(),
+  lobbyId: integer("lobby_id").notNull().references(() => gameLobbies.id, { onDelete: "cascade" }),
+  lobbyCode: varchar("lobby_code", { length: 8 }).notNull(),
+  actionVersion: integer("action_version"),
+  clientActionId: varchar("client_action_id", { length: 128 }).notNull(),
+  userId: integer("user_id").references(() => users.id),
+  playerId: text("player_id"),
+  status: text("status").notNull(),
+  reason: text("reason"),
+  baseActionVersion: integer("base_action_version"),
+  preStateHash: varchar("pre_state_hash", { length: 64 }),
+  postStateHash: varchar("post_state_hash", { length: 64 }),
+  action: jsonb("action"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  lobbyClientActionUnique: uniqueIndex("multiplayer_action_audit_lobby_client_action_idx").on(table.lobbyId, table.clientActionId),
+}));
+
+export const multiplayerSnapshotCheckpoints = pgTable("multiplayer_snapshot_checkpoints", {
+  id: serial("id").primaryKey(),
+  lobbyId: integer("lobby_id").notNull().references(() => gameLobbies.id, { onDelete: "cascade" }),
+  lobbyCode: varchar("lobby_code", { length: 8 }).notNull(),
+  actionVersion: integer("action_version").notNull(),
+  snapshotVersion: integer("snapshot_version").notNull(),
+  stateHash: varchar("state_hash", { length: 64 }).notNull(),
+  snapshot: jsonb("snapshot").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  lobbySnapshotVersionUnique: uniqueIndex("multiplayer_snapshot_lobby_version_idx").on(table.lobbyId, table.snapshotVersion),
+}));
+
 // Relations defined after all tables
 export const gameLobbyRelations = relations(gameLobbies, ({ one, many }) => ({
   host: one(users, {
@@ -136,3 +169,18 @@ export type InsertGameLobby = z.infer<typeof insertGameLobbySchema>;
 export type GameLobby = typeof gameLobbies.$inferSelect;
 export type InsertPlayerSeat = z.infer<typeof insertPlayerSeatSchema>;
 export type PlayerSeat = typeof playerSeats.$inferSelect;
+
+export const insertMultiplayerActionAuditSchema = createInsertSchema(multiplayerActionAudits).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertMultiplayerSnapshotCheckpointSchema = createInsertSchema(multiplayerSnapshotCheckpoints).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertMultiplayerActionAudit = z.infer<typeof insertMultiplayerActionAuditSchema>;
+export type MultiplayerActionAudit = typeof multiplayerActionAudits.$inferSelect;
+export type InsertMultiplayerSnapshotCheckpoint = z.infer<typeof insertMultiplayerSnapshotCheckpointSchema>;
+export type MultiplayerSnapshotCheckpoint = typeof multiplayerSnapshotCheckpoints.$inferSelect;

@@ -372,6 +372,7 @@ export default function LobbyRoom() {
     }
     const gameConfig = lobbyGameState as {
       players: Array<{ playerId?: string; userId?: number | null; name: string; factionId: string; isAI: boolean; turnOrder: number }>;
+      multiplayerAuthorityMode?: "private_demo_hosted" | "public_authoritative";
       hostEpoch?: number;
       actionVersion?: number;
       pendingVersion?: number;
@@ -409,6 +410,7 @@ export default function LobbyRoom() {
       userId,
       hostUserId: lobbyHostUserId,
       myPlayerIds,
+      authorityMode: gameConfig.multiplayerAuthorityMode ?? "private_demo_hosted",
       actionVersion: initialActionVersion,
       queueVersion: isHostSession ? 0 : (gameConfig.pendingVersion ?? 0),
       hostEpoch: gameConfig.hostEpoch ?? 0,

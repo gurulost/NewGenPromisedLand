@@ -37,7 +37,7 @@ interface LobbyStore {
   clearError: () => void;
 
   fetchLobbies: () => Promise<void>;
-  createLobby: (name: string, maxPlayers: number, mapSize: string) => Promise<Lobby | null>;
+  createLobby: (name: string, maxPlayers: number, mapSize: string, authorityMode?: "private_demo_hosted" | "public_authoritative") => Promise<Lobby | null>;
   joinLobby: (code: string) => Promise<LobbyWithSeats | null>;
   fetchLobby: (id: number) => Promise<void>;
   claimSeat: (lobbyId: number, seatIndex: number, playerName: string) => Promise<boolean>;
@@ -96,13 +96,13 @@ export const useLobby = create<LobbyStore>((set, get) => ({
     }
   },
 
-  createLobby: async (name, maxPlayers, mapSize) => {
+  createLobby: async (name, maxPlayers, mapSize, authorityMode = "private_demo_hosted") => {
     set({ loading: true, error: null });
     try {
       const res = await fetch("/api/lobbies", {
         method: "POST",
         headers: multiplayerJsonHeaders(),
-        body: JSON.stringify({ name, maxPlayers, mapSize }),
+        body: JSON.stringify({ name, maxPlayers, mapSize, authorityMode }),
         credentials: "include",
       });
       if (res.ok) {

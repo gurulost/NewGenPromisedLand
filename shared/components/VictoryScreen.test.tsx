@@ -74,7 +74,7 @@ describe('VictoryScreen', () => {
   it('renders victory screen with winner announcement', () => {
     render(<VictoryScreen {...mockProps} />);
     
-    expect(screen.getByText('Divine Victory')).toBeInTheDocument();
+    expect(screen.getByText('Consecration Victory')).toBeInTheDocument();
     expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.getAllByText('Nephites')).toHaveLength(2); // Badge and ranking
   });
@@ -82,8 +82,8 @@ describe('VictoryScreen', () => {
   it('displays correct victory type', () => {
     render(<VictoryScreen {...mockProps} />);
     
-    expect(screen.getByText('Divine Victory')).toBeInTheDocument();
-    expect(screen.getByText(/Through unwavering faith and spiritual leadership/)).toBeInTheDocument();
+    expect(screen.getByText('Consecration Victory')).toBeInTheDocument();
+    expect(screen.getByText(/Through sustained faith, low dissent, and protected holy cities/)).toBeInTheDocument();
   });
 
   it('shows territorial victory correctly', () => {

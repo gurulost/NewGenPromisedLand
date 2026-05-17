@@ -16,6 +16,7 @@ Historical checklists, implementation notes, backup records, and one-time audit 
 - [RULES_SINGLE_SOURCE_OF_TRUTH.md](./RULES_SINGLE_SOURCE_OF_TRUTH.md) - current rules ownership policy and remaining drift risks
 - [ACTIVE_FACTION_ABILITIES.md](./ACTIVE_FACTION_ABILITIES.md) - active faction ability contract, balance notes, and validation policy
 - [MULTIPLAYER_PRIVATE_DEMO_REPLIT.md](./MULTIPLAYER_PRIVATE_DEMO_REPLIT.md) - private/demo multiplayer deployment contract and Replit backend requirements
+- [MULTIPLAYER_PUBLIC_AUTHORITATIVE.md](./MULTIPLAYER_PUBLIC_AUTHORITATIVE.md) - public server-authoritative multiplayer contract, Replit requirements, and rollout checks
 - [MAP_GENERATOR_SPLIT_PLAN.md](./MAP_GENERATOR_SPLIT_PLAN.md) - behavior-preserving plan for splitting the large procedural map generator
 
 ## Repo-Level References

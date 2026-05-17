@@ -45,6 +45,7 @@ type SnapshotResponseBody = { error?: string };
 type ActionsResponseBody = { needsSnapshot?: boolean };
 type StateResponseBody = { snapshotVersion?: number; state?: GameState };
 type LobbyStartResponseBody = { gameState: TestLobbyGameState & { snapshot: GameState } };
+type LobbyFetchResponseBody = TestLobby & { seats: PlayerSeat[] };
 
 const routeMocks = vi.hoisted(() => {
   type UserRecord = { id: number; username: string; password: string };
@@ -91,6 +92,8 @@ const routeMocks = vi.hoisted(() => {
     updateSeatWithGuards: vi.fn(),
     deleteSeat: vi.fn(),
     deleteSeatsByUserId: vi.fn(),
+    createMultiplayerActionAudit: vi.fn(async (audit: Record<string, unknown>) => ({ id: 1, createdAt: new Date(), ...audit })),
+    createMultiplayerSnapshotCheckpoint: vi.fn(async (checkpoint: Record<string, unknown>) => ({ id: 1, createdAt: new Date(), ...checkpoint })),
     getGameSavesByOwnerId: vi.fn(),
     getGameSaveById: vi.fn(),
     createGameSave: vi.fn(),
@@ -122,18 +125,26 @@ type TestServer = {
   server: Server;
 };
 
+let signUpRequestIndex = 1;
+
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
 async function startServer(): Promise<TestServer> {
   const app = express();
+  app.set("trust proxy", true);
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: false }));
   const server = await registerRoutes(app);
 
-  await new Promise<void>((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve());
+  await new Promise<void>((resolve, reject) => {
+    const handleListenError = (error: Error) => reject(error);
+    server.once("error", handleListenError);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", handleListenError);
+      resolve();
+    });
   });
   const address = server.address() as AddressInfo;
   return { baseUrl: `http://127.0.0.1:${address.port}`, server };
@@ -148,9 +159,13 @@ async function stopServer(server: Server): Promise<void> {
 async function signUp(baseUrl: string, username: string): Promise<string> {
   const response = await fetch(`${baseUrl}/api/auth/signup`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Forwarded-For": `203.0.113.${signUpRequestIndex}`,
+    },
     body: JSON.stringify({ username, password: "password123" }),
   });
+  signUpRequestIndex += 1;
   expect(response.status).toBe(201);
   const setCookie = response.headers.get("set-cookie");
   expect(setCookie).toBeTruthy();
@@ -313,6 +328,13 @@ function configurePlayingLobby(overrides: Record<string, unknown> = {}) {
   routeMocks.state.seats = createSeats();
 }
 
+function configurePublicAuthoritativeLobby(overrides: Record<string, unknown> = {}) {
+  configurePlayingLobby({
+    multiplayerAuthorityMode: "public_authoritative",
+    ...overrides,
+  });
+}
+
 describe("multiplayer lobby routes", () => {
   let testServer: TestServer;
 
@@ -326,7 +348,9 @@ describe("multiplayer lobby routes", () => {
   });
 
   afterEach(async () => {
-    await stopServer(testServer.server);
+    if (testServer?.server) {
+      await stopServer(testServer.server);
+    }
   });
 
   it("returns an unavailable save API response when cloud saves are disabled", async () => {
@@ -747,6 +771,158 @@ describe("multiplayer lobby routes", () => {
     expect(stateResponse.status).toBe(200);
     expect(stateResponse.body.snapshotVersion).toBe(1);
     expect(stateResponse.body.state?.lastAction).toMatchObject({ payload: { endingPlayerId: "player-2" } });
+  });
+
+  it("projects public-authoritative state for the requesting player", async () => {
+    await signUp(testServer.baseUrl, "hostuser");
+    const guestCookie = await signUp(testServer.baseUrl, "guestuser");
+    const snapshot = createSnapshot();
+    const hostUnit = snapshot.units.find((unit) => unit.playerId === "player-1");
+    expect(hostUnit).toBeTruthy();
+    snapshot.players = snapshot.players.map((player) =>
+      player.id === "player-2"
+        ? { ...player, visibilityMask: [], exploredTiles: [] }
+        : player,
+    );
+    snapshot.map = {
+      ...snapshot.map,
+      tiles: snapshot.map.tiles.map((tile) => ({
+        ...tile,
+        exploredBy: (tile.exploredBy ?? []).filter((playerId) => playerId !== "player-2"),
+      })),
+    };
+    configurePublicAuthoritativeLobby({ snapshot });
+
+    const response = await jsonRequest<StateResponseBody & { authorityMode?: string }>(
+      testServer.baseUrl,
+      "/api/lobbies/ROOMA/state",
+      { cookie: guestCookie },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.authorityMode).toBe("public_authoritative");
+    expect(response.body.state?.units.some((unit) => unit.playerId === "player-1")).toBe(false);
+    expect(response.body.state?.units.some((unit) => unit.playerId === "player-2")).toBe(true);
+  });
+
+  it("redacts public-authoritative lobby action logs from lobby refresh responses", async () => {
+    await signUp(testServer.baseUrl, "hostuser");
+    const guestCookie = await signUp(testServer.baseUrl, "guestuser");
+    const snapshot = createSnapshot();
+    snapshot.players = snapshot.players.map((player) =>
+      player.id === "player-2"
+        ? { ...player, visibilityMask: [], exploredTiles: [] }
+        : player,
+    );
+    configurePublicAuthoritativeLobby({
+      snapshot,
+      actions: [
+        {
+          version: 1,
+          id: "hidden-attack",
+          actorId: "player-1",
+          action: { type: "ATTACK_UNIT", payload: { attackerId: "unit-1", targetId: "unit-2" } },
+        },
+      ],
+      pendingActions: [{ id: "pending-hidden", action: { type: "END_TURN", payload: { playerId: "player-1" } } }],
+      failedActions: [{ id: "failed-hidden", action: { type: "END_TURN", payload: { playerId: "player-1" } } }],
+    });
+
+    const response = await jsonRequest<LobbyFetchResponseBody>(
+      testServer.baseUrl,
+      "/api/lobbies/code/ROOMA",
+      { cookie: guestCookie },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.gameState.actions).toEqual([]);
+    expect(response.body.gameState.pendingActions).toEqual([]);
+    expect(response.body.gameState.failedActions).toEqual([]);
+    expect(response.body.gameState.actionLogRedacted).toBe(true);
+    expect(response.body.gameState.snapshot.units.some((unit) => unit.playerId === "player-1")).toBe(false);
+  });
+
+  it("submits public-authoritative actions through the server resolver and rejects legacy host commit", async () => {
+    const hostCookie = await signUp(testServer.baseUrl, "hostuser");
+    await signUp(testServer.baseUrl, "guestuser");
+    configurePublicAuthoritativeLobby();
+
+    const submitResponse = await jsonRequest<{ actionVersion?: number; snapshotVersion?: number; state?: GameState }>(
+      testServer.baseUrl,
+      "/api/lobbies/ROOMA/actions/submit",
+      {
+        method: "POST",
+        cookie: hostCookie,
+        body: {
+          clientActionId: "public-end-turn-1",
+          baseActionVersion: 0,
+          action: { type: "END_TURN", payload: { playerId: "player-1" } },
+        },
+      },
+    );
+
+    expect(submitResponse.status).toBe(200);
+    expect(submitResponse.body.actionVersion).toBe(1);
+    expect(submitResponse.body.snapshotVersion).toBe(1);
+    expect(currentLobby().gameState.actionVersion).toBe(1);
+    expect(currentLobby().gameState.snapshotVersion).toBe(1);
+    expect(currentLobby().gameState.expectedActorId).toBe("player-2");
+    expect(routeMocks.storage.createMultiplayerActionAudit).toHaveBeenCalledWith(expect.objectContaining({
+      clientActionId: "public-end-turn-1",
+      status: "accepted",
+      actionVersion: 1,
+    }));
+    expect(routeMocks.storage.createMultiplayerSnapshotCheckpoint).toHaveBeenCalledWith(expect.objectContaining({
+      actionVersion: 1,
+      snapshotVersion: 1,
+    }));
+
+    const legacyCommitResponse = await jsonRequest<CommitResponseBody>(
+      testServer.baseUrl,
+      "/api/lobbies/ROOMA/actions/commit",
+      {
+        method: "POST",
+        cookie: hostCookie,
+        body: {
+          action: { type: "END_TURN", payload: { playerId: "player-2" } },
+          actorId: "player-2",
+          id: "legacy-public-commit",
+          hostEpoch: 1,
+        },
+      },
+    );
+
+    expect(legacyCommitResponse.status).toBe(409);
+  });
+
+  it("rejects stale public-authoritative submissions without mutating state", async () => {
+    const hostCookie = await signUp(testServer.baseUrl, "hostuser");
+    await signUp(testServer.baseUrl, "guestuser");
+    configurePublicAuthoritativeLobby({ actionVersion: 2, snapshotVersion: 2 });
+
+    const response = await jsonRequest<{ reason?: string; actionVersion?: number }>(
+      testServer.baseUrl,
+      "/api/lobbies/ROOMA/actions/submit",
+      {
+        method: "POST",
+        cookie: hostCookie,
+        body: {
+          clientActionId: "stale-public-action",
+          baseActionVersion: 1,
+          action: { type: "END_TURN", payload: { playerId: "player-1" } },
+        },
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(response.body.reason).toBe("stale_action_version");
+    expect(response.body.actionVersion).toBe(2);
+    expect(currentLobby().gameState.actionVersion).toBe(2);
+    expect(routeMocks.storage.createMultiplayerActionAudit).toHaveBeenCalledWith(expect.objectContaining({
+      clientActionId: "stale-public-action",
+      status: "rejected",
+      reason: "stale_action_version",
+    }));
   });
 
   it("preserves pending turn-resolution recovery state when host transfers after a missing snapshot", async () => {

@@ -16,6 +16,7 @@ export function useAITurn() {
 
   useEffect(() => {
     if (!gameState || isExecutingRef.current) return;
+    if (onlineSession?.authorityMode === "public_authoritative") return;
     if (onlineSession && onlineSession.userId !== onlineSession.hostUserId) return;
 
     // Check if current player is AI and needs to take a turn

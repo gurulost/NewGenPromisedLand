@@ -5,7 +5,9 @@ import {
   gameSaves, type GameSave, type InsertGameSave,
   gameLobbies, type GameLobby, type InsertGameLobby,
   playerSeats, type PlayerSeat, type InsertPlayerSeat,
-  bugReports, type BugReport, type InsertBugReport
+  bugReports, type BugReport, type InsertBugReport,
+  multiplayerActionAudits, type MultiplayerActionAudit, type InsertMultiplayerActionAudit,
+  multiplayerSnapshotCheckpoints, type MultiplayerSnapshotCheckpoint, type InsertMultiplayerSnapshotCheckpoint
 } from "@shared/schema";
 
 export type LobbyRecord = GameLobby & { rowVersion?: string };
@@ -91,6 +93,10 @@ export interface IStorage {
   ): Promise<PlayerSeat | undefined>;
   deleteSeat(id: number): Promise<boolean>;
   deleteSeatsByUserId(lobbyId: number, userId: number): Promise<boolean>;
+
+  // Public authoritative multiplayer audit methods
+  createMultiplayerActionAudit(audit: InsertMultiplayerActionAudit): Promise<MultiplayerActionAudit>;
+  createMultiplayerSnapshotCheckpoint(checkpoint: InsertMultiplayerSnapshotCheckpoint): Promise<MultiplayerSnapshotCheckpoint>;
 
   // Bug report methods
   getBugReportById(id: number): Promise<BugReport | undefined>;
@@ -327,6 +333,42 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(playerSeats.lobbyId, lobbyId), eq(playerSeats.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  async createMultiplayerActionAudit(audit: InsertMultiplayerActionAudit): Promise<MultiplayerActionAudit> {
+    const [created] = await db.insert(multiplayerActionAudits)
+      .values(audit)
+      .onConflictDoUpdate({
+        target: [multiplayerActionAudits.lobbyId, multiplayerActionAudits.clientActionId],
+        set: {
+          status: audit.status,
+          reason: audit.reason,
+          actionVersion: audit.actionVersion,
+          playerId: audit.playerId,
+          baseActionVersion: audit.baseActionVersion,
+          preStateHash: audit.preStateHash,
+          postStateHash: audit.postStateHash,
+          action: audit.action,
+          metadata: audit.metadata,
+        },
+      })
+      .returning();
+    return created;
+  }
+
+  async createMultiplayerSnapshotCheckpoint(checkpoint: InsertMultiplayerSnapshotCheckpoint): Promise<MultiplayerSnapshotCheckpoint> {
+    const [created] = await db.insert(multiplayerSnapshotCheckpoints)
+      .values(checkpoint)
+      .onConflictDoUpdate({
+        target: [multiplayerSnapshotCheckpoints.lobbyId, multiplayerSnapshotCheckpoints.snapshotVersion],
+        set: {
+          actionVersion: checkpoint.actionVersion,
+          stateHash: checkpoint.stateHash,
+          snapshot: checkpoint.snapshot,
+        },
+      })
+      .returning();
+    return created;
   }
 
   async getBugReportBySubmissionId(submissionId: string): Promise<BugReport | undefined> {

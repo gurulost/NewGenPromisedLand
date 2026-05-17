@@ -51,6 +51,7 @@ type OnlineSessionSnapshot = {
   userId: number;
   hostUserId: number;
   myPlayerIds: string[];
+  authorityMode?: "private_demo_hosted" | "public_authoritative";
   actionVersion: number;
   queueVersion: number;
   hostEpoch: number;
@@ -118,6 +119,20 @@ export function useOnlineGameSync() {
         loadGameState(snapshotData.state, { source: 'online_forced_resync', saveId: `snapshot:${snapshotVersion}` });
       }
       setOnlineActionVersion(snapshotVersion);
+
+      if (session.authorityMode === "public_authoritative") {
+        if (typeof snapshotData?.actionVersion === "number") {
+          setOnlineActionVersion(snapshotData.actionVersion);
+        }
+        processedQueueRef.current.clear();
+        markOnlineResyncComplete();
+        logTelemetry("forced_resync_complete", {
+          reason,
+          snapshotVersion,
+          publicAuthoritative: true,
+        });
+        return true;
+      }
 
       const committedRes = await fetch(appendMultiplayerVersionQuery(`/api/lobbies/${session.lobbyCode}/actions?since=${snapshotVersion}`), {
         headers: multiplayerVersionHeaders(),
@@ -264,7 +279,7 @@ export function useOnlineGameSync() {
       }
     }
 
-    if (latestSession.userId === latestSession.hostUserId) {
+    if (latestSession.userId === latestSession.hostUserId && latestSession.authorityMode !== "public_authoritative") {
       if (now - lastHostHeartbeatRef.current >= MULTIPLAYER_MAINTENANCE_INTERVAL_MS) {
         lastHostHeartbeatRef.current = now;
         try {
@@ -281,6 +296,24 @@ export function useOnlineGameSync() {
     }
 
     if (!request.includeActionSync) {
+      return;
+    }
+
+    if (latestSession.authorityMode === "public_authoritative") {
+      const stateRes = await fetch(
+        appendMultiplayerVersionQuery(`/api/lobbies/${latestSession.lobbyCode}/state?since=${latestSession.actionVersion}`),
+        { headers: multiplayerVersionHeaders(), credentials: "include" },
+      );
+      if (!stateRes.ok) return;
+      const stateData = await stateRes.json().catch(() => null);
+      if (stateData?.state) {
+        const snapshotVersion = getCursorFromSnapshotVersion(stateData.snapshotVersion);
+        loadGameState(stateData.state, { source: 'online_public_sync', saveId: `snapshot:${snapshotVersion}` });
+      }
+      if (typeof stateData?.actionVersion === "number") {
+        setOnlineActionVersion(stateData.actionVersion);
+      }
+      markOnlineResyncComplete();
       return;
     }
 
@@ -512,7 +545,9 @@ export function useOnlineGameSync() {
   }, [
     applyRemoteAction,
     clearOnlineResyncRequest,
+    loadGameState,
     logTelemetry,
+    markOnlineResyncComplete,
     performAuthoritativeResync,
     requestOnlineResync,
     setHostLeaseStatus,

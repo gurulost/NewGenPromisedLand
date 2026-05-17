@@ -93,7 +93,7 @@ describe('VictoryScreen', () => {
   it('renders victory screen with winner information', () => {
     render(<VictoryScreen {...mockProps} />);
     
-    expect(screen.getByText('Divine Victory')).toBeInTheDocument();
+    expect(screen.getByText('Consecration Victory')).toBeInTheDocument();
     expect(screen.getByText('Alice Victorious!')).toBeInTheDocument();
     expect(screen.getAllByText('Nephites').length).toBeGreaterThan(0);
   });
@@ -101,8 +101,8 @@ describe('VictoryScreen', () => {
   it('displays correct victory type and description', () => {
     render(<VictoryScreen {...mockProps} />);
     
-    expect(screen.getByText('Divine Victory')).toBeInTheDocument();
-    expect(screen.getByText(/Through unwavering faith and spiritual leadership/)).toBeInTheDocument();
+    expect(screen.getByText('Consecration Victory')).toBeInTheDocument();
+    expect(screen.getByText(/Through sustained faith, low dissent, and protected holy cities/)).toBeInTheDocument();
   });
 
   it('shows final statistics correctly', () => {

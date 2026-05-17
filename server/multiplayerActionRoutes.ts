@@ -19,6 +19,13 @@ import {
   sendMultiplayerVersionGateError,
   validateMultiplayerVersionRequest,
 } from "./multiplayerVersionGate";
+import {
+  getControlledPlayerIds,
+  isPublicAuthoritativeLobbyState,
+  projectLobbySnapshotForUser,
+  requestPublicTurnTimeout,
+  submitPublicAuthoritativeAction,
+} from "./publicMultiplayer";
 
 const HOST_LEASE_MS = 30000;
 const MAX_MULTIPLAYER_UPDATE_RETRIES = 5;
@@ -84,6 +91,11 @@ function publishMultiplayerSyncEvent(lobbyCode: string, reason: "action-committe
   });
 }
 
+function rejectPublicAuthoritativeLegacyRoute(res: Response): boolean {
+  res.status(409).json({ error: "Public-authoritative lobbies use server action submission" });
+  return false;
+}
+
 const multiplayerTelemetry = {
   needsSnapshot: 0,
   forcedTimeoutEndTurn: 0,
@@ -139,6 +151,21 @@ export function registerMultiplayerActionRoutes(
       const snapshotVersion = Number(lobbyState.snapshotVersion ?? 0);
       const actionVersion = Number(lobbyState.actionVersion ?? 0);
       const since = typeof req.query.since === "string" ? Number(req.query.since) : Number.NaN;
+      if (isPublicAuthoritativeLobbyState(lobbyState)) {
+        if (Number.isFinite(since) && since >= snapshotVersion) {
+          return res.json({ snapshotVersion, actionVersion, authorityMode: "public_authoritative", state: null });
+        }
+        const seats = await storage.getSeatsByLobbyId(lobby.id);
+        const projected = projectLobbySnapshotForUser(lobbyState, seats, userId);
+        if (!projected) return res.status(403).json({ error: "No player projection available" });
+        return res.json({
+          snapshotVersion,
+          actionVersion,
+          authorityMode: "public_authoritative",
+          projectionPlayerIds: getControlledPlayerIds(lobbyState, seats, userId),
+          state: projected,
+        });
+      }
       if (Number.isFinite(since) && since >= snapshotVersion) {
         return res.json({ snapshotVersion, actionVersion, state: null });
       }
@@ -169,6 +196,7 @@ export function registerMultiplayerActionRoutes(
         }
 
         const lobbyState = (lobby.gameState as LobbyState) || {};
+        if (isPublicAuthoritativeLobbyState(lobbyState)) return rejectPublicAuthoritativeLegacyRoute(res);
         if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
         const { hostEpoch: currentHostEpoch } = getHostMeta(lobbyState);
         if (hostEpoch !== currentHostEpoch) {
@@ -210,6 +238,88 @@ export function registerMultiplayerActionRoutes(
     }
   });
 
+  app.post("/api/lobbies/:code/actions/submit", requireAuth, commitRateLimit, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) return res.status(404).json({ error: "Lobby not found" });
+      if (lobby.status !== "playing") return res.status(409).json({ error: "Game not in progress" });
+      const userId = req.session.userId!;
+      if (!(await isParticipant(lobby.id, lobby.hostUserId, userId))) {
+        return res.status(403).json({ error: "Not a participant" });
+      }
+
+      const lobbyState = (lobby.gameState as LobbyState) || {};
+      if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
+      if (!isPublicAuthoritativeLobbyState(lobbyState)) {
+        return res.status(409).json({ error: "Lobby is not using public-authoritative multiplayer" });
+      }
+      const actionValidation = validateMultiplayerAction(
+        (req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>).action : undefined),
+        MAX_MULTIPLAYER_ACTION_BYTES,
+      );
+      if (!actionValidation.valid) return res.status(400).json({ error: actionValidation.error });
+
+      const result = await submitPublicAuthoritativeAction({
+        lobby,
+        seats: await storage.getSeatsByLobbyId(lobby.id),
+        userId,
+        body: req.body,
+      });
+      if (!result.ok) {
+        return res.status(result.status).json({
+          error: result.error,
+          reason: result.reason,
+          actionVersion: result.actionVersion,
+          snapshotVersion: result.snapshotVersion,
+          state: result.state,
+        });
+      }
+
+      publishMultiplayerSyncEvent(lobby.code, "action-committed");
+      return res.json(result);
+    } catch (error) {
+      console.error("Failed to submit public multiplayer action:", error);
+      return res.status(500).json({ error: "Failed to submit action" });
+    }
+  });
+
+  app.post("/api/lobbies/:code/turn-timeout/request", requireAuth, commitRateLimit, async (req, res) => {
+    try {
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) return res.status(404).json({ error: "Lobby not found" });
+      if (lobby.status !== "playing") return res.status(409).json({ error: "Game not in progress" });
+      const userId = req.session.userId!;
+      if (!(await isParticipant(lobby.id, lobby.hostUserId, userId))) {
+        return res.status(403).json({ error: "Not a participant" });
+      }
+
+      const lobbyState = (lobby.gameState as LobbyState) || {};
+      if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
+      if (!isPublicAuthoritativeLobbyState(lobbyState)) {
+        return res.status(409).json({ error: "Lobby is not using public-authoritative multiplayer" });
+      }
+
+      const result = await requestPublicTurnTimeout({
+        lobby,
+        seats: await storage.getSeatsByLobbyId(lobby.id),
+        userId,
+        now: Date.now(),
+        timeoutMs: MULTIPLAYER_TURN_TIMEOUT_MS,
+      });
+      if (!result.ok) {
+        return res.status(result.status).json({ error: result.error, reason: result.reason });
+      }
+
+      if (result.applied) {
+        publishMultiplayerSyncEvent(lobby.code, "action-committed");
+      }
+      return res.json(result);
+    } catch (error) {
+      console.error("Failed to request public turn timeout:", error);
+      return res.status(500).json({ error: "Failed to request turn timeout" });
+    }
+  });
+
   app.post("/api/lobbies/:code/actions/queue", requireAuth, queueRateLimit, async (req, res) => {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
@@ -224,12 +334,13 @@ export function registerMultiplayerActionRoutes(
       if (!actionValidation.valid) return res.status(400).json({ error: actionValidation.error });
 
       for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
-        const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
-        if (!lobby) return res.status(404).json({ error: "Lobby not found" });
-        if (lobby.status !== "playing") return res.status(409).json({ error: "Game not in progress" });
+      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+      if (!lobby) return res.status(404).json({ error: "Lobby not found" });
+      if (lobby.status !== "playing") return res.status(409).json({ error: "Game not in progress" });
 
-        const lobbyState = (lobby.gameState as LobbyState) || {};
-        if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
+      const lobbyState = (lobby.gameState as LobbyState) || {};
+      if (isPublicAuthoritativeLobbyState(lobbyState)) return rejectPublicAuthoritativeLegacyRoute(res);
+      if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
         const playerMeta = getPlayersMeta(lobbyState).find((player) => player.playerId === actorId);
         if (!playerMeta) return res.status(400).json({ error: "Unknown player" });
         if (playerMeta.isAI) return res.status(403).json({ error: "AI actions must be submitted by host" });
@@ -419,6 +530,7 @@ export function registerMultiplayerActionRoutes(
         if (lobby.hostUserId !== req.session.userId) return res.status(403).json({ error: "Only host can commit actions" });
 
         const lobbyState = (lobby.gameState as LobbyState) || {};
+        if (isPublicAuthoritativeLobbyState(lobbyState)) return rejectPublicAuthoritativeLegacyRoute(res);
         if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
         const { hostEpoch: currentHostEpoch } = getHostMeta(lobbyState);
         if (hostEpoch !== currentHostEpoch) {
@@ -567,6 +679,18 @@ export function registerMultiplayerActionRoutes(
 
       const lobbyState = (lobby.gameState as LobbyState) || {};
       if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
+      if (isPublicAuthoritativeLobbyState(lobbyState)) {
+        const actionVersion = Number(lobbyState.actionVersion ?? 0);
+        const snapshotVersion = Number(lobbyState.snapshotVersion ?? 0);
+        return res.json({
+          actionVersion,
+          actions: [],
+          needsSnapshot: true,
+          snapshotVersion,
+          actionLogBaseVersion: actionVersion,
+          publicAuthoritative: true,
+        });
+      }
       const actionVersion = Number(lobbyState.actionVersion ?? 0);
       const actions = getCommittedActions(lobbyState);
       const actionLogBaseVersion = Number(lobbyState.actionLogBaseVersion ?? 0);

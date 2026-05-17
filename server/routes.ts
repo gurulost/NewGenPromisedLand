@@ -70,14 +70,26 @@ import {
 } from "@shared/utils/factionAssignments";
 import { openLobbyRealtimeStream, publishLobbyRealtimeEvent } from "./lobbyRealtimeBroker";
 import { SaveWriteRequestSchema } from "@shared/types/save";
+import type { PlayerSeat } from "@shared/schema";
 import { createInitialGameState } from "@shared/logic/initialGameState";
 import { registerMultiplayerActionRoutes } from "./multiplayerActionRoutes";
 import { buildMultiplayerVersionSnapshot } from "@shared/multiplayerVersion";
+import {
+  DEFAULT_MULTIPLAYER_AUTHORITY_MODE,
+  MULTIPLAYER_AUTHORITY_MODES,
+  normalizeMultiplayerAuthorityMode,
+} from "@shared/multiplayerAuthority";
 import {
   getServerMultiplayerBuildId,
   sendMultiplayerVersionGateError,
   validateMultiplayerVersionRequest,
 } from "./multiplayerVersionGate";
+import {
+  getControlledPlayerIds,
+  isPublicAuthoritativeLobbyState,
+  projectLobbySnapshotForUser,
+  type PublicLobbyState,
+} from "./publicMultiplayer";
 
 const MemoryStoreSession = MemoryStore(session);
 const PgSessionStore = connectPgSimple(session);
@@ -92,6 +104,8 @@ const ANIMATION_OVERRIDES_PATH = path.resolve(process.cwd(), "server", "animatio
 const UNIT_ANIMATION_REGISTRY_PATH = path.resolve(process.cwd(), "client", "src", "utils", "unitAnimationRegistry.ts");
 const ANIMATION_STATES = ["idle", "move", "celebrate", "death", "attack", "hit", "ability"] as const;
 const MIN_PASSWORD_LENGTH = Number.parseInt(process.env.MIN_PASSWORD_LENGTH ?? "8", 10);
+const PUBLIC_MULTIPLAYER_ENABLED = process.env.PUBLIC_MULTIPLAYER_ENABLED === "true";
+const PUBLIC_MULTIPLAYER_REQUIRED_REALTIME_ADAPTERS = new Set(["postgres_notify", "redis", "managed"]);
 
 type AnimationState = typeof ANIMATION_STATES[number];
 
@@ -306,6 +320,58 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
 // Generate random lobby code
 function generateLobbyCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+function getRequestedAuthorityMode(value: unknown) {
+  return normalizeMultiplayerAuthorityMode(value);
+}
+
+function getPublicMultiplayerReadiness() {
+  const realtimeAdapter = String(process.env.MULTIPLAYER_REALTIME_ADAPTER ?? "memory").toLowerCase();
+  const hasSharedRealtime = PUBLIC_MULTIPLAYER_REQUIRED_REALTIME_ADAPTERS.has(realtimeAdapter);
+  return {
+    enabled: PUBLIC_MULTIPLAYER_ENABLED,
+    realtimeAdapter,
+    hasSharedRealtime,
+    ready: PUBLIC_MULTIPLAYER_ENABLED && hasSharedRealtime,
+  };
+}
+
+function sanitizeLobbyForRequester<T extends { gameState: unknown; id: number; code: string }>(
+  lobby: T,
+  seats: PlayerSeat[],
+  userId?: number,
+): T & { gameState: unknown; projectionPlayerIds?: string[] } {
+  const lobbyState = (lobby.gameState ?? {}) as PublicLobbyState;
+  if (!userId || !isPublicAuthoritativeLobbyState(lobbyState)) return lobby as T & { gameState: unknown };
+
+  const projection = projectLobbySnapshotForUser(lobbyState, seats, userId);
+  const redactedLobbyState = {
+    ...lobbyState,
+    actions: [],
+    pendingActions: [],
+    failedActions: [],
+    actionLogRedacted: true,
+  };
+  if (!projection) {
+    return {
+      ...lobby,
+      gameState: {
+        ...redactedLobbyState,
+        snapshot: null,
+        projectionUnavailable: true,
+      },
+    };
+  }
+
+  return {
+    ...lobby,
+    gameState: {
+      ...redactedLobbyState,
+      snapshot: projection,
+    },
+    projectionPlayerIds: getControlledPlayerIds(lobbyState, seats, userId),
+  };
 }
 
 // Parse and validate integer parameters
@@ -757,8 +823,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/lobbies", requireAuth, lobbyCreateRateLimit, async (req, res) => {
     try {
       const { name, maxPlayers = 8, mapSize = "normal" } = req.body;
+      const authorityMode = getRequestedAuthorityMode(req.body?.authorityMode);
       if (!name) {
         return res.status(400).json({ error: "Lobby name required" });
+      }
+      if (authorityMode === MULTIPLAYER_AUTHORITY_MODES.publicAuthoritative && !getPublicMultiplayerReadiness().ready) {
+        const readiness = getPublicMultiplayerReadiness();
+        return res.status(503).json({
+          error: "Public multiplayer is not enabled on this deployment",
+          reason: !readiness.enabled ? "public_multiplayer_disabled" : "shared_realtime_required",
+          realtimeAdapter: readiness.realtimeAdapter,
+        });
       }
       const normalizedMapSize = String(mapSize).toLowerCase();
       const parsedMaxPlayers = Number(maxPlayers);
@@ -783,6 +858,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxPlayers: parsedMaxPlayers,
         mapSize: normalizedMapSize,
         status: "waiting",
+        gameState: {
+          multiplayerAuthorityMode: authorityMode,
+        },
       });
       
       // Create empty seats for the lobby
@@ -850,7 +928,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (lobby.status !== "waiting" && !isParticipant) {
         return res.status(409).json({ error: "Game already in progress" });
       }
-      res.json({ ...lobby, seats });
+      const responseLobby = sanitizeLobbyForRequester(lobby, seats, req.session.userId);
+      res.json({ ...responseLobby, seats });
     } catch (error) {
       console.error("Failed to get lobby:", error);
       res.status(500).json({ error: "Failed to get lobby" });
@@ -870,7 +949,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (lobby.status !== "waiting" && !isParticipant) {
         return res.status(409).json({ error: "Game already in progress" });
       }
-      res.json({ ...lobby, seats });
+      const responseLobby = sanitizeLobbyForRequester(lobby, seats, req.session.userId);
+      res.json({ ...responseLobby, seats });
     } catch (error) {
       console.error("Failed to get lobby:", error);
       res.status(500).json({ error: "Failed to get lobby" });
@@ -1287,6 +1367,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const existingLobbyState = (lobby.gameState as any) || {};
+      const authorityMode = getRequestedAuthorityMode(existingLobbyState.multiplayerAuthorityMode ?? req.body?.authorityMode);
+      if (authorityMode === MULTIPLAYER_AUTHORITY_MODES.publicAuthoritative && !getPublicMultiplayerReadiness().ready) {
+        const readiness = getPublicMultiplayerReadiness();
+        return res.status(503).json({
+          error: "Public multiplayer is not enabled on this deployment",
+          reason: !readiness.enabled ? "public_multiplayer_disabled" : "shared_realtime_required",
+          realtimeAdapter: readiness.realtimeAdapter,
+        });
+      }
       const existingChatState = normalizeLobbyChatState(existingLobbyState.chat);
       const hostLastSeen = Date.now();
       
@@ -1323,6 +1412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "playing",
         gameState: {
           ...buildMultiplayerVersionSnapshot(getServerMultiplayerBuildId()),
+          multiplayerAuthorityMode: authorityMode,
           players,
           mapSize: lobby.mapSize,
           seed,
@@ -1346,7 +1436,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const updatedSeats = await storage.getSeatsByLobbyId(lobby.id);
-      res.json({ ...updated, seats: updatedSeats });
+      const responseLobby = sanitizeLobbyForRequester(updated, updatedSeats, req.session.userId);
+      res.json({ ...responseLobby, seats: updatedSeats });
     } catch (error) {
       console.error("Failed to start game:", error);
       res.status(500).json({ error: "Failed to start game" });

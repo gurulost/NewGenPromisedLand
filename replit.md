@@ -60,6 +60,13 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
   - Polling catch-up still exists, but multi-instance autoscaling without Redis, Postgres LISTEN/NOTIFY, or a managed realtime adapter can delay or miss SSE push events between clients connected to different processes.
   - Do not enable multiple active server processes for the private/demo multiplayer release unless traffic is pinned to one process or a shared realtime transport is added.
   - The published deployment must run as `vm` (matches `.replit` `[deployment]` `deploymentTarget = "vm"`). Verify with `getDeploymentInfo()` after republishing — `deploymentType` must report `"vm"`. If autoscale is used instead, it must be pinned to max 1 instance in the Publishing UI → Advanced settings, otherwise SSE/lobby sync will silently break across processes.
+- **Public authoritative multiplayer**
+  - Public lobbies are separate from private/demo lobbies and use `multiplayerAuthorityMode: "public_authoritative"`.
+  - Public clients submit intents to `POST /api/lobbies/:code/actions/submit`; the server validates actor ownership, calls shared rule queries, applies accepted actions through `resolveAction`, persists a canonical snapshot, and publishes realtime invalidation.
+  - Public `GET /api/lobbies/:code/state` returns player-scoped projected snapshots instead of the full canonical state.
+  - Public mode disables the host queue/commit/snapshot-upload trust path; `/actions/queue`, `/actions/commit`, and `PUT /state` are private/demo-only.
+  - Enable public lobby creation only after setting `PUBLIC_MULTIPLAYER_ENABLED=true`, `VITE_PUBLIC_MULTIPLAYER_ENABLED=true`, `MULTIPLAYER_REALTIME_ADAPTER=postgres_notify`, matching build ids, and running `npm run db:push`.
+  - Public mode fails closed if shared realtime is not configured.
 - **Version/build gating**
   - Protocol and rules versions are compiled from `shared/multiplayerVersion.ts` and stored in each playing lobby.
   - Recommended Replit envs: set the same deployment/commit value for `MULTIPLAYER_BUILD_ID` and `VITE_MULTIPLAYER_BUILD_ID`.
@@ -68,6 +75,9 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
   - `MULTIPLAYER_TURN_RECOVERY` (default: `true`): enable host timeout recovery flow for disconnected remote turns.
   - `MULTIPLAYER_TURN_TIMEOUT_MS` (default: `90000`): inactivity threshold before host can force remote `END_TURN`.
   - `MULTIPLAYER_MAX_ACTION_BYTES` (default: `32768`): max serialized action payload size accepted by queue/commit endpoints.
+  - `MULTIPLAYER_REALTIME_ADAPTER` (default: `memory`): use `postgres_notify` for public multiplayer on Replit.
+  - `PUBLIC_MULTIPLAYER_ENABLED` (default: unset/false): enables server-side creation of public-authoritative lobbies only when shared realtime is also configured.
+  - `VITE_PUBLIC_MULTIPLAYER_ENABLED` (default: unset/false): exposes the public lobby mode selector in the client.
   - `MULTIPLAYER_STRICT_RESYNC` (default: `true`): client strict sequential version checks + forced authoritative resync flow.
   - `VITE_MULTIPLAYER_STRICT_RESYNC` (default: `true`): client-side build-time override for strict resync behavior.
 - **Cookie/session behavior**
