@@ -2015,8 +2015,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // === GAME SAVES ROUTES ===
   const isSaveApiDisabled = process.env.DISABLE_SAVE_API === "true";
-  const respondSaveApiDisabled = (res: Response) =>
-    res.status(503).json({ error: "Save API unavailable" });
+  const respondSaveApiDisabled = (res: Response) => {
+    setPrivateNoStoreHeaders(res);
+    return res.status(503).json({ error: "Save API unavailable" });
+  };
   
   app.get("/api/saves", async (req, res) => {
     if (isSaveApiDisabled) {

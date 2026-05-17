@@ -19,6 +19,7 @@ import {
   deleteLocalSave,
   getLocalSavesSnapshot,
   listLocalSaves,
+  isExpectedCloudSaveUnavailable,
   SaveApiError,
   type ServerSave, type SaveMetadata 
 } from "../../lib/saveApi";
@@ -89,7 +90,9 @@ export default function SaveLoadMenu({ onClose, onLoadFromMenu }: SaveLoadMenuPr
       setCloudSaves(saves);
       setCloudStatus(null);
     } catch (err) {
-      console.error('Error loading saves:', err);
+      if (!isExpectedCloudSaveUnavailable(err)) {
+        console.error('Error loading saves:', err);
+      }
       setCloudSaves([]);
       setCloudStatus(
         err instanceof SaveApiError

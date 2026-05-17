@@ -23,6 +23,15 @@ export class SaveApiError extends Error {
   }
 }
 
+export function isExpectedCloudSaveUnavailable(error: unknown): boolean {
+  return (
+    error instanceof SaveApiError &&
+    error.code === "server" &&
+    error.status === 503 &&
+    error.message === "Save API unavailable"
+  );
+}
+
 export interface ServerSave {
   id: number;
   deviceId: string;

@@ -6,7 +6,12 @@ import { GlowingButton } from "../primitives/GlowingButton";
 import { StepFretDivider } from "../primitives/StepFretDivider";
 import { HeaddressIcon, WarriorShieldIcon, TempleIcon } from "../primitives/ThematicIcons";
 import { Users, Globe, FolderOpen } from "lucide-react";
-import { getLocalSavesSnapshot, listSaves, type ServerSave } from "../../lib/saveApi";
+import {
+  getLocalSavesSnapshot,
+  isExpectedCloudSaveUnavailable,
+  listSaves,
+  type ServerSave,
+} from "../../lib/saveApi";
 import SaveLoadMenu from "./SaveLoadMenu";
 import { loadAutosave } from "../../lib/autosaveStorage";
 import { HeroBackground } from "./HeroBackground";
@@ -29,7 +34,9 @@ export default function MainMenu() {
         const saves = await listSaves();
         setSavedGames([...saves, ...localSaves]);
       } catch (err) {
-        console.error('Failed to load saved games:', err);
+        if (!isExpectedCloudSaveUnavailable(err)) {
+          console.error('Failed to load saved games:', err);
+        }
       }
     };
     loadSaves();

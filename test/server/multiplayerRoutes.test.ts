@@ -313,6 +313,41 @@ describe("multiplayer lobby routes", () => {
     await stopServer(testServer.server);
   });
 
+  it("returns an unavailable save API response when cloud saves are disabled", async () => {
+    const previousDisableSaveApi = process.env.DISABLE_SAVE_API;
+    await stopServer(testServer.server);
+    process.env.DISABLE_SAVE_API = "true";
+    testServer = await startServer();
+
+    try {
+      const cookie = await signUp(testServer.baseUrl, "saveuser");
+      const response = await fetch(`${testServer.baseUrl}/api/saves`, {
+        headers: { cookie },
+      });
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("cache-control")).toContain("no-store");
+      expect(await response.json()).toEqual({ error: "Save API unavailable" });
+      expect(routeMocks.storage.getGameSavesByOwnerId).not.toHaveBeenCalled();
+
+      const writeResponse = await fetch(`${testServer.baseUrl}/api/saves`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie },
+        body: JSON.stringify({}),
+      });
+
+      expect(writeResponse.status).toBe(503);
+      expect(await writeResponse.json()).toEqual({ error: "Save API unavailable" });
+      expect(routeMocks.storage.createGameSave).not.toHaveBeenCalled();
+    } finally {
+      if (previousDisableSaveApi === undefined) {
+        delete process.env.DISABLE_SAVE_API;
+      } else {
+        process.env.DISABLE_SAVE_API = previousDisableSaveApi;
+      }
+    }
+  });
+
   it("creates and persists a canonical initial snapshot when the host starts a lobby", async () => {
     const hostCookie = await signUp(testServer.baseUrl, "hostuser");
     configureWaitingLobby();

@@ -40,6 +40,30 @@ const mockCreateLocalSave = vi.fn();
 const mockDeleteSave = vi.fn();
 const mockDeleteLocalSave = vi.fn();
 const mockGetLocalSavesSnapshot = vi.fn();
+const saveApiErrorMocks = vi.hoisted(() => {
+  class MockSaveApiError extends Error {
+    constructor(
+      message: string,
+      public readonly code: 'timeout' | 'network' | 'server' | 'invalid_response' = 'server',
+      public readonly status?: number,
+    ) {
+      super(message);
+      this.name = 'SaveApiError';
+    }
+  }
+
+  return {
+    MockSaveApiError,
+    isExpectedCloudSaveUnavailable: vi.fn((error: unknown) =>
+      error instanceof MockSaveApiError &&
+      error.code === 'server' &&
+      error.status === 503 &&
+      error.message === 'Save API unavailable',
+    ),
+  };
+});
+const MockSaveApiError = saveApiErrorMocks.MockSaveApiError;
+const mockIsExpectedCloudSaveUnavailable = saveApiErrorMocks.isExpectedCloudSaveUnavailable;
 
 vi.mock('../client/src/lib/saveApi', () => ({
   listSaves: (...args: any[]) => mockListSaves(...args),
@@ -49,7 +73,8 @@ vi.mock('../client/src/lib/saveApi', () => ({
   deleteSave: (...args: any[]) => mockDeleteSave(...args),
   deleteLocalSave: (...args: any[]) => mockDeleteLocalSave(...args),
   getLocalSavesSnapshot: (...args: any[]) => mockGetLocalSavesSnapshot(...args),
-  SaveApiError: class SaveApiError extends Error {},
+  isExpectedCloudSaveUnavailable: (...args: any[]) => mockIsExpectedCloudSaveUnavailable(...args),
+  SaveApiError: saveApiErrorMocks.MockSaveApiError,
 }));
 
 const mockUseLocalGame = useLocalGame as any;
@@ -95,6 +120,12 @@ describe('SaveLoadMenu', () => {
     mockCreateLocalSave.mockReturnValue({ id: 202, name: 'Local Save', storage: 'local' });
     mockDeleteSave.mockResolvedValue(undefined);
     mockDeleteLocalSave.mockImplementation(() => undefined);
+    mockIsExpectedCloudSaveUnavailable.mockImplementation((error: unknown) =>
+      error instanceof MockSaveApiError &&
+      error.code === 'server' &&
+      error.status === 503 &&
+      error.message === 'Save API unavailable',
+    );
 
     mockUseLocalGame.mockReturnValue({
       gameState: mockGameState,
@@ -174,7 +205,7 @@ describe('SaveLoadMenu', () => {
 
   it('uses a local save as the primary action when cloud saves are unavailable', async () => {
     const user = userEvent.setup();
-    mockListSaves.mockRejectedValueOnce(new Error('Request failed'));
+    mockListSaves.mockRejectedValueOnce(new MockSaveApiError('Save API unavailable', 'server', 503));
 
     render(<SaveLoadMenu {...mockProps} />);
     await waitFor(() => expect(screen.getByText(/Cloud saves unavailable/i)).toBeInTheDocument());
@@ -197,6 +228,36 @@ describe('SaveLoadMenu', () => {
       );
     });
     expect(mockCreateSave).not.toHaveBeenCalled();
+  });
+
+  it('does not log an expected disabled cloud-save response', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockListSaves.mockRejectedValueOnce(new MockSaveApiError('Save API unavailable', 'server', 503));
+
+    render(<SaveLoadMenu {...mockProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Cloud saves unavailable: Save API unavailable/i)).toBeInTheDocument();
+    });
+
+    expect(mockIsExpectedCloudSaveUnavailable).toHaveBeenCalled();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('still logs unexpected cloud-save list failures', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const unexpectedError = new Error('Request failed');
+    mockListSaves.mockRejectedValueOnce(unexpectedError);
+
+    render(<SaveLoadMenu {...mockProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Cloud saves unavailable/i)).toBeInTheDocument();
+    });
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error loading saves:', unexpectedError);
+    consoleErrorSpy.mockRestore();
   });
 
   it('displays "No saved games found" when there are no saves', async () => {
