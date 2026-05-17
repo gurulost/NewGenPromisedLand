@@ -31,3 +31,10 @@ Original prompt: Harden Covenant Legends multiplayer for Replit-hosted private/d
 ## Remaining Verification Notes
 
 - Replit still needs live two-browser verification after env vars, DB migration, and deployment because local tests cannot prove deployed process topology or production SSE behavior.
+
+## Live Multiplayer Browser Smoke Hardening
+
+- 2026-05-17 follow-up: live public-authoritative API turn cycling worked for three players, but browser lobby/game entry crashed with React maximum-update-depth error #185.
+- Current fix path: keep chat Zustand selectors stable, add real-Zustand regression coverage outside the mocked Vitest setup, add durable lobby automation hooks, correct public-authoritative lobby copy, and add a repeatable three-player/four-round live browser smoke.
+- Local validation passed: real-Zustand chat smoke, focused lobby/chat tests, multiplayer guardrail Vitest matrix, `npm run check`, `npm run lint`, `npm run lint:hooks`, `npm run build`, and `git diff --check`.
+- Production smoke now creates/deletes its temporary public lobby and writes artifacts, but current `https://covenantlegends.com` is still on a deployment without the new lobby automation hooks. Republish the updated code, then rerun `npm run test:live:multiplayer -- --players=3 --rounds=4 --build-id=<deployed-build-id>`.

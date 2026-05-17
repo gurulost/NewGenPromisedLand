@@ -37,6 +37,7 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
       <div>
         <label className="block text-sm text-amber-200 mb-1">Username</label>
         <input
+          data-testid="lobby-auth-username"
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
@@ -48,6 +49,7 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
       <div>
         <label className="block text-sm text-amber-200 mb-1">Password</label>
         <input
+          data-testid="lobby-auth-password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -57,10 +59,11 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
         />
       </div>
       {error && <p className="text-red-400 text-sm">{error}</p>}
-      <GlowingButton type="submit" className="w-full" disabled={loading}>
+      <GlowingButton data-testid="lobby-auth-submit" type="submit" className="w-full" disabled={loading}>
         {loading ? "Loading..." : mode === "login" ? "Log In" : "Sign Up"}
       </GlowingButton>
       <button
+        data-testid="lobby-auth-toggle"
         type="button"
         onClick={() => setMode(mode === "login" ? "signup" : "login")}
         className="w-full text-sm text-amber-400 hover:text-amber-300 transition-colors"
@@ -99,6 +102,7 @@ function CreateLobbyForm({ onCreated }: { onCreated: (id: number) => void }) {
       <div>
         <label className="block text-sm text-amber-200 mb-1">Game Name</label>
         <input
+          data-testid="lobby-create-name-input"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -110,6 +114,7 @@ function CreateLobbyForm({ onCreated }: { onCreated: (id: number) => void }) {
       <div>
         <label className="block text-sm text-amber-200 mb-1">Max Players</label>
         <select
+          data-testid="lobby-create-max-players"
           value={maxPlayers}
           onChange={(e) => setMaxPlayers(Number(e.target.value))}
           className="w-full px-3 py-2 bg-slate-800 border border-amber-500/30 rounded text-amber-100 focus:outline-none focus:border-amber-500"
@@ -122,6 +127,7 @@ function CreateLobbyForm({ onCreated }: { onCreated: (id: number) => void }) {
       <div>
         <label className="block text-sm text-amber-200 mb-1">Map Size</label>
         <select
+          data-testid="lobby-create-map-size"
           value={mapSize}
           onChange={(e) => setMapSize(e.target.value)}
           className="w-full px-3 py-2 bg-slate-800 border border-amber-500/30 rounded text-amber-100 focus:outline-none focus:border-amber-500"
@@ -136,6 +142,7 @@ function CreateLobbyForm({ onCreated }: { onCreated: (id: number) => void }) {
         <div>
           <label className="block text-sm text-amber-200 mb-1">Multiplayer Mode</label>
           <select
+            data-testid="lobby-create-authority-mode"
             value={authorityMode}
             onChange={(e) => setAuthorityMode(e.target.value as "private_demo_hosted" | "public_authoritative")}
             className="w-full px-3 py-2 bg-slate-800 border border-amber-500/30 rounded text-amber-100 focus:outline-none focus:border-amber-500"
@@ -145,7 +152,7 @@ function CreateLobbyForm({ onCreated }: { onCreated: (id: number) => void }) {
           </select>
         </div>
       )}
-      <GlowingButton type="submit" className="w-full" disabled={loading}>
+      <GlowingButton data-testid="lobby-create-submit" type="submit" className="w-full" disabled={loading}>
         {loading ? "Creating..." : "Create Game"}
       </GlowingButton>
       {storeError && <p className="text-red-400 text-sm">{storeError}</p>}
@@ -176,6 +183,7 @@ function JoinByCodeForm({ onJoined }: { onJoined: (id: number) => void }) {
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="flex gap-2">
         <input
+          data-testid="lobby-join-code-input"
           type="text"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -184,7 +192,12 @@ function JoinByCodeForm({ onJoined }: { onJoined: (id: number) => void }) {
           maxLength={6}
           required
         />
-        <GlowingButton type="submit" disabled={loading || code.length < 4}>
+        <GlowingButton
+          data-testid="lobby-join-code-submit"
+          type="submit"
+          disabled={loading || code.length < 4}
+          aria-label="Join lobby by code"
+        >
           <LogIn className="w-4 h-4" />
         </GlowingButton>
       </div>
@@ -247,8 +260,10 @@ export default function LobbyList() {
           <div className="p-6 space-y-6">
             <div className="flex items-center gap-2">
               <button
+                data-testid="lobby-list-back-button"
                 onClick={() => setGamePhase('menu')}
                 className="text-amber-400 hover:text-amber-300 transition-colors"
+                aria-label="Back to main menu"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -266,6 +281,7 @@ export default function LobbyList() {
                 <CreateLobbyForm onCreated={handleLobbyCreated} />
                 <GlowingButton
                   variant="secondary"
+                  data-testid="lobby-create-cancel"
                   className="w-full"
                   onClick={() => setShowCreate(false)}
                 >
@@ -276,6 +292,7 @@ export default function LobbyList() {
               <>
                 <div className="space-y-3">
                   <GlowingButton
+                    data-testid="lobby-create-button"
                     className="w-full"
                     onClick={() => setShowCreate(true)}
                   >
@@ -307,6 +324,7 @@ export default function LobbyList() {
                       {lobbies.map((lobby) => (
                         <button
                           key={lobby.id}
+                          data-testid={`lobby-open-game-${lobby.code}`}
                           onClick={() => handleSelectOpenGame(lobby)}
                           className="w-full p-3 bg-slate-800/50 border border-amber-500/20 rounded hover:border-amber-500/50 transition-colors text-left"
                         >

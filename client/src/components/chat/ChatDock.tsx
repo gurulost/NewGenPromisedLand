@@ -31,11 +31,9 @@ export function ChatDock({
   const reducedMotion = useReducedMotion();
   const channel = useChatChannel(identity);
 
-  const { ensureLobby, setLobbyOpen, consumePeek } = useChatUIState((state) => ({
-    ensureLobby: state.ensureLobby,
-    setLobbyOpen: state.setLobbyOpen,
-    consumePeek: state.consumePeek,
-  }));
+  const ensureLobby = useChatUIState((state) => state.ensureLobby);
+  const setLobbyOpen = useChatUIState((state) => state.setLobbyOpen);
+  const consumePeek = useChatUIState((state) => state.consumePeek);
 
   const lobbyState = useChatUIState(
     useMemo(

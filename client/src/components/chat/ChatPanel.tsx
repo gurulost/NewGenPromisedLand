@@ -51,19 +51,11 @@ export function ChatPanel({
   const feedRef = useRef<HTMLDivElement | null>(null);
   const previousMessageCountRef = useRef(0);
 
-  const {
-    setLobbyOpen,
-    setDraftText,
-    setVoiceDraft,
-    setRecordingState,
-    consumePeek,
-  } = useChatUIState((state) => ({
-    setLobbyOpen: state.setLobbyOpen,
-    setDraftText: state.setDraftText,
-    setVoiceDraft: state.setVoiceDraft,
-    setRecordingState: state.setRecordingState,
-    consumePeek: state.consumePeek,
-  }));
+  const setLobbyOpen = useChatUIState((state) => state.setLobbyOpen);
+  const setDraftText = useChatUIState((state) => state.setDraftText);
+  const setVoiceDraft = useChatUIState((state) => state.setVoiceDraft);
+  const setRecordingState = useChatUIState((state) => state.setRecordingState);
+  const consumePeek = useChatUIState((state) => state.consumePeek);
 
   const lobbyState = useChatUIState(
     useCallback(

@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "./alert";
 import { useToastContext } from "./ToastProvider";
 import { ArrowLeft, Users, Copy, Check, UserPlus, Bot, RefreshCw, Loader2, MessageSquare, AlertTriangle, X } from "lucide-react";
 import { FACTIONS } from "@shared/data/factions";
+import { isPublicAuthoritativeMultiplayer } from "@shared/multiplayerAuthority";
 import { coerceFactionId, type FactionId } from "@shared/types/factionId";
 import type { GameState } from "@shared/types/game";
 import {
@@ -128,13 +129,16 @@ function SeatSlot({
   };
 
   return (
-    <div className={`p-3 rounded border ${
+    <div
+      data-testid={`lobby-seat-${seatIndex}`}
+      className={`p-3 rounded border ${
       isEmpty ? "border-amber-500/20 bg-slate-800/30" :
       seatHasSelectionIssue ? "border-rose-500/40 bg-rose-900/20" :
       isAISeat ? "border-purple-500/40 bg-purple-900/20" :
       isMySeat ? "border-amber-500/50 bg-amber-900/20" :
       "border-slate-500/30 bg-slate-800/40"
-    }`}>
+    }`}
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className="text-amber-500 font-mono text-sm w-5">#{seatIndex + 1}</span>
@@ -142,6 +146,7 @@ function SeatSlot({
             showClaim ? (
               <div className="flex gap-2 flex-1">
                 <input
+                  data-testid={`lobby-seat-${seatIndex}-player-name`}
                   type="text"
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
@@ -150,10 +155,16 @@ function SeatSlot({
                   autoFocus
                   onKeyDown={(e) => e.key === "Enter" && handleClaim()}
                 />
-                <GlowingButton size="sm" onClick={handleClaim} disabled={!playerName.trim()}>
+                <GlowingButton
+                  data-testid={`lobby-seat-${seatIndex}-join`}
+                  size="sm"
+                  onClick={handleClaim}
+                  disabled={!playerName.trim()}
+                >
                   Join
                 </GlowingButton>
                 <button
+                  data-testid={`lobby-seat-${seatIndex}-claim-cancel`}
                   onClick={() => setShowClaim(false)}
                   className="text-amber-400 hover:text-amber-300 text-sm"
                 >
@@ -165,17 +176,21 @@ function SeatSlot({
                 <span className="text-amber-100/50 text-sm">Empty Seat</span>
                 <div className="ml-auto flex gap-1">
                   <button
+                    data-testid={`lobby-seat-${seatIndex}-claim`}
                     onClick={() => setShowClaim(true)}
                     className="text-amber-400 hover:text-amber-300 transition-colors p-1"
                     title="Claim this seat"
+                    aria-label={`Claim seat ${seatIndex + 1}`}
                   >
                     <UserPlus className="w-4 h-4" />
                   </button>
                   {isHost && (
                     <button
+                      data-testid={`lobby-seat-${seatIndex}-add-ai`}
                       onClick={handleAddAI}
                       className="text-purple-400 hover:text-purple-300 transition-colors p-1"
                       title="Add AI player"
+                      aria-label={`Add AI player to seat ${seatIndex + 1}`}
                     >
                       <Bot className="w-4 h-4" />
                     </button>
@@ -207,6 +222,7 @@ function SeatSlot({
           {canManageAISeat && (
             <>
               <input
+                data-testid={`lobby-seat-${seatIndex}-ai-name`}
                 type="text"
                 value={aiName}
                 onChange={(e) => setAiName(e.target.value)}
@@ -215,6 +231,7 @@ function SeatSlot({
                 className="min-w-[8rem] flex-1 px-2 py-1 bg-slate-800 border border-purple-500/30 rounded text-amber-100 text-xs focus:outline-none focus:border-purple-400"
               />
               <GlowingButton
+                data-testid={`lobby-seat-${seatIndex}-rename-ai`}
                 size="sm"
                 variant="secondary"
                 onClick={handleRenameAI}
@@ -226,6 +243,7 @@ function SeatSlot({
           )}
 
           <select
+            data-testid={`lobby-seat-${seatIndex}-faction`}
             value={seat.factionId || ""}
             onChange={(e) => handleFactionChange(e.target.value)}
             className={`px-2 py-1 bg-slate-800 border rounded text-amber-100 text-xs focus:outline-none ${
@@ -246,6 +264,7 @@ function SeatSlot({
           </select>
 
           <GlowingButton
+            data-testid={`lobby-seat-${seatIndex}-ready`}
             size="sm"
             variant={seat.isReady ? "default" : "secondary"}
             onClick={handleToggleReady}
@@ -256,6 +275,7 @@ function SeatSlot({
 
           {canManageAISeat ? (
             <button
+              data-testid={`lobby-seat-${seatIndex}-remove-ai`}
               onClick={handleRemoveAI}
               className="text-red-400 hover:text-red-300 text-xs"
             >
@@ -263,6 +283,7 @@ function SeatSlot({
             </button>
           ) : (
             <button
+              data-testid={`lobby-seat-${seatIndex}-leave`}
               onClick={handleRelease}
               className="text-red-400 hover:text-red-300 text-xs"
             >
@@ -542,6 +563,9 @@ export default function LobbyRoom() {
   const duplicateFactionNames = Array.from(duplicateFactionIds).map((factionId) => FACTIONS[factionId].name);
   const allClaimedReady = claimedSeats.every(({ seat }) => seat!.isReady && coerceFactionId(seat!.factionId));
   const canStart = isHost && allClaimedReady && claimedSeats.length >= 2 && duplicateFactionIds.size === 0;
+  const isPublicAuthoritativeLobby = isPublicAuthoritativeMultiplayer(
+    (lobbyGameState as { multiplayerAuthorityMode?: unknown } | null | undefined)?.multiplayerAuthorityMode,
+  );
 
   const handleStartGame = async () => {
     setIsStarting(true);
@@ -550,15 +574,20 @@ export default function LobbyRoom() {
   };
 
   return (
-    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 p-4">
+    <div
+      data-testid="lobby-room"
+      className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 p-4"
+    >
       <div className={`w-full ${isMobileUI ? "max-w-lg" : "max-w-6xl grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-4 items-stretch"}`}>
         <div className="min-w-0">
           <ContentShell size="lg">
             <div className="p-6 space-y-6">
               <div className="flex items-center gap-2">
                 <button
+                  data-testid="lobby-back-button"
                   onClick={handleBack}
                   className="text-amber-400 hover:text-amber-300 transition-colors"
+                  aria-label="Leave lobby"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
@@ -572,11 +601,18 @@ export default function LobbyRoom() {
               <div className="flex items-center justify-between bg-slate-800/50 rounded p-3 border border-amber-500/20">
                 <div>
                   <span className="text-amber-100/60 text-sm">Room Code: </span>
-                  <span ref={roomCodeRef} className="text-amber-300 font-mono tracking-widest text-lg">{currentLobby.code}</span>
+                  <span
+                    ref={roomCodeRef}
+                    data-testid="lobby-room-code"
+                    className="text-amber-300 font-mono tracking-widest text-lg"
+                  >
+                    {currentLobby.code}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   {isMobileUI && chatIdentity && (
                     <button
+                      data-testid="lobby-open-chat"
                       onClick={() => setShowMobileChat(true)}
                       className="text-amber-400 hover:text-amber-300 transition-colors p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 rounded"
                       title="Open chat"
@@ -586,31 +622,43 @@ export default function LobbyRoom() {
                     </button>
                   )}
                   <button
+                    data-testid="lobby-copy-code"
                     onClick={copyCode}
                     className="text-amber-400 hover:text-amber-300 transition-colors p-2"
                     title="Copy code"
+                    aria-label="Copy room code"
                   >
                     {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   </button>
                   <button
+                    data-testid="lobby-refresh"
                     onClick={() => fetchLobby(currentLobby.id)}
                     className="text-amber-400 hover:text-amber-300 transition-colors p-2"
                     title="Refresh"
+                    aria-label="Refresh lobby"
                   >
                     <RefreshCw className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              <Alert className="border-amber-500/30 bg-amber-950/20 text-amber-100">
+              <Alert
+                data-testid="lobby-authority-notice"
+                className="border-amber-500/30 bg-amber-950/20 text-amber-100"
+              >
                 <AlertTriangle className="h-4 w-4 text-amber-300" />
                 <AlertDescription className="text-sm text-amber-100/85">
-                  Private/demo multiplayer is host-mediated and intended for trusted, unranked matches. Public competitive play still needs server-authoritative turns and player-scoped state.
+                  {isPublicAuthoritativeLobby
+                    ? "Public unranked multiplayer is server-authoritative. The server validates turns and returns player-scoped state for each seat."
+                    : "Private/demo multiplayer is host-mediated and intended for trusted, unranked matches."}
                 </AlertDescription>
               </Alert>
 
               {error && (
-                <Alert className="border-red-500/40 bg-red-950/35 text-red-100">
+                <Alert
+                  data-testid="lobby-error"
+                  className="border-red-500/40 bg-red-950/35 text-red-100"
+                >
                   <AlertTriangle className="h-4 w-4 text-red-300" />
                   <AlertDescription className="pr-8 text-sm text-red-100">
                     {error}
@@ -643,7 +691,10 @@ export default function LobbyRoom() {
               </div>
 
               {(duplicateFactionNames.length > 0 || error) && (
-                <div className="rounded border border-rose-500/35 bg-rose-900/20 px-3 py-2 text-sm text-rose-100">
+                <div
+                  data-testid="lobby-faction-conflict"
+                  className="rounded border border-rose-500/35 bg-rose-900/20 px-3 py-2 text-sm text-rose-100"
+                >
                   {duplicateFactionNames.length > 0 && (
                     <p>
                       Resolve duplicate factions before starting: {duplicateFactionNames.join(", ")}.
@@ -659,6 +710,7 @@ export default function LobbyRoom() {
 
               {isHost && (
                 <GlowingButton
+                  data-testid="lobby-start-game"
                   className="w-full"
                   disabled={!canStart || isStarting}
                   onClick={handleStartGame}

@@ -180,4 +180,77 @@ describe("LobbyRoom faction selection", () => {
     expect(screen.getByText("Resolve duplicate factions before starting: Nephites.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Resolve duplicate factions" })).toBeDisabled();
   });
+
+  it("exposes stable automation hooks for live multiplayer smoke setup", () => {
+    mockUseLobby.mockReturnValue({
+      ...baseLobbyApi,
+      currentLobby: buildLobby([
+        {
+          id: 301,
+          lobbyId: 7,
+          seatIndex: 0,
+          userId: 1,
+          connectionId: null,
+          playerName: "Host",
+          factionId: "NEPHITES",
+          isReady: false,
+          isAI: false,
+        },
+      ]),
+    });
+
+    render(<LobbyRoom />);
+
+    expect(screen.getByTestId("lobby-room")).toBeInTheDocument();
+    expect(screen.getByTestId("lobby-room-code")).toHaveTextContent("ABCD");
+    expect(screen.getByTestId("lobby-copy-code")).toBeInTheDocument();
+    expect(screen.getByTestId("lobby-refresh")).toBeInTheDocument();
+    expect(screen.getByTestId("lobby-seat-0")).toBeInTheDocument();
+    expect(screen.getByTestId("lobby-seat-0-faction")).toBeInTheDocument();
+    expect(screen.getByTestId("lobby-seat-0-ready")).toBeInTheDocument();
+    expect(screen.getByTestId("lobby-seat-1-claim")).toBeInTheDocument();
+    expect(screen.getByTestId("lobby-start-game")).toBeInTheDocument();
+  });
+
+  it("labels public-authoritative lobbies as server-authoritative", () => {
+    mockUseLobby.mockReturnValue({
+      ...baseLobbyApi,
+      currentLobby: buildLobby(
+        [
+          {
+            id: 401,
+            lobbyId: 7,
+            seatIndex: 0,
+            userId: 1,
+            connectionId: null,
+            playerName: "Host",
+            factionId: "NEPHITES",
+            isReady: true,
+            isAI: false,
+          },
+          {
+            id: 402,
+            lobbyId: 7,
+            seatIndex: 1,
+            userId: 2,
+            connectionId: null,
+            playerName: "Guest",
+            factionId: "LAMANITES",
+            isReady: true,
+            isAI: false,
+          },
+        ],
+        { gameState: { multiplayerAuthorityMode: "public_authoritative" } },
+      ),
+    });
+
+    render(<LobbyRoom />);
+
+    expect(screen.getByTestId("lobby-authority-notice")).toHaveTextContent(
+      "Public unranked multiplayer is server-authoritative.",
+    );
+    expect(screen.getByTestId("lobby-authority-notice")).not.toHaveTextContent(
+      "Public competitive play still needs server-authoritative turns",
+    );
+  });
 });

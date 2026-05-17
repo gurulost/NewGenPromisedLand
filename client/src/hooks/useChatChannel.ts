@@ -145,27 +145,15 @@ const getJson = async <T,>(url: string): Promise<T | null> => {
 };
 
 export function useChatChannel(identity: ChatIdentity | null): UseChatChannelResult {
-  const {
-    ensureLobby,
-    getLobbyState,
-    receiveMessage,
-    updateMessage,
-    replaceMessages,
-    setTypingIndicator,
-    clearTypingIndicator,
-    pruneTypingIndicators,
-    markLobbyRead,
-  } = useChatUIState((state) => ({
-    ensureLobby: state.ensureLobby,
-    getLobbyState: state.getLobbyState,
-    receiveMessage: state.receiveMessage,
-    updateMessage: state.updateMessage,
-    replaceMessages: state.replaceMessages,
-    setTypingIndicator: state.setTypingIndicator,
-    clearTypingIndicator: state.clearTypingIndicator,
-    pruneTypingIndicators: state.pruneTypingIndicators,
-    markLobbyRead: state.markLobbyRead,
-  }));
+  const ensureLobby = useChatUIState((state) => state.ensureLobby);
+  const getLobbyState = useChatUIState((state) => state.getLobbyState);
+  const receiveMessage = useChatUIState((state) => state.receiveMessage);
+  const updateMessage = useChatUIState((state) => state.updateMessage);
+  const replaceMessages = useChatUIState((state) => state.replaceMessages);
+  const setTypingIndicator = useChatUIState((state) => state.setTypingIndicator);
+  const clearTypingIndicator = useChatUIState((state) => state.clearTypingIndicator);
+  const pruneTypingIndicators = useChatUIState((state) => state.pruneTypingIndicators);
+  const markLobbyRead = useChatUIState((state) => state.markLobbyRead);
 
   const typingRef = useRef(false);
   const lastEventVersionRef = useRef(0);
