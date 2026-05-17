@@ -1,3 +1,18 @@
+> **⚠️ OBSOLETE — DO NOT ACT ON THIS DOCUMENT**
+>
+> This handoff was written against an earlier state of the codebase. The faith-victory design it analyzes (`faithEnabled: false` + the `faith ≥ 90` / `dissent ≤ 10` instant threshold) **no longer exists** as of commit `b1f1b90`. It has been entirely replaced by the Consecration Project system:
+>
+> - Configuration: `GAME_RULES.victory.faithVictory` in `shared/data/gameRules.ts`.
+> - Implementation: `shared/logic/faithProject.ts` (multi-holy-city ritual project with start gating, per-turn upkeep, pause-on-contest, interrupt-on-loss, and faith-loss-shock events on missionary/converted-missionary/city loss).
+> - End-turn integration: `resolveFaithProjectOnEndTurn` in `shared/logic/actions/turns.ts`.
+> - Current authoritative summary in `replit.md` under "Active Balance Toggles".
+>
+> Every problem catalogued below is scoped to the removed instant-threshold design and does not describe current behavior. The new Consecration design has its own balance surface that would need a fresh analysis if requested.
+>
+> Retained below for historical context only. Do **not** plan work from it.
+>
+> ---
+
 # Faith victory imbalance — problem shape
 
 ## TL;DR

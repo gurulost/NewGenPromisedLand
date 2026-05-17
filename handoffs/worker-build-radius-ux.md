@@ -1,3 +1,15 @@
+> **⚠️ OBSOLETE — DO NOT ACT ON THIS DOCUMENT**
+>
+> This handoff was written against an earlier state of the codebase and the problem it describes has already been fixed in commit `b1f1b90` ("Harden private multiplayer deployment gates" and surrounding work on `main`).
+>
+> - The worker "Build Improvement" button is now a targeting-mode flow that surfaces every legal improvement target (including `port` on adjacent water) within `BUILDER_WORK_RADIUS`. See `client/src/components/ui/AbilitiesPanel.tsx` (look for `BUILDER_WORK_RADIUS` and the "Choose from N legal improvement targets" copy).
+> - `builderUnitId` is threaded through the city-panel construction flow as well — see `client/src/components/game/HexGridInstanced.tsx` (`builderUnitId` param on the construction-mode handler).
+> - The current authoritative summary of builder behavior lives in `replit.md` under "Builder Range".
+>
+> Retained below for historical context only. Do **not** plan work from it.
+>
+> ---
+
 # Worker "Build Improvement" ability doesn't surface water-improvement targets
 
 ## TL;DR
