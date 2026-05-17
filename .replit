@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "bash", "web", "postgresql-16", "python-3.11"]
+modules = ["nodejs-20", "bash", "web", "python-3.11", "postgresql-16"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
@@ -50,4 +50,6 @@ VITE_MULTIPLAYER_BUILD_ID = "c097d94"
 PUBLIC_MULTIPLAYER_ENABLED = "true"
 VITE_PUBLIC_MULTIPLAYER_ENABLED = "true"
 MULTIPLAYER_REALTIME_ADAPTER = "postgres_notify"
+
+[userenv.production]
 MULTIPLAYER_REQUIRE_BUILD_ID = "true"
