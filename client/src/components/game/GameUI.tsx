@@ -68,6 +68,7 @@ import { useChatUIState } from "../../hooks/useChatUIState";
 import { useAuth } from "../../lib/stores/useAuth";
 import { isBugReportingEnabled, openBugReportDialog } from "../../utils/bugReport";
 import { VictorySequenceOverlay } from "../ui/VictorySequenceOverlay";
+import { appendMultiplayerVersionQuery, multiplayerJsonHeaders } from "../../lib/multiplayerVersion";
 import type { VictoryLogEntry } from "../../lib/victoryPresentation";
 
 interface ActiveNotification {
@@ -264,7 +265,7 @@ export default function GameUI() {
     try {
       const res = await fetch(`/api/lobbies/${onlineSession.lobbyCode}/host/claim`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: multiplayerJsonHeaders(),
         body: JSON.stringify({ hostEpoch: onlineSession.hostEpoch }),
         credentials: "include",
       });
@@ -317,9 +318,7 @@ export default function GameUI() {
     let isActive = true;
     const pollTurnRecovery = async () => {
       try {
-        const res = await fetch(`/api/lobbies/${recoveryLobbyCode}/turn-recovery`, {
-          credentials: "include",
-        });
+        const res = await fetch(appendMultiplayerVersionQuery(`/api/lobbies/${recoveryLobbyCode}/turn-recovery`), { credentials: "include" });
         if (!res.ok || !isActive) return;
         const data = await res.json();
         if (!isActive) return;
@@ -362,7 +361,7 @@ export default function GameUI() {
     try {
       const commitRes = await fetch(`/api/lobbies/${onlineSession.lobbyCode}/actions/commit`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: multiplayerJsonHeaders(),
         body: JSON.stringify({
           action,
           actorId,
@@ -399,7 +398,7 @@ export default function GameUI() {
       if (latestState && typeof commitData.actionVersion === "number") {
         const snapshotRes = await fetch(`/api/lobbies/${onlineSession.lobbyCode}/state`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: multiplayerJsonHeaders(),
           body: JSON.stringify({
             state: latestState,
             version: commitData.actionVersion,

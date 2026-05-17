@@ -4,6 +4,11 @@ import type { Server } from "http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createInitialGameState } from "../../shared/logic/initialGameState";
+import {
+  COVENANT_MULTIPLAYER_PROTOCOL_VERSION,
+  COVENANT_MULTIPLAYER_RULES_VERSION,
+  buildMultiplayerVersionHeaders,
+} from "../../shared/multiplayerVersion";
 import type { GameLobby, PlayerSeat } from "../../shared/schema";
 import type { GameState } from "../../shared/types/game";
 
@@ -24,6 +29,11 @@ type TestLobbyGameState = {
   expectedActorId?: string;
   turnResolutionPending?: boolean;
   chat?: unknown;
+  multiplayerProtocolVersion?: number;
+  multiplayerRulesVersion?: string;
+  multiplayerMode?: string;
+  multiplayerBuildId?: string;
+  hostTransferRequiresSnapshot?: number;
   [key: string]: unknown;
 };
 type TestLobby = Omit<GameLobby, "gameState"> & { gameState: TestLobbyGameState };
@@ -154,16 +164,19 @@ async function jsonRequest<TBody = unknown>(
     method = "GET",
     cookie,
     body,
+    versionHeaders = true,
   }: {
     method?: string;
     cookie: string;
     body?: unknown;
+    versionHeaders?: boolean;
   },
 ): Promise<JsonResponse<TBody>> {
   const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",
+      ...(versionHeaders ? buildMultiplayerVersionHeaders() : {}),
       Cookie: cookie,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -288,6 +301,9 @@ function configurePlayingLobby(overrides: Record<string, unknown> = {}) {
       snapshot: createSnapshot(),
       expectedActorId: "player-1",
       turnResolutionPending: false,
+      multiplayerProtocolVersion: COVENANT_MULTIPLAYER_PROTOCOL_VERSION,
+      multiplayerRulesVersion: COVENANT_MULTIPLAYER_RULES_VERSION,
+      multiplayerMode: "private-demo-host-mediated",
       chat: {},
       ...overrides,
     },
@@ -360,6 +376,9 @@ describe("multiplayer lobby routes", () => {
     expect(response.status).toBe(200);
     expect(response.body.gameState.snapshotVersion).toBe(0);
     expect(response.body.gameState.actionVersion).toBe(0);
+    expect(response.body.gameState.multiplayerProtocolVersion).toBe(COVENANT_MULTIPLAYER_PROTOCOL_VERSION);
+    expect(response.body.gameState.multiplayerRulesVersion).toBe(COVENANT_MULTIPLAYER_RULES_VERSION);
+    expect(response.body.gameState.multiplayerMode).toBe("private-demo-host-mediated");
     expect(response.body.gameState.snapshot).toBeTruthy();
     expect(response.body.gameState.snapshot.id).toMatch(/^online-ROOMA-/);
     expect(response.body.gameState.snapshot.map.tiles.length).toBeGreaterThan(0);
@@ -387,6 +406,37 @@ describe("multiplayer lobby routes", () => {
     });
     expect(replaceResponse.status).toBe(400);
     expect(currentLobby().gameState.snapshot?.players[0].stars).toBe(response.body.gameState.snapshot.players[0].stars);
+  });
+
+  it("rejects starting a multiplayer match from a client without the current protocol headers", async () => {
+    const hostCookie = await signUp(testServer.baseUrl, "hostuser");
+    configureWaitingLobby();
+
+    const response = await jsonRequest(testServer.baseUrl, "/api/lobbies/ROOMA/start", {
+      method: "POST",
+      cookie: hostCookie,
+      versionHeaders: false,
+    });
+
+    expect(response.status).toBe(409);
+    expect((response.body as { error?: string }).error).toContain("protocol");
+    expect(routeMocks.storage.updateLobbyIfUnchanged).not.toHaveBeenCalled();
+  });
+
+  it("rejects state access for lobbies started under an incompatible rules version", async () => {
+    const hostCookie = await signUp(testServer.baseUrl, "hostuser");
+    await signUp(testServer.baseUrl, "guestuser");
+    configurePlayingLobby({
+      multiplayerProtocolVersion: COVENANT_MULTIPLAYER_PROTOCOL_VERSION,
+      multiplayerRulesVersion: "older-rules",
+    });
+
+    const response = await jsonRequest(testServer.baseUrl, "/api/lobbies/ROOMA/state", {
+      cookie: hostCookie,
+    });
+
+    expect(response.status).toBe(409);
+    expect((response.body as { error?: string }).error).toContain("incompatible multiplayer rules version");
   });
 
   it("stores guest queued actions with their base action version", async () => {
@@ -697,5 +747,50 @@ describe("multiplayer lobby routes", () => {
     expect(stateResponse.status).toBe(200);
     expect(stateResponse.body.snapshotVersion).toBe(1);
     expect(stateResponse.body.state?.lastAction).toMatchObject({ payload: { endingPlayerId: "player-2" } });
+  });
+
+  it("preserves pending turn-resolution recovery state when host transfers after a missing snapshot", async () => {
+    await signUp(testServer.baseUrl, "hostuser");
+    const guestCookie = await signUp(testServer.baseUrl, "guestuser");
+    configurePlayingLobby({
+      hostLastSeen: 1,
+      hostEpoch: 3,
+      actionVersion: 1,
+      snapshotVersion: 0,
+      expectedActorId: "player-2",
+      turnResolutionPending: true,
+      pendingVersion: 4,
+      pendingActions: [
+        {
+          queueVersion: 4,
+          id: "stale-during-host-transfer",
+          actorId: "player-2",
+          baseActionVersion: 1,
+          action: { type: "END_TURN", payload: { playerId: "player-2" } },
+        },
+      ],
+      actions: [
+        {
+          version: 1,
+          id: "host-end-turn",
+          actorId: "player-1",
+          action: { type: "END_TURN", payload: { playerId: "player-1" } },
+        },
+      ],
+    });
+
+    const response = await jsonRequest(testServer.baseUrl, "/api/lobbies/ROOMA/host/claim", {
+      method: "POST",
+      cookie: guestCookie,
+      body: { hostEpoch: 3 },
+    });
+
+    expect(response.status).toBe(200);
+    expect(currentLobby().hostUserId).toBe(2);
+    expect(currentLobby().gameState.hostEpoch).toBe(4);
+    expect(currentLobby().gameState.turnResolutionPending).toBe(true);
+    expect(currentLobby().gameState.hostTransferRequiresSnapshot).toEqual(expect.any(Number));
+    expect(currentLobby().gameState.pendingActions).toEqual([]);
+    expect(currentLobby().gameState.actions).toHaveLength(1);
   });
 });

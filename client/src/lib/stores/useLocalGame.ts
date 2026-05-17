@@ -49,6 +49,7 @@ import {
   generateInitialGameMap,
   resolveInitialMapSize,
 } from "@shared/logic/initialGameState";
+import { multiplayerJsonHeaders } from "../multiplayerVersion";
 
 const applyPlayerDefaults = (player: PlayerState): PlayerState => {
   const normalized: PlayerState = { ...player };
@@ -583,7 +584,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
         try {
           const res = await fetch(`/api/lobbies/${lobbyCode}/actions/commit`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: multiplayerJsonHeaders(),
             body: JSON.stringify({ action, actorId, id: actionId, hostEpoch }),
             credentials: "include",
           });
@@ -599,7 +600,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
           if (action.type === "END_TURN" && snapshotState) {
             const snapshotRes = await fetch(`/api/lobbies/${lobbyCode}/state`, {
               method: "PUT",
-              headers: { "Content-Type": "application/json" },
+              headers: multiplayerJsonHeaders(),
               body: JSON.stringify({ state: snapshotState, version: data.actionVersion, hostEpoch }),
               credentials: "include",
             });
@@ -621,7 +622,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
       try {
         const res = await fetch(`/api/lobbies/${lobbyCode}/actions/queue`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: multiplayerJsonHeaders(),
           body: JSON.stringify({ action, actorId, id: actionId, baseActionVersion: onlineSession.actionVersion }),
           credentials: "include",
         });

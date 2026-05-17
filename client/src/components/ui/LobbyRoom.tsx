@@ -18,6 +18,7 @@ import {
   type FactionAssignmentEntry,
 } from "@shared/utils/factionAssignments";
 import { getInitialActionVersionFromLobbyConfig } from "../../hooks/onlineSyncUtils";
+import { isCompatibleMultiplayerLobbyState } from "../../lib/multiplayerVersion";
 import { ChatPanel } from "../chat/ChatPanel";
 import { useMobileUI } from "../../hooks/useMobileUI";
 import BugReportSupportCallout from "./BugReportSupportCallout";
@@ -362,6 +363,13 @@ export default function LobbyRoom() {
     if (DEBUG_LOBBY) {
       console.debug("Lobby status changed to playing, initializing game...", lobbyGameState);
     }
+    if (!isCompatibleMultiplayerLobbyState(lobbyGameState)) {
+      showErrorToast(
+        "Refresh required",
+        "This lobby was started with a different multiplayer rules version. Refresh the game or create a new lobby.",
+      );
+      return;
+    }
     const gameConfig = lobbyGameState as {
       players: Array<{ playerId?: string; userId?: number | null; name: string; factionId: string; isAI: boolean; turnOrder: number }>;
       hostEpoch?: number;
@@ -591,6 +599,13 @@ export default function LobbyRoom() {
                   </button>
                 </div>
               </div>
+
+              <Alert className="border-amber-500/30 bg-amber-950/20 text-amber-100">
+                <AlertTriangle className="h-4 w-4 text-amber-300" />
+                <AlertDescription className="text-sm text-amber-100/85">
+                  Private/demo multiplayer is host-mediated and intended for trusted, unranked matches. Public competitive play still needs server-authoritative turns and player-scoped state.
+                </AlertDescription>
+              </Alert>
 
               {error && (
                 <Alert className="border-red-500/40 bg-red-950/35 text-red-100">

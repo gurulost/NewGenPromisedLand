@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { multiplayerJsonHeaders, multiplayerVersionHeaders } from "../multiplayerVersion";
 
 interface Lobby {
   id: number;
@@ -83,7 +84,7 @@ export const useLobby = create<LobbyStore>((set, get) => ({
   fetchLobbies: async () => {
     set({ loading: true, error: null });
     try {
-      const res = await fetch("/api/lobbies", { credentials: "include" });
+      const res = await fetch("/api/lobbies", { headers: multiplayerVersionHeaders(), credentials: "include" });
       if (res.ok) {
         const lobbies = await res.json();
         set({ lobbies, loading: false, error: null });
@@ -100,7 +101,7 @@ export const useLobby = create<LobbyStore>((set, get) => ({
     try {
       const res = await fetch("/api/lobbies", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: multiplayerJsonHeaders(),
         body: JSON.stringify({ name, maxPlayers, mapSize }),
         credentials: "include",
       });
@@ -121,7 +122,7 @@ export const useLobby = create<LobbyStore>((set, get) => ({
   joinLobby: async (code) => {
     set({ loading: true, error: null });
     try {
-      const res = await fetch(`/api/lobbies/code/${code}`, { credentials: "include" });
+      const res = await fetch(`/api/lobbies/code/${code}`, { headers: multiplayerVersionHeaders(), credentials: "include" });
       if (res.ok) {
         const lobby = await res.json();
         set({ currentLobby: lobby, loading: false, error: null });
@@ -139,7 +140,7 @@ export const useLobby = create<LobbyStore>((set, get) => ({
   fetchLobby: async (id) => {
     set({ loading: true });
     try {
-      const res = await fetch(`/api/lobbies/id/${id}`, { credentials: "include" });
+      const res = await fetch(`/api/lobbies/id/${id}`, { headers: multiplayerVersionHeaders(), credentials: "include" });
       if (res.ok) {
         const lobby = await res.json();
         set({ currentLobby: lobby, loading: false });
@@ -163,7 +164,7 @@ export const useLobby = create<LobbyStore>((set, get) => ({
     try {
       const res = await fetch(`/api/lobbies/${lobby.code}/seats/${seatIndex}/claim`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: multiplayerJsonHeaders(),
         body: JSON.stringify({ playerName }),
         credentials: "include",
       });
@@ -215,7 +216,7 @@ export const useLobby = create<LobbyStore>((set, get) => ({
     try {
       const res = await fetch(`/api/lobbies/${lobby.code}/seats/${seatIndex}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: multiplayerJsonHeaders(),
         body: JSON.stringify(updates),
         credentials: "include",
       });
@@ -242,7 +243,7 @@ export const useLobby = create<LobbyStore>((set, get) => ({
     try {
       const res = await fetch(`/api/lobbies/${lobby.code}/seats/${seatIndex}/ai`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: multiplayerJsonHeaders(),
         body: JSON.stringify({ factionId }),
         credentials: "include",
       });
@@ -310,6 +311,7 @@ export const useLobby = create<LobbyStore>((set, get) => ({
     try {
       const res = await fetch(`/api/lobbies/${lobby.code}/start`, {
         method: "POST",
+        headers: multiplayerVersionHeaders(),
         credentials: "include",
       });
       if (res.ok) {

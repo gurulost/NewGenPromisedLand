@@ -186,15 +186,17 @@ export const RUINS_REWARDS: Record<string, RuinsReward> = {
 
 /**
  * Get a random reward based on weighted probability
- * @param randomValue - Optional random value (0-1) for deterministic generation. Defaults to Math.random()
+ * @param randomValue - Canonical random value (0-1) supplied by the caller's seeded RNG.
  */
-export function getRandomRuinsReward(randomValue?: number): RuinsReward {
+export function getRandomRuinsReward(randomValue: number): RuinsReward {
+    if (!Number.isFinite(randomValue) || randomValue < 0 || randomValue > 1) {
+        throw new Error('getRandomRuinsReward requires a deterministic random value between 0 and 1');
+    }
+
     const rewards = Object.values(RUINS_REWARDS);
     const totalWeight = rewards.reduce((sum, reward) => sum + reward.weight, 0);
 
-    // Use provided random value or fallback to Math.random (logic only, bad for reducers)
-    const rand = randomValue !== undefined ? randomValue : Math.random();
-    let selector = rand * totalWeight;
+    let selector = randomValue * totalWeight;
 
     for (const reward of rewards) {
         selector -= reward.weight;

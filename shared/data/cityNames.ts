@@ -1,4 +1,5 @@
 import { FactionId } from '../types/faction';
+import { deriveSeed, SeededRandom } from '../utils/mapGenerationRandom';
 
 /**
  * Book of Mormon themed city names organized by faction
@@ -152,34 +153,63 @@ export const FACTION_CITY_NAMES: Record<FactionId, string[]> = {
 // Track used names per game to avoid duplicates
 const usedNamesPerGame = new Map<string, Set<string>>();
 
+function getDeterministicNameIndex({
+    factionId,
+    gameId,
+    poolSize,
+    usedCount,
+}: {
+    factionId: FactionId;
+    gameId: string;
+    poolSize: number;
+    usedCount: number;
+}): number {
+    const rng = new SeededRandom(deriveSeed(0, `${gameId}:city-name:${factionId}:${usedCount}`));
+    return rng.nextInt(0, Math.max(0, poolSize - 1));
+}
+
 /**
- * Get a random city name for a faction
- * Tracks used names to avoid duplicates within a game session
+ * Get a deterministic city name for a faction.
+ * Tracks used names to avoid duplicates within a game session.
  */
 export function getRandomCityName(factionId: FactionId, gameId: string = 'default'): string {
     const factionNames = FACTION_CITY_NAMES[factionId];
-    if (!factionNames || factionNames.length === 0) {
-        return `City ${Math.floor(Math.random() * 1000)}`;
-    }
-
-    // Get or create the used names set for this game
     if (!usedNamesPerGame.has(gameId)) {
         usedNamesPerGame.set(gameId, new Set());
     }
     const usedNames = usedNamesPerGame.get(gameId)!;
+
+    if (!factionNames || factionNames.length === 0) {
+        const fallback = `City ${usedNames.size + 1}`;
+        usedNames.add(fallback);
+        return fallback;
+    }
 
     // Filter to available names
     const availableNames = factionNames.filter(name => !usedNames.has(name));
 
     // If all names used, allow duplicates with suffix
     if (availableNames.length === 0) {
-        const baseName = factionNames[Math.floor(Math.random() * factionNames.length)];
-        const suffix = Math.floor(Math.random() * 100) + 2;
-        return `${baseName} ${suffix}`;
+        const baseIndex = getDeterministicNameIndex({
+            factionId,
+            gameId,
+            poolSize: factionNames.length,
+            usedCount: usedNames.size,
+        });
+        const suffix = usedNames.size + 2;
+        const fallback = `${factionNames[baseIndex]} ${suffix}`;
+        usedNames.add(fallback);
+        return fallback;
     }
 
-    // Pick random available name
-    const selectedName = availableNames[Math.floor(Math.random() * availableNames.length)];
+    // Pick a deterministic available name.
+    const selectedIndex = getDeterministicNameIndex({
+        factionId,
+        gameId,
+        poolSize: availableNames.length,
+        usedCount: usedNames.size,
+    });
+    const selectedName = availableNames[selectedIndex];
     usedNames.add(selectedName);
 
     return selectedName;

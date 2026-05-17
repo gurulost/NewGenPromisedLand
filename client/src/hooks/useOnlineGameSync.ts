@@ -5,6 +5,11 @@ import {
   getCursorFromSnapshotVersion,
 } from "./onlineSyncUtils";
 import { subscribeLobbyRealtime } from "@/lib/lobbyRealtimeStream";
+import {
+  appendMultiplayerVersionQuery,
+  multiplayerJsonHeaders,
+  multiplayerVersionHeaders,
+} from "@/lib/multiplayerVersion";
 
 const MULTIPLAYER_MAINTENANCE_INTERVAL_MS = 5000;
 const MULTIPLAYER_FALLBACK_SYNC_INTERVAL_MS = 15000;
@@ -25,6 +30,21 @@ const mergeSyncRequests = (current: SyncRequest, next: SyncRequest): SyncRequest
 });
 
 const hasSyncWork = (request: SyncRequest): boolean => request.includeHostStatus || request.includeActionSync;
+
+const getLatestRawEndTurnVersion = (entries: unknown[]): number | null => {
+  let version: number | null = null;
+  for (const entry of entries) {
+    const record = entry && typeof entry === "object" ? entry as Record<string, unknown> : null;
+    const action = record?.action && typeof record.action === "object"
+      ? record.action as Record<string, unknown>
+      : null;
+    const entryVersion = Number(record?.version);
+    if (action?.type === "END_TURN" && Number.isFinite(entryVersion) && entryVersion > 0) {
+      version = version == null ? entryVersion : Math.max(version, entryVersion);
+    }
+  }
+  return version;
+};
 
 type OnlineSessionSnapshot = {
   lobbyCode: string;
@@ -83,7 +103,8 @@ export function useOnlineGameSync() {
     logTelemetry("forced_resync_start", { reason, lobbyCode: session.lobbyCode });
 
     try {
-      const snapshotRes = await fetch(`/api/lobbies/${session.lobbyCode}/state`, {
+      const snapshotRes = await fetch(appendMultiplayerVersionQuery(`/api/lobbies/${session.lobbyCode}/state`), {
+        headers: multiplayerVersionHeaders(),
         credentials: "include",
       });
       if (!snapshotRes.ok) {
@@ -98,7 +119,8 @@ export function useOnlineGameSync() {
       }
       setOnlineActionVersion(snapshotVersion);
 
-      const committedRes = await fetch(`/api/lobbies/${session.lobbyCode}/actions?since=${snapshotVersion}`, {
+      const committedRes = await fetch(appendMultiplayerVersionQuery(`/api/lobbies/${session.lobbyCode}/actions?since=${snapshotVersion}`), {
+        headers: multiplayerVersionHeaders(),
         credentials: "include",
       });
       if (!committedRes.ok) {
@@ -151,6 +173,42 @@ export function useOnlineGameSync() {
     }
   }, [applyRemoteAction, loadGameState, logTelemetry, markOnlineResyncComplete, setOnlineActionVersion]);
 
+  const uploadHostTurnSnapshot = useCallback(async (
+    session: OnlineSessionSnapshot,
+    actionVersion: number,
+    reason: string,
+  ): Promise<boolean> => {
+    const latestState = useLocalGame.getState().gameState;
+    if (!latestState || !Number.isFinite(actionVersion) || actionVersion <= 0) {
+      requestOnlineResync(`${reason}_missing_snapshot_state`);
+      return false;
+    }
+
+    try {
+      const snapshotRes = await fetch(`/api/lobbies/${session.lobbyCode}/state`, {
+        method: "PUT",
+        headers: multiplayerJsonHeaders(),
+        body: JSON.stringify({
+          state: latestState,
+          version: actionVersion,
+          hostEpoch: session.hostEpoch,
+        }),
+        credentials: "include",
+      });
+      if (!snapshotRes.ok) {
+        logTelemetry("host_snapshot_upload_failed", { status: snapshotRes.status, reason, actionVersion });
+        requestOnlineResync(`${reason}_snapshot_upload_failed`);
+        return false;
+      }
+      logTelemetry("host_snapshot_upload_complete", { reason, actionVersion });
+      return true;
+    } catch {
+      logTelemetry("host_snapshot_upload_exception", { reason, actionVersion });
+      requestOnlineResync(`${reason}_snapshot_upload_exception`);
+      return false;
+    }
+  }, [logTelemetry, requestOnlineResync]);
+
   const runSyncCycle = useCallback(async (request: SyncRequest) => {
     const session = useLocalGame.getState().onlineSession;
     if (!session) return;
@@ -169,7 +227,8 @@ export function useOnlineGameSync() {
 
     if (request.includeHostStatus) {
       try {
-        const statusRes = await fetch(`/api/lobbies/${session.lobbyCode}/host`, {
+        const statusRes = await fetch(appendMultiplayerVersionQuery(`/api/lobbies/${session.lobbyCode}/host`), {
+          headers: multiplayerVersionHeaders(),
           credentials: "include",
         });
         if (statusRes.ok) {
@@ -198,7 +257,7 @@ export function useOnlineGameSync() {
       for (const playerId of latestSession.myPlayerIds) {
         void fetch(`/api/lobbies/${latestSession.lobbyCode}/players/heartbeat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: multiplayerJsonHeaders(),
           body: JSON.stringify({ playerId }),
           credentials: "include",
         }).catch(() => undefined);
@@ -211,7 +270,7 @@ export function useOnlineGameSync() {
         try {
           await fetch(`/api/lobbies/${latestSession.lobbyCode}/host/heartbeat`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: multiplayerJsonHeaders(),
             body: JSON.stringify({ hostEpoch: latestSession.hostEpoch }),
             credentials: "include",
           });
@@ -227,8 +286,8 @@ export function useOnlineGameSync() {
 
     if (latestSession.userId === latestSession.hostUserId) {
       const pendingRes = await fetch(
-        `/api/lobbies/${latestSession.lobbyCode}/actions/queue?since=${latestSession.queueVersion}`,
-        { credentials: "include" },
+        appendMultiplayerVersionQuery(`/api/lobbies/${latestSession.lobbyCode}/actions/queue?since=${latestSession.queueVersion}`),
+        { headers: multiplayerVersionHeaders(), credentials: "include" },
       );
       if (pendingRes.ok) {
         const pendingData = await pendingRes.json();
@@ -244,7 +303,7 @@ export function useOnlineGameSync() {
 
           const rejectRes = await fetch(`/api/lobbies/${latestSession.lobbyCode}/actions/queue/reject`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: multiplayerJsonHeaders(),
             body: JSON.stringify({
               queueVersion: entry.queueVersion,
               id: entry.id,
@@ -322,7 +381,7 @@ export function useOnlineGameSync() {
 
           const commitRes = await fetch(`/api/lobbies/${latestSession.lobbyCode}/actions/commit`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: multiplayerJsonHeaders(),
             body: JSON.stringify({
               action: entry.action,
               actorId: entry.actorId,
@@ -353,7 +412,7 @@ export function useOnlineGameSync() {
             if (latestState && typeof commitData.actionVersion === "number") {
               const snapshotRes = await fetch(`/api/lobbies/${latestSession.lobbyCode}/state`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json" },
+                headers: multiplayerJsonHeaders(),
                 body: JSON.stringify({
                   state: latestState,
                   version: commitData.actionVersion,
@@ -376,8 +435,8 @@ export function useOnlineGameSync() {
     if (!freshSession) return;
 
     const committedRes = await fetch(
-      `/api/lobbies/${freshSession.lobbyCode}/actions?since=${freshSession.actionVersion}`,
-      { credentials: "include" },
+      appendMultiplayerVersionQuery(`/api/lobbies/${freshSession.lobbyCode}/actions?since=${freshSession.actionVersion}`),
+      { headers: multiplayerVersionHeaders(), credentials: "include" },
     );
     if (!committedRes.ok) return;
 
@@ -399,6 +458,9 @@ export function useOnlineGameSync() {
 
     const actions = Array.isArray(committedData.actions) ? committedData.actions : [];
     if (!actions.length) return;
+    const latestRawEndTurnVersion = getLatestRawEndTurnVersion(actions);
+    const shouldUploadReplaySnapshot =
+      freshSession.userId === freshSession.hostUserId && latestRawEndTurnVersion != null;
 
     if (!strictResyncEnabled) {
       for (const entry of actions) {
@@ -412,6 +474,13 @@ export function useOnlineGameSync() {
         committedData.actionVersion > freshSession.actionVersion
       ) {
         setOnlineActionVersion(committedData.actionVersion);
+      }
+      if (shouldUploadReplaySnapshot) {
+        await uploadHostTurnSnapshot(
+          freshSession as OnlineSessionSnapshot,
+          latestRawEndTurnVersion,
+          "host_replayed_end_turn",
+        );
       }
       return;
     }
@@ -433,6 +502,13 @@ export function useOnlineGameSync() {
     if (applyResult.nextVersion > freshSession.actionVersion) {
       setOnlineActionVersion(applyResult.nextVersion);
     }
+    if (shouldUploadReplaySnapshot) {
+      await uploadHostTurnSnapshot(
+        freshSession as OnlineSessionSnapshot,
+        latestRawEndTurnVersion,
+        "host_replayed_end_turn",
+      );
+    }
   }, [
     applyRemoteAction,
     clearOnlineResyncRequest,
@@ -444,6 +520,7 @@ export function useOnlineGameSync() {
     setOnlineHost,
     setOnlineQueueVersion,
     strictResyncEnabled,
+    uploadHostTurnSnapshot,
   ]);
 
   const flushSync = useCallback(async (request: SyncRequest) => {

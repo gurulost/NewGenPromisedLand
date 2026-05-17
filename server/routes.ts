@@ -72,6 +72,12 @@ import { openLobbyRealtimeStream, publishLobbyRealtimeEvent } from "./lobbyRealt
 import { SaveWriteRequestSchema } from "@shared/types/save";
 import { createInitialGameState } from "@shared/logic/initialGameState";
 import { registerMultiplayerActionRoutes } from "./multiplayerActionRoutes";
+import { buildMultiplayerVersionSnapshot } from "@shared/multiplayerVersion";
+import {
+  getServerMultiplayerBuildId,
+  sendMultiplayerVersionGateError,
+  validateMultiplayerVersionRequest,
+} from "./multiplayerVersionGate";
 
 const MemoryStoreSession = MemoryStore(session);
 const PgSessionStore = connectPgSimple(session);
@@ -243,6 +249,15 @@ function getHostMeta(lobbyState: any) {
   const hostLastSeen = Number(lobbyState?.hostLastSeen ?? 0);
   const leaseExpired = !hostLastSeen || Date.now() - hostLastSeen > HOST_LEASE_MS;
   return { hostEpoch, hostLastSeen, leaseExpired };
+}
+
+function ensurePlayingMultiplayerVersion(req: Request, res: Response, lobbyState: unknown): boolean {
+  const versionGate = validateMultiplayerVersionRequest(req, lobbyState);
+  if (!versionGate.ok) {
+    sendMultiplayerVersionGateError(res, versionGate);
+    return false;
+  }
+  return true;
 }
 
 function selectNextHost(lobbyState: any, currentHostUserId: number): number | null {
@@ -1266,6 +1281,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Each player must select a unique faction" });
       }
 
+      const versionGate = validateMultiplayerVersionRequest(req);
+      if (!versionGate.ok) {
+        return sendMultiplayerVersionGateError(res, versionGate);
+      }
+
       const existingLobbyState = (lobby.gameState as any) || {};
       const existingChatState = normalizeLobbyChatState(existingLobbyState.chat);
       const hostLastSeen = Date.now();
@@ -1302,6 +1322,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
         status: "playing",
         gameState: {
+          ...buildMultiplayerVersionSnapshot(getServerMultiplayerBuildId()),
           players,
           mapSize: lobby.mapSize,
           seed,
@@ -1425,6 +1446,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.session.userId!;
       if (!isLobbyParticipant(lobby.hostUserId, seats, userId)) {
         return res.status(403).json({ error: "Not a participant" });
+      }
+      if (lobby.status === "playing") {
+        const lobbyState = (lobby.gameState as any) || {};
+        if (!ensurePlayingMultiplayerVersion(req, res, lobbyState)) return;
       }
 
       setPrivateNoStoreHeaders(res);
@@ -1773,6 +1798,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const lobbyState = (lobby.gameState as any) || {};
+      if (!ensurePlayingMultiplayerVersion(req, res, lobbyState)) return;
       const { hostEpoch, hostLastSeen, leaseExpired } = getHostMeta(lobbyState);
       const suggestedHostUserId = leaseExpired ? selectNextHost(lobbyState, lobby.hostUserId) : null;
 
@@ -1807,6 +1833,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const lobbyState = (lobby.gameState as any) || {};
+        if (!ensurePlayingMultiplayerVersion(req, res, lobbyState)) return;
         const { hostEpoch } = getHostMeta(lobbyState);
         if (typeof bodyEpoch !== "number" || bodyEpoch !== hostEpoch) {
           return res.status(409).json({ error: "Host epoch mismatch", hostEpoch });
@@ -1850,6 +1877,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const lobbyState = (lobby.gameState as any) || {};
+        if (!ensurePlayingMultiplayerVersion(req, res, lobbyState)) return;
         const { hostEpoch, leaseExpired } = getHostMeta(lobbyState);
         if (typeof requestedEpoch === "number" && requestedEpoch !== hostEpoch) {
           return res.status(409).json({ error: "Host epoch mismatch", hostEpoch });
@@ -1887,6 +1915,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             hostLastSeen,
             pendingVersion: 0,
             pendingActions: [],
+            hostTransferRequiresSnapshot:
+              lobbyState.turnResolutionPending === true ? Date.now() : lobbyState.hostTransferRequiresSnapshot,
           } as any,
         });
         if (updated) {
@@ -1933,6 +1963,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const lobbyState = (lobby.gameState as any) || {};
+        if (!ensurePlayingMultiplayerVersion(req, res, lobbyState)) return;
         const playersMeta = Array.isArray(lobbyState.players) ? [...lobbyState.players] : [];
         const index = playersMeta.findIndex((entry: any) => entry?.playerId === playerId);
         if (index === -1) {
@@ -1987,6 +2018,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const lobbyState = (lobby.gameState as any) || {};
+      if (!ensurePlayingMultiplayerVersion(req, res, lobbyState)) return;
       const expectedActorId = getExpectedActorId(lobbyState);
       const playersMeta = (Array.isArray(lobbyState.players) ? lobbyState.players : []) as MultiplayerPlayerMeta[];
       const now = Date.now();

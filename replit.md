@@ -53,10 +53,16 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
   - Guest actions carry the action version they were based on. Stale queued actions are rejected/tombstoned so they do not keep reappearing in the host queue.
   - Queue-backed host commits are tied to the server-stored queued action. A host cannot change the action payload while reusing the same queued-action identity.
   - Host-uploaded snapshots are schema-validated and checked against lobby players, factions, current actor, action version, and committed action metadata. This is hardening, not a replacement for future server-authoritative resolution.
+  - Playing multiplayer endpoints are gated by shared protocol/rules versions. Old clients or lobbies from older rules versions are rejected and should be refreshed/recreated.
+  - If host transfer happens while a raw `END_TURN` is waiting for its resolved snapshot, the pending recovery state is preserved and the new host can resync/re-upload the missing snapshot.
 - **Deployment topology**
   - The realtime broker for lobby and multiplayer sync events is in-memory and process-local. Private/demo multiplayer currently assumes a single running Node process or sticky single-instance deployment.
   - Polling catch-up still exists, but multi-instance autoscaling without Redis, Postgres LISTEN/NOTIFY, or a managed realtime adapter can delay or miss SSE push events between clients connected to different processes.
   - Do not enable multiple active server processes for the private/demo multiplayer release unless traffic is pinned to one process or a shared realtime transport is added.
+- **Version/build gating**
+  - Protocol and rules versions are compiled from `shared/multiplayerVersion.ts` and stored in each playing lobby.
+  - Recommended Replit envs: set the same deployment/commit value for `MULTIPLAYER_BUILD_ID` and `VITE_MULTIPLAYER_BUILD_ID`.
+  - Optional after verifying matching Replit build/runtime envs: `MULTIPLAYER_REQUIRE_BUILD_ID=true`.
 - **Multiplayer runtime flags**
   - `MULTIPLAYER_TURN_RECOVERY` (default: `true`): enable host timeout recovery flow for disconnected remote turns.
   - `MULTIPLAYER_TURN_TIMEOUT_MS` (default: `90000`): inactivity threshold before host can force remote `END_TURN`.

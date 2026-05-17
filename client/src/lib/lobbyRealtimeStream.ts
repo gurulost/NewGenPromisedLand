@@ -1,4 +1,5 @@
 import type { LobbyRealtimeEvent } from "@shared/types/lobbyRealtime";
+import { appendMultiplayerVersionQuery } from "./multiplayerVersion";
 
 export type LobbyRealtimeConnectionState = "connecting" | "open" | "error" | "unsupported";
 
@@ -33,7 +34,9 @@ const createEntry = (lobbyCode: string): LobbyRealtimeEntry => {
   };
 
   if (typeof window !== "undefined" && typeof window.EventSource !== "undefined") {
-    const source = new window.EventSource(`/api/lobbies/${encodeURIComponent(lobbyCode)}/realtime`);
+    const source = new window.EventSource(
+      appendMultiplayerVersionQuery(`/api/lobbies/${encodeURIComponent(lobbyCode)}/realtime`),
+    );
     source.onopen = () => {
       notifyState(entry, "open");
     };

@@ -1,4 +1,4 @@
-import type { Express, RequestHandler } from "express";
+import type { Express, Request, RequestHandler, Response } from "express";
 import { storage } from "./storage";
 import {
   getExpectedActorId,
@@ -15,6 +15,10 @@ import {
   validateSnapshotUpload,
 } from "./multiplayerPolicy";
 import { publishLobbyRealtimeEvent } from "./lobbyRealtimeBroker";
+import {
+  sendMultiplayerVersionGateError,
+  validateMultiplayerVersionRequest,
+} from "./multiplayerVersionGate";
 
 const HOST_LEASE_MS = 30000;
 const MAX_MULTIPLAYER_UPDATE_RETRIES = 5;
@@ -99,6 +103,15 @@ async function isParticipant(lobbyId: number, hostUserId: number, userId: number
   return hostUserId === userId || seats.some((seat) => seat.userId === userId);
 }
 
+function ensureMultiplayerVersion(req: Request, res: Response, lobbyState: LobbyState): boolean {
+  const versionGate = validateMultiplayerVersionRequest(req, lobbyState);
+  if (!versionGate.ok) {
+    sendMultiplayerVersionGateError(res, versionGate);
+    return false;
+  }
+  return true;
+}
+
 export function registerMultiplayerActionRoutes(
   app: Express,
   {
@@ -122,6 +135,7 @@ export function registerMultiplayerActionRoutes(
       }
 
       const lobbyState = (lobby.gameState as LobbyState) || {};
+      if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
       const snapshotVersion = Number(lobbyState.snapshotVersion ?? 0);
       const actionVersion = Number(lobbyState.actionVersion ?? 0);
       const since = typeof req.query.since === "string" ? Number(req.query.since) : Number.NaN;
@@ -155,6 +169,7 @@ export function registerMultiplayerActionRoutes(
         }
 
         const lobbyState = (lobby.gameState as LobbyState) || {};
+        if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
         const { hostEpoch: currentHostEpoch } = getHostMeta(lobbyState);
         if (hostEpoch !== currentHostEpoch) {
           return res.status(409).json({ error: "Host epoch mismatch", hostEpoch: currentHostEpoch });
@@ -214,6 +229,7 @@ export function registerMultiplayerActionRoutes(
         if (lobby.status !== "playing") return res.status(409).json({ error: "Game not in progress" });
 
         const lobbyState = (lobby.gameState as LobbyState) || {};
+        if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
         const playerMeta = getPlayersMeta(lobbyState).find((player) => player.playerId === actorId);
         if (!playerMeta) return res.status(400).json({ error: "Unknown player" });
         if (playerMeta.isAI) return res.status(403).json({ error: "AI actions must be submitted by host" });
@@ -299,6 +315,7 @@ export function registerMultiplayerActionRoutes(
       }
 
       const lobbyState = (lobby.gameState as LobbyState) || {};
+      if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
       const pendingVersion = Number(lobbyState.pendingVersion ?? 0);
       const since = Number(req.query.since ?? 0);
       if (Number.isFinite(since) && since >= pendingVersion) {
@@ -336,6 +353,7 @@ export function registerMultiplayerActionRoutes(
         }
 
         const lobbyState = (lobby.gameState as LobbyState) || {};
+        if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
         const { hostEpoch: currentHostEpoch } = getHostMeta(lobbyState);
         if (hostEpoch !== currentHostEpoch) {
           return res.status(409).json({ error: "Host epoch mismatch", hostEpoch: currentHostEpoch });
@@ -401,6 +419,7 @@ export function registerMultiplayerActionRoutes(
         if (lobby.hostUserId !== req.session.userId) return res.status(403).json({ error: "Only host can commit actions" });
 
         const lobbyState = (lobby.gameState as LobbyState) || {};
+        if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
         const { hostEpoch: currentHostEpoch } = getHostMeta(lobbyState);
         if (hostEpoch !== currentHostEpoch) {
           return res.status(409).json({ error: "Host epoch mismatch", hostEpoch: currentHostEpoch });
@@ -547,6 +566,7 @@ export function registerMultiplayerActionRoutes(
       }
 
       const lobbyState = (lobby.gameState as LobbyState) || {};
+      if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
       const actionVersion = Number(lobbyState.actionVersion ?? 0);
       const actions = getCommittedActions(lobbyState);
       const actionLogBaseVersion = Number(lobbyState.actionLogBaseVersion ?? 0);
