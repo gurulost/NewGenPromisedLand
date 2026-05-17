@@ -82,6 +82,13 @@ const events: Array<Record<string, unknown>> = [];
 const screenshots: string[] = [];
 const finalStates: Array<Record<string, unknown>> = [];
 const password = `CodexSmoke-${RUN_ID}-${randomUUID().slice(0, 10)}`;
+const REQUIRED_DEPLOYED_MARKERS = [
+  "lobby-join-code-input",
+  "lobby-room",
+  "lobby-authority-notice",
+  "lobby-start-game",
+  "Public unranked multiplayer is server-authoritative.",
+] as const;
 
 let lobbyCode: string | null = null;
 let lobbyId: number | null = null;
@@ -163,6 +170,69 @@ async function api(
     body = text;
   }
   return { response, status: response.status(), ok: response.ok(), body, text };
+}
+
+async function fetchText(url: string): Promise<{ ok: boolean; status: number; text: string }> {
+  const response = await fetch(url);
+  const text = await response.text();
+  return { ok: response.ok, status: response.status, text };
+}
+
+function resolveAssetUrl(src: string): string {
+  return new URL(src, `${BASE_URL}/`).toString();
+}
+
+async function preflightDeployedBundle() {
+  const home = await fetchText(`${BASE_URL}/`);
+  if (!home.ok) {
+    addIssue("blocker", "Could not fetch live app shell", {
+      status: home.status,
+      baseUrl: BASE_URL,
+    });
+    throw new Error(`live app shell fetch failed (${home.status})`);
+  }
+
+  const scriptSrcs = Array.from(home.text.matchAll(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi))
+    .map((match) => match[1])
+    .filter((src) => src.includes("/assets/"));
+
+  if (scriptSrcs.length === 0) {
+    addIssue("blocker", "Live app shell does not reference a bundled asset", {
+      baseUrl: BASE_URL,
+      htmlPreview: summarizeText(home.text),
+    });
+    throw new Error("missing deployed app bundle");
+  }
+
+  const bundleChecks = [];
+  for (const scriptSrc of scriptSrcs) {
+    const assetUrl = resolveAssetUrl(scriptSrc);
+    const asset = await fetchText(assetUrl);
+    if (!asset.ok) {
+      bundleChecks.push({ assetUrl, status: asset.status, missingMarkers: [...REQUIRED_DEPLOYED_MARKERS] });
+      continue;
+    }
+    const missingMarkers = REQUIRED_DEPLOYED_MARKERS.filter((marker) => !asset.text.includes(marker));
+    bundleChecks.push({
+      assetUrl,
+      status: asset.status,
+      byteLength: asset.text.length,
+      missingMarkers,
+    });
+    if (missingMarkers.length === 0) {
+      logEvent("deployed_bundle_preflight_passed", {
+        assetUrl,
+        byteLength: asset.text.length,
+      });
+      return;
+    }
+  }
+
+  addIssue("blocker", "Live deployment is missing the latest multiplayer smoke hooks", {
+    requiredMarkers: [...REQUIRED_DEPLOYED_MARKERS],
+    bundleChecks,
+  });
+  throw new Error("live deployment is missing latest multiplayer smoke hooks");
 }
 
 async function capturePage(agent: SmokeAgent, label: string) {
@@ -595,6 +665,8 @@ async function main() {
     headless: HEADLESS,
     buildId: BUILD_ID ?? null,
   });
+
+  await preflightDeployedBundle();
 
   browser = await chromium.launch({ headless: HEADLESS });
 
