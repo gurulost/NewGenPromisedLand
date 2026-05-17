@@ -206,9 +206,11 @@ describe("LobbyRoom faction selection", () => {
     expect(screen.getByTestId("lobby-copy-code")).toBeInTheDocument();
     expect(screen.getByTestId("lobby-refresh")).toBeInTheDocument();
     expect(screen.getByTestId("lobby-seat-0")).toBeInTheDocument();
+    expect(screen.getByTestId("lobby-seat-0")).toHaveAttribute("data-seat-state", "human");
     expect(screen.getByTestId("lobby-seat-0-faction")).toBeInTheDocument();
     expect(screen.getByTestId("lobby-seat-0-ready")).toBeInTheDocument();
     expect(screen.getByTestId("lobby-seat-1-claim")).toBeInTheDocument();
+    expect(screen.getByTestId("lobby-seat-1")).toHaveAttribute("data-seat-state", "empty");
     expect(screen.getByTestId("lobby-start-game")).toBeInTheDocument();
   });
 
@@ -244,6 +246,7 @@ describe("LobbyRoom faction selection", () => {
     render(<LobbyRoom />);
 
     expect(screen.getByTestId("lobby-seat-1-claim")).toBeInTheDocument();
+    expect(screen.getByTestId("lobby-seat-1")).toHaveAttribute("data-seat-state", "empty");
     expect(screen.getByTestId("lobby-seat-1")).toHaveTextContent("Empty Seat");
     expect(screen.getAllByText("Empty Seat")).toHaveLength(3);
     expect(screen.queryByText("Unknown")).not.toBeInTheDocument();

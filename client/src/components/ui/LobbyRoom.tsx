@@ -132,6 +132,7 @@ function SeatSlot({
   return (
     <div
       data-testid={`lobby-seat-${seatIndex}`}
+      data-seat-state={isEmpty ? "empty" : isAISeat ? "ai" : "human"}
       className={`p-3 rounded border ${
       isEmpty ? "border-amber-500/20 bg-slate-800/30" :
       seatHasSelectionIssue ? "border-rose-500/40 bg-rose-900/20" :

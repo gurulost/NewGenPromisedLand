@@ -88,6 +88,7 @@ const REQUIRED_DEPLOYED_MARKERS = [
   "lobby-room",
   "lobby-authority-notice",
   "lobby-start-game",
+  "data-seat-state",
   "Public unranked multiplayer is server-authoritative.",
 ] as const;
 
