@@ -1,0 +1,27 @@
+{
+  "name": "Covenant Legends",
+  "short_name": "Covenant",
+  "description": "A browser-based tactical strategy game inspired by the Book of Mormon.",
+  "id": "/",
+  "lang": "en-US",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "background_color": "#0f172a",
+  "theme_color": "#1e293b",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "strategy"]
+}

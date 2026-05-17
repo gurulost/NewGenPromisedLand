@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://covenant-legends.replit.app/sitemap.xml
+Sitemap: https://covenantlegends.com/sitemap.xml
