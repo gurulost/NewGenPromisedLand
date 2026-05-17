@@ -21,6 +21,7 @@ import {
   getUnitBuildRequirements,
   type BuildRequirement,
 } from "@shared/logic/buildingRequirements";
+import { getConstructionMenuOptions } from "@shared/logic/ruleQueries";
 import { BuildingMenu } from "./BuildingMenu";
 import { ActionTooltip } from "./TooltipSystem";
 import { Input } from "./input";
@@ -667,23 +668,28 @@ export default function CityPanel({ open, onClose, cityId }: CityPanelProps) {
           city={city}
           player={currentPlayer}
           gameState={gameState}
-          onBuild={(optionId) => {
-            // Determine building category
-            let category: 'improvements' | 'structures' | 'units';
-
-            if (Object.values(STRUCTURE_DEFINITIONS).some(s => s.id === optionId)) {
-              category = 'structures';
-            } else if (Object.values(UNIT_DEFINITIONS).some(u => u.type === optionId)) {
-              category = 'units';
-            } else {
-              category = 'improvements';
-            }
-
+          onBuild={(optionId, category) => {
             // For units, use spawn selection mode
             if (category === 'units') {
               handleRecruitUnit(optionId as UnitType);
               setShowAdvancedBuildingMenu(false);
               return;
+            }
+
+            if (category === 'improvements') {
+              const hasWorkerOption = getConstructionMenuOptions(gameState, currentPlayer.id, city.id)
+                .some(option =>
+                  option.action.type === 'START_CONSTRUCTION' &&
+                  option.action.payload.category === 'improvements' &&
+                  option.action.payload.buildingType === optionId
+                );
+              if (!hasWorkerOption) {
+                warning(
+                  'No Worker Available',
+                  `Cannot build ${optionId}: no available Worker can reach a legal target.`
+                );
+                return;
+              }
             }
 
             // For structures and improvements, use construction mode

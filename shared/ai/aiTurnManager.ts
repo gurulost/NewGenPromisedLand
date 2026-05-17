@@ -1,8 +1,8 @@
 import { GameAction, GameState, PlayerState } from '../types/game';
 import { executeAITurn, AIDecision, AIDifficulty } from './aiEngine';
 import { getUnitSpawnCoordinate } from '../logic/actions/spawnUtils';
-import { getFactionAbilityAvailability } from '../logic/factionAbilityAvailability';
 import { resolveActionState } from '../logic/resolveAction';
+import { explainAction, explainFactionAbilityAction } from '../logic/ruleQueries';
 import type { HexCoordinate } from '../types/coordinates';
 import type { UnitType } from '../types/unit';
 // Note: gameDebugger import removed to avoid cross-layer dependency
@@ -115,6 +115,11 @@ export class AITurnManager {
     try {
       const action = this.translateDecisionToAction(decision, aiPlayer);
       if (!action) {
+        return false;
+      }
+
+      const legality = explainAction(this.gameState, action, { actorId: aiPlayer.id });
+      if (!legality.legal) {
         return false;
       }
 
@@ -295,10 +300,22 @@ export class AITurnManager {
         }
         return null;
 
+      case 'START_FAITH_PROJECT':
+        if (decision.holyCityIds) {
+          return {
+            type: 'START_FAITH_PROJECT',
+            payload: {
+              playerId: aiPlayer.id,
+              holyCityIds: decision.holyCityIds,
+            },
+          };
+        }
+        return null;
+
       case 'USE_ABILITY':
         if (decision.abilityId) {
-          const availability = getFactionAbilityAvailability(this.gameState, aiPlayer.id, decision.abilityId);
-          if (!availability.available) return null;
+          const { availability, check } = explainFactionAbilityAction(this.gameState, aiPlayer.id, decision.abilityId);
+          if (!availability.available || !check.legal) return null;
 
           return {
             type: 'USE_ABILITY',

@@ -9,7 +9,7 @@ import { Badge } from './badge';
 import { Separator } from './separator';
 import { HexCoordinate } from '../../../../shared/types/coordinates';
 import { getWorldElement } from '../../../../shared/data/worldElements';
-import { canExecuteElementAction } from '../../../../shared/logic/worldElementActions';
+import { explainAction, type RuleCheck } from '../../../../shared/logic/ruleQueries';
 import { GameState } from '../../../../shared/types/game';
 
 import { TOKENS } from '../../theme/tokens';          // central colour tokens
@@ -28,6 +28,32 @@ interface DeltaProps {
   label?: string; // Custom label override
 }
 type DeltaType = 'stars' | 'faith' | 'pride' | 'dissent' | 'population' | 'costStars';
+
+function toActionSectionAvailability(check: RuleCheck): { canExecute: boolean; reason?: string } {
+  if (check.legal) return { canExecute: true };
+  const detailReason = typeof check.details?.reason === 'string' ? check.details.reason : undefined;
+  return {
+    canExecute: false,
+    reason: check.message ?? detailReason ?? check.reason.replace(/_/g, ' '),
+  };
+}
+
+function explainWorldElementAvailability(
+  gameState: GameState,
+  playerId: string,
+  elementId: string,
+  actionType: 'harvest' | 'build',
+  coordinate: HexCoordinate,
+  unitId: string | null,
+): { canExecute: boolean; reason?: string } {
+  if (!unitId) return { canExecute: false, reason: 'No eligible unit' };
+
+  return toActionSectionAvailability(explainAction(gameState, {
+    type: actionType === 'harvest' ? 'WORLD_ELEMENT_HARVEST' : 'WORLD_ELEMENT_BUILD',
+    payload: { playerId, unitId, elementId, coordinate },
+  }, { actorId: playerId }));
+}
+
 const ResourceDeltaBadge = React.memo(({ value, type, label }: DeltaProps) => {
   if (value === 0 && type !== 'costStars') return null;
   const t = TOKENS[type];
@@ -133,8 +159,8 @@ export function WorldElementPanel(props: WorldElementPanelProps) {
     return { harvestUnitId: defaultHarvest(), buildUnitId: defaultBuild() };
   }, [coordinate.q, coordinate.r, element, elementId, gameState.units, player, playerId, unitId]);
 
-  const harvest = canExecuteElementAction(gameState, playerId, elementId, 'harvest', coordinate, harvestUnitId ?? undefined);
-  const build = canExecuteElementAction(gameState, playerId, elementId, 'build', coordinate, buildUnitId ?? undefined);
+  const harvest = explainWorldElementAvailability(gameState, playerId, elementId, 'harvest', coordinate, harvestUnitId);
+  const build = explainWorldElementAvailability(gameState, playerId, elementId, 'build', coordinate, buildUnitId);
   const displayedLongTermAction = useMemo(() => {
     if (!element || !player) return null;
     if (!element.longTermBuild) return null;

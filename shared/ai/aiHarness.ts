@@ -1,6 +1,6 @@
 import { GameState, GameAction } from '../types/game';
 import { executeAITurn } from './aiEngine';
-import { getFactionAbilityAvailability } from '../logic/factionAbilityAvailability';
+import { explainFactionAbilityAction } from '../logic/ruleQueries';
 import { resolveActionState } from '../logic/resolveAction';
 
 type SimulationResult = {
@@ -53,6 +53,14 @@ export function simulateAITurns(initialState: GameState, maxTurns = 10): Simulat
           };
         }
         break;
+      case 'START_FAITH_PROJECT':
+        if (decision.holyCityIds) {
+          action = {
+            type: 'START_FAITH_PROJECT',
+            payload: { playerId, holyCityIds: decision.holyCityIds },
+          };
+        }
+        break;
       case 'CONQUER_VILLAGE':
         if (decision.unitId) {
           action = { type: 'CONQUER_VILLAGE', payload: { unitId: decision.unitId, playerId } };
@@ -99,8 +107,8 @@ export function simulateAITurns(initialState: GameState, maxTurns = 10): Simulat
         break;
       case 'USE_ABILITY':
         if (decision.abilityId) {
-          const availability = getFactionAbilityAvailability(state, playerId, decision.abilityId);
-          if (availability.available) {
+          const { availability, check } = explainFactionAbilityAction(state, playerId, decision.abilityId);
+          if (availability.available && check.legal) {
             action = { type: 'USE_ABILITY', payload: { playerId, abilityId: decision.abilityId } };
           }
         }

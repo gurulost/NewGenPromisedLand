@@ -5,8 +5,8 @@ import { Badge } from "./badge";
 import { Progress } from "./progress";
 import { Input } from "./input";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
-import { TECHNOLOGIES, getAvailableTechnologies, type Technology } from "@shared/data/technologies";
-import { getTechCostDetails, playerHasTechPrerequisites } from "@shared/logic/technologyHelpers";
+import { TECHNOLOGIES, type Technology } from "@shared/data/technologies";
+import { getTechnologyRuleSummary, type TechnologyRuleSummary } from "@shared/logic/ruleQueries";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
 import { getFaction } from "@shared/data/factions";
 import { GAME_RULES } from "@shared/data/gameRules";
@@ -64,23 +64,23 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
   const normalizedSearch = search.trim().toLowerCase();
 
+  const techRuleSummaries = useMemo<Record<string, TechnologyRuleSummary>>(() => {
+    if (!gameState || !currentPlayer) return {};
+    return Object.fromEntries(Object.keys(TECHNOLOGIES).map(techId => [
+      techId,
+      getTechnologyRuleSummary(gameState, currentPlayer.id, techId),
+    ]));
+  }, [gameState, currentPlayer]);
+
   const techStatuses = useMemo(() => {
     if (!currentPlayer) return {};
-    const availableTechs = getAvailableTechnologies(currentPlayer.researchedTechs);
     const statuses: Record<string, TechStatus> = {};
     Object.keys(TECHNOLOGIES).forEach(techId => {
-      if (currentPlayer.researchedTechs.includes(techId)) {
-        statuses[techId] = "researched";
-      } else if (currentPlayer.currentResearch === techId) {
-        statuses[techId] = "researching";
-      } else if (availableTechs.some(t => t.id === techId)) {
-        statuses[techId] = "available";
-      } else {
-        statuses[techId] = "locked";
-      }
+      const status = techRuleSummaries[techId]?.status;
+      statuses[techId] = status === "unknown" || !status ? "locked" : status;
     });
     return statuses;
-  }, [currentPlayer]);
+  }, [currentPlayer, techRuleSummaries]);
 
   // Compute path highlighting - all prerequisites leading to selected tech
   const highlightedTechs = useMemo(() => {
@@ -121,9 +121,8 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     const tech = TECHNOLOGIES[techId];
     if (!tech || !currentPlayer) return;
     const status = techStatuses[techId] || "locked";
-    const { finalCost } = getTechCostDetails(tech, currentPlayer);
-    const prerequisitesMet = playerHasTechPrerequisites(currentPlayer, tech);
-    if (status === "available" && prerequisitesMet && currentPlayer.stars >= finalCost) {
+    const summary = techRuleSummaries[techId];
+    if (status === "available" && summary?.check.legal) {
       vibrate('success');
       dispatch({
         type: "RESEARCH_TECHNOLOGY",
@@ -132,7 +131,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
     } else {
       vibrate('error');
     }
-  }, [techStatuses, currentPlayer, vibrate, dispatch]);
+  }, [techRuleSummaries, techStatuses, currentPlayer, vibrate, dispatch]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -493,7 +492,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
             <div className="flex items-center justify-between text-xs font-mono bg-black/20 rounded px-2 py-1">
               <span className="flex items-center gap-1">
                 <Star className="w-3 h-3 text-amber-400" />
-                {getTechCostDetails(tech, currentPlayer).finalCost}
+                {techRuleSummaries[tech.id]?.finalCost ?? tech.cost}
               </span>
               {status === 'researching' && <span className="text-amber-400 animate-pulse">Researching...</span>}
               {status === 'researched' && <span className="text-green-400">Acquired</span>}
@@ -958,7 +957,7 @@ export default function TechPanel({ open, onClose }: TechPanelProps) {
                     <div className="p-3 bg-slate-800 rounded-lg border border-slate-700">
                       <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Cost</div>
                       <div className="flex items-center gap-2 text-amber-400 font-mono text-lg">
-                        <Star className="w-4 h-4" /> {getTechCostDetails(detailTech, currentPlayer).finalCost}
+                        <Star className="w-4 h-4" /> {techRuleSummaries[detailTech.id]?.finalCost ?? detailTech.cost}
                       </div>
                     </div>
                     <div className="p-3 bg-slate-800 rounded-lg border border-slate-700">

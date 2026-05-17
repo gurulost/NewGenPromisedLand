@@ -5,7 +5,7 @@ import * as THREE from "three";
 import type { Unit as UnitType } from "@shared/types/unit";
 import { hexToPixel } from "@shared/utils/hex";
 import { getFaction } from "@shared/data/factions";
-import { canSelectUnit } from "@shared/logic/unitLogic";
+import { explainUnitSelection } from "@shared/logic/ruleQueries";
 import { getReachableTilesAsync } from "../../lib/pathfindingClient";
 import { useGameState } from "../../lib/stores/useGameState";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
@@ -412,7 +412,7 @@ export default function Unit({ unit, isSelected }: UnitProps) {
       unit.playerId
     );
 
-    if (gameState && canSelectUnit(unit, gameState)) {
+    if (gameState && explainUnitSelection(gameState, unit.id).legal) {
       setSelectedUnit(unit);
     } else {
       debugUnitLog("Cannot select unit - not current player's turn");

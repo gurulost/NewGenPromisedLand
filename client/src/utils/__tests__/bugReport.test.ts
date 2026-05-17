@@ -21,7 +21,7 @@ const gameUiState = {
   isMovementMode: true,
   isAttackMode: false,
   isRoadBuildMode: false,
-  constructionMode: { isActive: false },
+  constructionMode: { isActive: false, builderUnitId: null, allowAnyImprovement: false },
   spawnSelectionMode: { isActive: false, unitType: null },
 };
 

@@ -165,22 +165,21 @@ describe('Faith System', () => {
         });
     });
 
-    describe('Faith synergy combat bonuses', () => {
-        it('should give +1 defense to defender with 50+ faith', () => {
+    describe('Faith and combat', () => {
+        it('does not give passive defense from banked Faith', () => {
             const attacker: Unit = createWarrior('a1', 'lamanite1', { q: 0, r: 0, s: 0 });
             const defender: Unit = createWarrior('d1', 'nephite1', { q: 1, r: 0, s: -1 });
 
-            // Nephite has 50 faith, should get +1 defense in preview
             const preview = getCombatPreview(attacker as any, defender as any, {
               ...mockState,
               units: [attacker, defender]
             } as any);
 
             expect(preview?.canAttack).toBe(true);
-            expect(preview?.modifiers.defender.join(' ')).toMatch(/Faith/i);
+            expect(preview?.modifiers.defender.join(' ')).not.toMatch(/Faith/i);
         });
 
-        it('should give +2 attack to attacker with 70+ faith', () => {
+        it('does not give passive attack from banked Faith', () => {
             mockState.players[0].stats.faith = 75;
 
             const attacker: Unit = createWarrior('a1', 'nephite1', { q: 0, r: 0, s: 0 });
@@ -192,7 +191,7 @@ describe('Faith System', () => {
             } as any);
 
             expect(preview?.canAttack).toBe(true);
-            expect(preview?.modifiers.attacker.join(' ')).toMatch(/High Faith/i);
+            expect(preview?.modifiers.attacker.join(' ')).not.toMatch(/Faith/i);
         });
     });
 

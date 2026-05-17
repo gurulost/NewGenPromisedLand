@@ -8,7 +8,7 @@ vi.mock('../client/src/components/ui/BuildingMenu', () => ({
   BuildingMenu: ({ onClose, onBuild }: any) => (
     <div data-testid="building-menu">
       <button onClick={onClose}>Close Menu</button>
-      <button onClick={() => onBuild('warrior')}>Build Warrior</button>
+      <button onClick={() => onBuild('warrior', 'units')}>Build Warrior</button>
     </div>
   ),
 }));

@@ -21,6 +21,7 @@ import { applyTestimonyPressureToTargets, getTestimonyPressureSelection } from "
 import { onTurnStartUnit } from "../effects";
 import { getUnitAttackRangeFromDefinition, resetUnitActions, spendUnitActions } from "../unitLogic";
 import { findNextTurnPlayerIndex, normalizeTurnPlayerIndex } from "../turnOrder";
+import { resolveFaithProjectOnEndTurn } from "../faithProject";
 
 
 export type VictoryType = "faith" | "territorial" | "elimination" | "economic" | "cultural" | "domination";
@@ -242,7 +243,6 @@ function getCulturalStructureCount(state: GameState, playerId: string): number {
 function getVictoryTiebreakStats(state: GameState, player: PlayerState) {
   return {
     cities: player.citiesOwned.length,
-    faith: player.stats.faith,
     techs: player.researchedTechs.length,
     units: state.units.filter(u => u.playerId === player.id).length,
   };
@@ -254,7 +254,6 @@ function pickWinnerByTiebreaker(state: GameState, candidates: PlayerState[]): Pl
     const aStats = getVictoryTiebreakStats(state, a);
     const bStats = getVictoryTiebreakStats(state, b);
     if (aStats.cities !== bStats.cities) return bStats.cities - aStats.cities;
-    if (aStats.faith !== bStats.faith) return bStats.faith - aStats.faith;
     if (aStats.techs !== bStats.techs) return bStats.techs - aStats.techs;
     return bStats.units - aStats.units;
   })[0];
@@ -842,16 +841,39 @@ export function handleEndTurn(
     }
   }
 
-  const nextTurnValue = isNewTurn ? state.turn + 1 : state.turn;
-  const victoryState: GameState = {
+  const faithProjectState: GameState = {
     ...state,
     units: updatedUnits,
+    players: updatedPlayers,
     improvements: updatedImprovements,
     structures: updatedStructures,
     cities: updatedCities,
     activeEffects: updatedActiveEffects,
   };
-  const victory = checkVictoryConditions(victoryState, updatedPlayers, { turnOverride: nextTurnValue });
+  const faithProjectResolution = resolveFaithProjectOnEndTurn(faithProjectState, currentPlayer.id);
+  if (faithProjectResolution.events.length > 0) {
+    endTurnEvents.push(...faithProjectResolution.events);
+  }
+  updatedPlayers = faithProjectResolution.state.players;
+  updatedUnits = faithProjectResolution.state.units;
+  updatedImprovements = faithProjectResolution.state.improvements || [];
+  updatedStructures = faithProjectResolution.state.structures || [];
+  updatedCities = faithProjectResolution.state.cities || [];
+  updatedActiveEffects = faithProjectResolution.state.activeEffects || [];
+
+  const nextTurnValue = isNewTurn ? state.turn + 1 : state.turn;
+  const victoryState: GameState = {
+    ...state,
+    units: updatedUnits,
+    players: updatedPlayers,
+    improvements: updatedImprovements,
+    structures: updatedStructures,
+    cities: updatedCities,
+    activeEffects: updatedActiveEffects,
+  };
+  const victory = faithProjectResolution.completed
+    ? { winnerId: currentPlayer.id, victoryType: "faith" as const }
+    : checkVictoryConditions(victoryState, updatedPlayers, { turnOverride: nextTurnValue });
 
   return {
     ...state,
@@ -890,17 +912,6 @@ export function checkVictoryConditions(
   const activePlayers = players.filter(p => p.citiesOwned.length > 0);
   const totalOwnedCities = players.reduce((sum, p) => sum + p.citiesOwned.length, 0);
   const turn = context?.turnOverride ?? state.turn;
-
-  if (GAME_RULES.victory.faithEnabled) {
-    const faithCandidates = activePlayers.filter(player =>
-      GameRuleHelpers.hasFaithVictory(player.stats.faith) &&
-      player.stats.internalDissent <= GAME_RULES.victory.faithDissentMax
-    );
-    const faithWinner = pickWinnerByTiebreaker(state, faithCandidates);
-    if (faithWinner) {
-      return { winnerId: faithWinner.id, victoryType: "faith" };
-    }
-  }
 
   const economicCandidates = activePlayers.filter(player => {
     const income = calculatePlayerStarIncome(state, player);

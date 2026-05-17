@@ -9,8 +9,9 @@ import { City } from '../types/city';
 import { HexCoordinate } from '../types/coordinates';
 import { coordToKey, hexDistance, hexNeighbors } from '../utils/hex';
 import { getUnitDefinition } from '../data/units';
-import { getUnitAttackRangeFromDefinition } from '../logic/unitLogic';
+import { getRuleUnitAttackRangeFromDefinition } from '../logic/ruleQueries';
 import { SeededRNG } from './aiFoundation';
+import { cityHasCompletedStructure, getActiveFaithProject, isPlayerThreateningFaithVictory } from '../logic/faithProject';
 
 export interface InfluenceMap {
   // Positive values = friendly influence, negative = enemy influence
@@ -87,7 +88,7 @@ export class TacticalEngine {
       for (const unit of this.gameState.units) {
         const distance = hexDistance(coord, unit.coordinate);
         const unitDef = getUnitDefinition(unit.type);
-        const range = Math.max(getUnitAttackRangeFromDefinition(unitDef), 3);
+        const range = Math.max(getRuleUnitAttackRangeFromDefinition(unitDef), 3);
 
         if (distance <= range) {
           const influence = this.calculateUnitInfluence(unit, distance);
@@ -141,7 +142,7 @@ export class TacticalEngine {
     for (const enemy of enemyUnits) {
       const distance = hexDistance(coordinate, enemy.coordinate);
       const unitDef = getUnitDefinition(enemy.type);
-      const attackRange = getUnitAttackRangeFromDefinition(unitDef);
+      const attackRange = getRuleUnitAttackRangeFromDefinition(unitDef);
       const movementRange = enemy.remainingMovement || unitDef.baseStats.movement;
 
       // Can this unit threaten this position this turn or next?
@@ -179,7 +180,7 @@ export class TacticalEngine {
   findTacticalTargets(unit: Unit): TacticalTarget[] {
     const targets: TacticalTarget[] = [];
     const unitDef = getUnitDefinition(unit.type);
-    const attackRange = getUnitAttackRangeFromDefinition(unitDef);
+    const attackRange = getRuleUnitAttackRangeFromDefinition(unitDef);
     const maxRange = unit.remainingMovement + attackRange;
 
     // 1. Enemy units within range (only those we are at war with)
@@ -354,6 +355,11 @@ export class TacticalEngine {
       priority *= 2;
     }
 
+    if (target.type === 'missionary' || target.type === 'converted_missionary') {
+      const owner = this.gameState.players.find(player => player.id === target.playerId);
+      priority += owner && isPlayerThreateningFaithVictory(owner, this.gameState) ? 42 : 22;
+    }
+
     // Range consideration
     const distance = hexDistance(attacker.coordinate, target.coordinate);
     const rangeBonus = distance <= 1 ? 1.3 : 1.0;
@@ -369,6 +375,20 @@ export class TacticalEngine {
 
     // Size bonus
     priority *= (1 + city.population * 0.1);
+
+    const owner = city.ownerId
+      ? this.gameState.players.find(player => player.id === city.ownerId)
+      : undefined;
+    if (owner && isPlayerThreateningFaithVictory(owner, this.gameState)) {
+      const project = getActiveFaithProject(owner);
+      const isActiveHolyCity = Boolean(project?.holyCityIds.includes(city.id));
+      const hasTemple = cityHasCompletedStructure(this.gameState, owner.id, city.id, 'temple');
+      const hasCathedral = cityHasCompletedStructure(this.gameState, owner.id, city.id, 'cathedral');
+      priority +=
+        (isActiveHolyCity ? 55 : 0) +
+        (hasCathedral ? 30 : 0) +
+        (hasTemple ? 18 : 0);
+    }
 
     return priority;
   }
@@ -461,7 +481,7 @@ export class TacticalEngine {
     for (const enemy of enemyUnits) {
       const dist = hexDistance(coord, enemy.coordinate);
       const enemyDef = getUnitDefinition(enemy.type);
-      const attackRange = getUnitAttackRangeFromDefinition(enemyDef);
+      const attackRange = getRuleUnitAttackRangeFromDefinition(enemyDef);
 
       if (dist <= attackRange) {
         safety -= 30; // In attack range - bad!

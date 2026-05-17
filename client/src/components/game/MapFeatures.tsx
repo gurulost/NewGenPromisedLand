@@ -7,6 +7,7 @@ import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
 import { getUnitDefinition } from "@shared/data/units";
 import { getFaction } from "@shared/data/factions";
 import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
+import { getActiveFaithProject } from "@shared/logic/faithProject";
 import type { HexCoordinate } from "@shared/types/coordinates";
 import Construction from "./Construction";
 import { CityModel } from "./CityModel";
@@ -417,6 +418,10 @@ export default function MapFeatures() {
   }, [gameState, visibleTiles]);
   
   if (!gameState) return null;
+
+  const activeHolyCityIds = new Set(
+    gameState.players.flatMap(player => getActiveFaithProject(player)?.holyCityIds ?? [])
+  );
   
   // Function to render resource models with enhanced visuals and tooltips
   const renderResource = (resource: string, position: { x: number; y: number }, key: string) => {
@@ -575,6 +580,19 @@ export default function MapFeatures() {
             {/* Render Structures around the city */}
             {cityStructures.map((structure, structureIndex) => 
               renderStructure(structure, position, structureIndex, `${city.id}-${structure.id}`)
+            )}
+
+            {activeHolyCityIds.has(city.id) && (
+              <group>
+                <Torus position={[position.x, 0.08, position.y]} args={[0.78, 0.035, 8, 36]} rotation={[Math.PI / 2, 0, 0]}>
+                  <meshStandardMaterial color="#7dd3fc" emissive="#38bdf8" emissiveIntensity={0.55} transparent opacity={0.85} />
+                </Torus>
+                <Html position={[position.x, 1.15, position.y]} style={{ pointerEvents: "none" }}>
+                  <div className="rounded border border-sky-300/40 bg-slate-950/75 px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-sky-100 shadow">
+                    Holy City
+                  </div>
+                </Html>
+              </group>
             )}
           </group>
         );

@@ -262,7 +262,7 @@ describe('BuildingMenu Component', () => {
     const buildButton = within(card as HTMLElement).getByRole('button', { name: /build/i });
     await user.click(buildButton);
 
-    expect(mockOnBuild).toHaveBeenCalledWith('warrior');
+    expect(mockOnBuild).toHaveBeenCalledWith('warrior', 'units');
   });
 
   it('respects technology requirements', () => {

@@ -33,11 +33,13 @@ import { getFaction } from '@shared/data/factions';
 import { coerceFactionId } from '@shared/types/factionId';
 import { GameRuleHelpers, GAME_RULES } from '@shared/data/gameRules';
 import { TECHNOLOGIES } from '@shared/data/technologies';
+import { getActiveFaithProject } from '@shared/logic/faithProject';
 import { getPlayerStats, PlayerStats } from '../../selectors/player';
 import { useAutosaveStatus } from '../../lib/stores/useAutosaveStatus';
 import { useTutorialStore } from '../../lib/stores/useTutorial';
 import { useLocalGame } from '../../lib/stores/useLocalGame';
 import { useMobileUI } from '../../hooks/useMobileUI';
+import { FaithProjectPanel } from './FaithProjectPanel';
 
 function formatRelativeTime(ts: number): string {
   const deltaMs = Date.now() - ts;
@@ -119,6 +121,7 @@ export function PlayerHUD({
   const [victoryOpen, setVictoryOpen] = useState(false);
   const openTutorialIfNeeded = useTutorialStore((state) => state.openIfNeeded);
   const gameMode = useLocalGame((state) => state.gameMode);
+  const dispatch = useLocalGame((state) => state.dispatch);
   const { isSmallViewport } = useMobileUI();
   const panelRef = useRef<HTMLDivElement>(null);
   const compactLayout = isSmallViewport;
@@ -278,6 +281,12 @@ export function PlayerHUD({
             playerStats={playerStats}
             isOpen={victoryOpen}
             onToggle={handleVictoryToggle}
+            onStartFaithProject={(holyCityIds) => {
+              dispatch({
+                type: 'START_FAITH_PROJECT',
+                payload: { playerId: player.id, holyCityIds },
+              });
+            }}
             compact={compactLayout}
           />
 
@@ -527,6 +536,7 @@ const VictoryProgressSection = React.memo(
     playerStats,
     isOpen,
     onToggle,
+    onStartFaithProject,
     compact = false,
   }: {
     player: PlayerState;
@@ -534,16 +544,19 @@ const VictoryProgressSection = React.memo(
     playerStats: PlayerStats;
     isOpen: boolean;
     onToggle: (open: boolean) => void;
+    onStartFaithProject: (holyCityIds: [string, string, string]) => void;
     compact?: boolean;
   }) => {
     const playerCount = gameState.players.length;
     const economicTargets = GameRuleHelpers.getEconomicVictoryThresholds(playerCount);
     const culturalTargets = GameRuleHelpers.getCulturalVictoryThresholds(playerCount);
+    const faithVictory = GAME_RULES.victory.faithVictory;
     const totalTechs = Object.keys(TECHNOLOGIES).length || 1;
     const techPercent = Math.round((player.researchedTechs.length / totalTechs) * 100);
 
     const ownedCities = (gameState.cities || []).filter((city) => city.ownerId === player.id);
     const population = ownedCities.reduce((sum, city) => sum + (city.population || 0), 0);
+    const activeFaithProject = getActiveFaithProject(player);
 
     const culturalStructureCount =
       (gameState.structures || []).filter(
@@ -567,14 +580,22 @@ const VictoryProgressSection = React.memo(
     const maxTurns = GAME_RULES.turns.maxTurnsPerGame;
     const turnLabel = maxTurns > 0 ? `${gameState.turn}/${maxTurns}` : `${gameState.turn}/no cap`;
 
+    const faithTileDetail = activeFaithProject
+      ? activeFaithProject.pausedReason
+        ? `Paused: ${activeFaithProject.pausedReason}`
+        : `Pay ${faithVictory.faithCostPerProgress} Faith and ${faithVictory.starsCostPerProgress} Stars at your turn end.`
+      : `Start on turn ${faithVictory.minTurnToStart}+ with ${faithVictory.minFaithToStart} Faith, Dissent ${faithVictory.maxDissentToStart} or lower, and 3 Temple cities.`;
+
     const summaryTiles = [
-      ...(GAME_RULES.victory.faithEnabled
+      ...(faithVictory.enabled
         ? [{
-            key: 'faith',
-            label: 'Faith',
-            value: `${player.stats.faith}/${GAME_RULES.victory.faithThreshold}`,
+            key: 'faithProject',
+            label: 'Consecration',
+            value: activeFaithProject
+              ? `${activeFaithProject.progress}/${faithVictory.progressToWin}`
+              : `${player.stats.faith}/${faithVictory.minFaithToStart}`,
             tone: 'border-sky-400/20 bg-sky-500/10 text-sky-50',
-            detail: `Reach ${GAME_RULES.victory.faithThreshold} Faith while keeping Dissent at ${GAME_RULES.victory.faithDissentMax} or lower.`,
+            detail: faithTileDetail,
           }]
         : []),
       {
@@ -623,8 +644,8 @@ const VictoryProgressSection = React.memo(
                     ariaLabel="Victory conditions"
                     content={
                       <div className="space-y-1 text-xs">
-                        {GAME_RULES.victory.faithEnabled && (
-                          <div>Faith: reach threshold with low dissent.</div>
+                        {faithVictory.enabled && (
+                          <div>Consecration: sustain a 3-turn Faith Project through 3 Temple cities.</div>
                         )}
                         <div>Economic: income + treasury + tech percent.</div>
                         <div>Cultural: population + cultural sites + low dissent.</div>
@@ -691,6 +712,12 @@ const VictoryProgressSection = React.memo(
               </div>
             ))}
           </div>
+
+          <FaithProjectPanel
+            player={player}
+            gameState={gameState}
+            onStartFaithProject={onStartFaithProject}
+          />
         </CollapsibleContent>
       </Collapsible>
     );

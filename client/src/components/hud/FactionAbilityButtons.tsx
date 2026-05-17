@@ -3,7 +3,7 @@ import { Sparkles } from 'lucide-react';
 
 import { ABILITIES } from '@shared/data/abilities';
 import { getFaction } from '@shared/data/factions';
-import { getFactionAbilityAvailability, type FactionAbilityAvailability } from '@shared/logic/factionAbilityAvailability';
+import { explainFactionAbilityAction, type FactionAbilityAvailability } from '@shared/logic/ruleQueries';
 import { coerceFactionId } from '@shared/types/factionId';
 import type { GameState, PlayerState } from '@shared/types/game';
 
@@ -83,14 +83,16 @@ export function FactionAbilityButtons({
       <div className={clsx(isMobileMenu ? 'grid grid-cols-1 gap-2' : 'space-y-2')}>
         {activeAbilities.map(factionAbility => {
           const ability = ABILITIES[factionAbility.id];
-          const availability = getFactionAbilityAvailability(gameState, player.id, factionAbility.id);
-          const available = availability.available;
-          const reason = formatBlockedReason(availability);
+          const { availability, check } = explainFactionAbilityAction(gameState, player.id, factionAbility.id);
+          const available = availability.available && check.legal;
+          const reason = availability.available && !check.legal
+            ? check.reason.replace(/_/g, ' ')
+            : formatBlockedReason(availability);
           const costLabel = getAbilityCostLabel(availability);
           const abilityName = ability?.name ?? factionAbility.name;
           const helperText = available
             ? availability.spec.ui.ready
-            : availability.spec?.ui.blocked ?? reason;
+            : check.message ?? availability.spec?.ui.blocked ?? reason;
 
           return (
             <button

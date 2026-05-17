@@ -1,6 +1,6 @@
-import type { GameState, PlayerState } from "@shared/types/game";
+import type { GameState } from "@shared/types/game";
 import type { Unit } from "@shared/types/unit";
-import { getActionAvailabilityForUnit } from "@shared/logic/actionAvailability";
+import { getUnitRuleSummary } from "@shared/logic/ruleQueries";
 import { getUnitDefinition } from "@shared/data/units";
 
 /**
@@ -28,12 +28,32 @@ export function getActionAvailability(
   gameState: GameState
 ): ActionAvailability {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  const owner = gameState.players.find(p => p.id === unit.playerId) ?? currentPlayer;
-  const shared = getActionAvailabilityForUnit(unit, owner, gameState);
+  const stateForUnit = gameState.units.some(candidate => candidate.id === unit.id)
+    ? {
+      ...gameState,
+      units: gameState.units.map(candidate => candidate.id === unit.id ? unit : candidate),
+    }
+    : gameState;
+  const shared = getUnitRuleSummary(stateForUnit, unit.id, unit.playerId);
   const unitDef = getUnitDefinition(unit.type);
   const rawAbilityCount = ((unit.abilities && unit.abilities.length > 0) ? unit.abilities : unitDef?.abilities || []).length;
   const abilityCount = unit.type === "commander" ? 1 : rawAbilityCount;
   const isPlayerTurn = gameState.phase === 'playing' && currentPlayer?.id === unit.playerId;
+  if (!shared) {
+    return {
+      canMove: false,
+      canAttack: false,
+      hasAbilities: false,
+      canHarvest: false,
+      canBuild: false,
+      reachableTilesCount: 0,
+      attackTargetsCount: 0,
+      isPlayerTurn,
+      movementReason: "Unit not found",
+      attackReason: "Unit not found",
+      abilityReason: "Unit not found",
+    };
+  }
   const movementReason =
     shared.canMove
       ? `${shared.reachableTilesCount} tiles available`

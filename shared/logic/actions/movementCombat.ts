@@ -10,11 +10,12 @@ import {
   spendUnitActions
 } from "../unitLogic";
 import { upsertActiveEffect } from "../activeEffects";
-import { createResolveResult, createVillageEncounterEvent, type ResolveResult } from "../actionResolution";
+import { createResolveResult, createVillageEncounterEvent, type GameEvent, type ResolveResult } from "../actionResolution";
 import { emitTelemetry } from "../telemetry";
 import { resolveCombat } from "../combatResolver";
 import { applyStatusEffect } from "../statusEffects";
 import { getTurnPlayer } from "../turnOrder";
+import { applyUnitDeathFaithShock } from "../faithProject";
 
 function applyIntimidateToAdjacentEnemies(
   units: Unit[],
@@ -177,21 +178,21 @@ export function handleMoveUnit(
 export function handleAttackUnit(
   state: GameState,
   payload: { attackerId: string; targetId: string }
-): GameState {
+): ResolveResult {
   const attacker = state.units.find((u: Unit) => u.id === payload.attackerId);
   const target = state.units.find((u: Unit) => u.id === payload.targetId);
 
-  if (!attacker || !target) return state;
+  if (!attacker || !target) return createResolveResult(state);
 
   const currentPlayer = getTurnPlayer(state.players, state.currentPlayerIndex);
-  if (!currentPlayer) return state;
-  if (attacker.playerId !== currentPlayer.id) return state;
+  if (!currentPlayer) return createResolveResult(state);
+  if (attacker.playerId !== currentPlayer.id) return createResolveResult(state);
 
   // Prevent friendly fire - cannot attack units from the same player
-  if (attacker.playerId === target.playerId) return state;
+  if (attacker.playerId === target.playerId) return createResolveResult(state);
 
   // Check if unit has remaining actions this turn
-  if (getUnitActionsRemaining(attacker) <= 0) return state;
+  if (getUnitActionsRemaining(attacker) <= 0) return createResolveResult(state);
 
   const distance = hexDistance(attacker.coordinate, target.coordinate);
 
@@ -242,14 +243,14 @@ export function handleAttackUnit(
         };
       });
 
-      return {
+      return createResolveResult({
         ...state,
         players: updatedPlayers,
         units: state.units.map(u => u.id === attacker.id ? spendUnitActions(u) : u)
-      };
+      });
     }
 
-    return state;
+    return createResolveResult(state);
   }
 
   const newHp = combatResult.defenderHp;
@@ -307,7 +308,9 @@ export function handleAttackUnit(
   });
 
   const killedUnits = updatedUnits.filter(u => u.hp <= 0);
+  let updatedPlayers = state.players;
   let updatedActiveEffects = [...(state.activeEffects || [])];
+  const events: GameEvent[] = [];
   if (killedUnits.length > 0) {
     const killedIds = new Set(killedUnits.map(u => u.id));
     let survivingUnits = updatedUnits.filter(u => !killedIds.has(u.id));
@@ -366,11 +369,27 @@ export function handleAttackUnit(
     });
 
     updatedUnits = survivingUnits;
+
+    let faithShockState: GameState = {
+      ...state,
+      players: updatedPlayers,
+      units: updatedUnits,
+      activeEffects: updatedActiveEffects,
+    };
+    killedUnits.forEach(deadUnit => {
+      const result = applyUnitDeathFaithShock(faithShockState, deadUnit);
+      faithShockState = result.state;
+      events.push(...result.events);
+    });
+    updatedPlayers = faithShockState.players;
+    updatedUnits = faithShockState.units;
+    updatedActiveEffects = faithShockState.activeEffects || updatedActiveEffects;
   }
 
-  return {
+  return createResolveResult({
     ...state,
+    players: updatedPlayers,
     units: updatedUnits,
     activeEffects: updatedActiveEffects,
-  };
+  }, { events });
 }

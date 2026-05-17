@@ -2,6 +2,7 @@ import { City, STRUCTURE_DEFINITIONS, StructureType } from '@shared/types/city';
 import { coerceFactionId } from '@shared/types/factionId';
 import { GameState, PlayerState } from '@shared/types/game';
 import { UNIT_DEFINITIONS } from '@shared/data/units';
+import { getLegalCityActions } from '@shared/logic/ruleQueries';
 
 export interface CityValidation {
   canAffordStructure: (structureId: string) => boolean;
@@ -74,15 +75,23 @@ export function getCityValidation(city: City, player: PlayerState, gameState: Ga
   };
 
   const getAvailableStructures = (): string[] => {
-    return Object.keys(STRUCTURE_DEFINITIONS).filter(structureId => 
-      hasStructurePrerequisites(structureId)
-    );
+    const ids = new Set<string>();
+    for (const option of getLegalCityActions(gameState, city.id, player.id)) {
+      if (option.action.type === 'START_CONSTRUCTION' && option.action.payload.category === 'structures') {
+        ids.add(option.action.payload.buildingType);
+      }
+    }
+    return Array.from(ids);
   };
 
   const getAvailableUnits = (): string[] => {
-    return Object.keys(UNIT_DEFINITIONS).filter(unitId => 
-      hasUnitPrerequisites(unitId)
-    );
+    const ids = new Set<string>();
+    for (const option of getLegalCityActions(gameState, city.id, player.id)) {
+      if (option.action.type === 'START_CONSTRUCTION' && option.action.payload.category === 'units') {
+        ids.add(option.action.payload.buildingType);
+      }
+    }
+    return Array.from(ids);
   };
 
   return {

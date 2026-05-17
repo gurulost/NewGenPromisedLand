@@ -182,7 +182,7 @@ describe('GameUI hotkeys while typing', () => {
     (useGameState as any).mockReturnValue({
       selectedUnit: { id: 'u1', playerId: 'player1', coordinate: { q: 0, r: 0, s: 0 } },
       setSelectedUnit: mockSetSelectedUnit,
-      constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null },
+      constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null, builderUnitId: null, allowAnyImprovement: false },
       cancelConstruction: vi.fn(),
       spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [] },
       cancelSpawnSelection: vi.fn(),

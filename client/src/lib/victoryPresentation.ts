@@ -68,12 +68,12 @@ const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
 export const VICTORY_THEMES: Record<VictoryType, VictoryTheme> = {
   faith: {
-    title: "Divine Victory",
-    shortTitle: "Divine",
+    title: "Consecration Victory",
+    shortTitle: "Consecration",
     banner: "Covenant Fulfilled",
-    revealLine: "Holy radiance travels from shrine to shrine as the land yields to the faithful.",
+    revealLine: "Holy radiance travels between the three consecrated cities as the land answers the covenant.",
     description:
-      "Through unwavering faith and spiritual leadership, you have achieved divine enlightenment and brought peace to the land.",
+      "Through sustained faith, low dissent, and protected holy cities, you completed the Consecration project.",
     accentColor: "#8dd8ff",
     accentSoft: "rgba(141, 216, 255, 0.22)",
     particleTone: "faith",
@@ -415,29 +415,30 @@ export function getVictoryMetricCards(
 
   switch (victoryType) {
     case "faith":
+      const faithProject = winner.faithProject;
       return [
         {
-          key: "faith",
-          label: "Faith",
-          value: `${winner.stats.faith}/${GAME_RULES.victory.faithThreshold}`,
-          detail: "The covenant threshold was crossed before any rival could answer.",
-          progress: clamp01(winner.stats.faith / GAME_RULES.victory.faithThreshold),
+          key: "consecration",
+          label: "Consecration",
+          value: `${faithProject?.progress ?? GAME_RULES.victory.faithVictory.progressToWin}/${GAME_RULES.victory.faithVictory.progressToWin}`,
+          detail: "The three-turn Faith Project was sustained through its final upkeep.",
+          progress: clamp01((faithProject?.progress ?? GAME_RULES.victory.faithVictory.progressToWin) / GAME_RULES.victory.faithVictory.progressToWin),
+        },
+        {
+          key: "holyCities",
+          label: "Holy Cities",
+          value: `${faithProject?.holyCityIds?.length ?? GAME_RULES.victory.faithVictory.holyCitiesRequired}/${GAME_RULES.victory.faithVictory.holyCitiesRequired}`,
+          detail: "Three Temple cities anchored the project, with Cathedral support in the network.",
+          progress: clamp01((faithProject?.holyCityIds?.length ?? GAME_RULES.victory.faithVictory.holyCitiesRequired) / GAME_RULES.victory.faithVictory.holyCitiesRequired),
         },
         {
           key: "dissent",
-          label: "Dissent",
-          value: `${winner.stats.internalDissent}/${GAME_RULES.victory.faithDissentMax} max`,
-          detail: "Spiritual victory held because unrest stayed within the sacred limit.",
-          progress: winner.stats.internalDissent <= GAME_RULES.victory.faithDissentMax
+          label: "Final Dissent",
+          value: `${winner.stats.internalDissent}/${GAME_RULES.victory.faithVictory.maxDissentToMaintain} max`,
+          detail: "The project held because unrest stayed within the maintenance limit.",
+          progress: winner.stats.internalDissent <= GAME_RULES.victory.faithVictory.maxDissentToMaintain
             ? 1
-            : clamp01(GAME_RULES.victory.faithDissentMax / Math.max(1, winner.stats.internalDissent)),
-        },
-        {
-          key: "cities",
-          label: "Cities Anchored",
-          value: `${winner.citiesOwned.length}`,
-          detail: "Holy influence spread through the winner's final urban network.",
-          progress: clamp01(winner.citiesOwned.length / Math.max(3, totalCities)),
+            : clamp01(GAME_RULES.victory.faithVictory.maxDissentToMaintain / Math.max(1, winner.stats.internalDissent)),
         },
       ];
     case "territorial":
@@ -582,7 +583,7 @@ export function getVictoryDecisiveMoment(
 
   switch (victoryType) {
     case "faith":
-      return `Turn ${gameState.turn}: ${winner.name} crossed ${GAME_RULES.victory.faithThreshold} Faith while holding Dissent at ${winner.stats.internalDissent}.`;
+      return `Turn ${gameState.turn}: ${winner.name} completed the Consecration project through three holy cities.`;
     case "territorial":
       return `Turn ${gameState.turn}: ${focusCity?.name ?? "The frontier capital"} anchored control of ${winner.citiesOwned.length} cities.`;
     case "elimination":

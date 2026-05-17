@@ -1,9 +1,8 @@
 import { Unit } from '@shared/types/unit';
-import { GameState, PlayerState } from '@shared/types/game';
+import { GameState } from '@shared/types/game';
 import { getUnitDefinition } from '@shared/data/units';
 import { hexDistance } from '@shared/utils/hex';
-import { resolveCombat } from '@shared/logic/combatResolver';
-import { isUnitVisibleToPlayer } from '@shared/logic/unitLogic';
+import { getCombatRulePreview, getLegalUnitActions } from '@shared/logic/ruleQueries';
 
 export interface CombatOdds {
   attackerWinChance: number;
@@ -23,7 +22,9 @@ export function getCombatOdds(attacker: Unit, defender: Unit, gameState?: GameSt
   const hpRatio = attacker.hp / attackerDef.baseStats.hp;
   const defenderHpRatio = defender.hp / defenderDef.baseStats.hp;
 
-  const resolution = gameState ? resolveCombat(attacker, defender, gameState) : null;
+  const resolution = gameState
+    ? getCombatRulePreview(gameState, attacker.id, defender.id, attacker.playerId).preview
+    : null;
   const expectedDamageToDefender =
     resolution?.attackerDamage ??
     Math.max(1, Math.round(attacker.attack * hpRatio - defender.defense * defenderHpRatio * 0.5));
@@ -71,29 +72,21 @@ export function canAttackTarget(attacker: Unit, target: Unit, gameState: GameSta
     return { canAttack: false, reason: 'Invalid units' };
   }
 
-  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  if (attacker.playerId !== currentPlayer.id) {
-    return { canAttack: false, reason: 'Not your turn' };
-  }
-
-  const resolution = resolveCombat(attacker, target, gameState);
+  const resolution = getCombatRulePreview(gameState, attacker.id, target.id, attacker.playerId).check;
   return {
-    canAttack: resolution.canAttack,
-    reason: resolution.canAttack ? 'Attack available' : (resolution.reason || 'Cannot attack target'),
+    canAttack: resolution.legal,
+    reason: resolution.legal ? 'Attack available' : (resolution.message || resolution.reason || 'Cannot attack target'),
   };
 }
 
 export function getAttackableTargets(unit: Unit, gameState: GameState): Unit[] {
   if (!unit || !gameState) return [];
 
-  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  if (unit.playerId !== currentPlayer.id) return [];
-  if ((unit.actionsRemaining ?? unit.maxActions ?? 1) <= 0) return [];
-
-  return gameState.units.filter(target => {
-    if (target.playerId === unit.playerId) return false;
-    if (target.hp <= 0) return false;
-    if (!isUnitVisibleToPlayer(target, unit.playerId, gameState)) return false;
-    return resolveCombat(unit, target, gameState).canAttack;
-  });
+  const targetIds = new Set<string>();
+  for (const option of getLegalUnitActions(gameState, unit.id, unit.playerId)) {
+    if (option.action.type === 'ATTACK_UNIT') {
+      targetIds.add(option.action.payload.targetId);
+    }
+  }
+  return gameState.units.filter(target => targetIds.has(target.id));
 }

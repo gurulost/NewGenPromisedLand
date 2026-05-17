@@ -6,9 +6,32 @@
 export interface GameRules {
   // Victory Conditions
   victory: {
-    faithEnabled: boolean;
-    faithThreshold: number;
-    faithDissentMax: number;
+    faithVictory: {
+      enabled: boolean;
+      minTurnToStart: number;
+      minFaithToStart: number;
+      maxDissentToStart: number;
+      minFaithToMaintain: number;
+      maxDissentToMaintain: number;
+      minCities: number;
+      holyCitiesRequired: number;
+      templeCitiesRequired: number;
+      cathedralCitiesRequired: number;
+      startFaithCost: number;
+      startStarsCost: number;
+      faithCostPerProgress: number;
+      starsCostPerProgress: number;
+      progressToWin: number;
+      militaryContestRadius: number;
+      pauseIfAtWar: boolean;
+      pauseIfEnemyAdjacentToHolyCity: boolean;
+      resetOnHolyCityLoss: boolean;
+      resetOnHolyBuildingLoss: boolean;
+      missionaryDeathFaithLoss: number;
+      convertedMissionaryDeathFaithLoss: number;
+      templeCityLossFaithLoss: number;
+      cathedralCityLossFaithLoss: number;
+    };
     territoryControlThreshold: number; // Percentage of cities needed for territorial victory
     eliminationRequired: boolean;
     economic: {
@@ -147,15 +170,6 @@ export interface GameRules {
     terrainDefenseMultiplier: number;
   };
 
-  // Faith System Bonuses
-  faithBonuses: {
-    lowThreshold: number; // Faith level for defensive bonus
-    highThreshold: number; // Faith level for full combat bonus
-    lowDefenseBonus: number; // Defense bonus at lowThreshold+
-    highAttackBonus: number; // Attack bonus at highThreshold+
-    highDefenseBonus: number; // Defense bonus at highThreshold+
-  };
-
   // Missionary / Preacher influence effects (non-faith-drain)
   influence: {
     testimonyPressure: {
@@ -197,10 +211,32 @@ export interface GameRules {
 
 export const GAME_RULES: GameRules = {
   victory: {
-    // TEMP: faith victory disabled until balance pass — diplomacy makes 90 too easy.
-    faithEnabled: false,
-    faithThreshold: 90,
-    faithDissentMax: 10,
+    faithVictory: {
+      enabled: true,
+      minTurnToStart: 35,
+      minFaithToStart: 70,
+      maxDissentToStart: 10,
+      minFaithToMaintain: 50,
+      maxDissentToMaintain: 15,
+      minCities: 3,
+      holyCitiesRequired: 3,
+      templeCitiesRequired: 3,
+      cathedralCitiesRequired: 1,
+      startFaithCost: 20,
+      startStarsCost: 20,
+      faithCostPerProgress: 10,
+      starsCostPerProgress: 5,
+      progressToWin: 3,
+      militaryContestRadius: 1,
+      pauseIfAtWar: true,
+      pauseIfEnemyAdjacentToHolyCity: true,
+      resetOnHolyCityLoss: true,
+      resetOnHolyBuildingLoss: true,
+      missionaryDeathFaithLoss: 3,
+      convertedMissionaryDeathFaithLoss: 3,
+      templeCityLossFaithLoss: 5,
+      cathedralCityLossFaithLoss: 10,
+    },
     territoryControlThreshold: 0.8, // 80% of cities
     eliminationRequired: true,
     economic: {
@@ -216,8 +252,8 @@ export const GAME_RULES: GameRules = {
       structureBase: 3,
       structurePerPlayer: 1,
       dissentMax: 10,
-      structureTypes: ['temple', 'cathedral', 'library', 'academy'],
-      improvementTypes: ['shrine'],
+      structureTypes: ['cathedral', 'library', 'academy'],
+      improvementTypes: [],
     },
   },
 
@@ -344,14 +380,6 @@ export const GAME_RULES: GameRules = {
     terrainDefenseMultiplier: 1.5,
   },
 
-  faithBonuses: {
-    lowThreshold: 50,
-    highThreshold: 70,
-    lowDefenseBonus: 1,
-    highAttackBonus: 2,
-    highDefenseBonus: 1,
-  },
-
   influence: {
     testimonyPressure: {
       attackPenalty: 1,
@@ -405,13 +433,6 @@ export const GameRuleHelpers = {
   calculateStarIncome: (cityCount: number): number => {
     return GAME_RULES.resources.baseStarsPerTurn +
       (cityCount * GAME_RULES.resources.starsPerCity);
-  },
-
-  /**
-   * Check if player has achieved faith victory
-   */
-  hasFaithVictory: (faith: number): boolean => {
-    return faith >= GAME_RULES.victory.faithThreshold;
   },
 
   /**

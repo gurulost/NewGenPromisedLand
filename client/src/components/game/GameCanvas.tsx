@@ -3,7 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState } from "../../lib/stores/useGameState";
-import { getVisibleUnits } from "@shared/logic/unitLogic";
+import { getVisibleUnitsForRendering } from "@shared/logic/visibilityQueries";
 import HexGridInstanced, { resolveRenderingViewPlayer } from "./HexGridInstanced";
 import { getAttackableTargets } from "../../selectors/combat";
 
@@ -380,7 +380,7 @@ export default function GameCanvas() {
 
       {/* Units - using centralized vision system */}
       {(() => {
-        const visibleUnits = viewPlayer ? getVisibleUnits(gameState, viewPlayer.id) : [];
+        const visibleUnits = viewPlayer ? getVisibleUnitsForRendering(gameState, viewPlayer.id) : [];
         debug.logRendering(`GameCanvas rendering ${visibleUnits.length} visible units`, {
           totalUnits: gameState.units.length,
           visibleUnits: visibleUnits.length,

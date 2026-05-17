@@ -38,8 +38,9 @@ import {
   handleUseAbility,
   handleActivateFactionAbility,
 } from "./actions/abilities";
-import { getTurnPlayer } from "./turnOrder";
-import { createResolveResult, type ResolveContext, type ResolveResult } from "./actionResolution";
+import { startFaithProject } from "./faithProject";
+import { createResolveResult, type GameEvent, type ResolveContext, type ResolveResult } from "./actionResolution";
+import { passesCanonicalActionPreconditions } from "./actionPreconditions";
 
 export type {
   GameEvent,
@@ -48,8 +49,6 @@ export type {
   ResolveResult,
   ResolveSource,
 } from "./actionResolution";
-
-type ActionPayloadRecord = Record<string, unknown>;
 
 const withLastAction = (prev: GameState, next: GameState, action: GameAction): GameState => {
   if (next === prev) return prev;
@@ -63,93 +62,24 @@ const withLastAction = (prev: GameState, next: GameState, action: GameAction): G
   };
 };
 
-const getActionPayload = (action: GameAction): ActionPayloadRecord =>
-  ((action as { payload?: ActionPayloadRecord }).payload ?? {}) as ActionPayloadRecord;
-
-const getPayloadPlayerId = (action: GameAction): string | null => {
-  const playerId = getActionPayload(action).playerId;
-  return typeof playerId === "string" && playerId.length > 0 ? playerId : null;
-};
-
-const getActionActorUnitId = (action: GameAction): string | null => {
-  const payload = getActionPayload(action);
-  if (typeof payload.attackerId === "string" && payload.attackerId.length > 0) {
-    return payload.attackerId;
-  }
-  if (typeof payload.unitId === "string" && payload.unitId.length > 0) {
-    return payload.unitId;
-  }
-  return null;
-};
-
-const getRequiredOwnedCityIds = (action: GameAction): string[] => {
-  const payload = getActionPayload(action);
-  switch (action.type) {
-    case "START_CONSTRUCTION":
-    case "RENAME_CITY":
-    case "HARVEST_RESOURCE":
-      return typeof payload.cityId === "string" && payload.cityId.length > 0 ? [payload.cityId] : [];
-    case "ESTABLISH_TRADE_ROUTE":
-      return [payload.fromCityId, payload.toCityId].filter(
-        (cityId): cityId is string => typeof cityId === "string" && cityId.length > 0,
-      );
-    default:
-      return [];
-  }
-};
-
-function passesCanonicalActionPreconditions(
-  state: GameState,
+const withActionResolutionLastAction = (
+  prev: GameState,
+  next: GameState,
   action: GameAction,
-  ctx: ResolveContext,
-): boolean {
-  if (state.phase !== "playing" || !!state.winner) {
-    return false;
-  }
-
-  const currentPlayer = getTurnPlayer(state.players, state.currentPlayerIndex);
-  if (!currentPlayer) return false;
-
-  const payloadPlayerId = getPayloadPlayerId(action);
-  if (ctx.actorId && payloadPlayerId && ctx.actorId !== payloadPlayerId) {
-    return false;
-  }
-
-  const actorUnitId = getActionActorUnitId(action);
-  const actorUnit = actorUnitId
-    ? state.units.find((unit) => unit.id === actorUnitId)
-    : undefined;
-
-  if (actorUnitId && !actorUnit) {
-    return false;
-  }
-
-  if (payloadPlayerId && actorUnit && actorUnit.playerId !== payloadPlayerId) {
-    return false;
-  }
-
-  const actorPlayerId = payloadPlayerId ?? actorUnit?.playerId ?? null;
-  if (!actorPlayerId) {
-    return false;
-  }
-
-  if (ctx.actorId && ctx.actorId !== actorPlayerId) {
-    return false;
-  }
-
-  if (actorPlayerId !== currentPlayer.id) {
-    return false;
-  }
-
-  for (const cityId of getRequiredOwnedCityIds(action)) {
-    const city = (state.cities || []).find((candidate) => candidate.id === cityId);
-    if (!city || city.ownerId !== actorPlayerId) {
-      return false;
-    }
-  }
-
-  return true;
-}
+  events: GameEvent[],
+): GameState => {
+  if (events.length === 0) return withLastAction(prev, next, action);
+  return {
+    ...next,
+    lastAction: {
+      type: 'ACTION_RESOLUTION',
+      payload: {
+        action: { type: action.type, payload: (action as { payload?: unknown }).payload },
+        events,
+      },
+    },
+  };
+};
 
 /**
  * Canonical action resolver entry point.
@@ -176,6 +106,10 @@ export function resolveAction(
     ...result,
     state: withLastAction(state, result.state, action),
   });
+  const withActionResolutionResult = (result: ResolveResult): ResolveResult => ({
+    ...result,
+    state: withActionResolutionLastAction(state, result.state, action, result.events),
+  });
   const applyImmediateVictory = (nextState: GameState): GameState => {
     if (nextState === state || nextState.phase === "ended" || nextState.winner) return nextState;
 
@@ -189,6 +123,10 @@ export function resolveAction(
       victoryType: victory.victoryType,
     };
   };
+  const applyImmediateVictoryResult = (result: ResolveResult): ResolveResult => ({
+    ...result,
+    state: applyImmediateVictory(result.state),
+  });
 
   switch (action.type) {
     case 'HEAL_UNIT':
@@ -216,7 +154,7 @@ export function resolveAction(
     case 'MOVE_UNIT':
       return withLastActionResult(handleMoveUnit(state, action.payload));
     case 'ATTACK_UNIT':
-      return createResolveResult(withLastAction(state, handleAttackUnit(state, action.payload), action));
+      return withActionResolutionResult(handleAttackUnit(state, action.payload));
     case 'END_TURN':
       return createResolveResult(handleEndTurn(state, action.payload));
     case 'RESEARCH_TECH':
@@ -225,8 +163,12 @@ export function resolveAction(
       return createResolveResult(withLastAction(state, handleResearchTechnology(state, action.payload), action));
     case 'START_CONSTRUCTION':
       return createResolveResult(withLastAction(state, handleStartConstruction(state, action.payload), action));
+    case 'START_FAITH_PROJECT': {
+      const result = startFaithProject(state, action.payload);
+      return withActionResolutionResult(createResolveResult(result.state, { events: result.events }));
+    }
     case 'CAPTURE_CITY':
-      return createResolveResult(withLastAction(state, applyImmediateVictory(handleCaptureCity(state, action.payload)), action));
+      return withActionResolutionResult(applyImmediateVictoryResult(handleCaptureCity(state, action.payload)));
     case 'CONQUER_VILLAGE':
       return createResolveResult(withLastAction(state, handleConquerVillage(state, action.payload), action));
     case 'CONVERT_VILLAGE':
@@ -248,7 +190,7 @@ export function resolveAction(
     case 'BREAK_ALLIANCE':
       return createResolveResult(withLastAction(state, handleBreakAlliance(state, action.payload), action));
     case 'CONVERT_CITY':
-      return createResolveResult(withLastAction(state, applyImmediateVictory(handleConvertCity(state, action.payload)), action));
+      return withActionResolutionResult(applyImmediateVictoryResult(handleConvertCity(state, action.payload)));
     case 'CONVERT_UNIT':
       return createResolveResult(withLastAction(state, handleConvertUnit(state, action.payload), action));
     case 'RENAME_CITY':

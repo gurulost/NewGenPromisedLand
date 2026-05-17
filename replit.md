@@ -67,25 +67,20 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
   - Production sessions use `connect-pg-simple` with `createTableIfMissing: true`.
   - Session cookies use `secure: true` in production, so HTTPS + correct proxy forwarding are required.
 
-### Active Balance Toggles (TEMPORARY)
+### Active Balance Toggles
 
-These are intentional non-default rule overrides currently in `shared/data/gameRules.ts`. When fixing or rebalancing the underlying system, flip the listed flag and remove the entry here.
-
-- **Faith victory: DISABLED** — `GAME_RULES.victory.faithEnabled = false` in `shared/data/gameRules.ts`. Reason: faith=90 is too easy to reach via diplomacy and was producing instant/cheap wins.
-  - **To re-enable:** set `faithEnabled: true` in `shared/data/gameRules.ts` (single-line change). The faith branch in `checkVictoryConditions` (`shared/logic/actions/turns.ts`), the AI's pivot logic in `calculateVictoryProgress` (`shared/ai/aiEngine.ts`), and the Faith tile + tooltip line in `client/src/components/hud/PlayerHUD.tsx` are all already gated on this flag and will light back up automatically.
-  - **Tests covering both states:** `shared/logic/gameReducer.test.ts` — "awards faith victory when threshold and dissent are met" (temporarily flips flag on) and "does not award faith victory while the faith win condition is disabled" (verifies disabled state).
-  - **Player-facing docs to update on re-enable:** `docs/PLAYER_REFERENCE.md` section 16 (Victory Conditions).
+No temporary faith-victory disablement is active. The old instant threshold path was replaced by the Consecration project in `GAME_RULES.victory.faithVictory`, resolved through `shared/logic/faithProject.ts` and end-turn processing in `shared/logic/actions/turns.ts`.
 
 ### Core Game Mechanics
 - **Data-Driven**: All game rules, including abilities, costs, and terrain effects, are centrally configured.
 - **Game Logic**: Pure functions for movement, combat, pathfinding, and resource management within `/shared`.
 - **Turn-Based System**: Local multiplayer (pass-and-play) with client-side game logic processing through a shared reducer.
 - **Map Generation**: Procedural map generation with Polytopia-style terrain distribution, village spawning, and faction-specific homeland modifiers. Includes a unified scripture-themed resource system with moral choices.
-- **Combat System**: Advanced combat calculations with unit-specific bonuses, formation tactics, terrain modifiers, and faith/pride bonuses.
+- **Combat System**: Advanced combat calculations with unit-specific bonuses, formation tactics, terrain modifiers, and active status effects. Banked Faith no longer grants passive combat bonuses.
 - **Technology Tree**: Comprehensive technology tree with prerequisites, cost validation, and themed descriptions.
 - **Unit System**: Comprehensive unit abilities (e.g., Worker construction, Scout stealth, Missionary healing) with visual indicators and status effects.
 - **City Management**: Full-featured city panel for construction, unit recruitment, and resource generation.
-- **Builder Range**: When `validateConstructionRequest` receives a `builderUnitId`, the worker no longer has to occupy the exact build coordinate — it just has to be within `BUILDER_WORK_RADIUS` (currently 2 hexes) of the target tile (and the tile must still be inside the city work radius). This unblocks water improvements like port from any worker-driven flow; constant lives in `shared/logic/constructionValidation.ts`. The city-panel construction mode (`client/src/components/game/HexGridInstanced.tsx`) currently dispatches without a `builderUnitId`, so it bypasses worker gating entirely — that pre-existing inconsistency is unrelated to this radius change but worth threading a worker through eventually.
+- **Builder Range**: Map improvements now always require an available Worker action. `validateConstructionRequest` requires `builderUnitId` for `category: "improvements"` and the Worker must be within `BUILDER_WORK_RADIUS` (currently 2 hexes) of the target tile while the tile remains inside the owning city's work radius. Worker-origin build opens targeting mode and can reach legal nearby improvements, including ports on water. City-panel improvement construction now filters to tiles with an eligible Worker and dispatches the chosen `builderUnitId`; structures and unit recruitment remain city-managed.
 - **Performance**: Instanced rendering for hex grid, React memoization, and optimized data processing.
 - **Testing**: Extensive Vitest-based testing suite covering core game mechanics, UI components, and edge cases.
 

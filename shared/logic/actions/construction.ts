@@ -9,6 +9,8 @@ import {
   spendUnitActions
 } from "../unitLogic";
 import { validateConstructionRequest } from "../constructionValidation";
+import { createResolveResult, type ResolveResult } from "../actionResolution";
+import { applyCityOwnershipFaithConsequences } from "../faithProject";
 
 export function handleStartConstruction(
   state: GameState,
@@ -25,6 +27,7 @@ export function handleStartConstruction(
   const validation = validateConstructionRequest(state, payload);
   if (!validation) return state;
   const { cost, buildTime, coordinate } = validation;
+  const builderUnitIdToSpend = category === "improvements" ? builderUnitId : undefined;
 
   let rngSeed = state.rngSeed ?? 0;
   const constructionIdResult = nextId(rngSeed, `${buildingType}_${cityId}`);
@@ -53,8 +56,8 @@ export function handleStartConstruction(
         }
         : p
     ),
-    units: builderUnitId
-      ? state.units.map(u => (u.id === builderUnitId ? spendUnitActions(u) : u))
+    units: builderUnitIdToSpend
+      ? state.units.map(u => (u.id === builderUnitIdToSpend ? spendUnitActions(u) : u))
       : state.units,
     rngSeed,
   };
@@ -63,11 +66,11 @@ export function handleStartConstruction(
 export function handleCaptureCity(
   state: GameState,
   payload: { playerId: string; unitId: string; cityId: string }
-): GameState {
+): ResolveResult {
   const { playerId, unitId, cityId } = payload;
 
   const captureCheck = evaluateCityCapture(state, payload);
-  if (!captureCheck.canCapture || !captureCheck.city) return state;
+  if (!captureCheck.canCapture || !captureCheck.city) return createResolveResult(state);
 
   const targetCity = captureCheck.city;
 
@@ -76,7 +79,7 @@ export function handleCaptureCity(
     tile.coordinate.r === targetCity.coordinate.r &&
     tile.hasCity
   );
-  if (!cityTile) return state;
+  if (!cityTile) return createResolveResult(state);
 
   const updatedPlayers = state.players.map(p => {
     if (p.citiesOwned.includes(cityId)) {
@@ -147,7 +150,7 @@ export function handleCaptureCity(
       : unit
   );
 
-  return {
+  const capturedState: GameState = {
     ...state,
     players: normalizedPlayers,
     units: updatedUnits,
@@ -156,6 +159,9 @@ export function handleCaptureCity(
     improvements: updatedImprovements,
     map: { ...state.map, tiles: updatedMapTiles }
   };
+
+  const faithConsequences = applyCityOwnershipFaithConsequences(state, capturedState, cityId, playerId);
+  return createResolveResult(faithConsequences.state, { events: faithConsequences.events });
 }
 
 export function handleRenameCity(

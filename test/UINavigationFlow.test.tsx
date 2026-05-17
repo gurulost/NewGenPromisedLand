@@ -110,7 +110,7 @@ describe('UI Navigation Flow Tests', () => {
     (useGameState as any).mockReturnValue({
       selectedUnit: null,
       setSelectedUnit: vi.fn(),
-      constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null },
+      constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null, builderUnitId: null, allowAnyImprovement: false },
       cancelConstruction: vi.fn(),
       isRoadBuildMode: false,
       cancelRoadBuild: vi.fn(),

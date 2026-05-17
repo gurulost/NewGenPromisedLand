@@ -126,7 +126,7 @@ export const TUTORIAL_CARDS: Record<TutorialCardId, TutorialCard> = {
     bullets: [
       'Attack vs Defense decides damage; terrain favors defenders.',
       'Ranged attacks follow distance rules and can be countered.',
-      'Faith bonuses can swing battles.',
+      'Missionaries pressure nearby enemies but no longer make banked Faith a combat bonus.',
     ],
     tryIt: 'Check terrain before committing to a fight.',
     summary: 'Combat basics and terrain impact.',
@@ -148,7 +148,7 @@ export const TUTORIAL_CARDS: Record<TutorialCardId, TutorialCard> = {
     title: 'Paths to Victory',
     lore: 'Many paths, one record.',
     bullets: [
-      'Faith: high Faith with low Dissent.',
+      'Consecration: sustain a Faith Project through 3 Temple cities.',
       'Economic: strong income, treasury, and tech.',
       'Cultural/Territory/Score: grow people, sites, and cities.',
     ],

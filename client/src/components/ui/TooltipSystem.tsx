@@ -650,14 +650,14 @@ export function FaithSystemTooltip() {
   const cathedralFaith = STRUCTURE_DEFINITIONS.cathedral.effects.faithProduction ?? 0;
   const missionaryFaith = GAME_RULES.resources.faithPerMissionary;
   const maxMissionaryFaithBonus = GAME_RULES.resources.maxMissionaryFaithBonus;
-  const { lowThreshold, highThreshold, lowDefenseBonus, highAttackBonus, highDefenseBonus } = GAME_RULES.faithBonuses;
+  const faithVictory = GAME_RULES.victory.faithVictory;
   const testimonyPressure = GAME_RULES.influence.testimonyPressure;
 
   return (
     <div className="space-y-2">
       <div className="font-semibold text-blue-300">Faith System</div>
       <div className="text-xs text-slate-300">
-        Faith represents your people's spiritual devotion and empowers conversion, blessings, and defensive strength.
+        Faith represents your people's spiritual devotion and powers conversion, blessings, and the Consecration Victory project.
       </div>
       <div className="text-xs">
         <div className="text-green-300 mb-1">How To Gain Faith:</div>
@@ -670,10 +670,11 @@ export function FaithSystemTooltip() {
         </ul>
       </div>
       <div className="text-xs">
-        <div className="text-blue-300 mb-1">Combat Bonuses:</div>
+        <div className="text-blue-300 mb-1">Consecration Victory:</div>
         <ul className="list-disc list-inside text-slate-300 space-y-1">
-          <li>{lowThreshold}+ Faith: Defender +{lowDefenseBonus} defense</li>
-          <li>{highThreshold}+ Faith: Attacker +{highAttackBonus} attack, Defender +{highDefenseBonus} defense</li>
+          <li>Starts on turn {faithVictory.minTurnToStart}+ with {faithVictory.minFaithToStart} Faith, low Dissent, and 3 Temple cities.</li>
+          <li>Requires {faithVictory.faithCostPerProgress} Faith and {faithVictory.starsCostPerProgress} Stars per progress turn.</li>
+          <li>Missionary deaths and holy-city losses reduce Faith.</li>
         </ul>
       </div>
       <div className="text-xs">

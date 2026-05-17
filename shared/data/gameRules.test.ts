@@ -17,8 +17,11 @@ describe('GameRules', () => {
   });
 
   it('should have reasonable victory thresholds', () => {
-    expect(GAME_RULES.victory.faithThreshold).toBeGreaterThan(0);
-    expect(GAME_RULES.victory.faithDissentMax).toBeGreaterThanOrEqual(0);
+    expect(GAME_RULES.victory.faithVictory.enabled).toBe(true);
+    expect(GAME_RULES.victory.faithVictory.minTurnToStart).toBeGreaterThan(0);
+    expect(GAME_RULES.victory.faithVictory.minFaithToStart).toBeGreaterThan(0);
+    expect(GAME_RULES.victory.faithVictory.progressToWin).toBeGreaterThan(0);
+    expect(GAME_RULES.victory.faithVictory.holyCitiesRequired).toBe(3);
     expect(GAME_RULES.victory.territoryControlThreshold).toBeGreaterThan(0);
     expect(GAME_RULES.victory.territoryControlThreshold).toBeLessThanOrEqual(1);
     expect(GAME_RULES.victory.economic.incomeBase).toBeGreaterThan(0);
@@ -100,11 +103,6 @@ describe('GameRuleHelpers', () => {
     const income = GameRuleHelpers.calculateStarIncome(3); // 3 cities
     const expectedIncome = GAME_RULES.resources.baseStarsPerTurn + (3 * GAME_RULES.resources.starsPerCity);
     expect(income).toBe(expectedIncome);
-  });
-
-  it('should check faith victory correctly', () => {
-    expect(GameRuleHelpers.hasFaithVictory(95)).toBe(true);
-    expect(GameRuleHelpers.hasFaithVictory(30)).toBe(false);
   });
 
   it('should calculate economic victory thresholds', () => {

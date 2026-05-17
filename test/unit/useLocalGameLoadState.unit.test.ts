@@ -81,6 +81,8 @@ const resetInteractionState = () => {
       buildingCategory: null,
       cityId: null,
       playerId: null,
+      builderUnitId: null,
+      allowAnyImprovement: false,
     },
     spawnSelectionMode: {
       isActive: false,
@@ -136,6 +138,8 @@ const setStaleInteractionState = () => {
       buildingCategory: "improvements",
       cityId: "old-city",
       playerId: "old-player",
+      builderUnitId: "old-worker",
+      allowAnyImprovement: true,
     },
     spawnSelectionMode: {
       isActive: true,

@@ -5,9 +5,9 @@ import { Progress } from "./progress";
 import { Sword, Shield, AlertTriangle, CheckCircle, XCircle, Info } from "lucide-react";
 import { getUnitDefinition } from "@shared/data/units";
 import { GAME_RULES } from "@shared/data/gameRules";
-import { getValidAttackTargets, canUnitAttackTarget } from "@shared/logic/unitLogic";
 import { hexDistance } from "@shared/utils/hex";
-import { getCombatPreview, CombatPreview } from "@shared/logic/combatPreview";
+import { getCombatRulePreview, getLegalUnitActions } from "@shared/logic/ruleQueries";
+import type { CombatPreview } from "@shared/logic/combatPreview";
 import type { Unit } from "@shared/types/unit";
 import type { GameState } from "@shared/types/game";
 import { InfoTooltip } from "./TooltipSystem";
@@ -25,8 +25,11 @@ export default function CombatPanel({ selectedUnit, gameState, onAttackUnit, hov
   // Memoize expensive combat calculations using centralized logic
   const combatData = useMemo(() => {
     if (!selectedUnit) return [];
-    
-    const attackableEnemies = getValidAttackTargets(selectedUnit, gameState);
+    const attackableEnemyIds = new Set(
+      getLegalUnitActions(gameState, selectedUnit.id, selectedUnit.playerId)
+        .flatMap(option => option.action.type === 'ATTACK_UNIT' ? [option.action.payload.targetId] : [])
+    );
+    const attackableEnemies = gameState.units.filter(unit => attackableEnemyIds.has(unit.id));
     
     // Pre-calculate all expensive operations for each enemy
     return attackableEnemies.map(enemy => ({
@@ -39,14 +42,14 @@ export default function CombatPanel({ selectedUnit, gameState, onAttackUnit, hov
         const hp = enemy.hp ?? maxHp;
         return maxHp > 0 ? (hp / maxHp) * 100 : 0;
       })(),
-      preview: getCombatPreview(selectedUnit, enemy, gameState)
+      preview: getCombatRulePreview(gameState, selectedUnit.id, enemy.id, selectedUnit.playerId).preview
     }));
   }, [selectedUnit, gameState]);
 
   // Get preview for hovered enemy
   const hoveredPreview = useMemo(() => {
     if (!hoveredEnemy || !selectedUnit) return null;
-    return getCombatPreview(selectedUnit, hoveredEnemy, gameState);
+    return getCombatRulePreview(gameState, selectedUnit.id, hoveredEnemy.id, selectedUnit.playerId).preview;
   }, [selectedUnit, hoveredEnemy, gameState]);
 
   const getOddsColor = (odds: CombatPreview['odds']) => {

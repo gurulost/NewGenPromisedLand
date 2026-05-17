@@ -4,7 +4,7 @@ import { getFaction } from "../data/factions";
 import { getUnitDefinition } from "../data/units";
 import { coerceFactionId } from "../types/factionId";
 import { getCulturalPressureSelection } from "../logic/culturalPressure";
-import { getFactionAbilityAvailability } from "../logic/factionAbilityAvailability";
+import { explainFactionAbilityAction } from "../logic/ruleQueries";
 import { getTestimonyPressureSelection } from "../logic/testimonyPressure";
 import { hexDistance } from "../utils/hex";
 
@@ -26,8 +26,8 @@ export function evaluateAIFactionAbilityUsage(
     .map(ability => ability.id) ?? [];
 
   const canUse = (abilityId: string) => {
-    const availability = getFactionAbilityAvailability(gameState, aiPlayer.id, abilityId);
-    return availability.available ? availability : undefined;
+    const { availability, check } = explainFactionAbilityAction(gameState, aiPlayer.id, abilityId);
+    return availability.available && check.legal ? availability : undefined;
   };
 
   const ownedUnits = gameState.units.filter(unit => unit.playerId === aiPlayer.id);

@@ -307,9 +307,16 @@ describe('AIEngine automation loops', () => {
     const engine = new AIEngine(state, aiPlayer);
 
     const decisions = engine.makeDecision();
-    const moveDecision = decisions.find(decision => decision.type === 'MOVE_UNIT' && decision.unitId === 'worker1');
-    expect(moveDecision).toBeDefined();
-    expect(moveDecision?.targetCoordinate).toMatchObject({ q: 1, r: -1 });
+    const buildDecision = decisions.find(decision =>
+      decision.type === 'START_CONSTRUCTION' &&
+      decision.unitId === 'worker1' &&
+      decision.targetCoordinate?.q === 1 &&
+      decision.targetCoordinate?.r === -1
+    );
+    expect(buildDecision).toMatchObject({
+      builderUnitId: 'worker1',
+      constructionCategory: 'improvements',
+    });
   });
 
   it('includes the builder unit when a worker builds on its own tile', () => {
@@ -377,6 +384,65 @@ describe('AIEngine automation loops', () => {
     const result = simulateAITurns(state, 1);
     expect(result.actionsApplied).toBeGreaterThan(0);
     expect(result.errors).toHaveLength(0);
+  });
+
+  it('does not emit a worker build decision when the nearby worker has no action remaining', () => {
+    const aiPlayer = createBaseAIPlayer({
+      stars: 40,
+      researchedTechs: ['organization'],
+      exploredTiles: ['0,0', '1,-1'],
+      visibilityMask: ['0,0', '1,-1'],
+    });
+
+    const worker: Unit = {
+      id: 'spent_worker',
+      type: 'worker',
+      playerId: '1',
+      coordinate: { q: 1, r: -1, s: 0 },
+      hp: 10,
+      maxHp: 10,
+      attack: 1,
+      defense: 1,
+      movement: 2,
+      remainingMovement: 2,
+      maxActions: 1,
+      actionsRemaining: 0,
+      visionRadius: 2,
+      attackRange: 1,
+      status: 'active',
+      experience: 0,
+      abilities: ['BUILD'],
+      level: 1,
+      temporaryEffects: [],
+    };
+
+    const tiles = [
+      makeTile(0, 0, 'plains', ['1'], { hasCity: true, cityOwner: '1' }),
+      makeTile(1, -1, 'plains', ['1']),
+    ];
+
+    const cities: GameState['cities'] = [
+      {
+        id: 'city1',
+        name: 'Capital',
+        coordinate: { q: 0, r: 0, s: 0 },
+        ownerId: '1',
+        population: 2,
+        maxPopulation: 4,
+        level: 1,
+        starProduction: 2,
+        improvements: [],
+        structures: [],
+      },
+    ];
+
+    const state = createGameState([aiPlayer], [worker], tiles, cities);
+    const decisions = new AIEngine(state, aiPlayer).makeDecision();
+
+    expect(decisions.some(decision =>
+      decision.type === 'START_CONSTRUCTION' &&
+      decision.unitId === 'spent_worker'
+    )).toBe(false);
   });
 
   it('directs scouts toward unexplored tiles', () => {

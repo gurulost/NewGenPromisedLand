@@ -1,6 +1,6 @@
 import { GameState, PlayerState } from '@shared/types/game';
 import { TECHNOLOGIES } from '@shared/data/technologies';
-import { getEffectiveTechCostForPlayer } from '@shared/logic/technologyHelpers';
+import { getLegalPlayerActions, getTechnologyRuleSummary } from '@shared/logic/ruleQueries';
 
 export interface TechValidation {
   canResearch: (techId: string) => boolean;
@@ -13,36 +13,25 @@ export interface TechValidation {
 export function getTechValidation(player: PlayerState, gameState: GameState): TechValidation {
   
   const canAfford = (techId: string): boolean => {
-    const tech = TECHNOLOGIES[techId as keyof typeof TECHNOLOGIES];
-    if (!tech) return false;
-    return player.stars >= getEffectiveTechCostForPlayer(tech, player);
+    return getTechnologyRuleSummary(gameState, player.id, techId).canAfford;
   };
 
   const hasPrerequisites = (techId: string): boolean => {
-    const tech = TECHNOLOGIES[techId as keyof typeof TECHNOLOGIES];
-    if (!tech) return false;
-    
-    // Check if all prerequisites are researched
-    if (tech.prerequisites) {
-      return tech.prerequisites.every(prereq => player.researchedTechs.includes(prereq));
-    }
-    
-    return true;
+    return getTechnologyRuleSummary(gameState, player.id, techId).prerequisitesMet;
   };
 
   const canResearch = (techId: string): boolean => {
-    // Can't research if already researched
-    if (player.researchedTechs.includes(techId)) {
-      return false;
-    }
-    
-    return hasPrerequisites(techId) && canAfford(techId);
+    return getTechnologyRuleSummary(gameState, player.id, techId).check.legal;
   };
 
   const getAvailableTechs = (): string[] => {
-    return Object.keys(TECHNOLOGIES).filter(techId => 
-      hasPrerequisites(techId) && !player.researchedTechs.includes(techId)
-    );
+    const ids: string[] = [];
+    for (const option of getLegalPlayerActions(gameState, player.id)) {
+      if (option.action.type === 'RESEARCH_TECH') {
+        ids.push(option.action.payload.techId);
+      }
+    }
+    return ids;
   };
 
   const getResearchProgress = () => {

@@ -12,6 +12,11 @@ import {
   isTileExploredByPlayer,
   isWithinFriendlyBuildRadius,
 } from "./constructionRules";
+import {
+  BUILDER_WORK_RADIUS,
+  CITY_WORK_RADIUS,
+  getImprovementConstructionOptions,
+} from "./constructionValidation";
 import { getValidSpawnTiles } from "./gameReducer";
 
 export type BuildRequirementStatus = "met" | "unmet" | "info";
@@ -56,21 +61,16 @@ const hasBlockingConstruction = (state: GameState, coord: HexCoordinate) =>
 const getValidImprovementTileCount = (
   state: GameState,
   playerId: string,
-  improvement: ImprovementDefinition
+  improvement: ImprovementDefinition,
+  cityId: string
 ): number => {
-  const anchors = getFriendlyBuildAnchors(state, playerId);
-  return state.map.tiles.filter((tile) => {
-    if (!isTileExploredByPlayer(state, playerId, tile.coordinate)) return false;
-    if (!isWithinFriendlyBuildRadius(anchors, tile.coordinate)) return false;
-    if (!improvement.validTerrain.includes(tile.terrain)) return false;
-    if (tile.feature === "village") return false;
-    if (hasBlockingCity(state, tile.coordinate)) return false;
-    if (hasBlockingUnit(state, tile.coordinate)) return false;
-    if (hasBlockingImprovement(state, tile.coordinate)) return false;
-    if (hasBlockingStructure(state, tile.coordinate)) return false;
-    if (hasBlockingConstruction(state, tile.coordinate)) return false;
-    return true;
-  }).length;
+  const keys = new Set(
+    getImprovementConstructionOptions(state, playerId, {
+      buildingType: improvement.id,
+      cityId,
+    }).map((option) => `${option.coordinate.q},${option.coordinate.r}`)
+  );
+  return keys.size;
 };
 
 const getValidStructureTileCount = (
@@ -295,25 +295,25 @@ export function getImprovementBuildRequirements(
     status: "info",
   });
 
-  const validTiles = getValidImprovementTileCount(state, player.id, improvementDef);
+  const validTiles = getValidImprovementTileCount(state, player.id, improvementDef, cityId);
   requirements.push({
     id: "valid_tiles",
     label: "Valid build tiles",
-    value: `${validTiles} within ${STRUCTURE_BUILD_RADIUS} tiles`,
+    value: `${validTiles} with Worker within ${BUILDER_WORK_RADIUS}`,
     status: validTiles > 0 ? "met" : "unmet",
   });
 
   requirements.push({
     id: "tile_rules",
     label: "Tile rules",
-    value: "Explored tile, empty (no units/buildings/queued), not a village",
+    value: "Explored tile, empty (no units/buildings/queued), not a village, valid terrain",
     status: "info",
   });
 
   requirements.push({
     id: "build_radius",
     label: "Build radius",
-    value: `Within ${STRUCTURE_BUILD_RADIUS} tiles of friendly anchors (cities, improvements, structures, villages)`,
+    value: `Tile within ${CITY_WORK_RADIUS} of this city; Worker within ${BUILDER_WORK_RADIUS} of tile`,
     status: "info",
   });
 

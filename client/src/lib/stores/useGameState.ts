@@ -52,6 +52,8 @@ interface GameStateStore {
     buildingCategory: 'improvements' | 'structures' | 'units' | null;
     cityId: string | null;
     playerId: string | null;
+    builderUnitId: string | null;
+    allowAnyImprovement: boolean;
   };
 
   // Spawn selection mode (for choosing unit spawn location)
@@ -90,7 +92,13 @@ interface GameStateStore {
   cancelAbilityTargeting: () => void;
 
   // Construction actions
-  startConstruction: (buildingType: string, category: 'improvements' | 'structures' | 'units', cityId: string, playerId: string) => void;
+  startConstruction: (
+    buildingType: string | null,
+    category: 'improvements' | 'structures' | 'units',
+    cityId: string | null,
+    playerId: string,
+    options?: { builderUnitId?: string | null; allowAnyImprovement?: boolean }
+  ) => void;
   cancelConstruction: () => void;
 
   // Spawn selection actions
@@ -144,6 +152,8 @@ export const useGameState = create<GameStateStore>((set) => ({
     buildingCategory: null,
     cityId: null,
     playerId: null,
+    builderUnitId: null,
+    allowAnyImprovement: false,
   },
 
   spawnSelectionMode: {
@@ -217,13 +227,15 @@ export const useGameState = create<GameStateStore>((set) => ({
     },
   }),
 
-  startConstruction: (buildingType, category, cityId, playerId) => set({
+  startConstruction: (buildingType, category, cityId, playerId, options) => set({
     constructionMode: {
       isActive: true,
       buildingType,
       buildingCategory: category,
       cityId,
       playerId,
+      builderUnitId: options?.builderUnitId ?? null,
+      allowAnyImprovement: options?.allowAnyImprovement ?? false,
     },
     selectedUnit: null, // Clear unit selection when starting construction
     isMovementMode: false,
@@ -239,6 +251,8 @@ export const useGameState = create<GameStateStore>((set) => ({
       buildingCategory: null,
       cityId: null,
       playerId: null,
+      builderUnitId: null,
+      allowAnyImprovement: false,
     },
   }),
 

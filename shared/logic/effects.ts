@@ -212,21 +212,6 @@ export function onComputeStats(
       }
     }
 
-    const faithCfg = GAME_RULES.faithBonuses;
-    if (ctx.role === "attacker" && player.stats.faith >= faithCfg.highThreshold) {
-      attack += faithCfg.highAttackBonus;
-      modifiers.push(`+${faithCfg.highAttackBonus} Attack (High Faith)`);
-    }
-    if (ctx.role === "defender") {
-      const defenderFaith = player.stats.faith;
-      if (defenderFaith >= faithCfg.highThreshold) {
-        defense += faithCfg.highDefenseBonus;
-        modifiers.push(`+${faithCfg.highDefenseBonus} Defense (High Faith)`);
-      } else if (defenderFaith >= faithCfg.lowThreshold) {
-        defense += faithCfg.lowDefenseBonus;
-        modifiers.push(`+${faithCfg.lowDefenseBonus} Defense (Faith)`);
-      }
-    }
   }
 
   if (ctx.role === "defender" && terrain) {

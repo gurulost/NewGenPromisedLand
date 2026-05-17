@@ -4,20 +4,22 @@ import { GAME_RULES } from "../../data/gameRules";
 import { getUnitDefinition } from "../../data/units";
 import { hexDistance } from "../../utils/hex";
 import { attemptUnitConversion } from "../conversion";
+import { createResolveResult, type ResolveResult } from "../actionResolution";
+import { applyCityOwnershipFaithConsequences } from "../faithProject";
 import { getUnitActionsRemaining, spendUnitActions } from "../unitLogic";
 import { clampStat, hasAbility } from "./helpers";
 
 export function handleConvertCity(
   state: GameState,
   payload: { playerId: string; unitId?: string; cityId: string; conversionType: "faith" | "pride" | "peace" }
-): GameState {
+): ResolveResult {
   const { playerId, unitId, cityId, conversionType } = payload;
 
   const player = state.players.find(p => p.id === playerId);
-  if (!player) return state;
+  if (!player) return createResolveResult(state);
 
   const city = state.cities?.find(c => c.id === cityId);
-  if (!city) return state;
+  if (!city) return createResolveResult(state);
 
   const actingMissionary = (() => {
     const candidateById = unitId ? state.units.find(u => u.id === unitId) : undefined;
@@ -41,7 +43,7 @@ export function handleConvertCity(
     return candidates[0];
   })();
 
-  if (!actingMissionary) return state;
+  if (!actingMissionary) return createResolveResult(state);
 
   let resourceCost = 0;
   let statChanges = {};
@@ -49,17 +51,17 @@ export function handleConvertCity(
   switch (conversionType) {
     case "faith":
       resourceCost = GAME_RULES.conversion.costs.cityFaith;
-      if (player.stats.faith < resourceCost) return state;
+      if (player.stats.faith < resourceCost) return createResolveResult(state);
       statChanges = { faith: Math.max(0, player.stats.faith - resourceCost) };
       break;
     case "pride":
       resourceCost = GAME_RULES.conversion.costs.cityPride;
-      if (player.stats.pride < resourceCost) return state;
+      if (player.stats.pride < resourceCost) return createResolveResult(state);
       statChanges = { pride: Math.max(0, player.stats.pride - resourceCost) };
       break;
     case "peace":
       resourceCost = GAME_RULES.conversion.costs.cityPeaceFaithCost;
-      if (player.stats.faith < resourceCost) return state;
+      if (player.stats.faith < resourceCost) return createResolveResult(state);
       statChanges = {
         faith: clampStat(player.stats.faith - resourceCost + GAME_RULES.conversion.costs.cityPeaceFaithRefund),
         internalDissent: Math.max(0, player.stats.internalDissent - GAME_RULES.conversion.costs.cityPeaceDissentReduction)
@@ -115,7 +117,7 @@ export function handleConvertCity(
     );
   }
 
-  return {
+  const convertedState: GameState = {
     ...state,
     units: state.units.map(u =>
       u.id === actingMissionary.id ? spendUnitActions(u) : u
@@ -141,6 +143,9 @@ export function handleConvertCity(
       )
     }
   };
+
+  const faithConsequences = applyCityOwnershipFaithConsequences(state, convertedState, cityId, playerId);
+  return createResolveResult(faithConsequences.state, { events: faithConsequences.events });
 }
 
 export function handleConvertUnit(

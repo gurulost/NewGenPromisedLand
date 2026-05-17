@@ -285,14 +285,14 @@ describe('Game State Validation Tests', () => {
   });
 
   describe('Victory Conditions', () => {
-    it('validates faith victory threshold', () => {
+    it('validates faith project start thresholds', () => {
       const gameState = createValidGameState();
       const player = gameState.players[0];
-      
-      if (player.stats.faith >= GAME_RULES.victory.faithThreshold) {
-        // Player should be eligible for faith victory
-        expect(player.stats.faith).toBeGreaterThanOrEqual(GAME_RULES.victory.faithThreshold);
-      }
+      const rules = GAME_RULES.victory.faithVictory;
+
+      expect(rules.minFaithToStart).toBeGreaterThan(rules.startFaithCost);
+      expect(rules.minFaithToMaintain).toBeLessThanOrEqual(rules.minFaithToStart);
+      expect(player.stats.faith).toBeLessThanOrEqual(100);
     });
 
     it('validates territorial victory conditions', () => {

@@ -7,10 +7,18 @@ import { useGameState } from '../client/src/lib/stores/useGameState';
 import { useTurnTransition } from '../client/src/components/ui/TurnTransition';
 import type { GameState, PlayerState, City } from '../shared/types/game';
 
+const visualFeedbackMocks = vi.hoisted(() => ({
+  showToast: vi.fn(),
+  triggerFlash: vi.fn(),
+}));
+
 // Mock all external dependencies
 vi.mock('../client/src/lib/stores/useLocalGame');
 vi.mock('../client/src/lib/stores/useGameState');
 vi.mock('../client/src/components/ui/TurnTransition');
+vi.mock('../client/src/components/ui/VisualFeedback', () => ({
+  useVisualFeedback: () => visualFeedbackMocks,
+}));
 vi.mock('@react-three/drei', () => ({
   useKeyboardControls: () => [vi.fn(), vi.fn()]
 }));
@@ -27,10 +35,11 @@ vi.mock('../client/src/components/ui/CityPanel', () => ({
 }));
 
 vi.mock('../client/src/components/ui/BuildingMenu', () => ({
-  BuildingMenu: ({ onClose, onShowCities }: any) => (
+  BuildingMenu: ({ onClose, onShowCities, onBuild }: any) => (
     <div data-testid="building-menu">
       Construction Hall
       {onShowCities && <button onClick={onShowCities}>Cities</button>}
+      <button onClick={() => onBuild('farm', 'improvements')}>Build Farm</button>
       <button onClick={onClose}>Close Construction</button>
     </div>
   )
@@ -70,11 +79,40 @@ describe('GameUI Navigation Integration Tests', () => {
   let mockCity: City;
   let mockDispatch: ReturnType<typeof vi.fn>;
   let mockStartConstruction: ReturnType<typeof vi.fn>;
+  let mockLocalGameStore: Record<string, unknown>;
 
   const renderGameUI = async () => {
     await act(async () => {
       render(<GameUI />);
     });
+  };
+
+  const setMockLocalGameStore = (overrides: Record<string, unknown> = {}) => {
+    mockLocalGameStore = {
+      gameState: mockGameState,
+      dispatch: mockDispatch,
+      endTurn: vi.fn(),
+      useAbility: vi.fn(),
+      attackUnit: vi.fn(),
+      setGamePhase: vi.fn(),
+      resetGame: vi.fn(),
+      loadGameState: vi.fn(),
+      gameMode: 'local',
+      actionError: null,
+      clearActionError: vi.fn(),
+      onlineSession: null,
+      onlineResyncReason: null,
+      hostLeaseExpired: false,
+      setOnlineHost: vi.fn(),
+      setHostLeaseStatus: vi.fn(),
+      setOnlineActionVersion: vi.fn(),
+      applyRemoteAction: vi.fn(),
+      requestOnlineResync: vi.fn(),
+      ...overrides,
+    };
+    (useLocalGame as any).mockImplementation((selector?: (state: Record<string, unknown>) => unknown) => (
+      typeof selector === 'function' ? selector(mockLocalGameStore) : mockLocalGameStore
+    ));
   };
 
   beforeEach(() => {
@@ -125,24 +163,17 @@ describe('GameUI Navigation Integration Tests', () => {
 
     mockDispatch = vi.fn();
     mockStartConstruction = vi.fn();
+    visualFeedbackMocks.showToast.mockClear();
+    visualFeedbackMocks.triggerFlash.mockClear();
 
-    // Mock useLocalGame
-    (useLocalGame as any).mockReturnValue({
-      gameState: mockGameState,
-      dispatch: mockDispatch,
-      endTurn: vi.fn(),
-      useAbility: vi.fn(),
-      attackUnit: vi.fn(),
-      setGamePhase: vi.fn(),
-      resetGame: vi.fn(),
-      loadGameState: vi.fn()
-    });
+    // Mock useLocalGame with Zustand-style selector support.
+    setMockLocalGameStore();
 
     // Mock useGameState
     (useGameState as any).mockReturnValue({
       selectedUnit: null,
       setSelectedUnit: vi.fn(),
-      constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null },
+      constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null, builderUnitId: null, allowAnyImprovement: false },
       cancelConstruction: vi.fn(),
       spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [] },
       cancelSpawnSelection: vi.fn(),
@@ -352,6 +383,26 @@ describe('GameUI Navigation Integration Tests', () => {
       expect(mockStartConstruction).not.toHaveBeenCalled();
     });
 
+    it('warns instead of entering improvement construction when no Worker is available', async () => {
+      const user = userEvent.setup();
+
+      await renderGameUI();
+
+      await user.click(screen.getByText('Build'));
+      await waitFor(() => {
+        expect(screen.getByTestId('building-menu')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Build Farm' }));
+
+      expect(mockStartConstruction).not.toHaveBeenCalled();
+      expect(visualFeedbackMocks.showToast).toHaveBeenCalledWith(
+        'Cannot build farm: no available Worker can reach a legal target.',
+        'warning',
+      );
+      expect(screen.getByTestId('building-menu')).toBeInTheDocument();
+    });
+
     it('maintains construction queue visibility through navigation', async () => {
       const user = userEvent.setup();
       
@@ -364,7 +415,9 @@ describe('GameUI Navigation Integration Tests', () => {
           buildingType: 'warrior',
           buildingCategory: 'units',
           cityId: 'city1',
-          playerId: 'player1'
+          playerId: 'player1',
+          builderUnitId: null,
+          allowAnyImprovement: false
         },
         cancelConstruction: vi.fn(),
         spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [] },
@@ -404,16 +457,7 @@ describe('GameUI Navigation Integration Tests', () => {
         cities: []
       };
 
-      (useLocalGame as any).mockReturnValue({
-        gameState: noCitiesGameState,
-        dispatch: mockDispatch,
-        endTurn: vi.fn(),
-        useAbility: vi.fn(),
-        attackUnit: vi.fn(),
-        setGamePhase: vi.fn(),
-        resetGame: vi.fn(),
-        loadGameState: vi.fn()
-      });
+      setMockLocalGameStore({ gameState: noCitiesGameState });
 
       await renderGameUI();
 
@@ -442,16 +486,7 @@ describe('GameUI Navigation Integration Tests', () => {
         cities: [mockCity, secondCity]
       };
 
-      (useLocalGame as any).mockReturnValue({
-        gameState: multiCityGameState,
-        dispatch: mockDispatch,
-        endTurn: vi.fn(),
-        useAbility: vi.fn(),
-        attackUnit: vi.fn(),
-        setGamePhase: vi.fn(),
-        resetGame: vi.fn(),
-        loadGameState: vi.fn()
-      });
+      setMockLocalGameStore({ gameState: multiCityGameState });
 
       const user = userEvent.setup();
       
@@ -501,16 +536,7 @@ describe('GameUI Navigation Integration Tests', () => {
         }]
       };
 
-      (useLocalGame as any).mockReturnValue({
-        gameState: updatedGameState,
-        dispatch: mockDispatch,
-        endTurn: vi.fn(),
-        useAbility: vi.fn(),
-        attackUnit: vi.fn(),
-        setGamePhase: vi.fn(),
-        resetGame: vi.fn(),
-        loadGameState: vi.fn()
-      });
+      setMockLocalGameStore({ gameState: updatedGameState });
 
       await act(async () => {
         rerender(<GameUI />);
@@ -527,17 +553,63 @@ describe('GameUI Navigation Integration Tests', () => {
   });
 
   describe('Error Handling and Edge Cases', () => {
-    it('gracefully handles null game state', async () => {
-      (useLocalGame as any).mockReturnValue({
-        gameState: null,
-        dispatch: mockDispatch,
-        endTurn: vi.fn(),
-        useAbility: vi.fn(),
-        attackUnit: vi.fn(),
-        setGamePhase: vi.fn(),
-        resetGame: vi.fn(),
-        loadGameState: vi.fn()
+    it('presents ACTION_RESOLUTION Faith start events without duplicate start toasts', async () => {
+      setMockLocalGameStore({
+        gameState: {
+          ...mockGameState,
+          lastAction: {
+            type: 'ACTION_RESOLUTION',
+            payload: {
+              action: {
+                type: 'START_FAITH_PROJECT',
+                payload: { playerId: 'player1', holyCityIds: ['city1', 'city2', 'city3'] },
+              },
+              events: [{
+                type: 'FAITH_PROJECT_STARTED',
+                payload: { playerId: 'player1', holyCityIds: ['city1', 'city2', 'city3'], progress: 0 },
+              }],
+            },
+          },
+        },
       });
+
+      await renderGameUI();
+
+      await waitFor(() => {
+        expect(visualFeedbackMocks.showToast).toHaveBeenCalledWith('Consecration begun', 'info');
+      });
+      expect(visualFeedbackMocks.showToast.mock.calls.filter(([message]) => message === 'Consecration begun')).toHaveLength(1);
+    });
+
+    it('presents immediate Faith shock events from ACTION_RESOLUTION', async () => {
+      setMockLocalGameStore({
+        gameState: {
+          ...mockGameState,
+          lastAction: {
+            type: 'ACTION_RESOLUTION',
+            payload: {
+              action: {
+                type: 'ATTACK_UNIT',
+                payload: { attackerId: 'enemy-warrior', targetId: 'missionary' },
+              },
+              events: [{
+                type: 'FAITH_LOSS_SHOCK',
+                payload: { playerId: 'player1', faithLoss: 3, reason: 'Missionary was killed.' },
+              }],
+            },
+          },
+        },
+      });
+
+      await renderGameUI();
+
+      await waitFor(() => {
+        expect(visualFeedbackMocks.showToast).toHaveBeenCalledWith('Faith -3: Missionary was killed.', 'warning');
+      });
+    });
+
+    it('gracefully handles null game state', async () => {
+      setMockLocalGameStore({ gameState: null });
 
       // Should not crash with null game state
       await act(async () => {

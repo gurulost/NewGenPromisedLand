@@ -16,9 +16,11 @@ import { GAME_RULES } from "@shared/data/gameRules";
 import { WORLD_ELEMENTS } from "@shared/data/worldElements";
 import { getActionAvailability } from "../../lib/helpers/actionAvailabilityHelpers";
 import { getCapturableCitiesForUnit } from "@shared/logic/cityCapture";
-import { CITY_WORK_RADIUS } from "@shared/logic/constructionValidation";
+import {
+  BUILDER_WORK_RADIUS,
+  getWorkerImprovementRuleOptions,
+} from "@shared/logic/ruleQueries";
 import type { Unit } from "@shared/types/unit";
-import { IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { hexDistance } from "@shared/utils/hex";
 import { useMobileUI } from "../../hooks/useMobileUI";
 
@@ -45,7 +47,7 @@ interface ActionDefinition {
 
 export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProps) {
   const { gameState, dispatch } = useLocalGame();
-  const { setMovementMode, setAttackMode, startRoadBuild } = useGameState();
+  const { setMovementMode, setAttackMode, startRoadBuild, startConstruction } = useGameState();
   const { isMobileUI } = useMobileUI();
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -77,36 +79,10 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     : [];
   const capturableCity = capturableCities[0];
 
-  const getClosestOwnedCityId = (): string | null => {
-    if (!currentTile) return null;
-    const ownedCities = (gameState.cities || []).filter(c => c.ownerId === currentPlayer.id);
-    if (ownedCities.length === 0) return null;
-
-    let best: (typeof ownedCities)[number] | null = null;
-    let bestDistance = Number.POSITIVE_INFINITY;
-    for (const city of ownedCities) {
-      const distance = hexDistance(city.coordinate, currentTile.coordinate);
-      if (distance <= CITY_WORK_RADIUS && distance < bestDistance) {
-        best = city;
-        bestDistance = distance;
-      }
-    }
-    return best?.id ?? null;
-  };
-
-  const getBestImprovementForCurrentTile = (): keyof typeof IMPROVEMENT_DEFINITIONS | null => {
-    if (!currentTile) return null;
-
-    const candidates = Object.values(IMPROVEMENT_DEFINITIONS)
-      .filter(def =>
-        def.validTerrain.includes(currentTile.terrain) &&
-        currentPlayer.researchedTechs.includes(def.requiredTech) &&
-        currentPlayer.stars >= def.cost
-      )
-      .sort((a, b) => (b.starProduction - a.starProduction) || (a.cost - b.cost));
-
-    return (candidates[0]?.id as keyof typeof IMPROVEMENT_DEFINITIONS | undefined) ?? null;
-  };
+  const workerImprovementOptions =
+    isPlayerTurn && unit.type === 'worker'
+      ? getWorkerImprovementRuleOptions(gameState, currentPlayer.id, unit.id)
+      : [];
 
   // Generate available actions based on unit type and game state
   const getUnitActions = (): ActionDefinition[] => {
@@ -174,8 +150,6 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
     // Unit-specific abilities based on type
     switch (unit.type) {
       case 'worker':
-        const bestImprovement = getBestImprovementForCurrentTile();
-        const closestCityId = getClosestOwnedCityId();
         const canClearForest =
           !!currentTile &&
           currentTile.terrain === 'forest' &&
@@ -187,16 +161,14 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
           {
             id: 'build_improvement',
             name: 'Build Improvement',
-            description: !actionAvailability.canBuild
-              ? 'Cannot build on this tile'
-              : !closestCityId
-                ? `No owned city within ${CITY_WORK_RADIUS} tiles`
-                : !bestImprovement
-                  ? 'No valid improvement available (check tech/stars/terrain)'
-                  : `Build ${IMPROVEMENT_DEFINITIONS[bestImprovement].name} (${IMPROVEMENT_DEFINITIONS[bestImprovement].cost} stars)`,
+            description: actionsRemaining <= 0
+              ? 'No actions remaining'
+              : workerImprovementOptions.length === 0
+                ? `No legal improvement target within ${BUILDER_WORK_RADIUS} tiles`
+                : `Choose from ${workerImprovementOptions.length} legal improvement target${workerImprovementOptions.length === 1 ? '' : 's'} within ${BUILDER_WORK_RADIUS} tiles`,
             icon: <Hammer className="w-4 h-4" />,
             cost: 'Turn',
-            available: !!(actionAvailability.canBuild && closestCityId && bestImprovement)
+            available: workerImprovementOptions.length > 0
           },
           {
             id: 'harvest_resource',
@@ -580,20 +552,10 @@ export default function UnitActionsPanel({ unit, onClose }: UnitActionsPanelProp
         }
         break;
       case 'build_improvement':
-        if (currentTile) {
-          const bestImprovement = getBestImprovementForCurrentTile();
-          const closestCityId = getClosestOwnedCityId();
-          if (!bestImprovement || !closestCityId) break;
-          dispatch({
-            type: 'START_CONSTRUCTION',
-            payload: {
-              playerId: currentPlayer.id,
-              buildingType: bestImprovement,
-              category: 'improvements',
-              coordinate: currentTile.coordinate,
-              cityId: closestCityId,
-              builderUnitId: unit.id,
-            }
+        if (workerImprovementOptions.length > 0) {
+          startConstruction(null, 'improvements', null, currentPlayer.id, {
+            builderUnitId: unit.id,
+            allowAnyImprovement: true,
           });
         }
         break;

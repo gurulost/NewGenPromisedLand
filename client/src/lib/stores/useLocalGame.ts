@@ -63,6 +63,7 @@ const applyPlayerDefaults = (player: PlayerState): PlayerState => {
   normalized.exploredTiles = player.exploredTiles ?? [];
   normalized.abilityCooldowns = player.abilityCooldowns ?? {};
   normalized.currentResearch = player.currentResearch;
+  normalized.faithProject = player.faithProject ?? null;
   // Diplomatic relations defaults
   normalized.atWarWith = player.atWarWith ?? [];
   normalized.alliedWith = player.alliedWith ?? [];
@@ -246,7 +247,7 @@ export const useLocalGame = create<LocalGameStore>((set, get) => {
     });
   };
 
-  const clearClientInteractionState = (): void => { useGameState.setState({ selectedUnit: null, hoveredTile: null, reachableTiles: [], reachableCoordinates: [], abilityTargetMode: { isActive: false, abilityId: null, title: null, instructions: null, eligibleUnitIds: [], selectedUnitId: null, onSelectUnit: undefined }, constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null }, spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [], onSelectTile: undefined }, isMovementMode: false, isAttackMode: false, attackableTargets: [], isRoadBuildMode: false, roadBuildUnitId: null, tileContextMenu: { isOpen: false, screenPosition: { x: 0, y: 0 }, tileCoordinate: null, options: [] } }); };
+  const clearClientInteractionState = (): void => { useGameState.setState({ selectedUnit: null, hoveredTile: null, reachableTiles: [], reachableCoordinates: [], abilityTargetMode: { isActive: false, abilityId: null, title: null, instructions: null, eligibleUnitIds: [], selectedUnitId: null, onSelectUnit: undefined }, constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null, builderUnitId: null, allowAnyImprovement: false }, spawnSelectionMode: { isActive: false, unitType: null, cityId: null, cityCoordinate: null, playerId: null, validSpawnTiles: [], onSelectTile: undefined }, isMovementMode: false, isAttackMode: false, attackableTargets: [], isRoadBuildMode: false, roadBuildUnitId: null, tileContextMenu: { isOpen: false, screenPosition: { x: 0, y: 0 }, tileCoordinate: null, options: [] } }); };
 
   const applyActionToState = (
     action: TrackedAction,

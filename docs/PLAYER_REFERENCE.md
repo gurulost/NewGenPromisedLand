@@ -40,7 +40,8 @@ Represents covenant strength and spiritual power. Used for:
 - Some faction/tech abilities
 
 Faith is also a combat factor:
-- High Faith improves offense/defense (see Combat section).
+- Missionaries and other faith units can pressure battles, but stored Faith no longer grants passive attack/defense bonuses.
+- Consecration Victory uses Faith as an explicit project resource.
 
 ### Pride (0–100)
 Represents prosperity-driven pride cycles. Pride is **not** a “free buff resource”; high Pride increases the likelihood of **contention-style losses** and can interact with faction systems (e.g., Jaredites).
@@ -611,12 +612,12 @@ Each tech unlocks specific units/improvements/structures/abilities; use the tech
 ## 16) Victory Conditions
 
 The game checks these conditions at end of turn:
-- Faith Victory: **currently disabled for balance reasons.** When re-enabled: reach Faith threshold (90+) while keeping Dissent low (under 10). See `replit.md` → "Active Balance Toggles" for status and how to turn it back on.
+- Consecration Victory: starting on turn 35, own at least 3 cities, choose exactly 3 owned holy cities with completed Temples, include at least 1 Cathedral, hold 70+ Faith and Dissent <= 10, then sustain the Faith Project for 3 of your turn ends by paying 10 Faith + 5 Stars each progress tick.
 - Economic Victory: income >= 15 + 3x players, treasury >= 60 + 15x players, tech >= 75%.
-- Cultural Victory: population >= 20 + 6x players, cultural sites (temple/shrine/library/academy/cathedral) >= 3 + players, Dissent <= 10.
+- Cultural Victory: population >= 20 + 6x players, cultural sites (library/academy/cathedral) >= 3 + players, Dissent <= 10.
 - Territorial Victory: control most owned cities (about 80%; neutral cities do not count).
 - Elimination Victory: only one player has cities remaining (if elimination is enabled).
-- Turn Cap: if max turns are reached, the winner is determined by score (cities > faith > techs > units).
+- Turn Cap: if max turns are reached, the winner is determined by score (cities > techs > units).
 
 ---
 

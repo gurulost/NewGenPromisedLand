@@ -2,17 +2,15 @@ import { useRef, useMemo, useEffect } from "react";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { TextureLoader } from "three";
 import * as THREE from "three";
-import { Tile, GameMap, GameState, PlayerState } from "@shared/types/game";
+import { Tile, GameMap, GameAction, GameState, PlayerState } from "@shared/types/game";
 import { hexDistance, hexToPixel, pixelToHex } from "@shared/utils/hex";
 import { getUnitDefinition } from "@shared/data/units";
 import { WORLD_ELEMENTS } from "@shared/data/worldElements";
-import { validateConstructionRequest } from "@shared/logic/constructionValidation";
+import { getLegalConstructionActionsForTile, type LegalActionOption } from "@shared/logic/ruleQueries";
 import { getVisibleTilesInRange, calculateFogOfWarState } from "@shared/utils/lineOfSight";
-import { calculateReachableTiles } from "@shared/logic/unitLogic";
 import { useLocalGame } from "../../lib/stores/useLocalGame";
 import { useGameState, TileContextMenuOption } from "../../lib/stores/useGameState";
 import { getWorldElementRequirementSummary } from "../../utils/worldElementRequirements";
-import { IMPROVEMENT_DEFINITIONS, STRUCTURE_DEFINITIONS } from "@shared/types/city";
 import { createCloudShader } from './cloudShader';
 
 interface HexGridInstancedProps {
@@ -28,6 +26,14 @@ const debugHexGridLog: ((...args: unknown[]) => void) | undefined = DEBUG_HEX_GR
 type RenderingOnlineSession = {
   myPlayerIds?: string[] | null;
 } | null | undefined;
+
+type ConstructionActionOption = LegalActionOption & {
+  action: Extract<GameAction, { type: "START_CONSTRUCTION" }>;
+};
+
+function isConstructionActionOption(option: LegalActionOption): option is ConstructionActionOption {
+  return option.action.type === "START_CONSTRUCTION";
+}
 
 export function resolveRenderingViewPlayer(
   gameState: GameState | null | undefined,
@@ -70,40 +76,32 @@ export function isTileInspectableForRendering(
 }
 
 // Helper functions for construction validation
-function getValidConstructionTiles(gameState: any, buildingType: string, category: string, cityId: string) {
-  const validTiles: string[] = [];
+function getValidConstructionTiles(
+  gameState: GameState,
+  buildingType: string | null,
+  category: "improvements" | "structures" | "units" | null,
+  cityId: string | null,
+  builderUnitId?: string | null,
+  allowAnyImprovement?: boolean
+) {
+  const validTiles = new Set<string>();
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  if (!currentPlayer) return validTiles;
+  if (!currentPlayer) return [];
 
-  // For each visible tile, check if it's valid for construction
-  gameState.map.tiles.forEach((tile: any) => {
-    if (isValidConstructionTile(gameState, tile.coordinate, buildingType, category, cityId)) {
-      validTiles.push(`${tile.coordinate.q},${tile.coordinate.r}`);
-    }
-  });
-
-  return validTiles;
-}
-
-function isValidConstructionTile(
-  gameState: any,
-  coordinate: any,
-  buildingType: string,
-  category: string,
-  cityId: string
-): boolean {
-  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  if (!currentPlayer) return false;
-
-  return (
-    validateConstructionRequest(gameState, {
-      playerId: currentPlayer.id,
+  for (const tile of gameState.map.tiles) {
+    const options = getLegalConstructionActionsForTile(gameState, currentPlayer.id, tile.coordinate, {
       buildingType,
-      category: category as "improvements" | "structures" | "units",
-      coordinate,
+      category,
       cityId,
-    }) !== null
-  );
+      builderUnitId,
+      allowAnyImprovement,
+    });
+    if (options.some(isConstructionActionOption)) {
+      validTiles.add(`${tile.coordinate.q},${tile.coordinate.r}`);
+    }
+  }
+
+  return Array.from(validTiles);
 }
 
 export default function HexGridInstanced({ map }: HexGridInstancedProps) {
@@ -119,7 +117,9 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
       gameState,
       constructionMode.buildingType!,
       constructionMode.buildingCategory!,
-      constructionMode.cityId!
+      constructionMode.cityId,
+      constructionMode.builderUnitId,
+      constructionMode.allowAnyImprovement
     );
   }, [constructionMode, gameState]);
 
@@ -439,51 +439,85 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
         if (constructionMode.isActive && currentPlayer) {
           debugHexGridLog?.('Construction mode: selecting tile for', constructionMode.buildingType);
 
-          // Validate if this tile is valid for construction
-          const isValidTile = isValidConstructionTile(
-            gameState,
-            clickedTile.coordinate,
-            constructionMode.buildingType!,
-            constructionMode.buildingCategory!,
-            constructionMode.cityId!
-          );
+          const confirmAndDispatchConstruction = (option: ConstructionActionOption) => {
+            const confirmed = window.confirm(
+              `${option.label} for ${option.costs?.stars ?? 0} stars?`
+            );
 
-          if (!isValidTile) {
+            if (!confirmed) {
+              return;
+            }
+
+            const { dispatch } = useLocalGame.getState();
+            dispatch(option.action);
+
+            cancelConstruction();
+          };
+
+          if (constructionMode.buildingCategory === 'improvements') {
+            if (!gameState) return;
+            const improvementOptions = getLegalConstructionActionsForTile(
+              gameState,
+              currentPlayer.id,
+              clickedTile.coordinate,
+              constructionMode
+            ).filter(isConstructionActionOption);
+
+            if (improvementOptions.length === 0) {
+              debugHexGridLog?.('Invalid improvement construction tile selected');
+              return;
+            }
+
+            const uniqueImprovementOptions = improvementOptions.filter((option, index, all) =>
+              all.findIndex(candidate => candidate.action.payload.buildingType === option.action.payload.buildingType) === index
+            );
+
+            if (constructionMode.allowAnyImprovement && uniqueImprovementOptions.length > 1) {
+              openTileContextMenu(
+                { x: event.clientX, y: event.clientY },
+                { q: clickedTile.coordinate.q, r: clickedTile.coordinate.r },
+                uniqueImprovementOptions.map(option => ({
+                  id: `build-${option.action.payload.buildingType}`,
+                  label: option.label,
+                  icon: '🔨',
+                  subLabel: `${option.costs?.stars ?? 0} stars`,
+                  action: () => {
+                    closeTileContextMenu();
+                    confirmAndDispatchConstruction(option);
+                  },
+                }))
+              );
+              return;
+            }
+
+            confirmAndDispatchConstruction(improvementOptions[0]);
+            return;
+          }
+
+          // Validate if this tile is valid for construction
+          if (!constructionMode.buildingType || !constructionMode.buildingCategory || !constructionMode.cityId) {
+            return;
+          }
+          const constructionOptions = getLegalConstructionActionsForTile(
+            gameState,
+            currentPlayer.id,
+            clickedTile.coordinate,
+            {
+              buildingType: constructionMode.buildingType,
+              category: constructionMode.buildingCategory,
+              cityId: constructionMode.cityId,
+            }
+          ).filter(isConstructionActionOption);
+          const constructionOption = constructionOptions[0];
+
+          if (!constructionOption) {
             debugHexGridLog?.('Invalid construction tile selected');
             return;
           }
 
           // Show confirmation dialog before spending resources
-          const buildingName = constructionMode.buildingType;
-          const category = constructionMode.buildingCategory;
-
-          // Get cost for confirmation
-          let costStars = 0;
-          let requirementNote = '';
-          if (category === 'units') {
-            const unitDef = getUnitDefinition(buildingName as any);
-            if (unitDef) {
-              costStars = unitDef.cost; // Units have direct cost number
-              const req: string[] = [];
-              if (unitDef.requirements?.faith) req.push(`Faith ${unitDef.requirements.faith}+`);
-              if (unitDef.requirements?.pride) req.push(`Pride ${unitDef.requirements.pride}+`);
-              if (unitDef.requirements?.dissent) req.push(`Dissent ${unitDef.requirements.dissent}+`);
-              if (req.length > 0) requirementNote = ` (requires ${req.join(', ')})`;
-            }
-          } else if (category === 'improvements') {
-            const improvementDef = IMPROVEMENT_DEFINITIONS[buildingName as keyof typeof IMPROVEMENT_DEFINITIONS];
-            if (improvementDef) {
-              costStars = improvementDef.cost;
-            }
-          } else if (category === 'structures') {
-            const structureDef = STRUCTURE_DEFINITIONS[buildingName as keyof typeof STRUCTURE_DEFINITIONS];
-            if (structureDef) {
-              costStars = structureDef.cost;
-            }
-          }
-
           const confirmed = window.confirm(
-            `Build ${buildingName} for ${costStars} stars${requirementNote}?`
+            `${constructionOption.label} for ${constructionOption.costs?.stars ?? 0} stars?`
           );
 
           if (!confirmed) {
@@ -493,17 +527,7 @@ export default function HexGridInstanced({ map }: HexGridInstancedProps) {
           // Dispatch construction action
           if (gameState && constructionMode.buildingType && constructionMode.cityId) {
             const { dispatch } = useLocalGame.getState();
-
-            dispatch({
-              type: 'START_CONSTRUCTION',
-              payload: {
-                playerId: currentPlayer.id,
-                buildingType: constructionMode.buildingType,
-                category: constructionMode.buildingCategory!,
-                coordinate: clickedTile.coordinate,
-                cityId: constructionMode.cityId,
-              },
-            });
+            dispatch(constructionOption.action);
 
             // Exit construction mode
             cancelConstruction();

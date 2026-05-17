@@ -5,6 +5,7 @@
 
 import { GameState, PlayerState } from '../types/game';
 import { hexDistance } from '../utils/hex';
+import { isPlayerThreateningFaithVictory } from '../logic/faithProject';
 
 export type DiplomaticStatus = 'neutral' | 'friendly' | 'hostile' | 'allied' | 'at_war';
 
@@ -16,6 +17,7 @@ export interface DiplomaticRelationship {
     turnsAllied: number;
     hasCommonEnemy: boolean;
     relativeMilitaryStrength: number; // < 1 = weaker, > 1 = stronger
+    faithVictoryThreat: boolean;
 }
 
 export interface AllianceProposal {
@@ -81,6 +83,11 @@ export class AIDiplomacyEngine {
         const faithAlignment = this.calculateFaithAlignment(otherPlayer);
         relationScore += faithAlignment;
 
+        const faithVictoryThreat = isPlayerThreateningFaithVictory(otherPlayer, this.gameState);
+        if (faithVictoryThreat) {
+            relationScore -= 35;
+        }
+
         return {
             playerId: otherPlayer.id,
             relationScore,
@@ -89,6 +96,7 @@ export class AIDiplomacyEngine {
             turnsAllied: 0,
             hasCommonEnemy,
             relativeMilitaryStrength: relativeMilitary,
+            faithVictoryThreat,
         };
     }
 
@@ -138,6 +146,7 @@ export class AIDiplomacyEngine {
      */
     private shouldProposeAlliance(rel: DiplomaticRelationship): boolean {
         if (rel.status === 'allied' || rel.status === 'at_war') return false;
+        if (rel.faithVictoryThreat) return false;
 
         // Favorable conditions for alliance:
         // 1. We're weaker and have common enemy
@@ -164,7 +173,7 @@ export class AIDiplomacyEngine {
         const noThreat = !rel.hasCommonEnemy;
         const rivalForVictory = this.isRivalForVictory(rel.playerId);
 
-        return (muchStronger && noThreat && rivalForVictory);
+        return rel.faithVictoryThreat || (muchStronger && noThreat && rivalForVictory);
     }
 
     /**
@@ -181,7 +190,7 @@ export class AIDiplomacyEngine {
         const muchStronger = rel.relativeMilitaryStrength < 0.6;
         const veryHostile = rel.relationScore < -50;
 
-        return muchStronger && veryHostile;
+        return rel.faithVictoryThreat || (muchStronger && veryHostile);
     }
 
     /**
@@ -189,6 +198,7 @@ export class AIDiplomacyEngine {
      */
     private getAllianceReason(rel: DiplomaticRelationship): string {
         if (rel.hasCommonEnemy) return 'Common enemy threatens us both';
+        if (rel.faithVictoryThreat) return 'They are nearing Consecration Victory';
         if (rel.relativeMilitaryStrength > 1.2) return 'Your strength complements ours';
         return 'Our peoples share similar values';
     }

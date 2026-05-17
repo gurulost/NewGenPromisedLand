@@ -36,6 +36,8 @@ import MovementControls from "../game/MovementControls";
 import { useSfxEngine } from "../../hooks/useSfx";
 import { useMobileUI } from "../../hooks/useMobileUI";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
+import { BUILDER_WORK_RADIUS, CITY_WORK_RADIUS, getConstructionMenuOptions } from "@shared/logic/ruleQueries";
+import { STRUCTURE_BUILD_RADIUS } from "@shared/logic/constructionRules";
 import { UNIT_DEFINITIONS } from "@shared/data/units";
 import { TECHNOLOGIES } from "@shared/data/technologies";
 import { getWorldElement, WORLD_ELEMENTS } from "@shared/data/worldElements";
@@ -49,7 +51,8 @@ import { useAutosaveStatus } from "../../lib/stores/useAutosaveStatus";
 import { useTutorialStore } from "../../lib/stores/useTutorial";
 import { useAnimationLabAccess } from "../../lib/stores/useAnimationLabAccess";
 import { resolveUiTurnPlayer } from "../../lib/turnPresentation";
-import { isUnitVisibleToPlayer } from "@shared/logic/unitLogic";
+import { getFaithProjectPresentation, isFaithProjectPresentationAction } from "../../lib/faithProjectPresentation";
+import { isUnitVisibleForRendering } from "@shared/logic/visibilityQueries";
 import { hexDistance } from "@shared/utils/hex";
 import { getVisibleTilesInRange } from "@shared/utils/lineOfSight";
 import { getValidSpawnTiles } from "@shared/logic/gameReducer";
@@ -73,14 +76,12 @@ interface ActiveNotification {
   message: string;
   timestamp: number;
 }
-
 interface TurnRecoveryStatus {
   canForceEndTurn: boolean;
   actorId: string | null;
   msUntilEligible: number;
   actorLastSeenAt: number | null;
 }
-
 export default function GameUI() {
   const isDev = import.meta.env.DEV;
   const {
@@ -157,24 +158,20 @@ export default function GameUI() {
   const activeTechRevealRef = useRef<string | null>(null);
   const completionSignatureRef = useRef<string | null>(null);
   const prevCityLevelsRef = useRef<Map<string, number>>(new Map());
-
   useOnlineGameSync();
   const addToast = useMapToastStore(state => state.addToast);
   const addPulse = useMapPulseStore(state => state.addPulse);
   const [activeNotification, setActiveNotification] = useState<ActiveNotification | null>(null);
   const gameLogRef = useRef<any[]>([]);
   const [gameLogEntries, setGameLogEntries] = useState<VictoryLogEntry[]>([]);
-
   // Safety-net cleanup for long sessions (stale particles/map-toasts can linger when tab is backgrounded).
   useMemoryCleanup();
   useTurnEndCleanup(gameState?.turn || 0);
-
   // Keep latest visual-feedback functions for stable event listeners.
   const visualRef = useRef({ triggerFlash, showToast });
   useEffect(() => {
     visualRef.current = { triggerFlash, showToast };
   }, [triggerFlash, showToast]);
-
   useEffect(() => {
     return () => {
       if (ruinsOpenTimeoutRef.current) {
@@ -188,7 +185,6 @@ export default function GameUI() {
       }
     };
   }, []);
-
   useEffect(() => {
     if (!actionError) return;
     const type = actionError.level === 'error' ? 'error' : 'warning';
@@ -201,7 +197,6 @@ export default function GameUI() {
   useEffect(() => {
     setShowQuickUnitActions(false);
   }, [selectedUnit?.id]);
-
   useEffect(() => {
     if (!onlineSession) {
       prevHostRef.current = null;
@@ -215,7 +210,6 @@ export default function GameUI() {
       prevHostRef.current = nextHostId;
       return;
     }
-
     if (prevHostRef.current !== nextHostId) {
       if (nextHostId === onlineSession.userId) {
         showToast("You are now the host.", "success");
@@ -589,7 +583,7 @@ export default function GameUI() {
       if (!currentPlayerId) return true;
       if (!unit) return false;
       if (isLocalPlayerAction(actorId)) return true;
-      return isUnitVisibleToPlayer(unit, currentPlayerId, gameState);
+      return isUnitVisibleForRendering(unit, currentPlayerId, gameState);
     };
 
     const handleAction = (action: any) => {
@@ -703,7 +697,6 @@ export default function GameUI() {
       } else if (action.type === 'MORALE_EVENT') {
         const { kind, playerId, starsDelta, cityId } = action.payload || {};
         const cityName = typeof cityId === 'string' ? (gameState.cities.find(c => c.id === cityId)?.name || 'a city') : 'a city';
-
         if (kind === 'rebellion') {
           triggerFlash('red');
           showToast(`Rebellion! Unrest in ${cityName} (${starsDelta ?? -5}★)`, 'warning');
@@ -720,7 +713,6 @@ export default function GameUI() {
           showToast(`Morale shifted`, 'info');
         }
 
-        // Log it (best-effort; keep concise)
         const actor = gameState.players.find(p => p.id === playerId);
         if (actor) {
           const message =
@@ -738,6 +730,14 @@ export default function GameUI() {
             timestamp: Date.now(),
           }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
         }
+      } else if (isFaithProjectPresentationAction(action.type)) {
+        const actorId = action.payload?.playerId;
+        const actor = gameState.players.find(p => p.id === actorId);
+        const presentation = getFaithProjectPresentation(action, actor?.name);
+        const shouldToast = isLocalPlayerAction(actorId) || presentation.toast.public;
+        if (presentation.flash && shouldToast) triggerFlash(presentation.flash);
+        if (shouldToast) showToast(presentation.toast.message, presentation.toast.type);
+        if (actor) setGameLogEntries(prev => pushCapped(prev, { id: `log_${Date.now()}`, turn: gameState.turn, playerId: actor.id, playerName: actor.name, type: 'faith', message: presentation.logMessage, timestamp: Date.now() }, MEMORY_LIMITS.GAME_LOG_MAX_ENTRIES));
       } else if (action.type === 'TESTIMONY_PRESSURE') {
         if (!currentPlayerId) return;
         const affected: Array<{ playerId: string; unitIds: string[] }> = action.payload?.affected || [];
@@ -845,9 +845,11 @@ export default function GameUI() {
       }
     };
 
-    if (rootAction.type === 'END_TURN_RESOLUTION') {
-      const events = rootAction.payload?.events || [];
-      events.forEach(handleAction);
+    if (rootAction.type === 'END_TURN_RESOLUTION' || rootAction.type === 'ACTION_RESOLUTION') {
+      const actions = rootAction.type === 'ACTION_RESOLUTION'
+        ? [rootAction.payload?.action, ...(rootAction.payload?.events || [])]
+        : rootAction.payload?.events || [];
+      actions.filter(Boolean).forEach(handleAction);
       return;
     }
 
@@ -1908,10 +1910,20 @@ export default function GameUI() {
         >
           <div className="bg-black/90 text-white px-4 py-3 rounded-lg border-2 border-yellow-400 shadow-lg backdrop-blur-sm max-w-xs">
             <div className="text-center">
-              <h3 className="text-sm font-bold mb-1">Construction Mode</h3>
+              <h3 className="text-sm font-bold mb-1">
+                {constructionMode.allowAnyImprovement ? 'Worker Build Mode' : 'Construction Mode'}
+              </h3>
               <p className="text-xs mb-2">
-                Select a tile within 3 of a friendly city, village, or building to build{" "}
-                <span className="font-semibold text-yellow-300">{constructionMode.buildingType}</span>
+                {constructionMode.buildingCategory === 'improvements'
+                  ? constructionMode.allowAnyImprovement
+                    ? `Select a highlighted tile within ${BUILDER_WORK_RADIUS} of the Worker.`
+                    : `Select a highlighted tile within ${CITY_WORK_RADIUS} of the city and ${BUILDER_WORK_RADIUS} of a Worker to build `
+                  : constructionMode.buildingCategory === 'structures'
+                    ? `Select a highlighted tile within ${STRUCTURE_BUILD_RADIUS} of a friendly anchor to build `
+                    : `Select a valid city spawn tile to train `}
+                {!constructionMode.allowAnyImprovement && (
+                  <span className="font-semibold text-yellow-300">{constructionMode.buildingType}</span>
+                )}
               </p>
               <button
                 onClick={cancelConstruction}
@@ -2053,19 +2065,9 @@ export default function GameUI() {
           city={gameState.cities?.find(c => c.id === selectedCityId)!}
           player={currentPlayer}
           gameState={gameState}
-          onBuild={(optionId) => {
+          onBuild={(optionId, category) => {
             // Handle construction logic
             if (import.meta.env.DEV && import.meta.env.VITE_GAMEPLAY_DEBUG === "true") console.debug('Starting construction:', optionId);
-            // Determine building category
-            let category: 'improvements' | 'structures' | 'units';
-
-            if (Object.values(STRUCTURE_DEFINITIONS).some(s => s.id === optionId)) {
-              category = 'structures';
-            } else if (Object.values(UNIT_DEFINITIONS).some(u => u.type === optionId)) {
-              category = 'units';
-            } else {
-              category = 'improvements';
-            }
 
             if (category === 'units') {
               const city = gameState.cities?.find(c => c.id === selectedCityId);
@@ -2102,6 +2104,22 @@ export default function GameUI() {
               });
               setShowConstructionHall(false);
               return;
+            }
+
+            if (category === 'improvements') {
+              const hasWorkerOption = getConstructionMenuOptions(gameState, currentPlayer.id, selectedCityId)
+                .some(option =>
+                  option.action.type === 'START_CONSTRUCTION' &&
+                  option.action.payload.category === 'improvements' &&
+                  option.action.payload.buildingType === optionId
+                );
+              if (!hasWorkerOption) {
+                showToast(
+                  `Cannot build ${optionId}: no available Worker can reach a legal target.`,
+                  "warning"
+                );
+                return;
+              }
             }
 
             // Use the game state construction system

@@ -88,7 +88,7 @@ describe('Movement System Core Logic Tests', () => {
       reachableTiles: [],
       isMovementMode: false,
       isAttackMode: false,
-      constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null },
+      constructionMode: { isActive: false, buildingType: null, buildingCategory: null, cityId: null, playerId: null, builderUnitId: null, allowAnyImprovement: false },
       setSelectedUnit: vi.fn(),
       setHoveredTile: vi.fn(),
       setReachableTiles: vi.fn(),

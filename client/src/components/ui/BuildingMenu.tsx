@@ -49,7 +49,7 @@ interface BuildingOption {
   description: string;
   lore?: string;
   factionTag?: string;
-  category: 'units' | 'structures' | 'improvements';
+  category: BuildingMenuCategory;
   cost: {
     stars?: number;
     faith?: number;
@@ -62,11 +62,13 @@ interface BuildingOption {
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
 }
 
+export type BuildingMenuCategory = 'units' | 'structures' | 'improvements';
+
 interface BuildingMenuProps {
   city: City;
   player: PlayerState;
   gameState: GameState;
-  onBuild: (optionId: string) => void;
+  onBuild: (optionId: string, category: BuildingMenuCategory) => void;
   onClose: () => void;
   onShowCities?: () => void;
 }
@@ -393,7 +395,7 @@ export function BuildingMenu({ city, player, gameState, onBuild, onClose, onShow
                     }}
                     onBuild={() => {
                       if (canAfford(option) && meetsNonCostRequirements(option)) {
-                        onBuild(option.id);
+                        onBuild(option.id, option.category);
                         playSound('build');
                       } else {
                         playSound('error');

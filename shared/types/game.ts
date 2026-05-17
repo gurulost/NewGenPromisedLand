@@ -136,6 +136,16 @@ export const ConstructionItemSchema = z.object({
 
 export type ConstructionItem = z.infer<typeof ConstructionItemSchema>;
 
+export const FaithProjectStateSchema = z.object({
+  active: z.boolean(),
+  progress: z.number().int().nonnegative(),
+  holyCityIds: z.tuple([z.string(), z.string(), z.string()]),
+  startedTurn: z.number().int().nonnegative(),
+  pausedReason: z.string().nullable().optional(),
+});
+
+export type FaithProjectState = z.infer<typeof FaithProjectStateSchema>;
+
 // Player state with faction, stats, and actions
 export const PlayerStateSchema = z.object({
   id: z.string(),
@@ -157,6 +167,7 @@ export const PlayerStateSchema = z.object({
   exploredTiles: z.array(z.string()).default([]), // Previously explored tiles
   isEliminated: z.boolean().default(false),
   turnOrder: z.number(),
+  faithProject: FaithProjectStateSchema.nullable().optional(),
   // Diplomatic relations
   atWarWith: z.array(z.string()).default([]), // Player IDs currently at war with
   alliedWith: z.array(z.string()).default([]), // Player IDs allied with
@@ -175,6 +186,16 @@ export const PlayerStateSchema = z.object({
 });
 
 export type PlayerState = z.infer<typeof PlayerStateSchema>;
+
+const LastActionEventSchema = z.object({
+  type: z.string(),
+  payload: z.unknown().optional(),
+});
+
+const LastActionSourceActionSchema = z.object({
+  type: z.string(),
+  payload: z.unknown().optional(),
+});
 
 // Game state
 export const GameStateSchema = z.object({
@@ -203,6 +224,13 @@ export const GameStateSchema = z.object({
         nextPlayerId: z.string(),
         events: z.array(z.object({ type: z.string(), payload: z.unknown() })),
       })
+    }),
+    z.object({
+      type: z.literal('ACTION_RESOLUTION'),
+      payload: z.object({
+        action: LastActionSourceActionSchema,
+        events: z.array(LastActionEventSchema),
+      }),
     }),
     z.object({ type: z.literal('CONVERT_UNIT'), payload: z.object({ playerId: z.string(), unitId: z.string(), targetUnitId: z.string() }) }),
     z.object({
@@ -241,6 +269,7 @@ export const GameStateSchema = z.object({
     z.object({ type: z.literal('SIEGE_MODE'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
     z.object({ type: z.literal('RALLY_TROOPS'), payload: z.object({ unitId: z.string(), playerId: z.string() }) }),
     z.object({ type: z.literal('RESEARCH_TECHNOLOGY'), payload: z.object({ playerId: z.string(), technologyId: z.string() }) }),
+    z.object({ type: z.literal('START_FAITH_PROJECT'), payload: z.object({ playerId: z.string(), holyCityIds: z.tuple([z.string(), z.string(), z.string()]) }) }),
     z.object({ type: z.literal('CLEAR_FOREST'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema, playerId: z.string() }) }),
     z.object({ type: z.literal('BUILD_ROAD'), payload: z.object({ unitId: z.string(), targetCoordinate: HexCoordinateSchema, playerId: z.string() }) }),
     z.object({ type: z.string(), payload: z.unknown() }) // Fallback for other actions
@@ -409,6 +438,13 @@ export const GameActionSchema = z.discriminatedUnion('type', [
       coordinate: HexCoordinateSchema.optional(),
       cityId: z.string(),
       builderUnitId: z.string().optional(),
+    }),
+  }),
+  z.object({
+    type: z.literal('START_FAITH_PROJECT'),
+    payload: z.object({
+      playerId: z.string(),
+      holyCityIds: z.tuple([z.string(), z.string(), z.string()]),
     }),
   }),
   z.object({

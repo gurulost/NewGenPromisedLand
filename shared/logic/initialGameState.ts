@@ -44,6 +44,7 @@ function applyPlayerDefaults(player: PlayerState): PlayerState {
   normalized.exploredTiles = player.exploredTiles ?? [];
   normalized.abilityCooldowns = player.abilityCooldowns ?? {};
   normalized.currentResearch = player.currentResearch;
+  normalized.faithProject = player.faithProject ?? null;
   normalized.atWarWith = player.atWarWith ?? [];
   normalized.alliedWith = player.alliedWith ?? [];
   normalized.tradeRoutes = player.tradeRoutes ?? [];
@@ -76,6 +77,7 @@ function createInitialPlayers(playerSetup: InitialPlayerSetup[]): PlayerState[] 
       atWarWith: [],
       alliedWith: [],
       tradeRoutes: [],
+      faithProject: null,
       diplomaticCooldowns: {
         declareWar: 0,
         formAlliance: 0,
