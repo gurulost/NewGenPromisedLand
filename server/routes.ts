@@ -635,7 +635,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     app.set("trust proxy", 1);
   }
 
-  const sessionStore = isProduction
+  const usePostgresSessionStore = isProduction || Boolean(process.env.REPL_ID);
+  const sessionStore = usePostgresSessionStore
     ? new PgSessionStore({
         pool,
         tableName: "user_sessions",
