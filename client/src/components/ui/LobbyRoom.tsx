@@ -61,9 +61,10 @@ function SeatSlot({
     setAiName(seat?.playerName ?? "");
   }, [seat?.id, seat?.playerName]);
 
-  const isMySeat = seat?.userId === userId;
-  const isEmpty = !seat;
+  const isClaimedHumanSeat = seat?.userId != null;
   const isAISeat = Boolean(seat?.isAI);
+  const isMySeat = isClaimedHumanSeat && seat?.userId === userId;
+  const isEmpty = !seat || (!isClaimedHumanSeat && !isAISeat);
   const canManageAISeat = isHost && isAISeat;
   const showSeatControls = !isEmpty && (isMySeat || canManageAISeat);
   const seatFactionId = coerceFactionId(seat?.factionId);

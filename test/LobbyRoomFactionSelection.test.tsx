@@ -212,6 +212,43 @@ describe("LobbyRoom faction selection", () => {
     expect(screen.getByTestId("lobby-start-game")).toBeInTheDocument();
   });
 
+  it("renders unclaimed server placeholder seats as claimable empty seats", () => {
+    mockUseLobby.mockReturnValue({
+      ...baseLobbyApi,
+      currentLobby: buildLobby([
+        {
+          id: 501,
+          lobbyId: 7,
+          seatIndex: 0,
+          userId: 1,
+          connectionId: null,
+          playerName: "Host",
+          factionId: "NEPHITES",
+          isReady: false,
+          isAI: false,
+        },
+        {
+          id: 502,
+          lobbyId: 7,
+          seatIndex: 1,
+          userId: null,
+          connectionId: null,
+          playerName: null,
+          factionId: null,
+          isReady: false,
+          isAI: false,
+        },
+      ]),
+    });
+
+    render(<LobbyRoom />);
+
+    expect(screen.getByTestId("lobby-seat-1-claim")).toBeInTheDocument();
+    expect(screen.getByTestId("lobby-seat-1")).toHaveTextContent("Empty Seat");
+    expect(screen.getAllByText("Empty Seat")).toHaveLength(3);
+    expect(screen.queryByText("Unknown")).not.toBeInTheDocument();
+  });
+
   it("labels public-authoritative lobbies as server-authoritative", () => {
     mockUseLobby.mockReturnValue({
       ...baseLobbyApi,

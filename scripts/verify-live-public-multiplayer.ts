@@ -26,6 +26,7 @@ type SmokeAgent = {
   playerId?: string;
   consoleMessages: Array<{ type: string; text: string }>;
   failedRequests: Array<{ url: string; errorText?: string }>;
+  httpErrors: Array<{ url: string; status: number; statusText: string }>;
   ignoredRequests: Array<{ url: string; errorText?: string; reason: string }>;
   isClosing: boolean;
 };
@@ -124,6 +125,14 @@ function shouldIgnoreFailedRequest(url: string, errorText?: string): string | nu
     return "analytics_request";
   }
   return null;
+}
+
+function isSameOriginUrl(url: string): boolean {
+  try {
+    return new URL(url).origin === new URL(BASE_URL).origin;
+  } catch {
+    return false;
+  }
 }
 
 async function waitFor<T>(
@@ -643,6 +652,7 @@ async function writeReport() {
       faction: agent.faction,
       consoleErrors: agent.consoleMessages.filter((entry) => entry.type === "error"),
       failedRequests: agent.failedRequests,
+      httpErrors: agent.httpErrors,
       ignoredRequests: agent.ignoredRequests,
     })),
     finalStates,
@@ -683,6 +693,7 @@ async function main() {
       page,
       consoleMessages: [],
       failedRequests: [],
+      httpErrors: [],
       ignoredRequests: [],
       isClosing: false,
     };
@@ -691,6 +702,9 @@ async function main() {
       const text = message.text();
       agent.consoleMessages.push({ type: message.type(), text });
       if (message.type() === "error") {
+        if (/Failed to load resource: the server responded with a status of \d+/i.test(text)) {
+          return;
+        }
         addIssue("medium", "Browser console error", { agent: agent.name, text });
       }
     });
@@ -711,6 +725,16 @@ async function main() {
         agent: agent.name,
         url,
         errorText: failure?.errorText,
+      });
+    });
+    page.on("response", (response) => {
+      const status = response.status();
+      if (agent.isClosing || status < 400 || !isSameOriginUrl(response.url())) return;
+      const entry = { url: response.url(), status, statusText: response.statusText() };
+      agent.httpErrors.push(entry);
+      addIssue("medium", "Browser HTTP error response", {
+        agent: agent.name,
+        ...entry,
       });
     });
 
