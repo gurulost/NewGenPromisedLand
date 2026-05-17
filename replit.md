@@ -59,6 +59,7 @@ The application uses a modern full-stack monorepo architecture with a clear sepa
   - The realtime broker for lobby and multiplayer sync events is in-memory and process-local. Private/demo multiplayer currently assumes a single running Node process or sticky single-instance deployment.
   - Polling catch-up still exists, but multi-instance autoscaling without Redis, Postgres LISTEN/NOTIFY, or a managed realtime adapter can delay or miss SSE push events between clients connected to different processes.
   - Do not enable multiple active server processes for the private/demo multiplayer release unless traffic is pinned to one process or a shared realtime transport is added.
+  - The published deployment must run as `vm` (matches `.replit` `[deployment]` `deploymentTarget = "vm"`). Verify with `getDeploymentInfo()` after republishing — `deploymentType` must report `"vm"`. If autoscale is used instead, it must be pinned to max 1 instance in the Publishing UI → Advanced settings, otherwise SSE/lobby sync will silently break across processes.
 - **Version/build gating**
   - Protocol and rules versions are compiled from `shared/multiplayerVersion.ts` and stored in each playing lobby.
   - Recommended Replit envs: set the same deployment/commit value for `MULTIPLAYER_BUILD_ID` and `VITE_MULTIPLAYER_BUILD_ID`.

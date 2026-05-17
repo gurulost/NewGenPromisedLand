@@ -15,6 +15,9 @@ This release keeps Covenant Legends multiplayer private/demo only. The transport
 
 - Run one active Node server process for private/demo multiplayer, or guarantee sticky routing to one process.
 - Do not enable autoscaled multi-process multiplayer until realtime invalidation moves to Redis, Postgres `LISTEN/NOTIFY`, or managed realtime.
+- **Published deployment type must be `vm` (matches `.replit` `[deployment]` `deploymentTarget = "vm"`).** The published setting in the Replit Publishing UI overrides the file, so always verify with `getDeploymentInfo()` after republishing — `deploymentType` must report `"vm"`.
+- If you must keep autoscale instead of vm (e.g. for cost or cold-start reasons), the deployment **must be pinned to a maximum of 1 instance** in the Publishing UI → Advanced settings. More than one autoscaled instance will silently break lobby/SSE sync because the realtime broker is in-memory and process-local. This is a temporary constraint until a shared realtime transport is added.
+- After changing the published deployment type, run a two-client multiplayer smoke test and confirm SSE/sync events propagate between both clients before declaring the change healthy.
 - Set `DATABASE_URL` to a durable Postgres database.
 - Set `SESSION_SECRET` in production.
 - Keep HTTPS/proxy forwarding correct because production session cookies are secure.
