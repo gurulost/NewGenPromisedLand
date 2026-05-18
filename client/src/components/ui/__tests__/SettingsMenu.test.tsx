@@ -7,6 +7,11 @@ import { SettingsMenu } from '../SettingsMenu';
 import { useUIPreferences } from '../../../hooks/useUIPreferences';
 import type { UIPreferences } from '../../../lib/userPreferences';
 
+const tutorialState = vi.hoisted(() => ({
+  openLibrary: vi.fn(),
+  blockingSuppressionReason: null as string | null,
+}));
+
 vi.mock('../dialog', () => ({
   Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) => (open ? <div>{children}</div> : null),
   DialogContent: ({ children, className }: { children: React.ReactNode; className?: string }) => <div className={className}>{children}</div>,
@@ -35,10 +40,7 @@ vi.mock('../../../hooks/useMobileUI', () => ({
 }));
 
 vi.mock('../../../lib/stores/useTutorial', () => ({
-  useTutorialStore: (selector: (state: { openLibrary: () => void }) => unknown) =>
-    selector({
-      openLibrary: vi.fn(),
-    }),
+  useTutorialStore: (selector: (state: typeof tutorialState) => unknown) => selector(tutorialState),
 }));
 
 vi.mock('../../../hooks/useUIPreferences', () => ({
@@ -57,6 +59,8 @@ const createUIPreferences = (overrides: Partial<UIPreferences> = {}): UIPreferen
 
 describe('SettingsMenu', () => {
   beforeEach(() => {
+    tutorialState.openLibrary.mockReset();
+    tutorialState.blockingSuppressionReason = null;
     mockUseUIPreferences.mockReturnValue({
       preferences: createUIPreferences(),
       isLoaded: true,
@@ -91,5 +95,14 @@ describe('SettingsMenu', () => {
 
     expect(updateUI).toHaveBeenCalledWith({ reducedMotion: true });
     expect(updateUI).toHaveBeenCalledWith({ showTooltips: false });
+  });
+
+  it('does not expose the blocking tutorial library action during live multiplayer', () => {
+    tutorialState.blockingSuppressionReason = 'public-multiplayer';
+
+    render(<SettingsMenu isOpen onClose={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: 'Open Tutorial Library' })).not.toBeInTheDocument();
+    expect(screen.getByText('Tutorial guides are paused during live multiplayer.')).toBeInTheDocument();
   });
 });

@@ -3,10 +3,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { TutorialOverlay } from '../client/src/components/ui/TutorialOverlay';
 import { TutorialLibrary } from '../client/src/components/ui/TutorialLibrary';
+import { TutorialHelpIcon } from '../client/src/components/ui/TutorialHelpIcon';
 
 const tutorialState = vi.hoisted(() => ({
   activeCardId: null as string | null,
   isLibraryOpen: false,
+  blockingSuppressionReason: null as string | null,
   closeCard: vi.fn(),
   markSeen: vi.fn(),
   dismissForGame: vi.fn(),
@@ -25,6 +27,7 @@ describe('Tutorial modal input blocking', () => {
   beforeEach(() => {
     tutorialState.activeCardId = null;
     tutorialState.isLibraryOpen = false;
+    tutorialState.blockingSuppressionReason = null;
     tutorialState.closeCard.mockReset();
     tutorialState.markSeen.mockReset();
     tutorialState.dismissForGame.mockReset();
@@ -87,5 +90,23 @@ describe('Tutorial modal input blocking', () => {
     fireEvent.click(screen.getByText('Tutorial Guides'));
     expect(tutorialState.closeLibrary).not.toHaveBeenCalled();
     expect(gameClick).not.toHaveBeenCalled();
+  });
+
+  it('suppresses blocking tutorial surfaces during public multiplayer', () => {
+    tutorialState.activeCardId = 'overview';
+    tutorialState.isLibraryOpen = true;
+    tutorialState.blockingSuppressionReason = 'public-multiplayer';
+
+    render(
+      <>
+        <TutorialOverlay />
+        <TutorialLibrary />
+        <TutorialHelpIcon cardId="overview" label="Open tutorial help" />
+      </>,
+    );
+
+    expect(screen.queryByTestId('tutorial-overlay-dialog')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tutorial-library-dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open tutorial help' })).not.toBeInTheDocument();
   });
 });

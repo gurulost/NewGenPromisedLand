@@ -7,6 +7,7 @@ import { TUTORIAL_CARD_ORDER, TUTORIAL_CARDS } from '../../lib/tutorial/tutorial
 
 export function TutorialLibrary() {
   const isOpen = useTutorialStore((state) => state.isLibraryOpen);
+  const blockingSuppressionReason = useTutorialStore((state) => state.blockingSuppressionReason);
   const closeLibrary = useTutorialStore((state) => state.closeLibrary);
   const openCard = useTutorialStore((state) => state.openCard);
   const skipTutorialForGame = useTutorialStore((state) => state.skipTutorialForGame);
@@ -14,7 +15,7 @@ export function TutorialLibrary() {
   const descriptionId = React.useId();
 
   React.useEffect(() => {
-    if (!isOpen) return;
+    if (blockingSuppressionReason || !isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         closeLibrary();
@@ -22,9 +23,9 @@ export function TutorialLibrary() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeLibrary, isOpen]);
+  }, [blockingSuppressionReason, closeLibrary, isOpen]);
 
-  if (!isOpen) return null;
+  if (blockingSuppressionReason || !isOpen) return null;
 
   return (
     <ModalLayer

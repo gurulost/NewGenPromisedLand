@@ -29,6 +29,7 @@ export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
   } = useAudioControls();
   const { isMobileUI } = useMobileUI();
   const openTutorialLibrary = useTutorialStore((state) => state.openLibrary);
+  const tutorialBlockingSuppressionReason = useTutorialStore((state) => state.blockingSuppressionReason);
   const { preferences: uiPreferences, isLoaded: isUIPreferencesLoaded, updateUI } = useUIPreferences();
 
   const handleMuteToggle = () => {
@@ -219,19 +220,27 @@ export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
               Help & Tutorials
             </h3>
             <div className="flex flex-col gap-3">
-              <p className="text-slate-400 text-sm">
-                Reopen tutorial guides and core references anytime.
-              </p>
-              <Button
-                variant="outline"
-                className="border-amber-500/40 text-amber-100 hover:bg-amber-500/20 justify-start"
-                onClick={() => {
-                  openTutorialLibrary();
-                  onClose();
-                }}
-              >
-                Open Tutorial Library
-              </Button>
+              {tutorialBlockingSuppressionReason ? (
+                <p className="text-slate-400 text-sm">
+                  Tutorial guides are paused during live multiplayer.
+                </p>
+              ) : (
+                <>
+                  <p className="text-slate-400 text-sm">
+                    Reopen tutorial guides and core references anytime.
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="border-amber-500/40 text-amber-100 hover:bg-amber-500/20 justify-start"
+                    onClick={() => {
+                      openTutorialLibrary();
+                      onClose();
+                    }}
+                  >
+                    Open Tutorial Library
+                  </Button>
+                </>
+              )}
             </div>
           </section>
         </div>

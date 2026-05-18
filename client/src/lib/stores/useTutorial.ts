@@ -7,6 +7,8 @@ type TutorialSeenState = Partial<Record<TutorialCardId, boolean>>;
 
 type TutorialSessionState = Partial<Record<TutorialCardId, boolean>>;
 
+type TutorialBlockingSuppressionReason = 'public-multiplayer';
+
 interface TutorialProfileState {
   seen: TutorialSeenState;
 }
@@ -19,10 +21,12 @@ interface TutorialStore {
   activeCardId: TutorialCardId | null;
   queuedCardIds: TutorialCardId[];
   isLibraryOpen: boolean;
+  blockingSuppressionReason: TutorialBlockingSuppressionReason | null;
   profiles: TutorialProfilesState;
   dismissedByProfile: Record<string, TutorialSessionState>;
   skippedByProfile: Record<string, boolean>;
   setActiveProfile: (profileKey: string | null, gameId: string | null, isHuman: boolean) => void;
+  setBlockingSuppression: (reason: TutorialBlockingSuppressionReason | null) => void;
   openCard: (id: TutorialCardId) => void;
   closeCard: () => void;
   openLibrary: () => void;
@@ -81,6 +85,7 @@ export const useTutorialStore = create<TutorialStore>((set, get) => ({
   activeCardId: null,
   queuedCardIds: [],
   isLibraryOpen: false,
+  blockingSuppressionReason: null,
   profiles: initialProfiles,
   dismissedByProfile: {},
   skippedByProfile: {},
@@ -112,7 +117,23 @@ export const useTutorialStore = create<TutorialStore>((set, get) => ({
 
       return next;
     }),
-  openCard: (id) => set({ activeCardId: id, isLibraryOpen: false }),
+  setBlockingSuppression: (reason) =>
+    set((state) => {
+      if (state.blockingSuppressionReason === reason) return {};
+      if (!reason) return { blockingSuppressionReason: null };
+      return {
+        blockingSuppressionReason: reason,
+        activeCardId: null,
+        queuedCardIds: [],
+        isLibraryOpen: false,
+      };
+    }),
+  openCard: (id) =>
+    set((state) => (
+      state.blockingSuppressionReason
+        ? {}
+        : { activeCardId: id, isLibraryOpen: false }
+    )),
   closeCard: () => {
     const {
       queuedCardIds,
@@ -151,7 +172,12 @@ export const useTutorialStore = create<TutorialStore>((set, get) => ({
 
     set({ activeCardId: null, queuedCardIds: [] });
   },
-  openLibrary: () => set({ isLibraryOpen: true }),
+  openLibrary: () =>
+    set((state) => (
+      state.blockingSuppressionReason
+        ? {}
+        : { isLibraryOpen: true }
+    )),
   closeLibrary: () => {
     const {
       queuedCardIds,
@@ -227,8 +253,10 @@ export const useTutorialStore = create<TutorialStore>((set, get) => ({
       skippedByProfile,
       activeProfileKey,
       isLibraryOpen,
+      blockingSuppressionReason,
     } = get();
 
+    if (blockingSuppressionReason) return false;
     if (!activeProfileKey) return false;
     if (skippedByProfile[activeProfileKey]) return false;
 

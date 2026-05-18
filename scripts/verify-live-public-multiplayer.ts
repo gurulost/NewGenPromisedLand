@@ -6,6 +6,11 @@ import { chromium, type BrowserContext, type Page } from "playwright";
 import { buildMultiplayerVersionHeaders } from "../shared/multiplayerVersion";
 import { createLiveMultiplayerPageObservers } from "./liveMultiplayerPageObservers";
 import { createLiveMultiplayerSoakScenarios } from "./liveMultiplayerSoakScenarios";
+import {
+  createLiveMultiplayerAccountProvisioner,
+  createLiveMultiplayerTestUserPlan,
+  type LiveMultiplayerUserMode,
+} from "./liveMultiplayerTestUsers";
 
 type Severity = "low" | "medium" | "high" | "blocker";
 
@@ -20,6 +25,8 @@ type SmokeAgent = {
   name: string;
   username: string;
   password: string;
+  testUserMode: LiveMultiplayerUserMode;
+  shouldReuseTestUser: boolean;
   faction: string;
   seatIndex: number;
   context: BrowserContext;
@@ -80,7 +87,7 @@ const events: Array<Record<string, unknown>> = [];
 const scenarioResults: Array<Record<string, unknown>> = [];
 const screenshots: string[] = [];
 const finalStates: Array<Record<string, unknown>> = [];
-const password = `CodexSmoke-${RUN_ID}-${randomUUID().slice(0, 10)}`;
+const testUserPlan = createLiveMultiplayerTestUserPlan({ args, playerCount: PLAYER_COUNT, runId: RUN_ID, scenarioMode: SCENARIO_MODE });
 const REQUIRED_DEPLOYED_MARKERS = ["lobby-join-code-input", "lobby-room", "lobby-authority-notice", "lobby-start-game", "data-seat-state", "data-chat-scope", "Public unranked multiplayer is server-authoritative."] as const;
 
 let lobbyCode: string | null = null;
@@ -371,39 +378,12 @@ async function getProjectedState(agent: SmokeAgent, code: string) {
   return result;
 }
 
-async function signUpAgent(agent: SmokeAgent) {
-  const result = await api(agent, "POST", "/api/auth/signup", {
-    username: agent.username,
-    password: agent.password,
-  }, { "Content-Type": "application/json" });
-  if (![200, 201].includes(result.status)) {
-    addIssue("blocker", "Could not create live test user", {
-      agent: agent.name,
-      status: result.status,
-      body: result.body,
-    });
-    throw new Error(`signup failed for ${agent.name}`);
-  }
-  agent.userId = Number(getRecord(result.body).id);
-  logEvent("signed_up", { agent: agent.name, username: agent.username, userId: agent.userId });
-}
-
-async function logInAgent(agent: SmokeAgent) {
-  const result = await api(agent, "POST", "/api/auth/login", {
-    username: agent.username,
-    password: agent.password,
-  }, { "Content-Type": "application/json" });
-  if (!result.ok) {
-    addIssue("blocker", "Could not log live test user back in", {
-      agent: agent.name,
-      status: result.status,
-      body: result.body,
-    });
-    throw new Error(`login failed for ${agent.name}`);
-  }
-  agent.userId = Number(getRecord(result.body).id);
-  logEvent("logged_in", { agent: agent.name, username: agent.username, userId: agent.userId });
-}
+const { ensureAgentAccount, logInAgent } = createLiveMultiplayerAccountProvisioner<SmokeAgent>({
+  api,
+  getRecord,
+  logEvent,
+  addIssue,
+});
 
 async function createPublicLobby(host: SmokeAgent) {
   lobbyName = `Codex Live Public ${RUN_ID}`;
@@ -887,6 +867,7 @@ async function writeReport() {
       name: agent.name,
       username: agent.username,
       userId: agent.userId,
+      testUserMode: agent.testUserMode,
       seatIndex: agent.seatIndex,
       playerId: agent.playerId,
       faction: agent.faction,
@@ -897,6 +878,11 @@ async function writeReport() {
     })),
     finalStates,
     scenarioResults,
+    testUsers: {
+      mode: testUserPlan.mode,
+      prefix: testUserPlan.prefix,
+      cleanupNote: testUserPlan.cleanupNote,
+    },
     events,
     issues,
     screenshots,
@@ -916,6 +902,8 @@ async function main() {
     rounds: ROUND_COUNT,
     headless: HEADLESS,
     buildId: BUILD_ID ?? null,
+    testUserMode: testUserPlan.mode,
+    testUserPrefix: testUserPlan.prefix,
   });
 
   await preflightDeployedBundle();
@@ -923,12 +911,15 @@ async function main() {
   browser = await chromium.launch({ headless: HEADLESS, args: ["--disable-dev-shm-usage", "--use-gl=angle", "--use-angle=swiftshader"] });
 
   for (let index = 0; index < PLAYER_COUNT; index += 1) {
+    const credential = testUserPlan.users[index];
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const page = await context.newPage();
     const agent: SmokeAgent = {
       name: `player${index + 1}`,
-      username: `cx${RUN_ID.slice(4)}p${index + 1}${randomUUID().slice(0, 4)}`,
-      password,
+      username: credential.username,
+      password: credential.password,
+      testUserMode: credential.mode,
+      shouldReuseTestUser: credential.shouldReuse,
       faction: FACTIONS[index],
       seatIndex: index,
       context,
@@ -947,7 +938,7 @@ async function main() {
   }
 
   for (const agent of agents) {
-    await signUpAgent(agent);
+    await ensureAgentAccount(agent);
   }
 
   await createPublicLobby(agents[0]);

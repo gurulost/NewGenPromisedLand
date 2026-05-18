@@ -25,6 +25,7 @@ const tutorialState = vi.hoisted(() => ({
   skipTutorialForGame: vi.fn(),
   closeLibrary: vi.fn(),
   openCard: vi.fn(),
+  setBlockingSuppression: vi.fn(),
 }));
 
 vi.mock('@react-three/drei', () => ({
@@ -90,6 +91,7 @@ describe('GameUI hotkeys while typing', () => {
   let mockCity: City;
   let mockEndTurn: ReturnType<typeof vi.fn>;
   let mockSetSelectedUnit: ReturnType<typeof vi.fn>;
+  let mockLocalGameStore: any;
 
   beforeEach(() => {
     Object.defineProperty(window, 'matchMedia', {
@@ -119,6 +121,7 @@ describe('GameUI hotkeys while typing', () => {
     tutorialState.skipTutorialForGame.mockReset();
     tutorialState.closeLibrary.mockReset();
     tutorialState.openCard.mockReset();
+    tutorialState.setBlockingSuppression.mockReset();
 
     mockPlayer = {
       id: 'player1',
@@ -168,16 +171,33 @@ describe('GameUI hotkeys while typing', () => {
     mockEndTurn = vi.fn();
     mockSetSelectedUnit = vi.fn();
 
-    (useLocalGame as any).mockReturnValue({
+    mockLocalGameStore = {
+      gameMode: 'standard',
       gameState: mockGameState,
+      turnPresentation: null,
+      actionError: null,
+      clearActionError: vi.fn(),
+      onlineSession: null,
+      onlineResyncReason: null,
+      hostLeaseExpired: false,
+      setOnlineHost: vi.fn(),
+      setHostLeaseStatus: vi.fn(),
+      setOnlineActionVersion: vi.fn(),
+      applyRemoteAction: vi.fn(),
+      requestOnlineResync: vi.fn(),
       dispatch: vi.fn(),
+      beginTurnPresentationTransition: vi.fn(),
       endTurn: mockEndTurn,
       useAbility: vi.fn(),
       attackUnit: vi.fn(),
       setGamePhase: vi.fn(),
       resetGame: vi.fn(),
       loadGameState: vi.fn()
-    });
+    };
+
+    (useLocalGame as any).mockImplementation((selector?: (state: typeof mockLocalGameStore) => unknown) => (
+      typeof selector === 'function' ? selector(mockLocalGameStore) : mockLocalGameStore
+    ));
 
     (useGameState as any).mockReturnValue({
       selectedUnit: { id: 'u1', playerId: 'player1', coordinate: { q: 0, r: 0, s: 0 } },
@@ -248,5 +268,24 @@ describe('GameUI hotkeys while typing', () => {
     expect(mockEndTurn).not.toHaveBeenCalled();
     expect(mockSetSelectedUnit).not.toHaveBeenCalled();
     expect(timeoutSpy).not.toHaveBeenCalled();
+  });
+
+  it('suppresses tutorial prompts during public authoritative multiplayer gameplay', () => {
+    mockLocalGameStore.onlineSession = {
+      lobbyCode: 'ABCD12',
+      userId: 1,
+      hostUserId: 1,
+      myPlayerIds: ['player1'],
+      authorityMode: 'public_authoritative',
+      actionVersion: 0,
+      queueVersion: 0,
+      hostEpoch: 0,
+    };
+
+    render(<GameUI />);
+
+    expect(tutorialState.setBlockingSuppression).toHaveBeenCalledWith('public-multiplayer');
+    expect(tutorialState.setActiveProfile).toHaveBeenCalledWith(null, 'game1', true);
+    expect(tutorialState.openIfNeeded).not.toHaveBeenCalled();
   });
 });

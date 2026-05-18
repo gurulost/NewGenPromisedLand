@@ -53,3 +53,17 @@ Original prompt: Harden Covenant Legends multiplayer for Replit-hosted private/d
 - Keep the 3-player/4-round live smoke as the release gate after any multiplayer, lobby, chat, turn-authority, or Replit deployment change.
 - Add longer soak coverage next: 4-8 players, 10+ rounds, disconnect/reconnect, eliminated-player handoff, and private/demo host authority mode.
 - Consider adding lightweight live telemetry around action submission retries so recurring lobby write contention can be measured before it becomes player-visible.
+
+## Multiplayer Tutorial Suppression
+
+- 2026-05-18 follow-up: tightened public multiplayer tutorial behavior so started public-authoritative matches suppress blocking tutorial modals instead of relying on automation or players to dismiss them during handoff.
+- Added a tutorial-store suppression mode that clears stale active cards/libraries, blocks automatic tutorial prompts, and blocks manual help-icon/library modal opens while suppression is active.
+- GameUI now enables that suppression for active public-authoritative matches and skips first-time tutorial trigger effects in that mode.
+- Focused validation added around the store, modal/library/help-icon surfaces, settings entry point, and GameUI public-multiplayer prompt suppression.
+- Validation passed: focused tutorial/modal/GameUI tests, overlay and multiplayer guardrail Vitest suites, `test/unit`, `npm run check`, `npm run lint`, `npm run lint:hooks`, `npm run build`, Playwright tutorial-overlay and mobile main-menu/setup checks, and a web-game combat-demo smoke screenshot.
+
+## Live Smoke User Hygiene
+
+- 2026-05-18 follow-up: live multiplayer smoke users are now explicitly labeled and can reuse bounded dedicated test accounts instead of always creating new production users.
+- Configure `COVENANT_SMOKE_USER_PASSWORD` for deterministic `cltsmkp*` / `cltsoakp*` accounts, or `COVENANT_SMOKE_USERS` for a fully managed account list. If neither is set, the script keeps run-scoped accounts tagged with the `clt` prefix and writes a cleanup note to the report.
+- Added regression coverage for smoke-user planning/provisioning and for audio crossfade volume clamping when animation-frame timestamps briefly predate the crossfade start time.

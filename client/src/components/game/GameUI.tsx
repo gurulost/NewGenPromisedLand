@@ -35,6 +35,7 @@ import { SpawnDebugPanel } from "../debug/SpawnDebugPanel";
 import MovementControls from "../game/MovementControls";
 import { useSfxEngine } from "../../hooks/useSfx";
 import { useMobileUI } from "../../hooks/useMobileUI";
+import { useGameTutorialPolicy } from "../../hooks/useGameTutorialPolicy";
 import { STRUCTURE_DEFINITIONS, IMPROVEMENT_DEFINITIONS } from "@shared/types/city";
 import { BUILDER_WORK_RADIUS, CITY_WORK_RADIUS, getConstructionMenuOptions } from "@shared/logic/ruleQueries";
 import { STRUCTURE_BUILD_RADIUS } from "@shared/logic/constructionRules";
@@ -48,7 +49,6 @@ import { pushCapped, MEMORY_LIMITS } from "../../lib/memoryUtils";
 import { useMemoryCleanup, useTurnEndCleanup } from "../../hooks/useMemoryCleanup";
 import { requestAutosaveIfDirty } from "../../lib/autosaveManager";
 import { useAutosaveStatus } from "../../lib/stores/useAutosaveStatus";
-import { useTutorialStore } from "../../lib/stores/useTutorial";
 import { useAnimationLabAccess } from "../../lib/stores/useAnimationLabAccess";
 import { resolveUiTurnPlayer } from "../../lib/turnPresentation";
 import { getFaithProjectPresentation, isFaithProjectPresentationAction } from "../../lib/faithProjectPresentation";
@@ -136,10 +136,6 @@ export default function GameUI() {
   const [subscribeKeys] = useKeyboardControls();
   const { triggerFlash, showToast } = useVisualFeedback();
   const playSfx = useSfxEngine();
-  const openTutorialIfNeeded = useTutorialStore((state) => state.openIfNeeded);
-  const setTutorialContext = useTutorialStore((state) => state.setActiveProfile);
-  const activeTutorialCardId = useTutorialStore((state) => state.activeCardId);
-  const isTutorialLibraryOpen = useTutorialStore((state) => state.isLibraryOpen);
   const [showTechPanel, setShowTechPanel] = useState(false);
   const [showCityPanel, setShowCityPanel] = useState(false);
   const [showConstructionHall, setShowConstructionHall] = useState(false);
@@ -1068,6 +1064,26 @@ export default function GameUI() {
     : undefined;
   const hasTopRightModeIndicator = constructionMode.isActive || isRoadBuildMode || spawnSelectionMode.isActive;
   const chatDockTopOffset = hasTopRightModeIndicator ? 116 : 0;
+  const isLocalHumanTurn = Boolean(
+    currentPlayer &&
+    !currentPlayer.isAI &&
+    (!onlineSession || onlineMyPlayerIds.includes(currentPlayer.id))
+  );
+  const { activeTutorialCardId, isTutorialLibraryOpen } = useGameTutorialPolicy({
+    gameMode,
+    gameId: gameState?.id ?? null,
+    hasGameState: Boolean(gameState),
+    isOnlineMatch: Boolean(onlineSession),
+    isPublicAuthoritativeOnlineMatch: onlineSession?.authorityMode === "public_authoritative",
+    currentPlayer,
+    isLocalHumanTurn,
+    showTechPanel,
+    showCityPanel,
+    hasSelectedWorldElement: Boolean(selectedWorldElement),
+    hasSelectedVillage: Boolean(selectedVillage),
+    selectedUnitPlayerId: selectedUnit?.playerId ?? null,
+    isAttackMode,
+  });
   const suppressChatPeek = Boolean(
     showSaveLoadMenu ||
       showSettings ||
@@ -1081,17 +1097,6 @@ export default function GameUI() {
       isTutorialLibraryOpen ||
       gameMode === "tutorialEpisode",
   );
-  const isLocalHumanTurn = Boolean(
-    currentPlayer &&
-    !currentPlayer.isAI &&
-    (!onlineSession || onlineMyPlayerIds.includes(currentPlayer.id))
-  );
-  const tutorialProfileKey = useMemo(() => {
-    if (onlineSession) return null;
-    if (!currentPlayer) return null;
-    const nameKey = currentPlayer.name?.trim() || currentPlayer.id;
-    return `local:${nameKey}`;
-  }, [currentPlayer, onlineSession]);
   const myOnlinePlayer = useMemo(() => (
     onlineSession
       ? gameState?.players.find((player) => onlineMyPlayerIds.includes(player.id)) ?? null
@@ -1107,60 +1112,6 @@ export default function GameUI() {
       senderFactionId: myOnlinePlayer?.factionId ? String(myOnlinePlayer.factionId) : undefined,
     };
   }, [authUser?.id, authUser?.username, myOnlinePlayer?.factionId, myOnlinePlayer?.name, onlineSession]);
-
-  useEffect(() => {
-    setTutorialContext(tutorialProfileKey, gameState?.id ?? null, isLocalHumanTurn);
-  }, [tutorialProfileKey, gameState?.id, isLocalHumanTurn, setTutorialContext]);
-
-  // Tutorial triggers (first-time overlays)
-  useEffect(() => {
-    if (gameMode === 'tutorialEpisode') return;
-    if (gameState && currentPlayer && isLocalHumanTurn) {
-      openTutorialIfNeeded('overview');
-    }
-  }, [gameMode, gameState, currentPlayer, isLocalHumanTurn, openTutorialIfNeeded]);
-
-  useEffect(() => {
-    if (gameMode === 'tutorialEpisode') return;
-    if (showTechPanel) {
-      openTutorialIfNeeded('tech');
-    }
-  }, [gameMode, showTechPanel, openTutorialIfNeeded]);
-
-  useEffect(() => {
-    if (gameMode === 'tutorialEpisode') return;
-    if (showCityPanel) {
-      openTutorialIfNeeded('city');
-    }
-  }, [gameMode, showCityPanel, openTutorialIfNeeded]);
-
-  useEffect(() => {
-    if (gameMode === 'tutorialEpisode') return;
-    if (selectedWorldElement) {
-      openTutorialIfNeeded('world-elements');
-    }
-  }, [gameMode, selectedWorldElement, openTutorialIfNeeded]);
-
-  useEffect(() => {
-    if (gameMode === 'tutorialEpisode') return;
-    if (selectedVillage) {
-      openTutorialIfNeeded('village');
-    }
-  }, [gameMode, selectedVillage, openTutorialIfNeeded]);
-
-  useEffect(() => {
-    if (gameMode === 'tutorialEpisode') return;
-    if (selectedUnit && currentPlayer && selectedUnit.playerId === currentPlayer.id) {
-      openTutorialIfNeeded('movement');
-    }
-  }, [gameMode, selectedUnit, currentPlayer, openTutorialIfNeeded]);
-
-  useEffect(() => {
-    if (gameMode === 'tutorialEpisode') return;
-    if (isAttackMode) {
-      openTutorialIfNeeded('combat');
-    }
-  }, [gameMode, isAttackMode, openTutorialIfNeeded]);
 
   // Turn transition system
   const { isTransitioning, pendingPlayer, startTransition, completeTransition } = useTurnTransition();

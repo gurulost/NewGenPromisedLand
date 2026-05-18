@@ -8,6 +8,7 @@ import { getTutorialCard } from '../../lib/tutorial/tutorialCards';
 
 export function TutorialOverlay() {
   const activeCardId = useTutorialStore((state) => state.activeCardId);
+  const blockingSuppressionReason = useTutorialStore((state) => state.blockingSuppressionReason);
   const closeCard = useTutorialStore((state) => state.closeCard);
   const markSeen = useTutorialStore((state) => state.markSeen);
   const dismissForGame = useTutorialStore((state) => state.dismissForGame);
@@ -32,7 +33,7 @@ export function TutorialOverlay() {
   }, [card, markSeen, closeCard]);
 
   React.useEffect(() => {
-    if (!card) return;
+    if (blockingSuppressionReason || !card) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         handleClose();
@@ -40,9 +41,9 @@ export function TutorialOverlay() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [card, handleClose]);
+  }, [blockingSuppressionReason, card, handleClose]);
 
-  if (!card) return null;
+  if (blockingSuppressionReason || !card) return null;
 
   const isOverview = card.id === 'overview';
 

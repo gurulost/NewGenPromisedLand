@@ -18,6 +18,9 @@ export function TutorialHelpIcon({
   iconClassName,
 }: TutorialHelpIconProps) {
   const openCard = useTutorialStore((state) => state.openCard);
+  const blockingSuppressionReason = useTutorialStore((state) => state.blockingSuppressionReason);
+
+  if (blockingSuppressionReason) return null;
 
   return (
     <button
