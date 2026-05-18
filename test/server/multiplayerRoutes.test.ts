@@ -432,6 +432,43 @@ describe("multiplayer lobby routes", () => {
     expect(currentLobby().gameState.snapshot?.players[0].stars).toBe(response.body.gameState.snapshot.players[0].stars);
   });
 
+  it("retries lobby start when a concurrent lobby update wins the first write", async () => {
+    const hostCookie = await signUp(testServer.baseUrl, "hostuser");
+    configureWaitingLobby();
+
+    routeMocks.storage.updateLobbyIfUnchanged.mockImplementationOnce(async () => {
+      routeMocks.state.lobby = {
+        ...currentLobby(),
+        gameState: {
+          ...currentLobby().gameState,
+          chat: {
+            messageVersion: 0,
+            eventVersion: 1,
+            messages: [],
+            events: [],
+            typingByUserId: {},
+            readByUserId: { "1": 123 },
+          },
+        },
+        updatedAt: new Date(),
+      };
+      return undefined;
+    });
+
+    const response = await jsonRequest<LobbyStartResponseBody>(testServer.baseUrl, "/api/lobbies/ROOMA/start", {
+      method: "POST",
+      cookie: hostCookie,
+    });
+
+    expect(response.status).toBe(200);
+    expect(routeMocks.storage.updateLobbyIfUnchanged).toHaveBeenCalledTimes(2);
+    expect(currentLobby().status).toBe("playing");
+    expect(currentLobby().gameState.snapshot?.id).toMatch(/^online-ROOMA-/);
+    expect(currentLobby().gameState.chat).toMatchObject({
+      readByUserId: { "1": 123 },
+    });
+  });
+
   it("rejects starting a multiplayer match from a client without the current protocol headers", async () => {
     const hostCookie = await signUp(testServer.baseUrl, "hostuser");
     configureWaitingLobby();

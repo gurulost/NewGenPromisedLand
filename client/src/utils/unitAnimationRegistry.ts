@@ -244,6 +244,8 @@ let overridesLoaded = false;
 let serverOverridesLoaded = false;
 let serverOverridesInFlight: Promise<void> | null = null;
 const SERVER_OVERRIDES_ENDPOINT = "/api/animation-overrides";
+const SERVER_OVERRIDES_ENABLED =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_ANIMATION_OVERRIDES === "true";
 
 const normalizeClipEntry = (entry: ClipEntry): { name: string; weight: number; label?: string } => {
   if (typeof entry === "string") {
@@ -327,10 +329,13 @@ const ensureOverridesLoaded = () => {
       // Ignore malformed overrides.
     }
   }
-  loadServerOverrides();
+  if (SERVER_OVERRIDES_ENABLED) {
+    loadServerOverrides();
+  }
 };
 
 const loadServerOverrides = () => {
+  if (!SERVER_OVERRIDES_ENABLED) return;
   if (serverOverridesLoaded || serverOverridesInFlight) return;
   if (typeof window === "undefined" || typeof fetch !== "function") return;
   serverOverridesInFlight = fetch(SERVER_OVERRIDES_ENDPOINT, { method: "GET" })
@@ -363,6 +368,7 @@ const loadServerOverrides = () => {
 };
 
 const persistServerOverrides = (overrides: UnitAnimationOverrides) => {
+  if (!SERVER_OVERRIDES_ENABLED) return;
   if (typeof window === "undefined" || typeof fetch !== "function") return;
   fetch(SERVER_OVERRIDES_ENDPOINT, {
     method: "POST",

@@ -89,6 +89,7 @@ const REQUIRED_DEPLOYED_MARKERS = [
   "lobby-authority-notice",
   "lobby-start-game",
   "data-seat-state",
+  "data-chat-scope",
   "Public unranked multiplayer is server-authoritative.",
 ] as const;
 
@@ -121,6 +122,9 @@ function isFatalIssue(issue: Issue): boolean {
 function shouldIgnoreFailedRequest(url: string, errorText?: string): string | null {
   if (errorText === "net::ERR_ABORTED" && /\/sounds\/[^/?]+\.(mp3|wav|ogg)(?:[?#].*)?$/i.test(url)) {
     return "canceled_audio_navigation_request";
+  }
+  if (errorText === "net::ERR_ABORTED" && /\/api\/lobbies\/[^/?]+\/realtime(?:[?#].*)?$/i.test(url)) {
+    return "closed_realtime_stream";
   }
   if (url.includes("posthog") || url.includes("analytics")) {
     return "analytics_request";
@@ -288,6 +292,69 @@ async function clickIfVisible(page: Page, testId: string, timeoutMs = 1000): Pro
   } catch {
     return false;
   }
+}
+
+async function dismissTutorialOverlay(
+  agent: SmokeAgent,
+  phase: string,
+  timeoutMs = 5_000,
+): Promise<boolean> {
+  const { page } = agent;
+  const dialog = page.getByTestId("tutorial-overlay-dialog");
+  const isVisible = await dialog
+    .waitFor({ state: "visible", timeout: timeoutMs })
+    .then(() => true)
+    .catch(() => false);
+
+  if (!isVisible) return false;
+
+  const visibleText = await dialog.innerText().then(summarizeText).catch(() => "");
+  for (const testId of [
+    "tutorial-overlay-open-later",
+    "tutorial-overlay-close",
+    "tutorial-overlay-primary-action",
+  ]) {
+    const button = page.getByTestId(testId);
+    const canClick = await button.isVisible().catch(() => false);
+    if (!canClick) continue;
+
+    await button.click({ timeout: 5_000 }).catch(() => undefined);
+    const closed = await dialog
+      .waitFor({ state: "hidden", timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (closed) {
+      logEvent("tutorial_dismissed", {
+        agent: agent.name,
+        phase,
+        action: testId,
+      });
+      await page.waitForTimeout(250);
+      return true;
+    }
+  }
+
+  await page.keyboard.press("Escape").catch(() => undefined);
+  const closedByEscape = await dialog
+    .waitFor({ state: "hidden", timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (closedByEscape) {
+    logEvent("tutorial_dismissed", {
+      agent: agent.name,
+      phase,
+      action: "Escape",
+    });
+    await page.waitForTimeout(250);
+    return true;
+  }
+
+  addIssue("high", "Tutorial overlay could not be dismissed", {
+    agent: agent.name,
+    phase,
+    visibleText,
+  });
+  return false;
 }
 
 function getRecord(value: unknown): Record<string, unknown> {
@@ -471,7 +538,7 @@ async function waitForGameUi(agent: SmokeAgent) {
     const text = await page.locator("body").innerText().catch(() => "");
     return text.includes("Turn ") ? true : false;
   }, 60_000);
-  await clickIfVisible(page, "tutorial-overlay-open-later", 1000);
+  await dismissTutorialOverlay(agent, "game-start", 7_500);
   await assertPageNotBlank(agent, "game");
   await capturePage(agent, "game-start");
 }
@@ -509,15 +576,18 @@ async function hydratePlayerAssignments(host: SmokeAgent, code: string) {
 }
 
 async function waitForActiveTurn(agent: SmokeAgent) {
+  await dismissTutorialOverlay(agent, "before-handoff", 1_000);
   await clickIfVisible(agent.page, "handoff-start-turn-button", 1000);
-  await clickIfVisible(agent.page, "tutorial-overlay-open-later", 1000);
+  await dismissTutorialOverlay(agent, "after-handoff", 7_500);
   await waitFor(`${agent.name} active turn controls`, async () => {
     return await agent.page.getByTestId("hud-end-turn-button").isVisible().catch(() => false);
   }, 40_000);
+  await dismissTutorialOverlay(agent, "active-turn", 7_500);
 }
 
 async function clickEndTurnAndWait(agent: SmokeAgent, code: string, beforeActionVersion: number) {
   await waitForActiveTurn(agent);
+  await dismissTutorialOverlay(agent, "before-end-turn", 2_500);
   await agent.page.getByTestId("hud-end-turn-button").click();
   const nextState = await waitFor(`${agent.name} action version advance`, async () => {
     const result = await getProjectedState(agent, code);

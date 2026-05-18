@@ -252,6 +252,44 @@ describe("LobbyRoom faction selection", () => {
     expect(screen.queryByText("Unknown")).not.toBeInTheDocument();
   });
 
+  it("does not open lobby chat transports for unclaimed non-host viewers", () => {
+    mockUseAuth.mockReturnValue({
+      user: { id: 3, username: "viewer" },
+    });
+    mockUseLobby.mockReturnValue({
+      ...baseLobbyApi,
+      currentLobby: buildLobby([
+        {
+          id: 601,
+          lobbyId: 7,
+          seatIndex: 0,
+          userId: 1,
+          connectionId: null,
+          playerName: "Host",
+          factionId: "NEPHITES",
+          isReady: true,
+          isAI: false,
+        },
+        {
+          id: 602,
+          lobbyId: 7,
+          seatIndex: 1,
+          userId: null,
+          connectionId: null,
+          playerName: null,
+          factionId: null,
+          isReady: false,
+          isAI: false,
+        },
+      ]),
+    });
+
+    render(<LobbyRoom />);
+
+    expect(screen.getByTestId("lobby-room")).toHaveAttribute("data-chat-scope", "viewer");
+    expect(screen.queryByTestId("chat-panel")).not.toBeInTheDocument();
+  });
+
   it("labels public-authoritative lobbies as server-authoritative", () => {
     mockUseLobby.mockReturnValue({
       ...baseLobbyApi,

@@ -1326,119 +1326,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start game (host only)
   app.post("/api/lobbies/:code/start", requireAuth, async (req, res) => {
     try {
-      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
-      if (!lobby) {
-        return res.status(404).json({ error: "Lobby not found" });
-      }
-      if (lobby.hostUserId !== req.session.userId) {
-        return res.status(403).json({ error: "Only host can start game" });
-      }
-      if (lobby.status !== "waiting") {
-        return res.status(400).json({ error: "Game already started" });
-      }
-      
-      const seats = await storage.getSeatsByLobbyId(lobby.id);
-      const claimedSeats = seats.filter(s => s.userId !== null || s.isAI);
-      
-      if (claimedSeats.length < 2) {
-        return res.status(400).json({ error: "Need at least 2 players to start" });
-      }
-      
-      // Check all claimed seats are ready and have faction
-      for (const seat of claimedSeats) {
-        if (!seat.isReady) {
-          return res.status(400).json({ error: "All players must be ready" });
+      for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
+        const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+        if (!lobby) {
+          return res.status(404).json({ error: "Lobby not found" });
         }
-        if (!seat.factionId) {
-          return res.status(400).json({ error: "All players must select a faction" });
+        if (lobby.hostUserId !== req.session.userId) {
+          return res.status(403).json({ error: "Only host can start game" });
         }
-        if (!coerceFactionId(seat.factionId)) {
-          return res.status(400).json({ error: "All players must select a valid faction" });
+        if (lobby.status !== "waiting") {
+          return res.status(400).json({ error: "Game already started" });
         }
-      }
 
-      const claimedFactionEntries = claimedSeats.map((seat) => ({ id: seat.id, factionId: seat.factionId }));
-      if (getDuplicateFactionIds(claimedFactionEntries).size > 0) {
-        return res.status(400).json({ error: "Each player must select a unique faction" });
-      }
+        const seats = await storage.getSeatsByLobbyId(lobby.id);
+        const claimedSeats = seats.filter(s => s.userId !== null || s.isAI);
 
-      const versionGate = validateMultiplayerVersionRequest(req);
-      if (!versionGate.ok) {
-        return sendMultiplayerVersionGateError(res, versionGate);
-      }
+        if (claimedSeats.length < 2) {
+          return res.status(400).json({ error: "Need at least 2 players to start" });
+        }
 
-      const existingLobbyState = (lobby.gameState as any) || {};
-      const authorityMode = getRequestedAuthorityMode(existingLobbyState.multiplayerAuthorityMode ?? req.body?.authorityMode);
-      if (authorityMode === MULTIPLAYER_AUTHORITY_MODES.publicAuthoritative && !getPublicMultiplayerReadiness().ready) {
-        const readiness = getPublicMultiplayerReadiness();
-        return res.status(503).json({
-          error: "Public multiplayer is not enabled on this deployment",
-          reason: !readiness.enabled ? "public_multiplayer_disabled" : "shared_realtime_required",
-          realtimeAdapter: readiness.realtimeAdapter,
-        });
-      }
-      const existingChatState = normalizeLobbyChatState(existingLobbyState.chat);
-      const hostLastSeen = Date.now();
-      
-      // Build player data from seats
-      const players = claimedSeats.map((seat, index) => ({
-        playerId: `player-${index + 1}`,
-        seatIndex: seat.seatIndex,
-        userId: seat.userId,
-        name: seat.playerName || `Player ${seat.seatIndex + 1}`,
-        factionId: coerceFactionId(seat.factionId)!,
-        isAI: seat.isAI,
-        turnOrder: index,
-        lastSeenAt: hostLastSeen,
-      }));
+        // Check all claimed seats are ready and have faction
+        for (const seat of claimedSeats) {
+          if (!seat.isReady) {
+            return res.status(400).json({ error: "All players must be ready" });
+          }
+          if (!seat.factionId) {
+            return res.status(400).json({ error: "All players must select a faction" });
+          }
+          if (!coerceFactionId(seat.factionId)) {
+            return res.status(400).json({ error: "All players must select a valid faction" });
+          }
+        }
 
-      const seed = Math.floor(Math.random() * 2 ** 32);
-      const { gameState: initialSnapshot } = createInitialGameState({
-        playerSetup: players.map((player) => ({
-          id: player.playerId,
-          name: player.name,
-          factionId: player.factionId,
-          turnOrder: player.turnOrder,
-          isAI: player.isAI,
-          aiDifficulty: "normal",
-        })),
-        mapSize: lobby.mapSize,
-        seed,
-        gameId: `online-${lobby.code}-${seed}`,
-      });
-      const expectedActorId = getExpectedActorIdFromSnapshot(initialSnapshot) ?? players[0]?.playerId ?? null;
+        const claimedFactionEntries = claimedSeats.map((seat) => ({ id: seat.id, factionId: seat.factionId }));
+        if (getDuplicateFactionIds(claimedFactionEntries).size > 0) {
+          return res.status(400).json({ error: "Each player must select a unique faction" });
+        }
 
-      // Update lobby status to playing with a server-created canonical initial snapshot.
-      const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
-        status: "playing",
-        gameState: {
-          ...buildMultiplayerVersionSnapshot(getServerMultiplayerBuildId()),
-          multiplayerAuthorityMode: authorityMode,
-          players,
+        const versionGate = validateMultiplayerVersionRequest(req);
+        if (!versionGate.ok) {
+          return sendMultiplayerVersionGateError(res, versionGate);
+        }
+
+        const existingLobbyState = (lobby.gameState as any) || {};
+        const authorityMode = getRequestedAuthorityMode(existingLobbyState.multiplayerAuthorityMode ?? req.body?.authorityMode);
+        if (authorityMode === MULTIPLAYER_AUTHORITY_MODES.publicAuthoritative && !getPublicMultiplayerReadiness().ready) {
+          const readiness = getPublicMultiplayerReadiness();
+          return res.status(503).json({
+            error: "Public multiplayer is not enabled on this deployment",
+            reason: !readiness.enabled ? "public_multiplayer_disabled" : "shared_realtime_required",
+            realtimeAdapter: readiness.realtimeAdapter,
+          });
+        }
+        const existingChatState = normalizeLobbyChatState(existingLobbyState.chat);
+        const hostLastSeen = Date.now();
+
+        // Build player data from seats
+        const players = claimedSeats.map((seat, index) => ({
+          playerId: `player-${index + 1}`,
+          seatIndex: seat.seatIndex,
+          userId: seat.userId,
+          name: seat.playerName || `Player ${seat.seatIndex + 1}`,
+          factionId: coerceFactionId(seat.factionId)!,
+          isAI: seat.isAI,
+          turnOrder: index,
+          lastSeenAt: hostLastSeen,
+        }));
+
+        const seed = Math.floor(Math.random() * 2 ** 32);
+        const { gameState: initialSnapshot } = createInitialGameState({
+          playerSetup: players.map((player) => ({
+            id: player.playerId,
+            name: player.name,
+            factionId: player.factionId,
+            turnOrder: player.turnOrder,
+            isAI: player.isAI,
+            aiDifficulty: "normal",
+          })),
           mapSize: lobby.mapSize,
           seed,
-          hostEpoch: 1,
-          hostLastSeen,
-          actionVersion: 0,
-          actions: [],
-          actionLogBaseVersion: 0,
-          pendingVersion: 0,
-          pendingActions: [],
-          failedActions: [],
-          snapshotVersion: 0,
-          snapshot: initialSnapshot,
-          expectedActorId,
-          turnResolutionPending: false,
-          chat: existingChatState,
-        } as any,
-      });
-      if (!updated) {
-        return res.status(409).json({ error: "Lobby changed while starting game. Refresh and try again." });
+          gameId: `online-${lobby.code}-${seed}`,
+        });
+        const expectedActorId = getExpectedActorIdFromSnapshot(initialSnapshot) ?? players[0]?.playerId ?? null;
+
+        // Update lobby status to playing with a server-created canonical initial snapshot.
+        const updated = await storage.updateLobbyIfUnchanged(lobby.id, lobby, {
+          status: "playing",
+          gameState: {
+            ...buildMultiplayerVersionSnapshot(getServerMultiplayerBuildId()),
+            multiplayerAuthorityMode: authorityMode,
+            players,
+            mapSize: lobby.mapSize,
+            seed,
+            hostEpoch: 1,
+            hostLastSeen,
+            actionVersion: 0,
+            actions: [],
+            actionLogBaseVersion: 0,
+            pendingVersion: 0,
+            pendingActions: [],
+            failedActions: [],
+            snapshotVersion: 0,
+            snapshot: initialSnapshot,
+            expectedActorId,
+            turnResolutionPending: false,
+            chat: existingChatState,
+          } as any,
+        });
+        if (!updated) {
+          continue;
+        }
+
+        const updatedSeats = await storage.getSeatsByLobbyId(lobby.id);
+        const responseLobby = sanitizeLobbyForRequester(updated, updatedSeats, req.session.userId);
+        return res.json({ ...responseLobby, seats: updatedSeats });
       }
-      
-      const updatedSeats = await storage.getSeatsByLobbyId(lobby.id);
-      const responseLobby = sanitizeLobbyForRequester(updated, updatedSeats, req.session.userId);
-      res.json({ ...responseLobby, seats: updatedSeats });
+
+      return res.status(409).json({ error: "Lobby changed while starting game. Refresh and try again." });
     } catch (error) {
       console.error("Failed to start game:", error);
       res.status(500).json({ error: "Failed to start game" });

@@ -324,16 +324,25 @@ export default function LobbyRoom() {
   const copiedResetTimeoutRef = useRef<number | null>(null);
   const lastToastedErrorRef = useRef<string | null>(null);
   const missingSnapshotToastRef = useRef(false);
+  const myLobbySeat = useMemo(() => {
+    if (!currentLobby || !user) return null;
+    return currentLobby.seats.find((seat) => seat.userId === user.id) ?? null;
+  }, [currentLobby, user]);
+  const isLobbyChatParticipant = Boolean(
+    currentLobby &&
+    user &&
+    (currentLobby.hostUserId === user.id || myLobbySeat),
+  );
   const chatIdentity = useMemo(() => {
     if (!currentLobby || !user) return null;
-    const mySeat = currentLobby.seats.find((seat) => seat.userId === user.id);
+    if (!isLobbyChatParticipant) return null;
     return {
       lobbyCode: currentLobby.code,
       userId: user.id,
       userName: user.username,
-      senderFactionId: mySeat?.factionId ?? undefined,
+      senderFactionId: myLobbySeat?.factionId ?? undefined,
     };
-  }, [currentLobby, user]);
+  }, [currentLobby, isLobbyChatParticipant, myLobbySeat?.factionId, user]);
 
   useEffect(() => {
     if (!currentLobby) {
@@ -578,6 +587,7 @@ export default function LobbyRoom() {
   return (
     <div
       data-testid="lobby-room"
+      data-chat-scope={isLobbyChatParticipant ? "participant" : "viewer"}
       className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 p-4"
     >
       <div className={`w-full ${isMobileUI ? "max-w-lg" : "max-w-6xl grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-4 items-stretch"}`}>
