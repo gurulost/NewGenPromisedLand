@@ -67,6 +67,7 @@ const HEADLESS = !hasFlag("headed");
 const KEEP_LOBBY = hasFlag("keep-lobby");
 const RUN_ID = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
 const OUTPUT_DIR = path.resolve(SCENARIO_MODE === "soak" ? "output/live-multiplayer-soak" : "output/live-multiplayer-smoke", `${RUN_ID}-${randomUUID().slice(0, 8)}`);
+const CAPTURE_SCREENSHOTS = !hasFlag("no-screenshots") && (SCENARIO_MODE !== "soak" || hasFlag("screenshots"));
 const VERSION_HEADERS = buildMultiplayerVersionHeaders(BUILD_ID);
 const JSON_HEADERS = {
   ...VERSION_HEADERS,
@@ -228,6 +229,7 @@ async function preflightDeployedBundle() {
 }
 
 async function capturePage(agent: SmokeAgent, label: string) {
+  if (!CAPTURE_SCREENSHOTS) return;
   const file = path.join(OUTPUT_DIR, `${agent.name}-${label}.png`);
   try {
     await agent.page.screenshot({ path: file, fullPage: true, timeout: 10_000 });
@@ -287,6 +289,16 @@ async function dismissTutorialOverlay(
   if (!isVisible) return false;
 
   const visibleText = await dialog.innerText().then(summarizeText).catch(() => "");
+  const skipButton = page.getByRole("button", { name: /skip tutorial/i });
+  if (await skipButton.isVisible().catch(() => false)) {
+    await skipButton.click({ timeout: 5_000 }).catch(() => undefined);
+    const skipped = await dialog.waitFor({ state: "hidden", timeout: 5_000 }).then(() => true).catch(() => false);
+    if (skipped) {
+      logEvent("tutorial_dismissed", { agent: agent.name, phase, action: "skip-tutorial" });
+      await page.waitForTimeout(250);
+      return true;
+    }
+  }
   for (const testId of [
     "tutorial-overlay-open-later",
     "tutorial-overlay-close",
@@ -568,7 +580,10 @@ async function closeAgentContext(agent: SmokeAgent, reason: string) {
 }
 
 async function replaceAgentContext(agent: SmokeAgent, label: string) {
-  if (!browser) throw new Error("browser is not available for reconnect");
+  if (!browser || !browser.isConnected()) {
+    browser = await chromium.launch({ headless: HEADLESS, args: ["--disable-dev-shm-usage", "--use-gl=angle", "--use-angle=swiftshader"] });
+    logEvent("browser_relaunched", { agent: agent.name, label });
+  }
   agent.isClosing = true;
   await agent.context.close().catch(() => undefined);
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -586,7 +601,7 @@ async function reconnectAgentToGame(agent: SmokeAgent, code: string, label: stri
   await replaceAgentContext(agent, label);
   agent.networkSuppressionReason = `${label}_navigation`;
   try {
-    await joinStartedLobbyByCode(agent, code, label);
+    await joinStartedLobbyByCode(agent, code, label).catch(async (error) => { logEvent("agent_reconnect_join_retry", { agent: agent.name, label, error: String(error) }); await replaceAgentContext(agent, `${label}-retry`); await joinStartedLobbyByCode(agent, code, `${label}-retry`); });
     const state = await getProjectedState(agent, code);
     const body = getRecord(state.body);
     scenarioResults.push({
@@ -689,6 +704,19 @@ function getCleanupHostAgent(): SmokeAgent | null {
   return findConnectedAgentByUserId(currentHostUserId) ?? agents.find(isAgentConnected) ?? null;
 }
 
+async function getOrRestoreCleanupHostAgent(): Promise<SmokeAgent | null> {
+  const connected = getCleanupHostAgent();
+  if (connected) return connected;
+  const target = agents.find((agent) => agent.userId === currentHostUserId) ?? agents[0] ?? null;
+  if (!target) return null;
+  if (!browser || !browser.isConnected()) {
+    browser = await chromium.launch({ headless: HEADLESS, args: ["--disable-dev-shm-usage", "--use-gl=angle", "--use-angle=swiftshader"] });
+    logEvent("cleanup_browser_relaunched", { agent: target.name });
+  }
+  await replaceAgentContext(target, "cleanup-delete");
+  return target;
+}
+
 const soakScenarios = createLiveMultiplayerSoakScenarios({
   scenarioMode: SCENARIO_MODE,
   agents,
@@ -751,7 +779,9 @@ async function runTurnCycles(code: string) {
     }
     await soakScenarios.performReloadReconnect(code, agent, index + 1);
     await soakScenarios.performMidTurnDisconnect(code, agent, index + 1);
-
+    if (!isAgentConnected(agent)) {
+      await reconnectAgentToGame(agent, code, `soak-actor-reconnect-before-end-turn-${index + 1}`);
+    }
     const next = await clickEndTurnAndWait(agent, code, actionVersion);
     stateBody = next.body;
     state = stateBody.state;
@@ -812,7 +842,14 @@ async function collectFinalStates(code: string) {
 
 async function cleanupLobby() {
   if (!lobbyCode || KEEP_LOBBY || agents.length === 0) return;
-  const host = getCleanupHostAgent();
+  const host = await getOrRestoreCleanupHostAgent().catch((error) => {
+    addIssue("medium", "Temporary live lobby cleanup could not restore a host agent", {
+      code: lobbyCode,
+      currentHostUserId,
+      error: String(error),
+    });
+    return null;
+  });
   if (!host) {
     addIssue("medium", "Temporary live lobby cleanup skipped because no connected host agent was available", {
       code: lobbyCode,
@@ -883,7 +920,7 @@ async function main() {
 
   await preflightDeployedBundle();
 
-  browser = await chromium.launch({ headless: HEADLESS });
+  browser = await chromium.launch({ headless: HEADLESS, args: ["--disable-dev-shm-usage", "--use-gl=angle", "--use-angle=swiftshader"] });
 
   for (let index = 0; index < PLAYER_COUNT; index += 1) {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });

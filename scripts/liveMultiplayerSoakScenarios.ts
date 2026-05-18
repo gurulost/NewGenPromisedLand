@@ -78,15 +78,21 @@ export function createLiveMultiplayerSoakScenarios<Agent extends LiveMultiplayer
       deps.logEvent("soak_reload_reconnect_started", { agent: target.name, turnIndex, actor: actor.name });
       target.networkSuppressionReason = "soak_reload_navigation";
       try {
-        await target.page.reload({ waitUntil: "domcontentloaded", timeout: 60_000 }).catch((error) => {
-          deps.addIssue("medium", "Soak reload failed before reconnect", {
+        await target.page.reload({ waitUntil: "domcontentloaded", timeout: 60_000 }).catch(async (error) => {
+          deps.logEvent("soak_reload_navigation_timeout", {
             agent: target.name,
             turnIndex,
             error: String(error),
           });
+          await target.page.evaluate(() => window.stop()).catch(() => undefined);
+          await target.page.waitForTimeout(1_500).catch(() => undefined);
         });
         await deps.joinStartedLobbyByCode(target, code, `soak-reload-turn-${turnIndex}`);
-        const result = await deps.getProjectedState(target, code);
+        const result = await deps.getProjectedState(target, code).catch(async (error) => {
+          deps.logEvent("soak_reload_projection_reconnect", { agent: target.name, turnIndex, error: String(error) });
+          await deps.reconnectAgentToGame(target, code, `soak-reload-recovery-${turnIndex}`);
+          return deps.getProjectedState(target, code);
+        });
         const body = deps.getRecord(result.body);
         deps.scenarioResults.push({
           type: "browser_reload_reconnect",

@@ -1087,11 +1087,11 @@ export default function GameUI() {
     (!onlineSession || onlineMyPlayerIds.includes(currentPlayer.id))
   );
   const tutorialProfileKey = useMemo(() => {
+    if (onlineSession) return null;
     if (!currentPlayer) return null;
-    if (onlineSession?.userId) return `user:${onlineSession.userId}`;
     const nameKey = currentPlayer.name?.trim() || currentPlayer.id;
     return `local:${nameKey}`;
-  }, [currentPlayer, onlineSession?.userId]);
+  }, [currentPlayer, onlineSession]);
   const myOnlinePlayer = useMemo(() => (
     onlineSession
       ? gameState?.players.find((player) => onlineMyPlayerIds.includes(player.id)) ?? null
