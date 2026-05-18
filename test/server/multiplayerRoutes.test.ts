@@ -932,6 +932,33 @@ describe("multiplayer lobby routes", () => {
     expect(legacyCommitResponse.status).toBe(409);
   });
 
+  it("retries public-authoritative action submissions after transient lobby write conflicts", async () => {
+    const hostCookie = await signUp(testServer.baseUrl, "hostuser");
+    await signUp(testServer.baseUrl, "guestuser");
+    configurePublicAuthoritativeLobby();
+
+    routeMocks.storage.updateLobbyIfUnchanged.mockImplementationOnce(async () => undefined);
+
+    const response = await jsonRequest<{ actionVersion?: number; snapshotVersion?: number; state?: GameState }>(
+      testServer.baseUrl,
+      "/api/lobbies/ROOMA/actions/submit",
+      {
+        method: "POST",
+        cookie: hostCookie,
+        body: {
+          clientActionId: "public-end-turn-retry",
+          baseActionVersion: 0,
+          action: { type: "END_TURN", payload: { playerId: "player-1" } },
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.actionVersion).toBe(1);
+    expect(routeMocks.storage.updateLobbyIfUnchanged).toHaveBeenCalledTimes(2);
+    expect(currentLobby().gameState.expectedActorId).toBe("player-2");
+  });
+
   it("rejects stale public-authoritative submissions without mutating state", async () => {
     const hostCookie = await signUp(testServer.baseUrl, "hostuser");
     await signUp(testServer.baseUrl, "guestuser");

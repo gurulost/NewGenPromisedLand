@@ -440,9 +440,9 @@ export const useAudio = create<AudioState>((set, get) => {
         });
         return;
       }
-      const progress = Math.min(1, (now - startTime) / CROSSFADE_DURATION_MS);
-      nextAudio.volume = targetVolume * progress;
-      backgroundMusic.volume = startVolume * (1 - progress);
+      const progress = clampVolume((now - startTime) / CROSSFADE_DURATION_MS);
+      nextAudio.volume = clampVolume(targetVolume * progress);
+      backgroundMusic.volume = clampVolume(startVolume * (1 - progress));
 
       if (progress < 1) {
         scheduleFrame(step);

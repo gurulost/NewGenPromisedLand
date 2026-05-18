@@ -240,43 +240,51 @@ export function registerMultiplayerActionRoutes(
 
   app.post("/api/lobbies/:code/actions/submit", requireAuth, commitRateLimit, async (req, res) => {
     try {
-      const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
-      if (!lobby) return res.status(404).json({ error: "Lobby not found" });
-      if (lobby.status !== "playing") return res.status(409).json({ error: "Game not in progress" });
-      const userId = req.session.userId!;
-      if (!(await isParticipant(lobby.id, lobby.hostUserId, userId))) {
-        return res.status(403).json({ error: "Not a participant" });
-      }
-
-      const lobbyState = (lobby.gameState as LobbyState) || {};
-      if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
-      if (!isPublicAuthoritativeLobbyState(lobbyState)) {
-        return res.status(409).json({ error: "Lobby is not using public-authoritative multiplayer" });
-      }
       const actionValidation = validateMultiplayerAction(
         (req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>).action : undefined),
         MAX_MULTIPLAYER_ACTION_BYTES,
       );
       if (!actionValidation.valid) return res.status(400).json({ error: actionValidation.error });
 
-      const result = await submitPublicAuthoritativeAction({
-        lobby,
-        seats: await storage.getSeatsByLobbyId(lobby.id),
-        userId,
-        body: req.body,
-      });
-      if (!result.ok) {
-        return res.status(result.status).json({
-          error: result.error,
-          reason: result.reason,
-          actionVersion: result.actionVersion,
-          snapshotVersion: result.snapshotVersion,
-          state: result.state,
+      for (let attempt = 0; attempt < MAX_MULTIPLAYER_UPDATE_RETRIES; attempt += 1) {
+        const lobby = await storage.getLobbyByCode(req.params.code.toUpperCase());
+        if (!lobby) return res.status(404).json({ error: "Lobby not found" });
+        if (lobby.status !== "playing") return res.status(409).json({ error: "Game not in progress" });
+        const userId = req.session.userId!;
+        if (!(await isParticipant(lobby.id, lobby.hostUserId, userId))) {
+          return res.status(403).json({ error: "Not a participant" });
+        }
+
+        const lobbyState = (lobby.gameState as LobbyState) || {};
+        if (!ensureMultiplayerVersion(req, res, lobbyState)) return;
+        if (!isPublicAuthoritativeLobbyState(lobbyState)) {
+          return res.status(409).json({ error: "Lobby is not using public-authoritative multiplayer" });
+        }
+
+        const result = await submitPublicAuthoritativeAction({
+          lobby,
+          seats: await storage.getSeatsByLobbyId(lobby.id),
+          userId,
+          body: req.body,
         });
+        if (!result.ok) {
+          if (result.reason === "concurrent_update" && attempt < MAX_MULTIPLAYER_UPDATE_RETRIES - 1) {
+            continue;
+          }
+          return res.status(result.status).json({
+            error: result.error,
+            reason: result.reason,
+            actionVersion: result.actionVersion,
+            snapshotVersion: result.snapshotVersion,
+            state: result.state,
+          });
+        }
+
+        publishMultiplayerSyncEvent(lobby.code, "action-committed");
+        return res.json(result);
       }
 
-      publishMultiplayerSyncEvent(lobby.code, "action-committed");
-      return res.json(result);
+      return res.status(409).json({ error: "Concurrent lobby update. Retry action submission.", reason: "concurrent_update" });
     } catch (error) {
       console.error("Failed to submit public multiplayer action:", error);
       return res.status(500).json({ error: "Failed to submit action" });
