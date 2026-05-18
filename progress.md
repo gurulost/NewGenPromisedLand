@@ -46,3 +46,10 @@ Original prompt: Harden Covenant Legends multiplayer for Replit-hosted private/d
 - Follow-up smoke exposed app-side start fragility: lobby chat/read or realtime activity can race the host start write, return "Lobby changed while starting game", and strand players in the lobby. Patched the start route to retry transient lobby write conflicts, and gated lobby chat transport setup so unclaimed non-host viewers do not hammer chat/realtime endpoints with 403s before they claim a seat.
 - Also removed production `/api/animation-overrides` fetch noise by keeping server override sync behind dev/explicit flag, while preserving local animation overrides. The live smoke now ignores normal EventSource `net::ERR_ABORTED` close events but still records same-origin HTTP 4xx/5xx responses.
 - Fresh publish smoke completed one full 3-player round before finding two new issues: crossfade code could set negative audio volume, and public-authoritative `/actions/submit` could lose a concurrent lobby write race on later turns. Patched crossfade volume clamping and added retry handling for transient public action submission conflicts.
+- 2026-05-18 final live production smoke passed after Replit republish: `npm run test:live:multiplayer -- --players=3 --rounds=4 --build-id=c097d94` against `https://covenantlegends.com` completed 12 authoritative turns for three players across four rounds, deleted temporary lobby `93ALXJ`, and wrote `issueCount: 0` in `output/live-multiplayer-smoke/20260518003215-8cc95d8a/report.json`.
+
+## Current Multiplayer QA Suggestions
+
+- Keep the 3-player/4-round live smoke as the release gate after any multiplayer, lobby, chat, turn-authority, or Replit deployment change.
+- Add longer soak coverage next: 4-8 players, 10+ rounds, disconnect/reconnect, eliminated-player handoff, and private/demo host authority mode.
+- Consider adding lightweight live telemetry around action submission retries so recurring lobby write contention can be measured before it becomes player-visible.
