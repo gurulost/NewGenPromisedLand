@@ -48,6 +48,10 @@ npm run test:e2e
 npm run test:e2e:chromium
 npm run test:e2e:matrix
 npm run test:e2e -- test/e2e/main-menu-setup.spec.ts --project=mobile-chrome
+
+# Live production multiplayer gates
+npm run test:live:multiplayer -- --players=3 --rounds=4 --build-id=<deployed-build-id>
+npm run test:live:multiplayer:soak -- --players=4 --rounds=10 --build-id=<deployed-build-id>
 ```
 
 ## Coverage
@@ -102,6 +106,8 @@ Local `npm run test:e2e` uses the broader project matrix from `playwright.config
 Current E2E confidence note from April 30, 2026: the Chromium gate passed 9/9 after running outside the local sandbox so Playwright could bind its web server. Two local full-matrix attempts completed with 51 passing tests, 2 intentional mobile viewport skips, and 1 isolated browser-run failure each. The failed Firefox tutorial-overlay case passed immediately in a targeted Firefox rerun, and the failed mobile Safari handoff case passed immediately in a targeted mobile Safari rerun. No deterministic product regression was found in those attempts; until repeated clean full-matrix runs are captured, Chromium remains the blocking CI gate and the full matrix remains the scheduled release-confidence signal.
 
 For local debugging against a server you already started, run `npm run dev:e2e` in one terminal and then run Playwright with either `PLAYWRIGHT_REUSE_SERVER=true` or `PLAYWRIGHT_SKIP_WEB_SERVER=true`. Reuse lets Playwright use the configured readiness URL and start the server only if needed; skip never starts a server and expects one to already be listening.
+
+Live production multiplayer gates run against `https://covenantlegends.com` by default and create temporary real users plus a temporary public-authoritative lobby. The standard smoke covers three browser agents for four rounds. The soak gate defaults to four browser agents for ten rounds, supports up to eight players, writes artifacts under `output/live-multiplayer-soak/`, and injects browser reload/rejoin, active-player disconnect/reconnect, original-host browser leave plus host-lease claim, and an eliminated-player turn-handoff canary. These commands require the deployed bundle preflight to pass before any live users or lobbies are created.
 
 ## Writing Tests
 

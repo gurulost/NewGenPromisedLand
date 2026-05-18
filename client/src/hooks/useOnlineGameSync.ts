@@ -3,6 +3,7 @@ import { useLocalGame } from "../lib/stores/useLocalGame";
 import {
   applyCommittedEntriesSequentially,
   getCursorFromSnapshotVersion,
+  shouldIncludePeriodicHostStatus,
 } from "./onlineSyncUtils";
 import { subscribeLobbyRealtime } from "@/lib/lobbyRealtimeStream";
 import {
@@ -613,11 +614,19 @@ export function useOnlineGameSync() {
     });
 
     const maintenanceInterval = setInterval(() => {
-      requestSync({ includeHostStatus: true, includeActionSync: false });
+      const latestSession = useLocalGame.getState().onlineSession;
+      requestSync({
+        includeHostStatus: shouldIncludePeriodicHostStatus(latestSession?.authorityMode),
+        includeActionSync: false,
+      });
     }, MULTIPLAYER_MAINTENANCE_INTERVAL_MS);
 
     const fallbackInterval = setInterval(() => {
-      requestSync({ includeHostStatus: true, includeActionSync: true });
+      const latestSession = useLocalGame.getState().onlineSession;
+      requestSync({
+        includeHostStatus: shouldIncludePeriodicHostStatus(latestSession?.authorityMode),
+        includeActionSync: true,
+      });
     }, MULTIPLAYER_FALLBACK_SYNC_INTERVAL_MS);
 
     return () => {

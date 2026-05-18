@@ -2,6 +2,7 @@ import {
   applyCommittedEntriesSequentially,
   getCursorFromSnapshotVersion,
   getInitialActionVersionFromLobbyConfig,
+  shouldIncludePeriodicHostStatus,
 } from "./onlineSyncUtils";
 
 describe("onlineSyncUtils", () => {
@@ -23,6 +24,12 @@ describe("onlineSyncUtils", () => {
     expect(getCursorFromSnapshotVersion(undefined)).toBe(0);
     expect(getCursorFromSnapshotVersion(-3)).toBe(0);
     expect(getCursorFromSnapshotVersion("7")).toBe(7);
+  });
+
+  it("skips periodic host-status polling for public-authoritative games", () => {
+    expect(shouldIncludePeriodicHostStatus("public_authoritative")).toBe(false);
+    expect(shouldIncludePeriodicHostStatus("private_demo_hosted")).toBe(true);
+    expect(shouldIncludePeriodicHostStatus(undefined)).toBe(true);
   });
 
   it("applies committed actions in strict version order", () => {

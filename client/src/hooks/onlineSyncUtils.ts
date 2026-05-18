@@ -4,6 +4,8 @@ export type LobbyGameConfigLike = {
   actionVersion?: number;
 };
 
+export type MultiplayerAuthorityModeLike = "private_demo_hosted" | "public_authoritative";
+
 export type CommittedActionLike = {
   id?: string;
   version?: number;
@@ -28,6 +30,10 @@ export function getInitialActionVersionFromLobbyConfig(config: LobbyGameConfigLi
 export function getCursorFromSnapshotVersion(snapshotVersion: unknown): number {
   const parsed = Number(snapshotVersion ?? 0);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+export function shouldIncludePeriodicHostStatus(authorityMode?: MultiplayerAuthorityModeLike): boolean {
+  return authorityMode !== "public_authoritative";
 }
 
 export function applyCommittedEntriesSequentially(

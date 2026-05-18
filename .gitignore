@@ -13,6 +13,7 @@ playwright-report/
 test-results/
 output/playwright/
 output/live-multiplayer-smoke/
+output/live-multiplayer-soak/
 test-results*.json
 full-test-results.json
 complete-test-output.txt

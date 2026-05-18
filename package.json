@@ -20,6 +20,7 @@
     "test:e2e:matrix": "node scripts/run-playwright-tests.mjs --workers=1",
     "test:chat:zustand": "tsx scripts/verify-chat-zustand-smoke.tsx",
     "test:live:multiplayer": "tsx scripts/verify-live-public-multiplayer.ts",
+    "test:live:multiplayer:soak": "tsx scripts/verify-live-public-multiplayer.ts --soak",
     "test:performance": "vitest run test/performance --reporter=verbose",
     "assets:verify": "node scripts/verify-public-assets.mjs",
     "hygiene": "node scripts/check-repo-hygiene.mjs",

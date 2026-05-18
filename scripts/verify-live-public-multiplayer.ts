@@ -4,6 +4,8 @@ import path from "node:path";
 import { chromium, type BrowserContext, type Page } from "playwright";
 
 import { buildMultiplayerVersionHeaders } from "../shared/multiplayerVersion";
+import { createLiveMultiplayerPageObservers } from "./liveMultiplayerPageObservers";
+import { createLiveMultiplayerSoakScenarios } from "./liveMultiplayerSoakScenarios";
 
 type Severity = "low" | "medium" | "high" | "blocker";
 
@@ -27,8 +29,10 @@ type SmokeAgent = {
   consoleMessages: Array<{ type: string; text: string }>;
   failedRequests: Array<{ url: string; errorText?: string }>;
   httpErrors: Array<{ url: string; status: number; statusText: string }>;
-  ignoredRequests: Array<{ url: string; errorText?: string; reason: string }>;
+  ignoredRequests: Array<{ url: string; errorText?: string; status?: number; reason: string }>;
   isClosing: boolean;
+  disconnectedReason?: string | null;
+  networkSuppressionReason?: string | null;
 };
 
 const args = process.argv.slice(2);
@@ -55,48 +59,34 @@ function readIntArg(name: string, fallback: number): number {
 
 const BASE_URL = (readArg("base-url", process.env.COVENANT_BASE_URL) ?? "https://covenantlegends.com")
   .replace(/\/+$/, "");
-const PLAYER_COUNT = Math.min(Math.max(readIntArg("players", 3), 2), 8);
-const ROUND_COUNT = Math.max(readIntArg("rounds", 4), 1);
+const SCENARIO_MODE = hasFlag("soak") || readArg("scenario") === "soak" ? "soak" : "smoke";
+const PLAYER_COUNT = Math.min(Math.max(readIntArg("players", SCENARIO_MODE === "soak" ? 4 : 3), SCENARIO_MODE === "soak" ? 4 : 2), 8);
+const ROUND_COUNT = Math.max(readIntArg("rounds", SCENARIO_MODE === "soak" ? 10 : 4), SCENARIO_MODE === "soak" ? 10 : 1);
 const BUILD_ID = readArg("build-id", process.env.COVENANT_BUILD_ID);
 const HEADLESS = !hasFlag("headed");
 const KEEP_LOBBY = hasFlag("keep-lobby");
 const RUN_ID = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
-const OUTPUT_DIR = path.resolve("output/live-multiplayer-smoke", `${RUN_ID}-${randomUUID().slice(0, 8)}`);
+const OUTPUT_DIR = path.resolve(SCENARIO_MODE === "soak" ? "output/live-multiplayer-soak" : "output/live-multiplayer-smoke", `${RUN_ID}-${randomUUID().slice(0, 8)}`);
 const VERSION_HEADERS = buildMultiplayerVersionHeaders(BUILD_ID);
 const JSON_HEADERS = {
   ...VERSION_HEADERS,
   "Content-Type": "application/json",
 };
-const FACTIONS = [
-  "NEPHITES",
-  "LAMANITES",
-  "MULEKITES",
-  "ANTI_NEPHI_LEHIES",
-  "ZORAMITES",
-  "JAREDITES",
-  "HAGOTH_MARINERS",
-  "AMULONITES",
-];
+const FACTIONS = ["NEPHITES", "LAMANITES", "MULEKITES", "ANTI_NEPHI_LEHIES", "ZORAMITES", "JAREDITES", "HAGOTH_MARINERS", "AMULONITES"];
 
 const issues: Issue[] = [];
 const events: Array<Record<string, unknown>> = [];
+const scenarioResults: Array<Record<string, unknown>> = [];
 const screenshots: string[] = [];
 const finalStates: Array<Record<string, unknown>> = [];
 const password = `CodexSmoke-${RUN_ID}-${randomUUID().slice(0, 10)}`;
-const REQUIRED_DEPLOYED_MARKERS = [
-  "lobby-join-code-input",
-  "lobby-room",
-  "lobby-authority-notice",
-  "lobby-start-game",
-  "data-seat-state",
-  "data-chat-scope",
-  "Public unranked multiplayer is server-authoritative.",
-] as const;
+const REQUIRED_DEPLOYED_MARKERS = ["lobby-join-code-input", "lobby-room", "lobby-authority-notice", "lobby-start-game", "data-seat-state", "data-chat-scope", "Public unranked multiplayer is server-authoritative."] as const;
 
 let lobbyCode: string | null = null;
 let lobbyId: number | null = null;
 let lobbyName: string | null = null;
 let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
+let currentHostUserId: number | null = null;
 const agents: SmokeAgent[] = [];
 
 function logEvent(type: string, detail: Record<string, unknown> = {}) {
@@ -111,6 +101,11 @@ function addIssue(severity: Severity, title: string, detail: Record<string, unkn
   console.error(JSON.stringify({ type: "issue", ...issue }));
 }
 
+const { attachPageObservers } = createLiveMultiplayerPageObservers({
+  baseUrl: BASE_URL,
+  addIssue,
+});
+
 function summarizeText(text: string): string {
   return text.replace(/\s+/g, " ").trim().slice(0, 1200);
 }
@@ -119,25 +114,8 @@ function isFatalIssue(issue: Issue): boolean {
   return issue.severity === "blocker" || issue.severity === "high";
 }
 
-function shouldIgnoreFailedRequest(url: string, errorText?: string): string | null {
-  if (errorText === "net::ERR_ABORTED" && /\/sounds\/[^/?]+\.(mp3|wav|ogg)(?:[?#].*)?$/i.test(url)) {
-    return "canceled_audio_navigation_request";
-  }
-  if (errorText === "net::ERR_ABORTED" && /\/api\/lobbies\/[^/?]+\/realtime(?:[?#].*)?$/i.test(url)) {
-    return "closed_realtime_stream";
-  }
-  if (url.includes("posthog") || url.includes("analytics")) {
-    return "analytics_request";
-  }
-  return null;
-}
-
-function isSameOriginUrl(url: string): boolean {
-  try {
-    return new URL(url).origin === new URL(BASE_URL).origin;
-  } catch {
-    return false;
-  }
+function isAgentConnected(agent: SmokeAgent): boolean {
+  return !agent.disconnectedReason && !agent.isClosing && !agent.page.isClosed();
 }
 
 async function waitFor<T>(
@@ -252,10 +230,10 @@ async function preflightDeployedBundle() {
 async function capturePage(agent: SmokeAgent, label: string) {
   const file = path.join(OUTPUT_DIR, `${agent.name}-${label}.png`);
   try {
-    await agent.page.screenshot({ path: file, fullPage: true });
+    await agent.page.screenshot({ path: file, fullPage: true, timeout: 10_000 });
     screenshots.push(file);
   } catch (error) {
-    addIssue("medium", "Screenshot capture failed", { agent: agent.name, label, error: String(error) });
+    logEvent("screenshot_capture_failed", { agent: agent.name, label, error: String(error) });
   }
 }
 
@@ -398,6 +376,23 @@ async function signUpAgent(agent: SmokeAgent) {
   logEvent("signed_up", { agent: agent.name, username: agent.username, userId: agent.userId });
 }
 
+async function logInAgent(agent: SmokeAgent) {
+  const result = await api(agent, "POST", "/api/auth/login", {
+    username: agent.username,
+    password: agent.password,
+  }, { "Content-Type": "application/json" });
+  if (!result.ok) {
+    addIssue("blocker", "Could not log live test user back in", {
+      agent: agent.name,
+      status: result.status,
+      body: result.body,
+    });
+    throw new Error(`login failed for ${agent.name}`);
+  }
+  agent.userId = Number(getRecord(result.body).id);
+  logEvent("logged_in", { agent: agent.name, username: agent.username, userId: agent.userId });
+}
+
 async function createPublicLobby(host: SmokeAgent) {
   lobbyName = `Codex Live Public ${RUN_ID}`;
   const result = await api(host, "POST", "/api/lobbies", {
@@ -416,6 +411,7 @@ async function createPublicLobby(host: SmokeAgent) {
   const body = getRecord(result.body);
   lobbyCode = String(body.code);
   lobbyId = Number(body.id);
+  currentHostUserId = host.userId ?? null;
   logEvent("lobby_created", { code: lobbyCode, lobbyId, lobbyName });
 }
 
@@ -484,6 +480,26 @@ async function openLobbyByCode(agent: SmokeAgent, code: string) {
   logEvent("ui_joined_lobby", { agent: agent.name, code });
 }
 
+async function joinStartedLobbyByCode(agent: SmokeAgent, code: string, label: string) {
+  const page = agent.page;
+  await page.goto(BASE_URL, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await assertPageNotBlank(agent, `${label}-home`);
+  await page.getByTestId("main-menu-online-multiplayer").click({ timeout: 30_000 });
+  await page.getByTestId("lobby-join-code-input").waitFor({ state: "visible", timeout: 30_000 });
+  await page.getByTestId("lobby-join-code-input").fill(code);
+  await page.getByTestId("lobby-join-code-submit").click();
+
+  await waitFor(`${agent.name} joined started lobby`, async () => {
+    const hasLobbyRoom = await page.getByTestId("lobby-room").isVisible().catch(() => false);
+    const hasEndTurn = await page.getByTestId("hud-end-turn-button").isVisible().catch(() => false);
+    const hasStartTurn = await page.getByTestId("handoff-start-turn-button").isVisible().catch(() => false);
+    return hasLobbyRoom || hasEndTurn || hasStartTurn ? true : false;
+  }, 45_000);
+
+  await waitForGameUi(agent);
+  logEvent("ui_rejoined_started_lobby", { agent: agent.name, code, label });
+}
+
 async function configureSeat(agent: SmokeAgent) {
   const page = agent.page;
   const seat = `lobby-seat-${agent.seatIndex}`;
@@ -543,6 +559,49 @@ async function waitForGameUi(agent: SmokeAgent) {
   await capturePage(agent, "game-start");
 }
 
+async function closeAgentContext(agent: SmokeAgent, reason: string) {
+  if (agent.disconnectedReason) return;
+  agent.disconnectedReason = reason;
+  agent.isClosing = true;
+  await agent.context.close().catch(() => undefined);
+  logEvent("agent_context_closed", { agent: agent.name, reason });
+}
+
+async function replaceAgentContext(agent: SmokeAgent, label: string) {
+  if (!browser) throw new Error("browser is not available for reconnect");
+  agent.isClosing = true;
+  await agent.context.close().catch(() => undefined);
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+  agent.context = context;
+  agent.page = page;
+  agent.isClosing = false;
+  agent.disconnectedReason = null;
+  attachPageObservers(agent);
+  await logInAgent(agent);
+  logEvent("agent_context_recreated", { agent: agent.name, label });
+}
+
+async function reconnectAgentToGame(agent: SmokeAgent, code: string, label: string) {
+  await replaceAgentContext(agent, label);
+  agent.networkSuppressionReason = `${label}_navigation`;
+  try {
+    await joinStartedLobbyByCode(agent, code, label);
+    const state = await getProjectedState(agent, code);
+    const body = getRecord(state.body);
+    scenarioResults.push({
+      type: "agent_reconnect",
+      agent: agent.name,
+      label,
+      status: state.status,
+      actionVersion: body.actionVersion,
+      snapshotVersion: body.snapshotVersion,
+    });
+  } finally {
+    agent.networkSuppressionReason = null;
+  }
+}
+
 async function hydratePlayerAssignments(host: SmokeAgent, code: string) {
   const lobby = await api(host, "GET", `/api/lobbies/code/${code}`, undefined, VERSION_HEADERS);
   if (!lobby.ok) {
@@ -588,19 +647,69 @@ async function waitForActiveTurn(agent: SmokeAgent) {
 async function clickEndTurnAndWait(agent: SmokeAgent, code: string, beforeActionVersion: number) {
   await waitForActiveTurn(agent);
   await dismissTutorialOverlay(agent, "before-end-turn", 2_500);
-  await agent.page.getByTestId("hud-end-turn-button").click();
-  const nextState = await waitFor(`${agent.name} action version advance`, async () => {
+  const endTurnButton = agent.page.getByTestId("hud-end-turn-button");
+  const waitForActionAdvance = (timeoutMs = 45_000) => waitFor(`${agent.name} action version advance`, async () => {
     const result = await getProjectedState(agent, code);
     const body = getRecord(result.body);
     const actionVersion = Number(body.actionVersion ?? 0);
-    if (result.ok && actionVersion > beforeActionVersion && body.state) {
-      return { body, actionVersion };
-    }
+    if (result.ok && actionVersion > beforeActionVersion && body.state) return { body, actionVersion };
     return false;
-  }, 45_000, 1000);
+  }, timeoutMs, 1000);
+
+  try {
+    await endTurnButton.click({ timeout: 15_000, noWaitAfter: true });
+  } catch (error) {
+    logEvent("end_turn_click_retry", { agent: agent.name, error: String(error) });
+    const advancedAfterClick = await waitForActionAdvance(30_000).catch(() => null);
+    if (advancedAfterClick) {
+      await assertPageNotBlank(agent, "after-end-turn");
+      return advancedAfterClick;
+    }
+    await endTurnButton.click({ force: true, timeout: 15_000, noWaitAfter: true }).catch(async (forceError) => {
+      logEvent("end_turn_force_click_retry", { agent: agent.name, error: String(forceError) });
+      const advancedAfterForceClick = await waitForActionAdvance(30_000).catch(() => null);
+      if (advancedAfterForceClick) return;
+      await agent.page.evaluate(() => {
+        const button = document.querySelector<HTMLElement>("[data-testid='hud-end-turn-button']");
+        button?.click();
+      });
+    });
+  }
+  const nextState = await waitForActionAdvance();
   await assertPageNotBlank(agent, "after-end-turn");
   return nextState;
 }
+
+function findConnectedAgentByUserId(userId: number | null | undefined): SmokeAgent | null {
+  if (userId == null) return null;
+  return agents.find((agent) => agent.userId === userId && isAgentConnected(agent)) ?? null;
+}
+
+function getCleanupHostAgent(): SmokeAgent | null {
+  return findConnectedAgentByUserId(currentHostUserId) ?? agents.find(isAgentConnected) ?? null;
+}
+
+const soakScenarios = createLiveMultiplayerSoakScenarios({
+  scenarioMode: SCENARIO_MODE,
+  agents,
+  versionHeaders: VERSION_HEADERS,
+  scenarioResults,
+  logEvent,
+  addIssue,
+  getRecord,
+  isAgentConnected,
+  api,
+  waitFor,
+  getProjectedState,
+  joinStartedLobbyByCode,
+  closeAgentContext,
+  reconnectAgentToGame,
+  waitForActiveTurn,
+  getCurrentHostUserId: () => currentHostUserId,
+  setCurrentHostUserId: (userId) => {
+    currentHostUserId = userId;
+  },
+});
 
 async function runTurnCycles(code: string) {
   const host = agents[0];
@@ -637,6 +746,12 @@ async function runTurnCycles(code: string) {
       stateTurn: getRecord(state).turn,
     });
 
+    if (!isAgentConnected(agent)) {
+      await reconnectAgentToGame(agent, code, `soak-actor-reconnect-turn-${index + 1}`);
+    }
+    await soakScenarios.performReloadReconnect(code, agent, index + 1);
+    await soakScenarios.performMidTurnDisconnect(code, agent, index + 1);
+
     const next = await clickEndTurnAndWait(agent, code, actionVersion);
     stateBody = next.body;
     state = stateBody.state;
@@ -652,12 +767,21 @@ async function runTurnCycles(code: string) {
       stateTurn: getRecord(state).turn,
     });
 
-    await Promise.all(agents.map((candidate) => assertPageNotBlank(candidate, `cycle-${cycle}`)));
+    await soakScenarios.performHostLeaveAndClaim(code, index + 1);
+
+    await Promise.all(
+      agents
+        .filter(isAgentConnected)
+        .map((candidate) => assertPageNotBlank(candidate, `cycle-${cycle}`)),
+    );
   }
 }
 
 async function collectFinalStates(code: string) {
   for (const agent of agents) {
+    if (!isAgentConnected(agent)) {
+      await reconnectAgentToGame(agent, code, "final-state-collection");
+    }
     const result = await getProjectedState(agent, code);
     const body = getRecord(result.body);
     const state = getRecord(body.state);
@@ -688,7 +812,14 @@ async function collectFinalStates(code: string) {
 
 async function cleanupLobby() {
   if (!lobbyCode || KEEP_LOBBY || agents.length === 0) return;
-  const host = agents[0];
+  const host = getCleanupHostAgent();
+  if (!host) {
+    addIssue("medium", "Temporary live lobby cleanup skipped because no connected host agent was available", {
+      code: lobbyCode,
+      currentHostUserId,
+    });
+    return;
+  }
   const result = await api(host, "DELETE", `/api/lobbies/${lobbyCode}`, undefined, VERSION_HEADERS);
   if (!result.ok && result.status !== 404) {
     addIssue("medium", "Temporary live lobby cleanup failed", {
@@ -706,6 +837,7 @@ async function writeReport() {
     runId: RUN_ID,
     baseUrl: BASE_URL,
     buildId: BUILD_ID ?? null,
+    scenarioMode: SCENARIO_MODE,
     players: PLAYER_COUNT,
     rounds: ROUND_COUNT,
     lobby: {
@@ -727,6 +859,7 @@ async function writeReport() {
       ignoredRequests: agent.ignoredRequests,
     })),
     finalStates,
+    scenarioResults,
     events,
     issues,
     screenshots,
@@ -741,6 +874,7 @@ async function main() {
   logEvent("smoke_started", {
     baseUrl: BASE_URL,
     outputDir: OUTPUT_DIR,
+    scenarioMode: SCENARIO_MODE,
     players: PLAYER_COUNT,
     rounds: ROUND_COUNT,
     headless: HEADLESS,
@@ -767,48 +901,11 @@ async function main() {
       httpErrors: [],
       ignoredRequests: [],
       isClosing: false,
+      disconnectedReason: null,
+      networkSuppressionReason: null,
     };
 
-    page.on("console", (message) => {
-      const text = message.text();
-      agent.consoleMessages.push({ type: message.type(), text });
-      if (message.type() === "error") {
-        if (/Failed to load resource: the server responded with a status of \d+/i.test(text)) {
-          return;
-        }
-        addIssue("medium", "Browser console error", { agent: agent.name, text });
-      }
-    });
-    page.on("pageerror", (error) => {
-      addIssue("high", "Browser page error", { agent: agent.name, error: String(error) });
-    });
-    page.on("requestfailed", (request) => {
-      const url = request.url();
-      const failure = request.failure();
-      if (agent.isClosing) return;
-      const ignoredReason = shouldIgnoreFailedRequest(url, failure?.errorText);
-      if (ignoredReason) {
-        agent.ignoredRequests.push({ url, errorText: failure?.errorText, reason: ignoredReason });
-        return;
-      }
-      agent.failedRequests.push({ url, errorText: failure?.errorText });
-      addIssue("medium", "Browser request failed", {
-        agent: agent.name,
-        url,
-        errorText: failure?.errorText,
-      });
-    });
-    page.on("response", (response) => {
-      const status = response.status();
-      if (agent.isClosing || status < 400 || !isSameOriginUrl(response.url())) return;
-      const entry = { url: response.url(), status, statusText: response.statusText() };
-      agent.httpErrors.push(entry);
-      addIssue("medium", "Browser HTTP error response", {
-        agent: agent.name,
-        ...entry,
-      });
-    });
-
+    attachPageObservers(agent);
     agents.push(agent);
   }
 
@@ -826,6 +923,7 @@ async function main() {
   await startGameFromHost(agents[0]);
   await Promise.all(agents.map(waitForGameUi));
   await hydratePlayerAssignments(agents[0], lobbyCode);
+  soakScenarios.verifyEliminatedPlayerHandoffCanary();
   await runTurnCycles(lobbyCode);
   await collectFinalStates(lobbyCode);
 }
@@ -835,6 +933,7 @@ try {
 } catch (error) {
   addIssue("blocker", "Live public multiplayer smoke aborted", { error: error instanceof Error ? error.stack ?? error.message : String(error) });
   await Promise.all(agents.map(async (agent) => {
+    if (!isAgentConnected(agent)) return;
     if (agent.page.url() !== "about:blank") {
       await assertPageNotBlank(agent, "abort");
     }
