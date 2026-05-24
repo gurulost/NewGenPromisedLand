@@ -14,6 +14,8 @@ Historical checklists, implementation notes, backup records, and one-time audit 
 - [GAME_ANALYTICS.md](./GAME_ANALYTICS.md) - gameplay telemetry setup and event catalog
 - [POSTHOG_DASHBOARD_SPEC.md](./POSTHOG_DASHBOARD_SPEC.md) - dashboard configuration for gameplay tuning
 - [RULES_SINGLE_SOURCE_OF_TRUTH.md](./RULES_SINGLE_SOURCE_OF_TRUTH.md) - current rules ownership policy and remaining drift risks
+- [COVENANT_LEGENDS_OPERATING_GUIDE.md](./COVENANT_LEGENDS_OPERATING_GUIDE.md) - repo-specific operating guide for future work
+- [PUBLIC_RELEASE_READINESS_RUBRIC.md](./PUBLIC_RELEASE_READINESS_RUBRIC.md) - go/no-go rubric for public release confidence
 - [ACTIVE_FACTION_ABILITIES.md](./ACTIVE_FACTION_ABILITIES.md) - active faction ability contract, balance notes, and validation policy
 - [MULTIPLAYER_PRIVATE_DEMO_REPLIT.md](./MULTIPLAYER_PRIVATE_DEMO_REPLIT.md) - private/demo multiplayer deployment contract and Replit backend requirements
 - [MULTIPLAYER_PUBLIC_AUTHORITATIVE.md](./MULTIPLAYER_PUBLIC_AUTHORITATIVE.md) - public server-authoritative multiplayer contract, Replit requirements, and rollout checks

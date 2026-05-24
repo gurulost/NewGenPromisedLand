@@ -89,6 +89,10 @@ npm run ai:sim           # Run AI strategy simulator
 
 ## Development Patterns
 
+### Operating Guidance
+
+For substantial Covenant Legends work, read `docs/COVENANT_LEGENDS_OPERATING_GUIDE.md` before editing and classify the touched surface: rules, UI/input, multiplayer/authority, map generation, assets/metadata, AI, deployment/runtime, or docs. For public-launch or "can this go public?" questions, use `docs/PUBLIC_RELEASE_READINESS_RUBRIC.md` and require live deployed evidence, not just local tests.
+
 ### Game Logic Separation
 
 All game rules live in `/shared/` as pure functions. Use `resolveAction.ts` as the canonical entry point for state transitions. Never put game logic directly in React components.
