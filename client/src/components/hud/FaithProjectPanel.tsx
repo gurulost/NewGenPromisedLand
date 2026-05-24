@@ -72,6 +72,8 @@ export function FaithProjectPanel({
   const contestedHolyCities = activeFaithProject
     ? getHolyCityContestState(gameState, player.id, activeFaithProject.holyCityIds).contestedCityIds.length
     : 0;
+  const startCostText = `Start: ${faithVictory.startFaithCost} Faith + ${faithVictory.startStarsCost} Stars.`;
+  const upkeepText = `Sustain ${faithVictory.progressToWin} turn ends: ${faithVictory.faithCostPerProgress} Faith + ${faithVictory.starsCostPerProgress} Stars each progress tick.`;
 
   if (!faithVictory.enabled) return null;
 
@@ -90,6 +92,9 @@ export function FaithProjectPanel({
               .map(cityId => gameState.cities.find(city => city.id === cityId)?.name ?? cityId)
               .join(', ')}
           </div>
+          <div className="text-sky-100/75">
+            Next upkeep: pay {faithVictory.faithCostPerProgress} Faith and {faithVictory.starsCostPerProgress} Stars at your turn end.
+          </div>
           {contestedHolyCities > 0 && (
             <div className="flex items-center gap-1 text-red-200">
               <AlertTriangle className="h-3.5 w-3.5" />
@@ -105,8 +110,10 @@ export function FaithProjectPanel({
         </div>
       ) : (
         <div className="mt-2 space-y-2">
-          <div className="leading-relaxed text-sky-100/75">
-            Choose 3 owned Temple cities, including at least one Cathedral city. Starting costs {faithVictory.startFaithCost} Faith and {faithVictory.startStarsCost} Stars.
+          <div className="space-y-1 leading-relaxed text-sky-100/75">
+            <div>Choose 3 owned Temple cities, including at least one Cathedral city.</div>
+            <div>{startCostText}</div>
+            <div>{upkeepText}</div>
           </div>
           <div className="grid gap-1.5">
             {holyCandidateCities.length === 0 ? (
@@ -148,7 +155,16 @@ export function FaithProjectPanel({
           </div>
 
           {faithStartValidation.reasons.length > 0 && (
-            <div className="text-amber-200/85">{faithStartValidation.reasons[0]}</div>
+            <div className="rounded-md border border-amber-300/20 bg-amber-500/10 px-2 py-1.5 text-amber-100/90">
+              <div className="mb-1 text-[10px] uppercase tracking-[0.16em] text-amber-100/70">
+                Requirements
+              </div>
+              <ul className="list-disc space-y-0.5 pl-4">
+                {faithStartValidation.reasons.map(reason => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </div>
           )}
 
           <button
