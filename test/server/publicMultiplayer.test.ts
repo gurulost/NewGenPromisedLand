@@ -13,7 +13,11 @@ vi.mock("../../server/storage", () => ({
   storage: storageMock,
 }));
 
-const { submitPublicAuthoritativeAction } = await import("../../server/publicMultiplayer");
+const {
+  getControlledPlayerIds,
+  projectLobbySnapshotForUser,
+  submitPublicAuthoritativeAction,
+} = await import("../../server/publicMultiplayer");
 
 function createSeats(): PlayerSeat[] {
   return [
@@ -78,6 +82,38 @@ function createLobby(overrides: Record<string, unknown> = {}): GameLobby {
     createdAt: new Date(),
     updatedAt: new Date(),
   };
+}
+
+function createNonContiguousSeats(): PlayerSeat[] {
+  return [
+    { ...createSeats()[0], id: 11, seatIndex: 0, userId: 1, playerName: "First" },
+    { ...createSeats()[1], id: 12, seatIndex: 2, userId: 2, playerName: "Second" },
+    { ...createSeats()[1], id: 13, seatIndex: 5, userId: 3, playerName: "Third" },
+  ];
+}
+
+function createNonContiguousLobby(): GameLobby {
+  const { gameState } = createInitialGameState({
+    playerSetup: [
+      { id: "player-1", name: "First", factionId: "NEPHITES", turnOrder: 0 },
+      { id: "player-2", name: "Second", factionId: "LAMANITES", turnOrder: 1 },
+      { id: "player-3", name: "Third", factionId: "MULEKITES", turnOrder: 2 },
+    ],
+    mapSize: "tiny",
+    seed: 54321,
+    gameId: "non-contiguous-authority-test",
+  });
+  gameState.currentPlayerIndex = 2;
+
+  return createLobby({
+    players: [
+      { playerId: "player-1", seatIndex: 0, userId: 1, factionId: "NEPHITES", isAI: false, turnOrder: 0, lastSeenAt: 10_000 },
+      { playerId: "player-2", seatIndex: 2, userId: 2, factionId: "LAMANITES", isAI: false, turnOrder: 1, lastSeenAt: 10_000 },
+      { playerId: "player-3", seatIndex: 5, userId: 3, factionId: "MULEKITES", isAI: false, turnOrder: 2, lastSeenAt: 10_000 },
+    ],
+    snapshot: gameState,
+    expectedActorId: "player-3",
+  });
 }
 
 describe("public authoritative multiplayer service", () => {
@@ -163,6 +199,51 @@ describe("public authoritative multiplayer service", () => {
         clientActionId: "wrong-user-1",
         baseActionVersion: 0,
         action: { type: "END_TURN", payload: { playerId: "player-1" } },
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.status).toBe(403);
+    expect(result.reason).toBe("actor_not_controlled");
+    expect(storageMock.updateLobbyIfUnchanged).not.toHaveBeenCalled();
+  });
+
+  it("binds non-contiguous seats to authenticated users without granting compact turn-order authority", async () => {
+    const lobby = createNonContiguousLobby();
+    const lobbyState = lobby.gameState as NonNullable<GameLobby["gameState"]>;
+    const seats = createNonContiguousSeats();
+
+    expect(getControlledPlayerIds(lobbyState, seats, 2)).toEqual(["player-2"]);
+    expect(getControlledPlayerIds(lobbyState, seats, 3)).toEqual(["player-3"]);
+    expect(projectLobbySnapshotForUser(lobbyState, seats, 2)?.projection.playerIds).toEqual(["player-2"]);
+
+    const legacyLobbyState = {
+      ...lobbyState,
+      players: lobbyState.players?.map((player) => {
+        if (player.playerId !== "player-2") return player;
+        const { userId: _legacyMissingUserId, ...legacyPlayer } = player;
+        return legacyPlayer;
+      }),
+    };
+    expect(getControlledPlayerIds(legacyLobbyState, seats, 2)).toEqual(["player-2"]);
+
+    const explicitlyUnownedLobbyState = {
+      ...legacyLobbyState,
+      players: legacyLobbyState.players?.map((player) =>
+        player.playerId === "player-2" ? { ...player, userId: null } : player,
+      ),
+    };
+    expect(getControlledPlayerIds(explicitlyUnownedLobbyState, seats, 2)).toEqual([]);
+
+    const result = await submitPublicAuthoritativeAction({
+      lobby,
+      seats,
+      userId: 2,
+      body: {
+        clientActionId: "non-contiguous-wrong-user",
+        baseActionVersion: 0,
+        action: { type: "END_TURN", payload: { playerId: "player-3" } },
       },
     });
 

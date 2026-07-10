@@ -89,8 +89,8 @@ export function getControlledPlayerIds(
   const playersMeta = Array.isArray(lobbyState.players) ? lobbyState.players : [];
   return playersMeta
     .filter((player) => {
-      if (player.userId === userId) return true;
-      return typeof player.turnOrder === "number" && seatIndexes.has(player.turnOrder);
+      if (player.userId !== undefined) return player.userId === userId;
+      return typeof player.seatIndex === "number" && seatIndexes.has(player.seatIndex);
     })
     .map((player) => player.playerId)
     .filter((playerId): playerId is string => typeof playerId === "string" && playerId.length > 0);

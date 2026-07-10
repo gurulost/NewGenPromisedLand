@@ -816,11 +816,19 @@ describe("multiplayer lobby routes", () => {
     const snapshot = createSnapshot();
     const hostUnit = snapshot.units.find((unit) => unit.playerId === "player-1");
     expect(hostUnit).toBeTruthy();
-    snapshot.players = snapshot.players.map((player) =>
-      player.id === "player-2"
-        ? { ...player, visibilityMask: [], exploredTiles: [] }
-        : player,
-    );
+    snapshot.players = snapshot.players.map((player) => {
+      if (player.id === "player-2") {
+        return { ...player, visibilityMask: [], exploredTiles: [] };
+      }
+      return {
+        ...player,
+        stars: 99,
+        stats: { faith: 88, pride: 77, internalDissent: 66 },
+        modifiers: [{ type: "secret-route-modifier" }],
+        researchedTechs: ["secret-route-technology"],
+        currentResearch: "secret-route-research",
+      };
+    });
     snapshot.map = {
       ...snapshot.map,
       tiles: snapshot.map.tiles.map((tile) => ({
@@ -840,6 +848,17 @@ describe("multiplayer lobby routes", () => {
     expect(response.body.authorityMode).toBe("public_authoritative");
     expect(response.body.state?.units.some((unit) => unit.playerId === "player-1")).toBe(false);
     expect(response.body.state?.units.some((unit) => unit.playerId === "player-2")).toBe(true);
+    expect(response.body.state?.map.tiles.every((tile) =>
+      tile.exploredBy.every((playerId) => playerId === "player-2"),
+    )).toBe(true);
+    const projectedOpponent = response.body.state?.players.find((player) => player.id === "player-1");
+    expect(projectedOpponent).toMatchObject({
+      stars: 0,
+      stats: { faith: 0, pride: 0, internalDissent: 0 },
+      modifiers: [],
+      researchedTechs: [],
+    });
+    expect(projectedOpponent).not.toHaveProperty("currentResearch");
   });
 
   it("redacts public-authoritative lobby action logs from lobby refresh responses", async () => {
