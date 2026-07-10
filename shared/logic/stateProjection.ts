@@ -41,11 +41,24 @@ function getProjectionSets(state: GameState, playerIds: string[]) {
 
 function projectTile(tile: Tile, visible: Set<string>, explored: Set<string>, controlled: Set<string>): Tile {
   const key = coordinateKey(tile.coordinate);
-  if (visible.has(key)) return tile;
+  if (visible.has(key)) {
+    return {
+      coordinate: tile.coordinate,
+      terrain: tile.terrain,
+      resources: tile.resources,
+      hasCity: tile.hasCity,
+      cityOwner: tile.cityOwner,
+      exploredBy: (tile.exploredBy ?? []).filter((playerId) => controlled.has(playerId)),
+      feature: tile.feature,
+      captureType: tile.captureType,
+      starBonus: tile.starBonus,
+    };
+  }
 
   if (explored.has(key)) {
     return {
-      ...tile,
+      coordinate: tile.coordinate,
+      terrain: tile.terrain,
       resources: [],
       // Current map memory keeps terrain, but hides gameplay objects outside active sight.
       hasCity: Boolean(tile.hasCity && tile.cityOwner && controlled.has(tile.cityOwner)),
@@ -53,6 +66,7 @@ function projectTile(tile: Tile, visible: Set<string>, explored: Set<string>, co
       feature: undefined,
       captureType: undefined,
       starBonus: undefined,
+      exploredBy: (tile.exploredBy ?? []).filter((playerId) => controlled.has(playerId)),
     };
   }
 
@@ -65,10 +79,9 @@ function projectTile(tile: Tile, visible: Set<string>, explored: Set<string>, co
   };
 }
 
-function isOwnedOrVisible(ownerId: string | undefined, coordinate: { q: number; r: number }, controlled: Set<string>, visible: Set<string>, explored?: Set<string>): boolean {
+function isOwnedOrVisible(ownerId: string | undefined, coordinate: { q: number; r: number }, controlled: Set<string>, visible: Set<string>): boolean {
   if (ownerId && controlled.has(ownerId)) return true;
-  const key = coordinateKey(coordinate);
-  return visible.has(key) || Boolean(explored?.has(key));
+  return visible.has(coordinateKey(coordinate));
 }
 
 function projectUnit(unit: Unit, controlled: Set<string>, visible: Set<string>): Unit | null {
@@ -76,12 +89,17 @@ function projectUnit(unit: Unit, controlled: Set<string>, visible: Set<string>):
   return visible.has(coordinateKey(unit.coordinate)) ? unit : null;
 }
 
-function projectCity(city: City, controlled: Set<string>, visible: Set<string>, explored: Set<string>): City | null {
+function projectCity(city: City, controlled: Set<string>, visible: Set<string>): City | null {
   if (city.ownerId && controlled.has(city.ownerId)) return city;
-  if (!isOwnedOrVisible(city.ownerId, city.coordinate, controlled, visible, explored)) return null;
+  if (!isOwnedOrVisible(city.ownerId, city.coordinate, controlled, visible)) return null;
   return {
-    ...city,
+    id: city.id,
+    name: city.name,
+    coordinate: city.coordinate,
+    ownerId: city.ownerId,
     population: 0,
+    maxPopulation: city.maxPopulation,
+    level: city.level,
     starProduction: 0,
     unrestTurns: 0,
     improvements: [],
@@ -91,34 +109,74 @@ function projectCity(city: City, controlled: Set<string>, visible: Set<string>, 
   };
 }
 
-function projectImprovement(improvement: Improvement, controlled: Set<string>, visible: Set<string>, explored: Set<string>): Improvement | null {
-  return isOwnedOrVisible(improvement.ownerId, improvement.coordinate, controlled, visible, explored)
-    ? improvement
-    : null;
+function projectImprovement(improvement: Improvement, controlled: Set<string>, visible: Set<string>): Improvement | null {
+  if (controlled.has(improvement.ownerId)) return improvement;
+  if (!visible.has(coordinateKey(improvement.coordinate))) return null;
+  return {
+    id: improvement.id,
+    type: improvement.type,
+    coordinate: improvement.coordinate,
+    ownerId: improvement.ownerId,
+    starProduction: improvement.starProduction,
+    cityId: improvement.cityId,
+    constructionTurns: improvement.constructionTurns,
+  };
 }
 
-function projectStructure(structure: Structure, cities: City[], controlled: Set<string>, visible: Set<string>, explored: Set<string>): Structure | null {
+function projectStructure(structure: Structure, cities: City[], controlled: Set<string>, visible: Set<string>): Structure | null {
   if (controlled.has(structure.ownerId)) return structure;
   const coordinate = structure.coordinate ?? cities.find((city) => city.id === structure.cityId)?.coordinate;
   if (!coordinate) return null;
-  return isOwnedOrVisible(structure.ownerId, coordinate, controlled, visible, explored)
-    ? structure
-    : null;
+  if (!visible.has(coordinateKey(coordinate))) return null;
+  return {
+    id: structure.id,
+    type: structure.type,
+    coordinate: structure.coordinate,
+    cityId: structure.cityId,
+    ownerId: structure.ownerId,
+    constructionTurns: structure.constructionTurns,
+    effects: {
+      starProduction: structure.effects.starProduction,
+      unitProduction: structure.effects.unitProduction,
+      defenseBonus: structure.effects.defenseBonus,
+      populationGrowth: structure.effects.populationGrowth,
+      faithProduction: structure.effects.faithProduction,
+    },
+  };
 }
 
 function projectPlayer(player: PlayerState, controlled: Set<string>): PlayerState {
   if (controlled.has(player.id)) return player;
   return {
-    ...player,
+    id: player.id,
+    name: player.name,
+    factionId: player.factionId,
+    isAI: player.isAI,
+    aiDifficulty: player.aiDifficulty,
     stars: 0,
+    stats: { faith: 0, pride: 0, internalDissent: 0 },
+    modifiers: [],
+    researchedTechs: [],
     currentResearch: undefined,
     researchProgress: 0,
     researchInspiration: undefined,
     abilityCooldowns: {},
+    citiesOwned: [],
     constructionQueue: [],
     visibilityMask: [],
     exploredTiles: [],
+    isEliminated: player.isEliminated,
+    turnOrder: player.turnOrder,
+    faithProject: null,
+    atWarWith: [],
+    alliedWith: [],
     tradeRoutes: [],
+    diplomaticCooldowns: {
+      declareWar: 0,
+      formAlliance: 0,
+      breakAlliance: 0,
+      requestTrade: 0,
+    },
   };
 }
 
@@ -167,25 +225,31 @@ export function projectGameStateForPlayers(
   });
 
   const projectedCities = (state.cities ?? [])
-    .map((city) => projectCity(city, controlled, visible, explored))
+    .map((city) => projectCity(city, controlled, visible))
     .filter((city): city is City => city !== null);
 
   const projected: ProjectedGameState = {
     ...state,
+    rngSeed: undefined,
     players: state.players.map((player) => projectPlayer(player, controlled)),
     map: {
       ...state.map,
       tiles,
     },
+    visibility: state.visibility
+      ? Object.fromEntries(
+          Object.entries(state.visibility).filter(([playerId]) => controlled.has(playerId)),
+        )
+      : undefined,
     units: state.units
       .map((unit) => projectUnit(unit, controlled, visible))
       .filter((unit): unit is Unit => unit !== null),
     cities: projectedCities,
     improvements: (state.improvements ?? [])
-      .map((improvement) => projectImprovement(improvement, controlled, visible, explored))
+      .map((improvement) => projectImprovement(improvement, controlled, visible))
       .filter((improvement): improvement is Improvement => improvement !== null),
     structures: (state.structures ?? [])
-      .map((structure) => projectStructure(structure, projectedCities, controlled, visible, explored))
+      .map((structure) => projectStructure(structure, state.cities ?? [], controlled, visible))
       .filter((structure): structure is Structure => structure !== null),
     activeEffects: (state.activeEffects ?? []).filter((effect) => controlled.has(effect.source.playerId) || controlled.has(effect.target.playerId)),
     lastAction: projectLastAction(state.lastAction, controlled),
