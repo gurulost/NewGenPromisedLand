@@ -11,6 +11,7 @@ import {
 } from "@shared/schema";
 
 export type LobbyRecord = GameLobby & { rowVersion?: string };
+export type OpenLobbyRecord = Pick<GameLobby, "id" | "code" | "name" | "maxPlayers" | "mapSize">;
 
 type LobbyRow = GameLobby & { rowVersion: string | null };
 
@@ -40,6 +41,14 @@ const lobbyFields = {
   rowVersion: sql<string>`xmin::text`,
 };
 
+const openLobbyFields = {
+  id: gameLobbies.id,
+  code: gameLobbies.code,
+  name: gameLobbies.name,
+  maxPlayers: gameLobbies.maxPlayers,
+  mapSize: gameLobbies.mapSize,
+};
+
 function attachLobbyRowVersion(row: LobbyRow | undefined): LobbyRecord | undefined {
   if (!row) return undefined;
   const { rowVersion, ...lobby } = row;
@@ -65,7 +74,7 @@ export interface IStorage {
   createLobby(lobby: InsertGameLobby): Promise<LobbyRecord>;
   getLobbyByCode(code: string): Promise<LobbyRecord | undefined>;
   getLobbyById(id: number): Promise<LobbyRecord | undefined>;
-  getOpenLobbies(): Promise<LobbyRecord[]>;
+  getOpenLobbySummaries(): Promise<OpenLobbyRecord[]>;
   updateLobby(id: number, lobby: Partial<InsertGameLobby>): Promise<LobbyRecord | undefined>;
   touchLobby(id: number): Promise<LobbyRecord | undefined>;
   updateLobbyIfUnchanged(
@@ -174,11 +183,10 @@ export class DatabaseStorage implements IStorage {
     return attachLobbyRowVersion(lobby);
   }
 
-  async getOpenLobbies(): Promise<LobbyRecord[]> {
-    const lobbies = await db.select(lobbyFields).from(gameLobbies)
+  async getOpenLobbySummaries(): Promise<OpenLobbyRecord[]> {
+    return db.select(openLobbyFields).from(gameLobbies)
       .where(eq(gameLobbies.status, "waiting"))
       .orderBy(desc(gameLobbies.createdAt));
-    return lobbies.map((lobby) => attachLobbyRowVersion(lobby)!);
   }
 
   async updateLobby(id: number, lobby: Partial<InsertGameLobby>): Promise<LobbyRecord | undefined> {

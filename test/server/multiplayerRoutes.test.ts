@@ -81,7 +81,7 @@ const routeMocks = vi.hoisted(() => {
     createLobby: vi.fn(),
     getUser: vi.fn(),
     getLobbyById: vi.fn(),
-    getOpenLobbies: vi.fn(async () => []),
+    getOpenLobbySummaries: vi.fn(async () => []),
     updateLobby: vi.fn(),
     touchLobby: vi.fn(),
     deleteLobby: vi.fn(),
@@ -386,6 +386,37 @@ describe("multiplayer lobby routes", () => {
         process.env.DISABLE_SAVE_API = previousDisableSaveApi;
       }
     }
+  });
+
+  it("returns only public lobby discovery fields", async () => {
+    configureWaitingLobby();
+    const lobby = currentLobby();
+    lobby.gameState = {
+      chat: {
+        messages: [{ senderId: "player-1", text: "participant-only", voiceUrl: "https://private.example/voice" }],
+      },
+    };
+    routeMocks.storage.getOpenLobbySummaries.mockResolvedValueOnce([lobby]);
+
+    const response = await fetch(`${testServer.baseUrl}/api/lobbies`);
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as Array<Record<string, unknown>>;
+    expect(body).toEqual([{
+      id: 10,
+      code: "ROOMA",
+      name: "Test Room",
+      maxPlayers: 2,
+      mapSize: "tiny",
+      claimedSeats: 2,
+      totalSeats: 2,
+    }]);
+    expect(body[0]).not.toHaveProperty("gameState");
+    expect(body[0]).not.toHaveProperty("hostUserId");
+    expect(body[0]).not.toHaveProperty("status");
+    expect(body[0]).not.toHaveProperty("createdAt");
+    expect(body[0]).not.toHaveProperty("updatedAt");
+    expect(body[0]).not.toHaveProperty("seats");
   });
 
   it("creates and persists a canonical initial snapshot when the host starts a lobby", async () => {

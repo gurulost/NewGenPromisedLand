@@ -896,13 +896,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // List open lobbies
   app.get("/api/lobbies", async (req, res) => {
     try {
-      const lobbies = await storage.getOpenLobbies();
+      const lobbies = await storage.getOpenLobbySummaries();
       // Include seat counts
       const lobbiesWithSeats = await Promise.all(
         lobbies.map(async (lobby) => {
           const seats = await storage.getSeatsByLobbyId(lobby.id);
           const claimedSeats = seats.filter(s => s.userId !== null || s.isAI).length;
-          return { ...lobby, claimedSeats, totalSeats: seats.length };
+          return {
+            id: lobby.id,
+            code: lobby.code,
+            name: lobby.name,
+            maxPlayers: lobby.maxPlayers,
+            mapSize: lobby.mapSize,
+            claimedSeats,
+            totalSeats: seats.length,
+          };
         })
       );
       res.json(lobbiesWithSeats);

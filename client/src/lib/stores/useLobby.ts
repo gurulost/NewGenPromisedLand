@@ -13,6 +13,16 @@ interface Lobby {
   createdAt: string;
 }
 
+interface LobbySummary {
+  id: number;
+  name: string;
+  code: string;
+  maxPlayers: number;
+  mapSize: string;
+  claimedSeats: number;
+  totalSeats: number;
+}
+
 interface Seat {
   id: number;
   lobbyId: number;
@@ -30,7 +40,7 @@ interface LobbyWithSeats extends Lobby {
 }
 
 interface LobbyStore {
-  lobbies: Lobby[];
+  lobbies: LobbySummary[];
   currentLobby: LobbyWithSeats | null;
   loading: boolean;
   error: string | null;
@@ -74,6 +84,20 @@ const getLobbyResponseError = async (res: Response, fallback: string): Promise<s
   return normalizeLobbyErrorMessage(`${fallback} (${res.status})`);
 };
 
+const isLobbySummary = (value: unknown): value is LobbySummary => {
+  if (!value || typeof value !== "object") return false;
+  const lobby = value as Record<string, unknown>;
+  return (
+    typeof lobby.id === "number" &&
+    typeof lobby.name === "string" &&
+    typeof lobby.code === "string" &&
+    typeof lobby.maxPlayers === "number" &&
+    typeof lobby.mapSize === "string" &&
+    typeof lobby.claimedSeats === "number" &&
+    typeof lobby.totalSeats === "number"
+  );
+};
+
 export const useLobby = create<LobbyStore>((set, get) => ({
   lobbies: [],
   currentLobby: null,
@@ -87,6 +111,10 @@ export const useLobby = create<LobbyStore>((set, get) => ({
       const res = await fetch("/api/lobbies", { headers: multiplayerVersionHeaders(), credentials: "include" });
       if (res.ok) {
         const lobbies = await res.json();
+        if (!Array.isArray(lobbies) || !lobbies.every(isLobbySummary)) {
+          set({ error: "Received an invalid lobby list.", loading: false });
+          return;
+        }
         set({ lobbies, loading: false, error: null });
       } else {
         set({ error: await getLobbyResponseError(res, "Failed to fetch lobbies"), loading: false });
